@@ -1,0 +1,11 @@
+tests/
+docs/
+archives/
+tmp/
+output/
+metodologia/
+scripts/
+backend/
+supabase/
+*.zip
+*.md
