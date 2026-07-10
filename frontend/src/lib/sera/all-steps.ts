@@ -426,6 +426,24 @@ function evidenceOfPilotResponseToTechnicalFailure(text: string): boolean {
 }
 
 function evidenceOfKnowledgeDeficit(text: string): boolean {
+  // Guarda: se o relato menciona experiência extensa do operador (milhares de horas, décadas),
+  // não há déficit de conhecimento — a falha é de decisão/ação, não de saber operar.
+  const hasExtensiveExperience = containsAny(text, [
+    'horas de voo',
+    'horas como comandante',
+    'anos como piloto',
+    'tempo como piloto',
+    'tempo como comandante',
+    'experiencia como piloto',
+    'experiência como piloto',
+    'piloto experiente',
+    'comandante experiente',
+    'alta experiencia',
+    'alta experiência',
+  ])
+
+  if (hasExtensiveExperience) return false
+
   return containsAny(text, evidenceTerms(actionRules['A-E'], [
     'nao havia recebido treinamento',
     'sem treinamento',
@@ -1870,7 +1888,7 @@ function logMethodology(
 
 export async function runStep1(relato: string): Promise<Step1Result> {
   const system = `CRITICAL RULES:
-- Responda SEMPRE em português do Brasil.
+- Você DEVE responder em português do Brasil. TODOS os valores dos campos DEVEM estar em português. NUNCA use inglês.
 - Return ONLY valid JSON. No text, markdown, or explanation outside the JSON.
 - NEVER invent data. If a field is not present in the report, return null for that field.
 - NEVER reproduce the original report verbatim. Write a new narrative.
@@ -1878,7 +1896,7 @@ export async function runStep1(relato: string): Promise<Step1Result> {
 
 OUTPUT FORMAT (strict):
 {
-  "summary": "string: narrativa objetiva 60-80 palavras",
+  "summary": "string: narrativa objetiva 60-80 palavras EM PORTUGUÊS",
   "event_date": "string or null",
   "event_location": "string or null",
   "operation_type": "string or null",
@@ -1895,7 +1913,8 @@ REGRAS OBRIGATÓRIAS:
 1. NÃO reproduza trechos literais do relato — sintetize com suas próprias palavras
 2. O campo "summary" deve incluir: tipo de aeronave, fase do voo, condições meteorológicas, local aproximado, envolvidos e o que aconteceu
 3. Para campos estruturados: extrai APENAS o que está explícito no relato — null se não mencionado
-4. summary: mínimo 60, máximo 80 palavras, linguagem objetiva e técnica`
+4. summary: mínimo 60, máximo 80 palavras, linguagem objetiva e técnica
+5. O summary DEVE estar em português do Brasil, não em inglês.`
 
   let lastError: Error | null = null
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -2233,8 +2252,15 @@ Responda APENAS com JSON: {"resposta": "Sim/Não", "justificativa": "..."}`,
     `Ato inseguro factual: ${ato}
 Relato: ${relato}
 
-O operador tinha capacidade sensorial física para receber o estímulo relevante?
-Considere apenas visão, audição, tato ou barreira física/ambiental que impediu a recepção do sinal.
+O operador tinha capacidade sensorial FÍSICA para receber o estímulo relevante?
+
+IMPORTANTE: Esta pergunta é sobre CAPACIDADE FÍSICA dos sentidos (visão, audição, tato), NÃO sobre se o operador efetivamente prestou atenção ou percebeu o risco naquele momento.
+
+Responda SIM se o operador NÃO tinha nenhuma barreira física/ambiental (cego, surdo, ruído extremo, escuridão total, luvas que impedem tato, cabine escura, reflexo que cega).
+
+Responda NÃO apenas se houver evidência textual de BARREIRA FÍSICA que impediu a recepção sensorial do estímulo (ex: não ouviu por ruído, não viu por escuridão, não sentiu por falta de feedback tátil do equipamento).
+
+ATENÇÃO: "Tirou a mão do manete" NÃO é falha sensorial — é decisão/ação. "Não percebeu o risco" NÃO é falha sensorial — é falha de atenção/julgamento.
 
 Responda APENAS com JSON: {"resposta": "Sim/Não", "justificativa": "..."}`,
     ['P-B'],
