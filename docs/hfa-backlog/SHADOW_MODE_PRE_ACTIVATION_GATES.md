@@ -1,0 +1,75 @@
+# Shadow Mode — Gates Pré-Ativação
+
+**Status**: `SHADOW_FLAGS_OFF` — shadow mode permanece inativo
+**Criado em**: 2026-09-10
+**Restrição ativa**: nunca ativar sem decisão formal
+
+---
+
+## Estado atual
+
+Todos os flags de shadow mode estão OFF:
+
+| Flag | Valor |
+|------|-------|
+| `SERA_SHADOW_EXECUTION_ENABLED` | `false` |
+| `SERA_SHADOW_PERSISTENCE_ENABLED` | `false` |
+| `SERA_SHADOW_ADMIN_VIEW_ENABLED` | `false` |
+| `SERA_SHADOW_AUTO_COMPARISON_ENABLED` | `false` |
+| `SERA_SHADOW_VALIDATION_REPORTS_ENABLED` | `false` |
+
+Verificado pelo teste `shadow-mode-trial-001.ts` (suite HFA).
+
+## Arquitetura shadow mode
+
+Descrita em: `docs/auditoria-hfa/terceira-etapa/05-arquitetura-shadow-mode.md`
+
+O shadow mode executa o motor vNext em paralelo ao legado, persiste os resultados em tabela
+separada (`sera_shadow_results`), e permite comparação sem afetar o output ao usuário.
+
+## Gates obrigatórios antes de ativar qualquer flag
+
+### Gate 1 — Isolamento de tenant
+- [ ] `tenant-isolation-contract-trial-001.ts` passando (✅ já passa)
+- [ ] `get_tenant_id()` JWT claim validado em dev/staging (ver JWT_RLS_TECHNICAL_FINDINGS.md)
+- [ ] Fixture de tenant isolada criada e validada
+
+### Gate 2 — Integridade do motor vNext
+- [ ] Todos 159 casos determinísticos passando no CI (✅ já passa)
+- [ ] Naturalistic gate `NOT_READY` → precisa chegar a `VALIDATION_PASS` primeiro
+
+### Gate 3 — Observabilidade
+- [ ] Logs estruturados de execução do shadow configurados
+- [ ] Métricas de concordância legado×vNext definidas e implementadas
+- [ ] Alertas de divergência configurados
+- [ ] Dashboard de comparação de resultados
+
+### Gate 4 — Rollback
+- [ ] Procedimento de rollback documentado e testado
+- [ ] Tempo máximo de rollback: < 5 minutos
+- [ ] Flag de desativação emergencial testado
+
+### Gate 5 — Aprovação formal
+- [ ] Todos os gates anteriores passando
+- [ ] Revisão metodológica do autor
+- [ ] Autorização explícita por escrito
+
+## Quando Gate 5 estiver aprovado
+
+Ativar somente `SERA_SHADOW_EXECUTION_ENABLED=true` inicialmente.
+Verificar persitência e comparação por período mínimo (TBD).
+Só então ativar os demais flags progressivamente.
+
+## O que NÃO fazer
+
+- Não ativar shadow mode parcialmente sem completar todos os gates
+- Não ativar em produção antes de validação em staging
+- Não usar shadow results para decisões de produto antes de validação naturalística
+- Não persistir shadow results de usuários reais sem consentimento/LGPD
+
+## Próximos passos (técnicos, sem bloquear outras frentes)
+
+1. Implementar observabilidade: métricas de concordância
+2. Definir dashboard de comparação legado×vNext
+3. Documentar procedimento de rollback
+4. Testar flag de desativação em dev
