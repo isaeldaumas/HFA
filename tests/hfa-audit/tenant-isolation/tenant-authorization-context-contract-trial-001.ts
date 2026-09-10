@@ -86,16 +86,46 @@ check(
   'api-auth.ts: tenantId sourced from ctx (resolver output)'
 )
 
-// Legacy email match is flagged
+// Legacy email match is flagged via identityBinding
 check(
-  resolver.includes('isLegacyEmailMatch'),
-  'resolver: flags legacy email match for audit'
+  resolver.includes('identityBinding') && resolver.includes('LEGACY_CONFIRMED_EMAIL'),
+  'resolver: flags legacy email match via identityBinding'
+)
+
+// Resolver requires emailConfirmedAt for legacy email path
+check(
+  resolver.includes('emailConfirmedAt'),
+  'resolver: requires emailConfirmedAt for legacy email binding'
+)
+
+// Resolver uses AuthenticatedIdentity input type
+check(
+  resolver.includes('AuthenticatedIdentity'),
+  'resolver: uses explicit AuthenticatedIdentity input type'
+)
+
+// Resolver verifies tenant is_active
+check(
+  resolver.includes("from('tenants')") && resolver.includes('is_active'),
+  'resolver: verifies tenant is_active via assertTenantActive'
 )
 
 // Ambiguous email match fails closed
 check(
   resolver.includes('rows.length > 1') && resolver.includes('Associação de conta ambígua'),
   'resolver: fails closed on ambiguous email match'
+)
+
+// api-auth.ts exports both authUserId and publicUserId in ApiUserContext
+check(
+  apiAuth.includes('authUserId') && apiAuth.includes('publicUserId'),
+  'api-auth.ts: ApiUserContext exposes both authUserId and publicUserId'
+)
+
+// api-auth.ts passes emailConfirmedAt to resolver
+check(
+  apiAuth.includes('emailConfirmedAt'),
+  'api-auth.ts: passes emailConfirmedAt to resolver'
 )
 
 if (failures > 0) {

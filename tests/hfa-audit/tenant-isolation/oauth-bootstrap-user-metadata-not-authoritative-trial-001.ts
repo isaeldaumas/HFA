@@ -49,10 +49,10 @@ check(
   'bootstrap: no currentTenant derived from user_metadata'
 )
 
-// Must resolve user from public.users by id
+// Must use the shared authoritative resolver (not duplicate logic)
 check(
-  source.includes(".eq('id', user.id)"),
-  'bootstrap: resolves user from public.users by auth id'
+  source.includes('resolveAuthorizedUserContext'),
+  'bootstrap: uses shared resolveAuthorizedUserContext for existing users'
 )
 
 // Must not return early based solely on metadata tenant existence
@@ -77,10 +77,10 @@ check(
   'bootstrap: inserts into public.users for new registrations'
 )
 
-// Must still resolve by email for legacy compat (acceptable)
+// Legacy email resolution is handled by the shared resolver (not duplicated in bootstrap)
 check(
-  source.includes("eq('email', email)"),
-  'bootstrap: legacy email resolution path present'
+  source.includes('resolveAuthorizedUserContext'),
+  'bootstrap: legacy email resolution delegated to shared resolver'
 )
 
 if (failures > 0) {

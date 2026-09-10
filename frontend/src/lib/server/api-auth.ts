@@ -1,13 +1,35 @@
 import { createClient } from '@supabase/supabase-js'
-import { resolveAuthorizedUserContext } from './authorized-user-context'
+import { resolveAuthorizedUserContext, type IdentityBinding } from './authorized-user-context'
 
 export type ApiUserContext = {
-  /** authUserId: use for Supabase Auth Admin API (updateUserById etc.) */
+  /**
+   * UUID from auth.users.
+   * Use for: Supabase Auth Admin API (updateUserById, deleteUser etc.)
+   * Do NOT use for: public.users FK lookups (submitted_by, actor_id, created_by etc.)
+   */
+  authUserId: string
+
+  /**
+   * UUID from public.users.
+   * Use for: all FK references into public.users (submitted_by, actor_id, created_by etc.)
+   * Do NOT use for: Supabase Auth Admin API calls.
+   */
+  publicUserId: string
+
+  /**
+   * @deprecated Use authUserId for Auth API, publicUserId for public.users FK.
+   * Kept for compatibility with existing callers; always equals authUserId.
+   * New code must not use this field.
+   */
   userId: string
+
   email: string | undefined
   tenantId: string
   role: string
   accessToken: string
+
+  /** How the public.users row was bound to the auth identity */
+  identityBinding: IdentityBinding
 }
 
 export async function requireBearerUser(req: Request): Promise<ApiUserContext> {
@@ -31,7 +53,7 @@ export async function requireBearerUser(req: Request): Promise<ApiUserContext> {
     })
   }
 
-  // Step 1: validate bearer token
+  // Step 1: validate bearer token via anon client
   const supabase = createClient(url, anon)
   const {
     data: { user },
@@ -45,7 +67,7 @@ export async function requireBearerUser(req: Request): Promise<ApiUserContext> {
     })
   }
 
-  // Step 2: resolve tenant/role authoritatively from public.users via service-role
+  // Step 2: resolve tenant/role authoritatively from public.users via service-role.
   // Never use user_metadata or app_metadata as source of tenant/role authorization.
   if (!serviceKey) {
     throw new Response(JSON.stringify({ detail: 'Configuração de servidor ausente' }), {
@@ -55,7 +77,11 @@ export async function requireBearerUser(req: Request): Promise<ApiUserContext> {
   }
 
   const admin = createClient(url, serviceKey)
-  const result = await resolveAuthorizedUserContext(admin, user.id, user.email ?? undefined)
+  const result = await resolveAuthorizedUserContext(admin, {
+    authUserId: user.id,
+    email: user.email ?? undefined,
+    emailConfirmedAt: user.email_confirmed_at ?? null,
+  })
 
   if (!result.ok) {
     throw new Response(JSON.stringify({ detail: result.detail }), {
@@ -67,10 +93,13 @@ export async function requireBearerUser(req: Request): Promise<ApiUserContext> {
   const ctx = result.context
 
   return {
-    userId: ctx.authUserId,
+    authUserId: ctx.authUserId,
+    publicUserId: ctx.publicUserId,
+    userId: ctx.authUserId, // deprecated: always equals authUserId
     email: ctx.email,
     tenantId: ctx.tenantId,
     role: ctx.role,
     accessToken: token,
+    identityBinding: ctx.identityBinding,
   }
 }
