@@ -173,38 +173,8 @@ export async function POST(req: Request) {
     }
     userId = user.id
 
-    const currentTenant = user.user_metadata?.tenant_id as string | undefined
-    if (currentTenant) {
-      tenantId = currentTenant
-      const tenantCheck = await admin.from('tenants').select('id').eq('id', currentTenant).maybeSingle()
-      if (tenantCheck.error) {
-        return buildFailureResponse({
-          requestId,
-          stage: 'validate_existing_tenant',
-          category: classifySupabaseError(tenantCheck.error),
-          reason: tenantCheck.error,
-          status: 503,
-          userId,
-          tenantId,
-        })
-      }
-      if (!tenantCheck.data?.id) {
-        return buildFailureResponse({
-          requestId,
-          stage: 'validate_existing_tenant',
-          category: 'inconsistent_tenant',
-          reason: 'metadata_tenant_not_found',
-          status: 409,
-          userId,
-          tenantId,
-        })
-      }
-      return NextResponse.json(
-        { ok: true, tenant_id: currentTenant, created: false, request_id: requestId },
-        { headers: { 'x-request-id': requestId } }
-      )
-    }
-
+    // user_metadata is NOT used as a source of tenant authorization.
+    // Membership must be resolved from public.users (persistent, server-controlled).
     const email = (user.email || `${user.id}@oauth.placeholder`).trim()
     const local = email.split('@')[0] || 'user'
 
@@ -366,9 +336,10 @@ export async function POST(req: Request) {
       })
     }
 
+    // Write to app_metadata (server-controlled) instead of user_metadata (user-controlled).
+    // This is descriptive/cache only — authorization is ALWAYS resolved from public.users.
     const metaRes = await admin.auth.admin.updateUserById(user.id, {
-      user_metadata: {
-        ...(user.user_metadata ?? {}),
+      app_metadata: {
         tenant_id: tenantId,
         role,
       },
@@ -376,7 +347,7 @@ export async function POST(req: Request) {
     if (metaRes.error) {
       return buildFailureResponse({
         requestId,
-        stage: 'update_user_metadata',
+        stage: 'update_app_metadata',
         category: classifySupabaseError(metaRes.error),
         reason: metaRes.error,
         status: 503,
