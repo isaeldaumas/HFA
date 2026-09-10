@@ -12,7 +12,7 @@ export {};
  * Run: npx tsx tests/sera-vnext/product-unification/provenance-rls-real-trial-001.ts
  */
 
-import { assertSafeTestEnvironment } from '../../../helpers/assert-safe-test-environment'
+import { assertSafeTestEnvironment } from '../helpers/assert-safe-test-environment'
 import * as fs from 'fs';
 import { createRequire } from 'module';
 import * as path from 'path';
