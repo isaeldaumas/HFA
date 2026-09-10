@@ -62,9 +62,37 @@ Documento de proveniência:
 
 | Workflow | Trigger | Estado |
 |---------|---------|--------|
-| HFA Core CI | PR/push main | Em configuração |
-| SERA vNext Deterministic Regression | PR/push main | Em configuração |
+| HFA Core CI | PR/push main | `ACTIVE` — GREEN |
+| SERA vNext Deterministic Regression | PR/push main | `ACTIVE` — GREEN |
 | HFA Integrated Regression | workflow_dispatch (manual) | `INTEGRATED_REGRESSION_WORKFLOW_READY_ENVIRONMENT_NOT_CONFIGURED` |
+
+#### Cobertura determinística
+
+| Métrica | Valor |
+|--------|-------|
+| Casos no manifesto | 205 |
+| Casos determinísticos selecionados | 161 |
+| CI exclusions aplicadas | 2 |
+| Executados | 159 |
+| Passou | 159 |
+| Falhou | 0 |
+| Overall | `CI_PASS` |
+
+**Exclusões restantes (requerem decisão autoral):**
+- `typecheck-closure-runtime-gate-a4r217max-trial-001.ts` — depende de artefatos `tmp/` fora do Git (`REAL_LOCAL_ARTIFACT_DEPENDENCY`)
+- `product-unification/risk-profile-real-trial-001.ts` — requer Supabase real (`REAL_DB_DEPENDENCY`)
+
+#### Proteção do main
+
+| Proteção | Estado |
+|---------|--------|
+| Ruleset `22717973` | ACTIVE |
+| Deletion protection | ON |
+| Non-fast-forward blocked | ON |
+| PR obrigatório | ON |
+| Review thread resolution | ON |
+| `HFA Core CI` required | ON |
+| `SERA vNext Deterministic Regression` required | ON |
 
 ### Branches preservadas
 
