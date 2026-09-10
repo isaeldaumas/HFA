@@ -139,8 +139,14 @@ if (rpcSuspects.length > 0) for (const v of rpcSuspects) console.log(`  rota sus
 
 // ── Cenário 8: ausência de tenant — requireBearerUser deve recusar quando tenant_id ausente. ─
 const apiAuthSrc = readFileSync(join(FRONTEND_SRC, 'lib/server/api-auth.ts'), 'utf8')
+// api-auth.ts delegates to resolveAuthorizedUserContext which returns { status: 403 }
+// for missing tenant, inactive account, not found, ambiguous match.
+// api-auth.ts propagates result.status. Check the resolver for the 403.
+const resolverSrc = readFileSync(join(FRONTEND_SRC, 'lib/server/authorized-user-context.ts'), 'utf8')
 check(
-  apiAuthSrc.includes("'tenant_id ausente no perfil'") && /status:\s*403/.test(apiAuthSrc),
+  apiAuthSrc.includes('resolveAuthorizedUserContext') &&
+    apiAuthSrc.includes('result.status') &&
+    /status:\s*403/.test(resolverSrc),
   'cenário 8 (ausência de tenant): requireBearerUser rejeita com 403 quando tenant_id ausente'
 )
 

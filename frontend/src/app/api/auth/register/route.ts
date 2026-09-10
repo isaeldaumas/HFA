@@ -94,12 +94,15 @@ export async function POST(req: Request) {
 
     const tenantId = String(tenantData.id)
 
-    // Cria o usuário no Auth (admin, sem rate limit nem email confirmation)
+    // Cria o usuário no Auth (admin, sem rate limit nem email confirmation).
+    // tenant_id e role NÃO são colocados em user_metadata (user-controlled).
+    // Autorização é resolvida exclusivamente por public.users (service-role query).
+    // app_metadata é registrado como referência descritiva apenas — não é fonte autoritativa.
     const { data: newUser, error: createErr } = await admin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { tenant_id: tenantId, role: 'admin' },
+      app_metadata: { tenant_id: tenantId, role: 'admin' },
     })
 
     if (createErr || !newUser?.user?.id) {
