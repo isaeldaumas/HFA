@@ -1534,7 +1534,22 @@ export default function RiskProfilePage() {
       const t = session.access_token
       if (!cancelled) {
         setToken(t)
-        setCanManageProfile(String(session.user.user_metadata?.role ?? '').toLowerCase() === 'admin')
+      }
+      try {
+        const meRes = await fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${t}` },
+        })
+        if (!cancelled) {
+          if (meRes.ok) {
+            const me = await meRes.json()
+            setCanManageProfile(Boolean(me.is_admin) || String(me.role ?? '').toLowerCase() === 'admin')
+          } else {
+            setCanManageProfile(false)
+          }
+        }
+      } catch (error) {
+        console.error('Falha ao carregar /api/auth/me para permissões de UI', error)
+        if (!cancelled) setCanManageProfile(false)
       }
       try {
         const res = await fetch('/api/risk-profile', {

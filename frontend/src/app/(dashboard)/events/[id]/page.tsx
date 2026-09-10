@@ -350,7 +350,20 @@ export default function EventDetailPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
       setToken(session.access_token)
-      setCanManageDelete(String(session.user.user_metadata?.role ?? '').toLowerCase() === 'admin')
+      try {
+        const meRes = await fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (meRes.ok) {
+          const me = await meRes.json()
+          setCanManageDelete(Boolean(me.is_admin) || String(me.role ?? '').toLowerCase() === 'admin')
+        } else {
+          setCanManageDelete(false)
+        }
+      } catch (error) {
+        console.error('Falha ao carregar /api/auth/me para permissões de UI', error)
+        setCanManageDelete(false)
+      }
       const scope = searchParams?.get('scope') === 'deleted' ? 'deleted' : 'active'
       const data = await apiCall(`/events/${id}?scope=${scope}`, {}, session.access_token) as EventPayload
       setEvent(data)
