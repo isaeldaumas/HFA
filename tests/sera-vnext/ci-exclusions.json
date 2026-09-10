@@ -1,0 +1,19 @@
+{
+  "_comment": "Exclusões do CI determinístico. NÃO modifica o manifesto metodológico. Cada exclusão exige justificativa técnica documentada. Remover somente quando a dependência ambiental for resolvida ou o manifesto for corrigido por decisão autoral.",
+  "exclusions": [
+    {
+      "path": "tests/sera-vnext/typecheck-closure-runtime-gate-a4r217max-trial-001.ts",
+      "reason": "MANIFEST_INCONSISTENCY: marcado como STATIC/requiredEnvironment=[] mas depende de tmp/a4r217max-validation/01-typecheck-initial.log e tmp/a4r217max-validation/03-typecheck-after-batch2.log — artefatos gerados externamente fora do repositório Git, nunca rastreados no índice. O teste verifica existência de arquivos locais de diagnóstico TypeScript gerados por sessão manual. Dependência real: artefatos de sessão local em tmp/. Issue: requer decisão autoral para corrigir manifesto ou tornar os logs parte do repositório.",
+      "classifiedAs": "REAL_LOCAL_ARTIFACT_DEPENDENCY",
+      "addedAt": "2026-09-10",
+      "resolvedBy": "HUMAN_AUTHORIAL_DECISION_REQUIRED"
+    },
+    {
+      "path": "tests/sera-vnext/product-unification/risk-profile-real-trial-001.ts",
+      "reason": "MANIFEST_INCONSISTENCY: marcado como CONTRACT/requiredEnvironment=[] mas faz chamadas reais ao Supabase via createClient com NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY. Comentário no próprio arquivo indica '// Requer: frontend/.env.local com SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY'. TypeError: fetch failed confirma ausência de Supabase real. Dependência real: REAL_DB (Supabase). Issue: requer decisão autoral para corrigir manifesto adicionando requiredEnvironment=[\"SUPABASE_REAL\"] ou similar.",
+      "classifiedAs": "REAL_DB_DEPENDENCY",
+      "addedAt": "2026-09-10",
+      "resolvedBy": "HUMAN_AUTHORIAL_DECISION_REQUIRED"
+    }
+  ]
+}

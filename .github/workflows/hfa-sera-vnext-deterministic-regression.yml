@@ -1,0 +1,56 @@
+name: SERA vNext Deterministic Regression
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sera-vnext-deterministic-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deterministic-regression:
+    name: SERA vNext Deterministic Regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      # Variáveis CI: placeholders apenas (nenhuma conexão real)
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
+      NEXTAUTH_SECRET: ci-placeholder
+      NEXTAUTH_URL: http://localhost:3000
+      # Todos os flags SERA vNext desligados em CI
+      SERA_VNEXT_READONLY_ENABLED: "false"
+      SERA_VNEXT_INTERNAL_PILOT_ENABLED: "false"
+      NEXT_PUBLIC_SERA_VNEXT_DIAGNOSTICS_ENABLED: "false"
+      SERA_SHADOW_EXECUTION_ENABLED: "false"
+      SERA_SHADOW_PERSISTENCE_ENABLED: "false"
+      SERA_SHADOW_ADMIN_VIEW_ENABLED: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: SERA vNext Deterministic Regression
+        run: ./frontend/node_modules/.bin/tsx scripts/run-sera-vnext-ci-regression.ts
