@@ -49,8 +49,14 @@ async function main() {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  const TEST_TENANT_ID = '3a68c15d-5a10-467c-ad67-e6ad0083376c'
-  const TEST_USER_ID = '977a8b7a-531f-40e2-8e18-4d145ae5c7d1'
+  // Require explicit fixture IDs — hardcoded UUIDs replaced with env vars.
+  // Set HFA_TEST_TENANT_A_ID and HFA_TEST_USER_A_ID before running.
+  const TEST_TENANT_ID = process.env.HFA_TEST_TENANT_A_ID?.trim() ?? ''
+  const TEST_USER_ID = process.env.HFA_TEST_USER_A_ID?.trim() ?? ''
+  if (!TEST_TENANT_ID || !TEST_USER_ID) {
+    console.log('ENVIRONMENT_NOT_CONFIGURED: HFA_TEST_TENANT_A_ID and HFA_TEST_USER_A_ID must be set. Skipping mutation tests.')
+    process.exit(0)
+  }
   const TEST_TITLE = '[PRODUCT_UNIFICATION_RUNTIME_TEST] provenance-db-real-trial-001'
   let createdAnalysisId: string | null = null
   let createdRevisionId: string | null = null

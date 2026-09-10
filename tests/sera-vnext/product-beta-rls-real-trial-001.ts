@@ -58,12 +58,13 @@ async function run() {
         detail: error ? error.message.slice(0, 60) : `rows=${Array.isArray(data) ? data.length : 'null'}` });
     }
 
-    const { data: tenants } = await admin.from('tenants').select('id').limit(1);
-    const { data: users } = await admin.from('users').select('id').limit(1);
+    // Require explicit fixture IDs — never select arbitrary tenant/user via .limit(1)
+    const tenantAId = process.env.HFA_TEST_TENANT_A_ID?.trim() ?? '';
+    const userAId = process.env.HFA_TEST_USER_A_ID?.trim() ?? '';
 
-    if (tenants?.length && users?.length) {
+    if (tenantAId && userAId) {
       const { error: insErr } = await anon.from('sera_vnext_analyses' as never).insert({
-        tenant_id: (tenants[0] as { id: string }).id, created_by: (users[0] as { id: string }).id,
+        tenant_id: tenantAId, created_by: userAId,
         title: '[RLS_TEST] anon insert', client_request_id: 'rls-anon-insert-attempt',
         narrative: 'Anon insert attempt with enough length to pass constraint checks if RLS absent.',
         narrative_hash: 'rls_hash', source_type: 'TEST', request_id: 'req-rls-001',

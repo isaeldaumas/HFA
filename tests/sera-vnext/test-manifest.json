@@ -207,7 +207,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/controlled-internal-activation-a4r223max-trial-001.ts",
@@ -225,7 +226,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/controlled-pilot-ui-real-trial-001.ts",
@@ -235,7 +237,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/daumas-calibration-extraction-a4r203a-trial-001.ts",
@@ -309,7 +312,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/engine-regression-validation-trial-001.ts",
@@ -511,7 +515,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "MUTATING_SYNTHETIC"
   },
   {
     "path": "tests/sera-vnext/expanded-cohort-security-trial-001.ts",
@@ -521,7 +526,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/expected-output-fixture-dry-run-a4r210big-trial-001.ts",
@@ -571,7 +577,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/frontend-data-parity-real-trial-001.ts",
@@ -589,7 +596,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/frontend-navigation-readiness-trial-001.ts",
@@ -599,7 +607,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/frontend-responsive-readiness-trial-001.ts",
@@ -609,7 +618,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/frontend-sera-vnext-e2e-readiness-trial-001.ts",
@@ -619,7 +629,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/human-pilot-metrics-trial-001.ts",
@@ -694,7 +705,8 @@
       "SUPABASE_SERVICE_ROLE_KEY"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "MUTATING_SYNTHETIC"
   },
   {
     "path": "tests/sera-vnext/manual-classification-trial-001.ts",
@@ -848,7 +860,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "MUTATING_SYNTHETIC"
   },
   {
     "path": "tests/sera-vnext/product-beta-api-trial-001.ts",
@@ -858,7 +871,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/product-beta-audit-trial-001.ts",
@@ -877,7 +891,8 @@
       "SUPABASE_SERVICE_ROLE_KEY"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "MUTATING_SYNTHETIC"
   },
   {
     "path": "tests/sera-vnext/product-beta-integrity-trial-001.ts",
@@ -896,7 +911,8 @@
       "SUPABASE_SERVICE_ROLE_KEY"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "MUTATING_SYNTHETIC"
   },
   {
     "path": "tests/sera-vnext/product-beta-rls-real-trial-001.ts",
@@ -907,7 +923,8 @@
       "SUPABASE_SERVICE_ROLE_KEY"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "MUTATING_SYNTHETIC"
   },
   {
     "path": "tests/sera-vnext/product-beta-rls-trial-001.ts",
@@ -941,7 +958,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/product-beta-workflow-trial-001.ts",
@@ -960,7 +978,8 @@
       "SUPABASE_SERVICE_ROLE_KEY"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "MUTATING_SYNTHETIC"
   },
   {
     "path": "tests/sera-vnext/real-event-consolidated-hold-closure-trial-001.ts",
@@ -1106,7 +1125,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/reviewer-output-contract-trial-001.ts",
@@ -1124,7 +1144,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/reviewer-utility-rerun-trial-001.ts",
@@ -1134,7 +1155,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/risk-profile-api-trial-001.ts",
@@ -1144,7 +1166,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/risk-profile-dashboard-trial-001.ts",
@@ -1154,7 +1177,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/risk-profile-exclusion-trial-001.ts",
@@ -1164,7 +1188,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/risk-profile-integrity-trial-001.ts",
@@ -1182,7 +1207,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/risk-profile-security-trial-001.ts",
@@ -1192,7 +1218,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/risk-profile-ui-trial-001.ts",
@@ -1202,7 +1229,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/rollback-flags-a4r223max-trial-001.ts",
@@ -1228,7 +1256,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/runtime-fail-closed-a4r221max-trial-001.ts",
@@ -1335,7 +1364,8 @@
       "SUPABASE_SERVICE_ROLE_KEY"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "MUTATING_SYNTHETIC"
   },
   {
     "path": "tests/sera-vnext/staging-tenant-isolation-a4r224max-trial-001.ts",
@@ -1346,7 +1376,8 @@
       "SUPABASE_SERVICE_ROLE_KEY"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "MUTATING_SYNTHETIC"
   },
   {
     "path": "tests/sera-vnext/synthetic-gap-design-audit-trial-001.ts",
@@ -1492,7 +1523,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "MUTATING_SYNTHETIC"
   },
   {
     "path": "tests/sera-vnext/event-deletion/error-sanitization-contract-trial-001.ts",
@@ -1526,7 +1558,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/event-deletion/hard-delete-disabled-trial-001.ts",
@@ -1544,7 +1577,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "MUTATING_SYNTHETIC"
   },
   {
     "path": "tests/sera-vnext/product-unification/canonical-routing-dynamic-real-trial-001.ts",
@@ -1562,7 +1596,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/product-unification/dashboard-risk-profile-e2e-trial-001.ts",
@@ -1572,7 +1607,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/product-unification/error-observability-e2e-trial-001.ts",
@@ -1582,7 +1618,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/product-unification/error-sanitization-trial-001.ts",
@@ -1616,7 +1653,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/product-unification/provenance-db-real-trial-001.ts",
@@ -1627,7 +1665,8 @@
       "SUPABASE_SERVICE_ROLE_KEY"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "MUTATING_SYNTHETIC"
   },
   {
     "path": "tests/sera-vnext/product-unification/provenance-model-trial-001.ts",
@@ -1645,7 +1684,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "MUTATING_SYNTHETIC"
   },
   {
     "path": "tests/sera-vnext/product-unification/provenance-rls-real-trial-001.ts",
@@ -1656,7 +1696,8 @@
       "SUPABASE_SERVICE_ROLE_KEY"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "MUTATING_SYNTHETIC"
   },
   {
     "path": "tests/sera-vnext/product-unification/risk-profile-endpoint-parity-real-trial-001.ts",
@@ -1666,7 +1707,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/product-unification/risk-profile-provenance-trial-001.ts",
@@ -1700,7 +1742,8 @@
       "LOCAL_FRONTEND_SERVER"
     ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "READ_ONLY"
   },
   {
     "path": "tests/sera-vnext/engine-validation-v01/run-all.ts",
@@ -1733,5 +1776,13 @@
     "requiredEnvironment": [],
     "expectedExit": 1,
     "expectedStatus": "NOT_READY"
+  },
+  {
+    "path": "tests/sera-vnext/manifest-data-access-contract-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS"
   }
 ]
