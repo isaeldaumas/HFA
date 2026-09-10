@@ -141,6 +141,7 @@ async function main() {
       tenantA = { id: process.env.HFA_TEST_TENANT_A_ID!.trim() }
       tenantB = { id: process.env.HFA_TEST_TENANT_B_ID!.trim() }
       reused = true
+      reusePath = 'env'
       console.log('Reusing synthetic fixtures from environment variables (ids not printed)')
     } else {
       const ids = parseEnvFile(reuseIdsPath)
@@ -174,6 +175,25 @@ async function main() {
       }
       console.log('Reusing existing synthetic fixtures from /tmp (ids not printed)')
     }
+
+    // Keep Auth passwords in sync with secrets/local creds so CI reuse cannot drift.
+    const syncA = await admin.auth.admin.updateUserById(authAId, {
+      password: passA,
+      email: emailA,
+      email_confirm: true,
+    })
+    if (syncA.error) {
+      throw new Error(`AUTH_PASSWORD_SYNC_A_FAILED: ${syncA.error.message}`)
+    }
+    const syncB = await admin.auth.admin.updateUserById(authBId, {
+      password: passB,
+      email: emailB,
+      email_confirm: true,
+    })
+    if (syncB.error) {
+      throw new Error(`AUTH_PASSWORD_SYNC_B_FAILED: ${syncB.error.message}`)
+    }
+    console.log('Synced Auth A/B passwords from fixture credentials (values not logged)')
   }
 
   // ── Create Auth users via Admin API ──────────────────────────────────────

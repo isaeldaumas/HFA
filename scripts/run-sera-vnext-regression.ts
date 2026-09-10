@@ -310,7 +310,7 @@ async function main() {
   // ── Summary ───────────────────────────────────────────────────────────
   const testsDiscovered = manifest.length;
   const testsExecuted = results.filter(
-    (item) => !["SKIP", "ENVIRONMENT_MISSING", "ACCESS_LEVEL_SKIP"].includes(item.status)
+    (item) => !["SKIP", "ENVIRONMENT_MISSING", "ACCESS_LEVEL_SKIP", "CI_EXCLUSION_SKIP"].includes(item.status)
   ).length;
   const requiredResults = results.filter((item) => item.requiredForRegression && item.type !== "GATE");
   const regressionFailures = results.filter((item) => item.requiredForRegression && item.status === "FAIL");
