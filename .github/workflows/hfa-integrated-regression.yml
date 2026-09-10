@@ -118,3 +118,4 @@ jobs:
           echo "e SUPABASE_STAGING_SERVICE_ROLE_KEY no repositório."
           echo "======================================================="
           exit 0
+# Integrated Regression Workflow
