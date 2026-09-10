@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { writeAuditLog } from '@/lib/observability/audit'
 import { getOrCreateRequestId } from '@/lib/observability/request-id'
+import { resolveAuthorizedUserContext } from '@/lib/server/authorized-user-context'
 
 type BootstrapFailureCategory =
   | 'network_or_transient'
@@ -174,84 +175,55 @@ export async function POST(req: Request) {
     userId = user.id
 
     // user_metadata is NOT used as a source of tenant authorization.
-    // Membership must be resolved from public.users (persistent, server-controlled).
+    // Use the shared resolver for all existing-user paths (same logic as requireBearerUser).
     const email = (user.email || `${user.id}@oauth.placeholder`).trim()
     const local = email.split('@')[0] || 'user'
 
-    const byId = await admin
-      .from('users')
-      .select('tenant_id, role')
-      .eq('id', user.id)
-      .maybeSingle()
-
-    if (byId.error) {
-      return buildFailureResponse({
-        requestId,
-        stage: 'resolve_user_by_id',
-        category: classifySupabaseError(byId.error),
-        reason: byId.error,
-        status: 503,
-        userId,
-      })
-    }
+    const resolveResult = await resolveAuthorizedUserContext(admin, {
+      authUserId: user.id,
+      email: user.email ?? undefined,
+      emailConfirmedAt: user.email_confirmed_at ?? null,
+    })
 
     let foundTenantId: string | null = null
     let role = 'admin'
 
-    if (byId.data) {
-      if (!byId.data.tenant_id) {
+    if (resolveResult.ok) {
+      // Existing user found via DIRECT_AUTH_ID or LEGACY_CONFIRMED_EMAIL binding
+      foundTenantId = resolveResult.context.tenantId
+      role = resolveResult.context.role
+    } else if (resolveResult.status === 503) {
+      // Infrastructure error — do not create tenant on DB unavailability
+      return buildFailureResponse({
+        requestId,
+        stage: 'resolve_existing_user',
+        category: 'network_or_transient',
+        reason: resolveResult.detail,
+        status: 503,
+        userId,
+      })
+    } else if (resolveResult.status === 403) {
+      // Check detail to distinguish "not found" (can create) from active security blocks
+      const isNotFound =
+        resolveResult.detail === 'Usuário não encontrado e sem email para compatibilidade' ||
+        resolveResult.detail === 'Usuário não encontrado'
+      if (!isNotFound) {
+        // Inactive account, ambiguous match, missing tenant, unconfirmed email — fail closed
         return buildFailureResponse({
           requestId,
-          stage: 'resolve_user_by_id',
-          category: 'missing_tenant',
-          reason: 'user_row_without_tenant',
+          stage: 'resolve_existing_user',
+          category:
+            resolveResult.detail === 'Associação de conta ambígua'
+              ? 'inconsistent_tenant'
+              : resolveResult.detail === 'Conta inativa'
+                ? 'permission_or_rls'
+                : 'missing_tenant',
+          reason: resolveResult.detail,
           status: 409,
           userId,
         })
       }
-      foundTenantId = String(byId.data.tenant_id)
-      role = String(byId.data.role ?? 'admin')
-    } else {
-      const byEmail = await admin
-        .from('users')
-        .select('id, tenant_id, role')
-        .eq('email', email)
-        .maybeSingle()
-
-      if (byEmail.error) {
-        return buildFailureResponse({
-          requestId,
-          stage: 'resolve_user_by_email',
-          category: classifySupabaseError(byEmail.error),
-          reason: byEmail.error,
-          status: 503,
-          userId,
-        })
-      }
-      if (byEmail.data) {
-        if (byEmail.data.id && String(byEmail.data.id) !== user.id) {
-          return buildFailureResponse({
-            requestId,
-            stage: 'resolve_user_by_email',
-            category: 'inconsistent_tenant',
-            reason: 'email_bound_to_different_user_id',
-            status: 409,
-            userId,
-          })
-        }
-        if (!byEmail.data.tenant_id) {
-          return buildFailureResponse({
-            requestId,
-            stage: 'resolve_user_by_email',
-            category: 'missing_tenant',
-            reason: 'email_row_without_tenant',
-            status: 409,
-            userId,
-          })
-        }
-        foundTenantId = String(byEmail.data.tenant_id)
-        role = String(byEmail.data.role ?? 'admin')
-      }
+      // isNotFound — fall through to new-user creation path below
     }
 
     let created = false
