@@ -1,3 +1,4 @@
+import { assertSafeTestEnvironment } from '../../helpers/assert-safe-test-environment'
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -127,6 +128,9 @@ async function attemptRealSupabaseValidation(): Promise<RealSessionResult> {
 }
 
 async function main() {
+  // Safety guard: verify staging environment before flag manipulation tests
+  assertSafeTestEnvironment({ requiresFixtureIds: false })
+
   const savedReadOnly = process.env.SERA_VNEXT_READONLY_ENABLED;
   const savedPilot = process.env.SERA_VNEXT_INTERNAL_PILOT_ENABLED;
 

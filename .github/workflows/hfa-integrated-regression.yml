@@ -93,18 +93,31 @@ jobs:
             echo "available=true" >> "$GITHUB_OUTPUT"
             echo "All required environment secrets found. Project ref verified."
 
-            # Mutating level: requires both confirm flags AND fixture IDs
-            if [ "${{ inputs.confirm_mutating_synthetic_fixture_only }}" = "true" ] && \
-               [ -n "$HFA_TEST_TENANT_A_ID" ] && [ -n "$HFA_TEST_USER_A_ID" ]; then
+            # Mutating level: requires confirm flag AND all 4 fixture IDs (A and B).
+            # Some mutating tests are cross-tenant — both tenant pairs required.
+            # If confirm_mutating_synthetic_fixture_only=true but any fixture ID is missing,
+            # fail immediately — NO silent fallback to READ_ONLY to avoid false confidence.
+            if [ "${{ inputs.confirm_mutating_synthetic_fixture_only }}" = "true" ]; then
+              missing_fixtures=""
+              if [ -z "$HFA_TEST_TENANT_A_ID" ]; then missing_fixtures="$missing_fixtures HFA_TEST_TENANT_A_ID"; fi
+              if [ -z "$HFA_TEST_USER_A_ID" ]; then missing_fixtures="$missing_fixtures HFA_TEST_USER_A_ID"; fi
+              if [ -z "$HFA_TEST_TENANT_B_ID" ]; then missing_fixtures="$missing_fixtures HFA_TEST_TENANT_B_ID"; fi
+              if [ -z "$HFA_TEST_USER_B_ID" ]; then missing_fixtures="$missing_fixtures HFA_TEST_USER_B_ID"; fi
+
+              if [ -n "$missing_fixtures" ]; then
+                echo "available=false" >> "$GITHUB_OUTPUT"
+                echo "run_mutating=false" >> "$GITHUB_OUTPUT"
+                echo "ENVIRONMENT_MISCONFIGURED: confirm_mutating_synthetic_fixture_only=true but missing:$missing_fixtures"
+                echo "All 4 fixture variables (A and B tenant/user pairs) are required for MUTATING_SYNTHETIC."
+                echo "DO NOT fall back silently to READ_ONLY — configure fixtures before requesting mutating run."
+                exit 1
+              fi
+
               echo "run_mutating=true" >> "$GITHUB_OUTPUT"
-              echo "MUTATING_SYNTHETIC level: ENABLED (fixture IDs present)"
+              echo "MUTATING_SYNTHETIC level: ENABLED (all 4 fixture IDs present)"
             else
               echo "run_mutating=false" >> "$GITHUB_OUTPUT"
               echo "MUTATING_SYNTHETIC level: DISABLED (default READ_ONLY only)"
-              if [ "${{ inputs.confirm_mutating_synthetic_fixture_only }}" = "true" ]; then
-                echo "  Warning: confirm_mutating_synthetic_fixture_only=true but HFA_TEST_TENANT_A_ID or HFA_TEST_USER_A_ID not set"
-                echo "  Falling back to READ_ONLY level"
-              fi
             fi
           fi
         env:

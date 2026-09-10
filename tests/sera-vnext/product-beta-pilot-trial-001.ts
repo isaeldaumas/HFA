@@ -1,3 +1,4 @@
+import { assertSafeTestEnvironment } from '../../helpers/assert-safe-test-environment'
 import assert from 'node:assert/strict'
 import {
   archiveSeraVNextAnalysis,
@@ -61,6 +62,9 @@ const cases = [
 
 
 async function main() {
+  // Safety guard: verify staging environment before flag manipulation tests
+  assertSafeTestEnvironment({ requiresFixtureIds: false })
+
   const repo = new PilotRepo()
   const createdIds: string[] = []
   for (const [title, narrative] of cases) {

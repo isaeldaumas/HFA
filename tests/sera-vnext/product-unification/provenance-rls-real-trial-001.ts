@@ -12,6 +12,7 @@ export {};
  * Run: npx tsx tests/sera-vnext/product-unification/provenance-rls-real-trial-001.ts
  */
 
+import { assertSafeTestEnvironment } from '../../../helpers/assert-safe-test-environment'
 import * as fs from 'fs';
 import { createRequire } from 'module';
 import * as path from 'path';
@@ -42,18 +43,17 @@ function fail(name: string, detail: string) { checks.push({ name, pass: false, d
 function check(name: string, cond: boolean, detail: string) { cond ? ok(name, detail) : fail(name, detail); }
 
 async function run() {
+  // Safety guard: throws ENVIRONMENT_NOT_CONFIGURED if staging env or fixture IDs missing.
+  const fixture = assertSafeTestEnvironment({ requiresFixtureIds: true })
+
   if (!supabaseUrl || !serviceRole) {
     console.log(`[${TRIAL_ID}] SKIPPED — DB credentials not available`);
     process.exit(0);
   }
 
-  // Require explicit fixture IDs — hardcoded UUIDs replaced with env vars.
-  const FIXTURE_TENANT_A = process.env.HFA_TEST_TENANT_A_ID?.trim() ?? ''
-  const FIXTURE_USER_A = process.env.HFA_TEST_USER_A_ID?.trim() ?? ''
-  if (!FIXTURE_TENANT_A || !FIXTURE_USER_A) {
-    console.log('ENVIRONMENT_NOT_CONFIGURED: HFA_TEST_TENANT_A_ID and HFA_TEST_USER_A_ID must be set. Skipping.')
-    process.exit(0)
-  }
+  // Fixture IDs guaranteed by assertSafeTestEnvironment above — no conditional needed.
+  const FIXTURE_TENANT_A = fixture.tenantAId
+  const FIXTURE_USER_A = fixture.userAId
 
   const admin = createSupabaseClient(supabaseUrl, serviceRole, {
     auth: { autoRefreshToken: false, persistSession: false },

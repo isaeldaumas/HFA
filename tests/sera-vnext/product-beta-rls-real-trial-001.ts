@@ -10,6 +10,7 @@ export {};
  * Run: NODE_PATH=frontend/node_modules npx tsx tests/sera-vnext/product-beta-rls-real-trial-001.ts
  */
 
+import { assertSafeTestEnvironment } from '../../helpers/assert-safe-test-environment'
 import * as fs from 'fs';
 import { createRequire } from 'module';
 import * as path from 'path';
@@ -41,6 +42,9 @@ interface Check { name: string; pass: boolean; detail: string }
 const checks: Check[] = [];
 
 async function run() {
+  // Safety guard: throws ENVIRONMENT_NOT_CONFIGURED if env or fixture IDs are missing.
+  const fixture = assertSafeTestEnvironment({ requiresFixtureIds: true })
+
   if (!supabaseUrl || !serviceRole) {
     console.log(`[${TRIAL_ID}] SKIPPED — DB credentials not available`);
     process.exit(0);
@@ -58,11 +62,11 @@ async function run() {
         detail: error ? error.message.slice(0, 60) : `rows=${Array.isArray(data) ? data.length : 'null'}` });
     }
 
-    // Require explicit fixture IDs — never select arbitrary tenant/user via .limit(1)
-    const tenantAId = process.env.HFA_TEST_TENANT_A_ID?.trim() ?? '';
-    const userAId = process.env.HFA_TEST_USER_A_ID?.trim() ?? '';
+    // Fixture IDs guaranteed by assertSafeTestEnvironment above — no conditional needed
+    const tenantAId = fixture.tenantAId;
+    const userAId = fixture.userAId;
 
-    if (tenantAId && userAId) {
+    if (true) { // always run
       const { error: insErr } = await anon.from('sera_vnext_analyses' as never).insert({
         tenant_id: tenantAId, created_by: userAId,
         title: '[RLS_TEST] anon insert', client_request_id: 'rls-anon-insert-attempt',

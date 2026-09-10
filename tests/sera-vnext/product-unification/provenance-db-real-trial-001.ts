@@ -2,6 +2,7 @@
 // Teste real: verifica que colunas de proveniência aceitam valores e são recuperáveis.
 // Requer: frontend/.env.local com SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY
 
+import { assertSafeTestEnvironment } from '../helpers/assert-safe-test-environment'
 import fs from 'node:fs'
 import path from 'node:path'
 import { createRequire } from 'node:module'
@@ -36,6 +37,11 @@ function assertEq<T>(actual: T, expected: T, label: string) {
 }
 
 async function main() {
+
+  // Safety guard: throws ENVIRONMENT_NOT_CONFIGURED if staging env or fixture IDs are missing.
+  // Runner excludes this test in READ_ONLY mode before it reaches here.
+  const fixture = assertSafeTestEnvironment({ requiresFixtureIds: true })
+
   console.log('\n=== provenance-db-real-trial-001 ===\n')
 
   loadEnv()
@@ -49,14 +55,9 @@ async function main() {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  // Require explicit fixture IDs — hardcoded UUIDs replaced with env vars.
-  // Set HFA_TEST_TENANT_A_ID and HFA_TEST_USER_A_ID before running.
-  const TEST_TENANT_ID = process.env.HFA_TEST_TENANT_A_ID?.trim() ?? ''
-  const TEST_USER_ID = process.env.HFA_TEST_USER_A_ID?.trim() ?? ''
-  if (!TEST_TENANT_ID || !TEST_USER_ID) {
-    console.log('ENVIRONMENT_NOT_CONFIGURED: HFA_TEST_TENANT_A_ID and HFA_TEST_USER_A_ID must be set. Skipping mutation tests.')
-    process.exit(0)
-  }
+  // Fixture IDs guaranteed by assertSafeTestEnvironment above.
+  const TEST_TENANT_ID = fixture.tenantAId
+  const TEST_USER_ID = fixture.userAId
   const TEST_TITLE = '[PRODUCT_UNIFICATION_RUNTIME_TEST] provenance-db-real-trial-001'
   let createdAnalysisId: string | null = null
   let createdRevisionId: string | null = null

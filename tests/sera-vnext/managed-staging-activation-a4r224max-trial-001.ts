@@ -1,3 +1,4 @@
+import { assertSafeTestEnvironment } from '../../helpers/assert-safe-test-environment'
 import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
 import { handleSeraVNextStatusRequest } from "../../frontend/src/app/api/admin/sera-vnext/status/route";
@@ -92,6 +93,9 @@ function assertDeterministic(results: TimedResult[], label: string) {
 }
 
 async function main() {
+  // Safety guard: verify staging environment before flag manipulation tests
+  assertSafeTestEnvironment({ requiresFixtureIds: false })
+
   try {
     process.env.SERA_VNEXT_READONLY_ENABLED = "true";
     process.env.SERA_VNEXT_INTERNAL_PILOT_ENABLED = "true";

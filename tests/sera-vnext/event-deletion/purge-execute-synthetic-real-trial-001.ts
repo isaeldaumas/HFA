@@ -1,3 +1,4 @@
+import { assertSafeTestEnvironment } from '../../../helpers/assert-safe-test-environment'
 import assert from 'node:assert/strict'
 import {
   apiJson,
@@ -14,6 +15,9 @@ const PREFIX = '[EVENT_DELETE_TEST]'
 const ENTERPRISE_TENANT_PREFIX = process.env.SERA_VNEXT_TEST_TENANT_PREFIX?.trim() || '3a68c15d'
 
 async function main() {
+  // Safety guard: must be called before any mutation
+  assertSafeTestEnvironment({ requiresFixtureIds: true })
+
   const baseUrl = buildBaseUrl()
   await waitForServer(baseUrl)
   const { admin } = createSupabaseClients()
