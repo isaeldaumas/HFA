@@ -38,24 +38,30 @@ jobs:
           missing=""
           if [ -z "$SUPABASE_STAGING_URL" ]; then missing="$missing SUPABASE_STAGING_URL"; fi
           if [ -z "$SUPABASE_STAGING_SERVICE_ROLE_KEY" ]; then missing="$missing SUPABASE_STAGING_SERVICE_ROLE_KEY"; fi
+          if [ -z "$SUPABASE_STAGING_ANON_KEY" ]; then missing="$missing SUPABASE_STAGING_ANON_KEY"; fi
+          if [ -z "$NEXTAUTH_SECRET_STAGING" ]; then missing="$missing NEXTAUTH_SECRET_STAGING"; fi
 
           if [ -n "$missing" ]; then
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "ENVIRONMENT_UNAVAILABLE: missing secrets: $missing"
+            echo "ENVIRONMENT_UNAVAILABLE: missing secrets:$missing"
             echo "Status: INTEGRATED_REGRESSION_WORKFLOW_READY_ENVIRONMENT_NOT_CONFIGURED"
             echo ""
             echo "Para habilitar este workflow, configure os secrets de staging:"
             echo "  - SUPABASE_STAGING_URL"
             echo "  - SUPABASE_STAGING_SERVICE_ROLE_KEY"
+            echo "  - SUPABASE_STAGING_ANON_KEY"
+            echo "  - NEXTAUTH_SECRET_STAGING"
             echo ""
             echo "IMPORTANTE: usar exclusivamente ambiente dev/staging, nunca produção."
           else
             echo "available=true" >> "$GITHUB_OUTPUT"
-            echo "Environment secrets found."
+            echo "All required environment secrets found."
           fi
         env:
           SUPABASE_STAGING_URL: ${{ secrets.SUPABASE_STAGING_URL }}
           SUPABASE_STAGING_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_STAGING_SERVICE_ROLE_KEY }}
+          SUPABASE_STAGING_ANON_KEY: ${{ secrets.SUPABASE_STAGING_ANON_KEY }}
+          NEXTAUTH_SECRET_STAGING: ${{ secrets.NEXTAUTH_SECRET_STAGING }}
 
   integrated-regression:
     name: HFA Integrated Regression (Staging/Dev Only)
@@ -70,7 +76,8 @@ jobs:
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_STAGING_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_STAGING_SERVICE_ROLE_KEY }}
       NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET_STAGING }}
-      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_URL: http://127.0.0.1:3100
+      SERA_VNEXT_TEST_BASE_URL: http://127.0.0.1:3100
       # SERA vNext flags: desligados em integração também (shadow mode requer autorização separada)
       SERA_VNEXT_READONLY_ENABLED: "false"
       SERA_VNEXT_INTERNAL_PILOT_ENABLED: "false"
@@ -92,8 +99,43 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Start frontend
+        working-directory: frontend
+        run: |
+          npm start -- -p 3100 > /tmp/hfa-next.log 2>&1 &
+          echo $! > /tmp/hfa-next.pid
+
+      - name: Wait for frontend
+        run: |
+          ready=false
+          for i in $(seq 1 60); do
+            if curl --fail --silent --show-error \
+              http://127.0.0.1:3100 >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$ready" != "true" ]; then
+            echo "LOCAL_FRONTEND_SERVER_NOT_READY"
+            exit 1
+          fi
+          echo "Frontend ready at http://127.0.0.1:3100"
+
       - name: Run integrated regression
         run: ./frontend/node_modules/.bin/tsx scripts/run-sera-vnext-regression.ts
+
+      - name: Stop frontend
+        if: always()
+        run: |
+          if [ -f /tmp/hfa-next.pid ]; then
+            kill "$(cat /tmp/hfa-next.pid)" 2>/dev/null || true
+          fi
 
   environment-not-configured:
     name: INTEGRATED_REGRESSION_WORKFLOW_READY_ENVIRONMENT_NOT_CONFIGURED
@@ -114,8 +156,11 @@ jobs:
           echo "NÃO usar produção."
           echo "NÃO inventar credenciais."
           echo ""
-          echo "Para configurar: adicionar secrets SUPABASE_STAGING_URL"
-          echo "e SUPABASE_STAGING_SERVICE_ROLE_KEY no repositório."
+          echo "Para configurar: adicionar os seguintes secrets no repositório:"
+          echo "  - SUPABASE_STAGING_URL"
+          echo "  - SUPABASE_STAGING_SERVICE_ROLE_KEY"
+          echo "  - SUPABASE_STAGING_ANON_KEY"
+          echo "  - NEXTAUTH_SECRET_STAGING"
           echo "======================================================="
           exit 0
 # Integrated Regression Workflow
