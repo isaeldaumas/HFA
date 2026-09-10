@@ -18,6 +18,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { resolveTestTenantPrefix } from '../helpers/resolve-test-tenant-prefix'
 import {
   apiJson,
   buildBaseUrl,
@@ -65,7 +66,7 @@ async function main() {
   const enterprise = await createMagicLinkSession({
     baseUrl,
     participantId: 'ROUTING-FLAG-OFF-01',
-    tenantPrefix: '3a68c15d',
+    tenantPrefix: resolveTestTenantPrefix(),
     requirePlan: 'enterprise',
   })
 

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { resolveTestTenantPrefix } from './helpers/resolve-test-tenant-prefix'
 import {
   apiJson,
   buildBaseUrl,
@@ -9,7 +10,7 @@ import {
 } from './product-beta-real-helpers'
 
 const TRIAL_ID = 'risk-profile-api-trial-001'
-const ENTERPRISE_TENANT_PREFIX = process.env.SERA_VNEXT_TEST_TENANT_PREFIX?.trim() || '3a68c15d'
+const ENTERPRISE_TENANT_PREFIX = resolveTestTenantPrefix()
 
 async function main() {
   const baseUrl = buildBaseUrl()

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { resolveTestTenantPrefix } from './helpers/resolve-test-tenant-prefix'
 import {
   apiJson,
   buildBaseUrl,
@@ -15,7 +16,7 @@ import {
 } from './product-beta-real-helpers'
 
 const TRIAL_ID = 'reviewer-output-ui-trial-001'
-const ENTERPRISE_TENANT_PREFIX = process.env.SERA_VNEXT_TEST_TENANT_PREFIX?.trim() || '3a68c15d'
+const ENTERPRISE_TENANT_PREFIX = resolveTestTenantPrefix()
 const SESSION_ID = 'roui1'
 
 type UiCheck = { name: string; status: 'PASS' | 'FAIL' | 'SKIPPED'; detail: string }

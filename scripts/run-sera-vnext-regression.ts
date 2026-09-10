@@ -16,7 +16,15 @@ type ManifestEntry = {
   dataAccess?: DataAccess;
 };
 
-type ResultStatus = "PASS" | "FAIL" | "SKIP" | "NOT_READY" | "ENVIRONMENT_MISSING" | "ACCESS_LEVEL_SKIP" | "CI_EXCLUSION_SKIP";
+type ResultStatus =
+  | "PASS"
+  | "FAIL"
+  | "SKIP"
+  | "NOT_READY"
+  | "ENVIRONMENT_MISSING"
+  | "ENVIRONMENT_NOT_CONFIGURED"
+  | "ACCESS_LEVEL_SKIP"
+  | "CI_EXCLUSION_SKIP";
 
 type Result = {
   path: string;
@@ -183,14 +191,45 @@ function runEntry(entry: ManifestEntry): Result {
   }
 
   const pass = exitCode === entry.expectedExit && entry.expectedStatus === "PASS";
+  if (pass) {
+    return {
+      path: entry.path,
+      type: entry.type,
+      status: "PASS",
+      exitCode,
+      durationMs,
+      requiredForRegression: entry.requiredForRegression,
+      failureSignature: null,
+      dataAccess: entry.dataAccess,
+    };
+  }
+
+  const signature = firstFailureLine(output);
+  // Distinguish missing staging/fixture configuration from real assertion failures.
+  if (
+    signature &&
+    /ENVIRONMENT_NOT_CONFIGURED|ENVIRONMENT_MISSING|FIXTURE_SAFETY_VIOLATION/i.test(signature)
+  ) {
+    return {
+      path: entry.path,
+      type: entry.type,
+      status: "ENVIRONMENT_NOT_CONFIGURED",
+      exitCode,
+      durationMs,
+      requiredForRegression: entry.requiredForRegression,
+      failureSignature: signature,
+      dataAccess: entry.dataAccess,
+    };
+  }
+
   return {
     path: entry.path,
     type: entry.type,
-    status: pass ? "PASS" : "FAIL",
+    status: "FAIL",
     exitCode,
     durationMs,
     requiredForRegression: entry.requiredForRegression,
-    failureSignature: pass ? null : firstFailureLine(output),
+    failureSignature: signature,
     dataAccess: entry.dataAccess,
   };
 }
@@ -309,15 +348,24 @@ async function main() {
 
   // ── Summary ───────────────────────────────────────────────────────────
   const testsDiscovered = manifest.length;
-  const testsExecuted = results.filter(
-    (item) => !["SKIP", "ENVIRONMENT_MISSING", "ACCESS_LEVEL_SKIP", "CI_EXCLUSION_SKIP"].includes(item.status)
-  ).length;
+  const nonExecutedStatuses = new Set([
+    "SKIP",
+    "ENVIRONMENT_MISSING",
+    "ENVIRONMENT_NOT_CONFIGURED",
+    "ACCESS_LEVEL_SKIP",
+    "CI_EXCLUSION_SKIP",
+  ]);
+  const testsExecuted = results.filter((item) => !nonExecutedStatuses.has(item.status)).length;
   const requiredResults = results.filter((item) => item.requiredForRegression && item.type !== "GATE");
   const regressionFailures = results.filter((item) => item.requiredForRegression && item.status === "FAIL");
   const unexpectedSkips = results.filter((item) => item.requiredForRegression && item.status === "SKIP");
   const environmentMissing = results.filter(
-    (item) => item.requiredForRegression && item.status === "ENVIRONMENT_MISSING"
+    (item) =>
+      item.requiredForRegression &&
+      (item.status === "ENVIRONMENT_MISSING" || item.status === "ENVIRONMENT_NOT_CONFIGURED")
   );
+  const allRealFails = results.filter((item) => item.status === "FAIL");
+  const envNotConfigured = results.filter((item) => item.status === "ENVIRONMENT_NOT_CONFIGURED");
   const timeoutFailures = results.filter(
     (item) =>
       item.exitCode === 124 ||
@@ -336,6 +384,8 @@ async function main() {
     gates_passed: gatesPassed,
     gates_not_ready: gatesNotReady,
     environment_missing: environmentMissing.length,
+    environment_not_configured: envNotConfigured.length,
+    real_fails_including_non_gating: allRealFails.length,
     race_timeouts: timeoutFailures.length,
     unexpected_skips: unexpectedSkips.length,
     // Data-access level tracking (populated only when level is set)
@@ -346,6 +396,18 @@ async function main() {
   };
 
   console.log(JSON.stringify(summary, null, 2));
+  if (allRealFails.length > 0) {
+    console.log("REAL_FAILS:");
+    for (const fail of allRealFails) {
+      console.log(`  FAIL ${fail.path} :: ${fail.failureSignature ?? "no signature"}`);
+    }
+  }
+  if (envNotConfigured.length > 0) {
+    console.log("ENVIRONMENT_NOT_CONFIGURED:");
+    for (const item of envNotConfigured) {
+      console.log(`  ${item.path} :: ${item.failureSignature ?? "no signature"}`);
+    }
+  }
 
   // In READ_ONLY mode, mutating_synthetic_executed must be exactly 0
   if (integratedLevel === "READ_ONLY" && mutatingSyntheticExecuted !== 0) {

@@ -79,6 +79,10 @@ check(
   'runner: ACCESS_LEVEL_SKIP is a distinct status value'
 )
 check(
+  runner.includes('ENVIRONMENT_NOT_CONFIGURED'),
+  'runner: ENVIRONMENT_NOT_CONFIGURED is a distinct status value'
+)
+check(
   runner.includes('mutating_synthetic_executed') && runner.includes('read_only_executed'),
   'runner: summary includes mutating_synthetic_executed and read_only_executed counts'
 )

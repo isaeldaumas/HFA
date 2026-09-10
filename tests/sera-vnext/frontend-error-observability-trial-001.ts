@@ -13,9 +13,10 @@ import {
   writeJsonReport,
 } from './product-beta-real-helpers'
 import { handleListSeraVNextAnalysesRequest } from '../../frontend/src/lib/sera-vnext-product/api-handlers'
+import { resolveTestTenantPrefix } from './helpers/resolve-test-tenant-prefix'
 
 const TRIAL_ID = 'frontend-error-observability-trial-001'
-const ENTERPRISE_TENANT_PREFIX = process.env.SERA_VNEXT_TEST_TENANT_PREFIX?.trim() || '3a68c15d'
+const ENTERPRISE_TENANT_PREFIX = resolveTestTenantPrefix()
 const BLOCKED_TENANT_PREFIX = process.env.SERA_VNEXT_TEST_BLOCKED_TENANT_PREFIX?.trim() || '9a52a850'
 const SESSION_ID = 'obsv1'
 
