@@ -128,6 +128,8 @@ jobs:
           HFA_STAGING_SUPABASE_PROJECT_REF: ${{ vars.HFA_STAGING_SUPABASE_PROJECT_REF }}
           HFA_TEST_TENANT_A_ID: ${{ vars.HFA_TEST_TENANT_A_ID }}
           HFA_TEST_USER_A_ID: ${{ vars.HFA_TEST_USER_A_ID }}
+          HFA_TEST_TENANT_B_ID: ${{ vars.HFA_TEST_TENANT_B_ID }}
+          HFA_TEST_USER_B_ID: ${{ vars.HFA_TEST_USER_B_ID }}
 
   integrated-regression:
     name: HFA Integrated Regression (Staging/Dev Only)
@@ -186,17 +188,17 @@ jobs:
           # REAL_* readiness trials require frontend/.env.local to exist.
           # Values come from staging secrets already injected as job env — never echoed.
           umask 077
-          cat > .env.local <<EOF
-          NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-          SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-          SUPABASE_STAGING_URL=${SUPABASE_STAGING_URL}
-          NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-          NEXTAUTH_URL=${NEXTAUTH_URL}
-          HFA_STAGING_SUPABASE_PROJECT_REF=${HFA_STAGING_SUPABASE_PROJECT_REF}
-          HFA_TEST_ENVIRONMENT=${HFA_TEST_ENVIRONMENT}
-          EOF
-          test -f .env.local
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}"
+            echo "SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}"
+            echo "SUPABASE_STAGING_URL=${SUPABASE_STAGING_URL}"
+            echo "NEXTAUTH_SECRET=${NEXTAUTH_SECRET}"
+            echo "NEXTAUTH_URL=${NEXTAUTH_URL}"
+            echo "HFA_STAGING_SUPABASE_PROJECT_REF=${HFA_STAGING_SUPABASE_PROJECT_REF}"
+            echo "HFA_TEST_ENVIRONMENT=${HFA_TEST_ENVIRONMENT}"
+          } > .env.local
+          test -s .env.local
           echo "frontend/.env.local written (contents not printed)"
 
       - name: Build frontend

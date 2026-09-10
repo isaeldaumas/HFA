@@ -81,6 +81,12 @@ check(
   'workflow: requires both tenant A and B IDs for MUTATING_SYNTHETIC'
 )
 check(
+  /HFA_TEST_TENANT_B_ID:\s*\$\{\{\s*vars\.HFA_TEST_TENANT_B_ID/.test(wf) &&
+    /HFA_TEST_USER_B_ID:\s*\$\{\{\s*vars\.HFA_TEST_USER_B_ID/.test(wf),
+  'workflow: check-environment and job env include tenant/user B variables'
+)
+
+check(
   wf.includes('HFA_TEST_USER_A_ID') && wf.includes('HFA_TEST_USER_B_ID'),
   'workflow: requires both user A and B IDs for MUTATING_SYNTHETIC'
 )
