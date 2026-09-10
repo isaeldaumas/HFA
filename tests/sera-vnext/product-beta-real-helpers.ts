@@ -123,41 +123,146 @@ async function resolvePilotUser(args: {
   const { admin } = createSupabaseClients()
   const { participantId, tenantPrefix, requirePlan } = args
 
-  const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 50 })
-  if (error) throw error
+  // Prefer explicit staging fixture IDs (DB-authoritative). Never trust user_metadata
+  // for tenant/role resolution — metadata may be empty or adversarial on hardened staging.
+  const fixtureUserId = process.env.HFA_TEST_USER_A_ID?.trim()
+  const fixtureTenantId = process.env.HFA_TEST_TENANT_A_ID?.trim()
 
-  const authUser = (data.users ?? []).find((user: any) =>
-    user.user_metadata?.role === 'admin' &&
-    typeof user.user_metadata?.tenant_id === 'string' &&
-    String(user.user_metadata.tenant_id).startsWith(tenantPrefix) &&
-    !!user.email,
-  )
-  if (!authUser?.email || typeof authUser.user_metadata?.tenant_id !== 'string') {
-    throw new Error(`Admin auth user not found for tenant prefix ${tenantPrefix}`)
+  if (fixtureUserId) {
+    const publicUser = await admin
+      .from('users')
+      .select('id, tenant_id, role, is_active, auth_user_id, email')
+      .eq('id', fixtureUserId)
+      .maybeSingle()
+    if (publicUser.error) throw new Error(`Public user lookup failed: ${publicUser.error.message}`)
+    if (!publicUser.data?.id) {
+      throw new Error(
+        `ENVIRONMENT_NOT_CONFIGURED: HFA_TEST_USER_A_ID not found in public.users`
+      )
+    }
+    if (publicUser.data.is_active === false) {
+      throw new Error('ENVIRONMENT_NOT_CONFIGURED: fixture user A is inactive')
+    }
+    const tenantId = String(publicUser.data.tenant_id)
+    if (fixtureTenantId && tenantId !== fixtureTenantId) {
+      throw new Error(
+        'FIXTURE_SAFETY_VIOLATION: HFA_TEST_USER_A_ID tenant_id does not match HFA_TEST_TENANT_A_ID'
+      )
+    }
+    if (tenantPrefix && !tenantId.replace(/-/g, '').toLowerCase().startsWith(tenantPrefix.toLowerCase()) && !tenantId.startsWith(tenantPrefix)) {
+      throw new Error(
+        `FIXTURE_SAFETY_VIOLATION: fixture tenant ${tenantId.slice(0, 8)}**** does not match prefix`
+      )
+    }
+
+    const authUserId =
+      typeof publicUser.data.auth_user_id === 'string' && publicUser.data.auth_user_id
+        ? publicUser.data.auth_user_id
+        : publicUser.data.id
+    const authUserRes = await admin.auth.admin.getUserById(authUserId)
+    if (authUserRes.error || !authUserRes.data.user?.email) {
+      throw new Error(
+        `ENVIRONMENT_NOT_CONFIGURED: Auth user missing for fixture A (${authUserRes.error?.message ?? 'no email'})`
+      )
+    }
+
+    const tenantRow = await admin.from('tenants').select('plan, is_active').eq('id', tenantId).maybeSingle()
+    if (tenantRow.error) throw new Error(`Tenant lookup failed: ${tenantRow.error.message}`)
+    if (tenantRow.data?.is_active === false) {
+      throw new Error('ENVIRONMENT_NOT_CONFIGURED: fixture tenant A is inactive')
+    }
+    const tenantPlan = typeof tenantRow.data?.plan === 'string' ? tenantRow.data.plan : null
+    if (requirePlan && tenantPlan !== requirePlan) {
+      throw new Error(
+        `ENVIRONMENT_NOT_CONFIGURED: Expected plan ${requirePlan} for fixture A, got ${tenantPlan ?? 'null'}`
+      )
+    }
+
+    return {
+      participantId,
+      authUserId,
+      publicUserId: publicUser.data.id,
+      tenantId,
+      tenantPlan,
+      email: authUserRes.data.user.email,
+    }
   }
 
-  const tenantId = String(authUser.user_metadata.tenant_id)
+  // Legacy path: DB-authoritative admin lookup by tenant prefix (no metadata trust).
+  const { data: dbUsers, error: dbUsersError } = await admin
+    .from('users')
+    .select('id, tenant_id, role, is_active, auth_user_id, email')
+    .eq('is_active', true)
+    .eq('role', 'admin')
+    .like('tenant_id', `${tenantPrefix}%`)
+    .limit(5)
+  if (dbUsersError) throw new Error(`Admin user lookup failed: ${dbUsersError.message}`)
+
+  let matched = (dbUsers ?? [])[0] ?? null
+  if (!matched) {
+    // Fallback for older datasets still carrying metadata tenant/role (read-only discovery).
+    const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 50 })
+    if (error) throw error
+    const authUser = (data.users ?? []).find(
+      (user: any) =>
+        user.user_metadata?.role === 'admin' &&
+        typeof user.user_metadata?.tenant_id === 'string' &&
+        String(user.user_metadata.tenant_id).startsWith(tenantPrefix) &&
+        !!user.email
+    )
+    if (!authUser?.email || typeof authUser.user_metadata?.tenant_id !== 'string') {
+      throw new Error(
+        `ENVIRONMENT_NOT_CONFIGURED: Admin auth user not found for tenant prefix ${tenantPrefix}. ` +
+          'Configure HFA_TEST_USER_A_ID / HFA_TEST_TENANT_A_ID for staging fixtures.'
+      )
+    }
+    const tenantId = String(authUser.user_metadata.tenant_id)
+    const tenantRow = await admin.from('tenants').select('plan').eq('id', tenantId).maybeSingle()
+    if (tenantRow.error) throw new Error(`Tenant lookup failed: ${tenantRow.error.message}`)
+    const tenantPlan = typeof tenantRow.data?.plan === 'string' ? tenantRow.data.plan : null
+    if (requirePlan && tenantPlan !== requirePlan) {
+      throw new Error(
+        `ENVIRONMENT_NOT_CONFIGURED: Expected plan ${requirePlan} for ${tenantPrefix}, got ${tenantPlan ?? 'null'}`
+      )
+    }
+    const publicUser = await admin.from('users').select('id').eq('email', authUser.email).maybeSingle()
+    if (publicUser.error) throw new Error(`Public user lookup failed: ${publicUser.error.message}`)
+    return {
+      participantId,
+      authUserId: authUser.id,
+      publicUserId: typeof publicUser.data?.id === 'string' ? publicUser.data.id : null,
+      tenantId,
+      tenantPlan,
+      email: authUser.email,
+    }
+  }
+
+  const tenantId = String(matched.tenant_id)
   const tenantRow = await admin.from('tenants').select('plan').eq('id', tenantId).maybeSingle()
   if (tenantRow.error) throw new Error(`Tenant lookup failed: ${tenantRow.error.message}`)
   const tenantPlan = typeof tenantRow.data?.plan === 'string' ? tenantRow.data.plan : null
   if (requirePlan && tenantPlan !== requirePlan) {
-    throw new Error(`Expected plan ${requirePlan} for ${tenantPrefix}, got ${tenantPlan ?? 'null'}`)
+    throw new Error(
+      `ENVIRONMENT_NOT_CONFIGURED: Expected plan ${requirePlan} for ${tenantPrefix}, got ${tenantPlan ?? 'null'}`
+    )
   }
-
-  const publicUser = await admin
-    .from('users')
-    .select('id')
-    .eq('email', authUser.email)
-    .maybeSingle()
-  if (publicUser.error) throw new Error(`Public user lookup failed: ${publicUser.error.message}`)
-
+  const authUserId =
+    typeof matched.auth_user_id === 'string' && matched.auth_user_id
+      ? matched.auth_user_id
+      : matched.id
+  const authUserRes = await admin.auth.admin.getUserById(authUserId)
+  if (authUserRes.error || !authUserRes.data.user?.email) {
+    throw new Error(
+      `ENVIRONMENT_NOT_CONFIGURED: Admin auth user not found for tenant prefix ${tenantPrefix}`
+    )
+  }
   return {
     participantId,
-    authUserId: authUser.id,
-    publicUserId: typeof publicUser.data?.id === 'string' ? publicUser.data.id : null,
+    authUserId,
+    publicUserId: matched.id,
     tenantId,
     tenantPlan,
-    email: authUser.email,
+    email: authUserRes.data.user.email,
   }
 }
 
