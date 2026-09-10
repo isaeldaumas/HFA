@@ -29,10 +29,6 @@ export function useMe(): Me {
         setMe({ ...DEFAULT, loading: false })
         return
       }
-      const sessionRole = String(data.session.user.user_metadata?.role ?? 'member')
-      const sessionPlan = String(data.session.user.user_metadata?.plan ?? 'free')
-      const sessionIsAdmin = sessionRole === 'admin'
-      const sessionIsUnlimited = sessionPlan === 'enterprise'
       try {
         const res = await fetch('/api/auth/me', {
           headers: { Authorization: `Bearer ${data.session.access_token}` },
@@ -51,15 +47,9 @@ export function useMe(): Me {
           loading: false,
         })
       } catch (error) {
+        // Fail closed for display role/plan — never trust user_metadata as authorization source.
         console.error('Falha ao carregar /api/auth/me', error)
-        setMe({
-          plan: sessionPlan,
-          credits: sessionIsUnlimited ? 'unlimited' : 0,
-          role: sessionRole,
-          isAdmin: sessionIsAdmin,
-          isUnlimited: sessionIsUnlimited,
-          loading: false,
-        })
+        setMe({ ...DEFAULT, loading: false })
       }
     })
   }, [])

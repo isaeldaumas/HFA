@@ -237,7 +237,20 @@ export default function EventsPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
       setToken(session.access_token)
-      setCanManageProfile(String(session.user.user_metadata?.role ?? '').toLowerCase() === 'admin')
+      try {
+        const meRes = await fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (meRes.ok) {
+          const me = await meRes.json()
+          setCanManageProfile(Boolean(me.is_admin) || String(me.role ?? '').toLowerCase() === 'admin')
+        } else {
+          setCanManageProfile(false)
+        }
+      } catch (error) {
+        console.error('Falha ao carregar /api/auth/me para permissões de UI', error)
+        setCanManageProfile(false)
+      }
       const data = await apiCall('/events/', {}, session.access_token)
       setEvents(data)
       setLoading(false)
