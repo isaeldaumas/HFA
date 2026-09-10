@@ -1,0 +1,121 @@
+name: HFA Integrated Regression
+
+# AVISO: Este workflow executa regressão integrada com ambiente real controlado.
+# NÃO usar produção. NÃO escrever em produção ou staging com dados reais de usuário.
+# Habilitado apenas via workflow_dispatch até que ambiente de staging seja configurado.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_staging_only:
+        description: "Confirma que o ambiente alvo é exclusivamente staging/dev (nunca produção)"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  check-environment:
+    name: Check Environment Availability
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      environment_available: ${{ steps.check.outputs.available }}
+
+    steps:
+      - name: Verify staging confirmation
+        if: ${{ !inputs.confirm_staging_only }}
+        run: |
+          echo "ERROR: confirm_staging_only must be true to run integrated regression"
+          echo "Este workflow NÃO pode ser executado em produção."
+          exit 1
+
+      - name: Check required secrets
+        id: check
+        run: |
+          missing=""
+          if [ -z "$SUPABASE_STAGING_URL" ]; then missing="$missing SUPABASE_STAGING_URL"; fi
+          if [ -z "$SUPABASE_STAGING_SERVICE_ROLE_KEY" ]; then missing="$missing SUPABASE_STAGING_SERVICE_ROLE_KEY"; fi
+
+          if [ -n "$missing" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "ENVIRONMENT_UNAVAILABLE: missing secrets: $missing"
+            echo "Status: INTEGRATED_REGRESSION_WORKFLOW_READY_ENVIRONMENT_NOT_CONFIGURED"
+            echo ""
+            echo "Para habilitar este workflow, configure os secrets de staging:"
+            echo "  - SUPABASE_STAGING_URL"
+            echo "  - SUPABASE_STAGING_SERVICE_ROLE_KEY"
+            echo ""
+            echo "IMPORTANTE: usar exclusivamente ambiente dev/staging, nunca produção."
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "Environment secrets found."
+          fi
+        env:
+          SUPABASE_STAGING_URL: ${{ secrets.SUPABASE_STAGING_URL }}
+          SUPABASE_STAGING_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_STAGING_SERVICE_ROLE_KEY }}
+
+  integrated-regression:
+    name: HFA Integrated Regression (Staging/Dev Only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: check-environment
+    if: needs.check-environment.outputs.environment_available == 'true'
+
+    env:
+      # Ambiente de staging/dev APENAS — nunca produção
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_STAGING_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_STAGING_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_STAGING_SERVICE_ROLE_KEY }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET_STAGING }}
+      NEXTAUTH_URL: http://localhost:3000
+      # SERA vNext flags: desligados em integração também (shadow mode requer autorização separada)
+      SERA_VNEXT_READONLY_ENABLED: "false"
+      SERA_VNEXT_INTERNAL_PILOT_ENABLED: "false"
+      NEXT_PUBLIC_SERA_VNEXT_DIAGNOSTICS_ENABLED: "false"
+      SERA_SHADOW_EXECUTION_ENABLED: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run integrated regression
+        run: ./frontend/node_modules/.bin/tsx scripts/run-sera-vnext-regression.ts
+
+  environment-not-configured:
+    name: INTEGRATED_REGRESSION_WORKFLOW_READY_ENVIRONMENT_NOT_CONFIGURED
+    runs-on: ubuntu-latest
+    needs: check-environment
+    if: needs.check-environment.outputs.environment_available == 'false'
+
+    steps:
+      - name: Report environment status
+        run: |
+          echo "======================================================="
+          echo "INTEGRATED_REGRESSION_WORKFLOW_READY_ENVIRONMENT_NOT_CONFIGURED"
+          echo "======================================================="
+          echo ""
+          echo "O workflow de regressão integrada está pronto mas o"
+          echo "ambiente de staging não está configurado."
+          echo ""
+          echo "NÃO usar produção."
+          echo "NÃO inventar credenciais."
+          echo ""
+          echo "Para configurar: adicionar secrets SUPABASE_STAGING_URL"
+          echo "e SUPABASE_STAGING_SERVICE_ROLE_KEY no repositório."
+          echo "======================================================="
+          exit 0
+# Integrated Regression Workflow
