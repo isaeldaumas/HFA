@@ -1,7 +1,11 @@
 -- TENANT AUTHORIZATION HARDENING DRAFT
--- Status: DRAFT — NOT to be placed in supabase/migrations/ yet.
+-- Status: HISTORICAL DRAFT — superseded by
+--   supabase/migrations/20260910193000_db_authoritative_tenant_authorization.sql
+-- Do NOT apply this draft. Do NOT convert it directly into a migration.
+-- The validated model uses private.current_tenant_id() / private.current_user_role()
+-- with SECURITY DEFINER + search_path='', and public wrappers as SECURITY INVOKER.
 -- Prerequisites: see docs/hfa-backlog/TENANT_AUTH_IDENTITY_MAPPING_PLAN.md
--- Do NOT apply without: dev fixture, backfill validation, staging test.
+
 
 -- =============================================================================
 -- 1. Add auth_user_id column

@@ -152,6 +152,10 @@ jobs:
       HFA_TEST_USER_A_ID: ${{ vars.HFA_TEST_USER_A_ID }}
       HFA_TEST_TENANT_B_ID: ${{ vars.HFA_TEST_TENANT_B_ID }}
       HFA_TEST_USER_B_ID: ${{ vars.HFA_TEST_USER_B_ID }}
+      HFA_TEST_USER_A_EMAIL: ${{ secrets.HFA_TEST_USER_A_EMAIL }}
+      HFA_TEST_USER_B_EMAIL: ${{ secrets.HFA_TEST_USER_B_EMAIL }}
+      HFA_TEST_USER_A_PASSWORD: ${{ secrets.HFA_TEST_USER_A_PASSWORD }}
+      HFA_TEST_USER_B_PASSWORD: ${{ secrets.HFA_TEST_USER_B_PASSWORD }}
       # Execution level — READ_ONLY or MUTATING_SYNTHETIC
       HFA_INTEGRATED_REGRESSION_LEVEL: ${{ needs.check-environment.outputs.run_mutating == 'true' && 'MUTATING_SYNTHETIC' || 'READ_ONLY' }}
       HFA_TEST_ENVIRONMENT: staging
