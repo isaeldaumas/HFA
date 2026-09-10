@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 
-const COHORT_DIR = '/Users/filipedaumas/SAAS/HFA/docs/sera-vnext/expanded-cohort'
+const ROOT_DIR = path.resolve(__dirname, '..', '..')
+const COHORT_DIR = path.join(ROOT_DIR, 'docs', 'sera-vnext', 'expanded-cohort')
 const TRIAL_ID = 'expanded-cohort-metrics-trial-001'
 const MIN_REVIEWERS_FOR_PASS = 3
 
