@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import path from 'node:path'
+import { resolveTestTenantPrefix } from '../helpers/resolve-test-tenant-prefix'
 import {
   PLAYWRIGHT_OUTPUT_DIR,
   buildBaseUrl,
@@ -23,7 +24,7 @@ import {
 
 const TRIAL_ID = 'event-deletion-ui-real-trial-001'
 const PREFIX = '[EVENT_DELETE_TEST]'
-const ENTERPRISE_TENANT_PREFIX = process.env.SERA_VNEXT_TEST_TENANT_PREFIX?.trim() || '3a68c15d'
+const ENTERPRISE_TENANT_PREFIX = resolveTestTenantPrefix()
 const SESSION_ID = 'eventdeleteui1'
 
 function escapeRegExp(value: string): string {
