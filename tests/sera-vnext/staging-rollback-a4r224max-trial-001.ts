@@ -1,4 +1,4 @@
-import { assertSafeTestEnvironment } from '../../helpers/assert-safe-test-environment'
+import { assertSafeTestEnvironment } from './helpers/assert-safe-test-environment'
 import assert from "node:assert/strict";
 import { handleSeraVNextStatusRequest } from "../../frontend/src/app/api/admin/sera-vnext/status/route";
 import { getSeraVNextRuntimeStatus } from "../../frontend/src/lib/sera-vnext-runtime/runtime-service";

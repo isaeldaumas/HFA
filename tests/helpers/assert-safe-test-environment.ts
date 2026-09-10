@@ -8,4 +8,4 @@
 export {
   assertSafeTestEnvironment,
   type SafeTestFixture,
-} from '../sera-vnext/helpers/assert-safe-test-environment'
+} from '../sera-vnext/helpers/assert-safe-test-environment.ts'

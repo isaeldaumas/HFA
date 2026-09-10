@@ -1,4 +1,4 @@
-import { assertSafeTestEnvironment } from '../../helpers/assert-safe-test-environment'
+import { assertSafeTestEnvironment } from './helpers/assert-safe-test-environment'
 import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
 import { handleSeraVNextStatusRequest } from "../../frontend/src/app/api/admin/sera-vnext/status/route";

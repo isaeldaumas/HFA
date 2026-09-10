@@ -6,7 +6,7 @@
  *
  * Run: npx tsx tests/sera-vnext/product-unification/provenance-reanalysis-api-real-trial-001.ts
  */
-import { assertSafeTestEnvironment } from '../../../helpers/assert-safe-test-environment'
+import { assertSafeTestEnvironment } from '../helpers/assert-safe-test-environment'
 import { resolveTestTenantPrefix } from '../helpers/resolve-test-tenant-prefix'
 import {
   apiJson,

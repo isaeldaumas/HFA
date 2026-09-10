@@ -10,7 +10,7 @@ export {};
  * Run: NODE_PATH=frontend/node_modules npx tsx tests/sera-vnext/product-beta-rls-real-trial-001.ts
  */
 
-import { assertSafeTestEnvironment } from '../../helpers/assert-safe-test-environment'
+import { assertSafeTestEnvironment } from './helpers/assert-safe-test-environment'
 import * as fs from 'fs';
 import { createRequire } from 'module';
 import * as path from 'path';

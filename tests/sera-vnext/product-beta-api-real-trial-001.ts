@@ -1,4 +1,4 @@
-import { assertSafeTestEnvironment } from '../../helpers/assert-safe-test-environment'
+import { assertSafeTestEnvironment } from './helpers/assert-safe-test-environment'
 import assert from 'node:assert/strict'
 import { resolveTestTenantPrefix } from './helpers/resolve-test-tenant-prefix'
 import {
