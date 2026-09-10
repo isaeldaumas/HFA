@@ -1,0 +1,33 @@
+item,tipo,resultado,evidencia
+branch,git,confere,auditoria-hfa-terceira-etapa-20260710
+HEAD,git,confere,86358641f8c3763ac2401f6b8df2a60afc1b7ab0
+origin/main,git,inalterado,315eac1a4728346dc893d6b09e7c9e91a4e000f6
+upstream da branch atual,git,ausente,sem push realizado
+working_tree_modificados,git,8 arquivos,relatorios de trial - apenas timestamp generatedAt
+working_tree_staged,git,0 arquivos,git diff --cached vazio
+working_tree_untracked,git,10 arquivos,2 zips + 8 docs pre-existentes nao relacionados
+commits_total,git,8,confirmado via git log --reverse
+commit_1_7aa90429,commit,confere,test: reproduce conflicting ERC presentations - 2 arquivos novos
+commit_2_c0b4ae2b,commit,confere,fix: contain non-canonical ERC outputs - 6 arquivos
+commit_3_5ae455ec,commit,confere,feat: add methodology provenance model - 4 arquivos incl. migration
+commit_4_e3d72737,commit,confere,feat: identify engine and validation status - 1 arquivo novo
+commit_5_552d4800,commit,confere,chore: freeze legacy methodology changes - 2 arquivos
+commit_6_cbc29a0a,commit,confere,feat: prepare isolated vNext shadow mode - 6 arquivos
+commit_7_ce9c6d1f,commit,confere,test: automate cross-tenant isolation - 1 arquivo novo
+commit_8_86358641,commit,confere,docs: document phase-three architecture - 39 arquivos
+erc_containment,verificacao,ERC_CONTAINMENT_VERIFIED,subagente independente + testes PASS
+legacy_freeze,verificacao,confirmado apenas comentarios/metadados,diff linha a linha revisado
+migration,verificacao,MIGRATION_LOCALLY_VALIDATED_NOT_APPLIED,subagente independente + testes funcionais
+shadow_mode,verificacao,SHADOW_INFRASTRUCTURE_SAFE_BY_DEFAULT,subagente independente + teste PASS
+tenant_isolation_estatico,teste,PASS,12/12 cenarios
+tsc,teste,PASS,0 erros
+lint,teste,PASS,0 erros 22 warnings pre-existentes
+build,teste,PASS,exit 0
+regressao_canonica,teste,PASS com 1 fail nao-bloqueante,205 descobertos 171 executados 158 passed 0 failed-gating 34 skipped
+fail_nao_bloqueante,teste,pre-existente confirmado,provenance-db-real-trial-001.ts identico ao baseline pre-etapa3
+credencial_exposta,seguranca,CRITICAL_CREDENTIAL_EXPOSURE,token github em .git/config local nao versionado
+credencial_em_commits,seguranca,nao encontrada,git log -p do intervalo sem ocorrencias
+credencial_em_arquivos_versionados,seguranca,nao encontrada,git grep sem ocorrencias de literal
+credencial_em_zips,seguranca,nao encontrada,inspecao de nomes de arquivo nos zips untracked
+documentacao_terceira_etapa,verificacao,todos os 9 arquivos presentes e commitados,-
+decisao_final,verificacao,THIRD_STAGE_INDEPENDENTLY_VERIFIED_LOCAL_ONLY,ver 12-verificacao-independente.md

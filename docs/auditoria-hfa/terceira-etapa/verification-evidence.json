@@ -1,0 +1,163 @@
+{
+  "verificationStage": "independent-verification-of-third-stage",
+  "verifiedAt": "2026-07-10",
+  "branchFound": "auditoria-hfa-terceira-etapa-20260710",
+  "headFound": "86358641f8c3763ac2401f6b8df2a60afc1b7ab0",
+  "headExpectedMatch": true,
+  "branchExpectedMatch": true,
+  "thirdStageStartCommit": "315eac1a4728346dc893d6b09e7c9e91a4e000f6",
+  "originMainUnchanged": true,
+  "currentBranchHasUpstream": false,
+  "workingTree": {
+    "modifiedTrackedFiles": 8,
+    "modifiedFilesAreTestReportsOnly": true,
+    "modifiedFilesDiffContent": "generatedAt timestamp only, no decision/count data changed",
+    "modifiedFilesPreExisted": true,
+    "modifiedFilesRewrittenDuringThisSession": true,
+    "rewriteCause": "engine-validation-v0/v01/v02 run-all.ts scripts write report files as a side effect when executed",
+    "stagedFiles": 0,
+    "untrackedFiles": 10,
+    "untrackedFilesRelatedToThirdStage": false,
+    "noFilesDiscardedOrRestored": true
+  },
+  "commits": {
+    "count": 8,
+    "orderMatchesPlan": true,
+    "list": [
+      { "order": 1, "sha": "7aa90429f030c01155e2f683e6d677e63816788e", "subject": "test: reproduce conflicting ERC presentations", "filesChanged": 2 },
+      { "order": 2, "sha": "c0b4ae2b3d387776d0690d6d53c420bdcbcac666", "subject": "fix: contain non-canonical ERC outputs", "filesChanged": 6 },
+      { "order": 3, "sha": "5ae455ec315fd938a4f776c32ea311b6de624282", "subject": "feat: add methodology provenance model", "filesChanged": 4 },
+      { "order": 4, "sha": "e3d72737671fdbd4d565a6ed40cf5fbf7c3a3792", "subject": "feat: identify engine and validation status", "filesChanged": 1 },
+      { "order": 5, "sha": "552d4800e3e4fd5b588c17cb2d1949656a701105", "subject": "chore: freeze legacy methodology changes", "filesChanged": 2 },
+      { "order": 6, "sha": "cbc29a0ac34f72ea568acf11346ac18b9f7f87b6", "subject": "feat: prepare isolated vNext shadow mode", "filesChanged": 6 },
+      { "order": 7, "sha": "ce9c6d1f567459c23bcbf62d9b89b95f94e84d85", "subject": "test: automate cross-tenant isolation", "filesChanged": 1 },
+      { "order": 8, "sha": "86358641f8c3763ac2401f6b8df2a60afc1b7ab0", "subject": "docs: document phase-three architecture", "filesChanged": 39 }
+    ],
+    "noHistoricalClassificationAltered": true,
+    "noCommitMixesUndocumentedScope": true
+  },
+  "ercContainment": {
+    "verdict": "ERC_CONTAINMENT_VERIFIED",
+    "verifiedBy": "independent subagent (isolated worktree)",
+    "mechanismsRegistered": 2,
+    "duplicateArmsMatrixRemoved": true,
+    "duplicateMatrixValuesConfirmedIdentical": true,
+    "deadFunctionsMarkedDeprecatedAndUnused": true,
+    "noFormulaChanged": true,
+    "noMechanismSilentlyMadeCanonical": true,
+    "testsExecuted": [
+      { "file": "tests/hfa-audit/erc-containment/erc-containment-trial-001.ts", "exitCode": 0, "result": "PASS" },
+      { "file": "tests/hfa-audit/erc-containment/erc-containment-trial-002-static.ts", "exitCode": 0, "result": "PASS" }
+    ]
+  },
+  "migration": {
+    "verdict": "MIGRATION_LOCALLY_VALIDATED_NOT_APPLIED",
+    "verifiedBy": "independent subagent (isolated worktree)",
+    "file": "supabase/migrations/20260710010000_methodology_provenance_and_shadow_infra.sql",
+    "strictlyAdditive": true,
+    "noDropOrTruncate": true,
+    "backfillColumnsOnly": [
+      "generated_by_type", "generated_at", "validation_status", "engine_id",
+      "risk_method_id", "risk_method_version", "source_analysis_version"
+    ],
+    "backfillClassificationColumnsUntouched": true,
+    "checkConstraintValuesConfirmed": true,
+    "shadowResultsTableRlsEnabled": true,
+    "shadowResultsAppendOnlyTriggersConfirmed": true,
+    "taxonomyEntriesTableEmpty": true,
+    "uniqueTenantShadowRunIdConstraintPresent": false,
+    "idempotencyLevel": "application-only",
+    "evidenceOfRemoteApplication": "none found",
+    "evidenceOfCiAutoMigration": "none found"
+  },
+  "shadowMode": {
+    "verdict": "SHADOW_INFRASTRUCTURE_SAFE_BY_DEFAULT",
+    "verifiedBy": "independent subagent (isolated worktree)",
+    "allFiveFlagsDefaultFalse": true,
+    "undefinedEnvNeverInterpretedAsTrue": true,
+    "shadowFailureNeverBlocksLegacyFlow": true,
+    "shadowNeverWritesToProductionTables": true,
+    "tenantIsolatedOnReadsAndWrites": true,
+    "anyFlagActivatedDuringVerification": false,
+    "testExecuted": { "file": "tests/hfa-audit/shadow-mode/shadow-mode-trial-001.ts", "exitCode": 0, "result": "PASS" }
+  },
+  "legacyFreeze": {
+    "onlyCommentsAndAdditiveMetadata": true,
+    "noClassificationLogicChanged": true,
+    "protectedPathTestsMechanism": "git diff --name-only / --cached against fixed path prefixes, sensitive to current working tree state, not to commit history",
+    "protectedPathTestsPassAtCommittedHead": true,
+    "eightAffectedTrialsAllPassAfterCommit": true
+  },
+  "testsReExecuted": {
+    "tsc": { "command": "npx tsc --noEmit", "exitCode": 0, "durationApprox": "2.4s" },
+    "lint": { "command": "npm run lint", "exitCode": 0, "errors": 0, "warnings": 22, "newWarnings": 0 },
+    "build": { "command": "npm run build", "exitCode": 0, "durationApprox": "18.1s" },
+    "auditSuites": [
+      { "file": "tests/hfa-audit/erc-containment/erc-containment-trial-001.ts", "exitCode": 0 },
+      { "file": "tests/hfa-audit/erc-containment/erc-containment-trial-002-static.ts", "exitCode": 0 },
+      { "file": "tests/hfa-audit/legacy-freeze/legacy-freeze-trial-001.ts", "exitCode": 0 },
+      { "file": "tests/hfa-audit/shadow-mode/shadow-mode-trial-001.ts", "exitCode": 0 },
+      { "file": "tests/hfa-audit/tenant-isolation/tenant-isolation-contract-trial-001.ts", "exitCode": 0 }
+    ],
+    "canonicalRegression": {
+      "command": "npx tsx scripts/run-sera-vnext-regression.ts",
+      "exitCode": 0,
+      "testsDiscovered": 205,
+      "testsExecuted": 171,
+      "testsPassed": 158,
+      "testsFailedGating": 0,
+      "testsSkipped": 34,
+      "gatesPassed": 3,
+      "gatesNotReady": 1,
+      "environmentMissing": 0,
+      "additionalNonGatingFailFound": {
+        "file": "tests/sera-vnext/product-unification/provenance-db-real-trial-001.ts",
+        "requiredForRegression": false,
+        "cause": "foreign key violation on tenant_id (missing test tenant fixture in dev database), unrelated to schema/migration",
+        "preExisting": true,
+        "identicalToPreThirdStageBaseline": true,
+        "noRowActuallyWritten": true
+      },
+      "note": "This run had frontend/.env.local present with real dev-Supabase credentials, so more REAL_DB/REAL_API trials executed than the ad hoc 'safe' run from the prior session (161 PASS/43 SKIP_ENV there vs 171 executed/34 skipped here)."
+    },
+    "testsNotExecuted": [
+      "43 REAL_DB/REAL_API/REAL_UI trials requiring an unavailable environment or Supabase not reachable from those specific trials",
+      "no real LLM-backed test (no provider keys exercised)",
+      "no real cross-tenant test against a live database (only static contract)"
+    ]
+  },
+  "secretsScan": {
+    "literalTokenFoundInTrackedFiles": false,
+    "literalTokenFoundInThirdStageCommitHistory": false,
+    "literalTokenFoundInZipArtifacts": false,
+    "gitConfigRemoteContainsEmbeddedCredential": true,
+    "classification": "CRITICAL_CREDENTIAL_EXPOSURE",
+    "credentialType": "GitHub personal access token embedded in origin remote URL",
+    "location": ".git/config (local, untracked, not in any commit)",
+    "actionTaken": "none — not revoked, not rotated, not modified, not printed",
+    "recommendation": "revoke manually on GitHub, reconfigure remote via SSH or credential helper"
+  },
+  "documentationCrossCheck": {
+    "allNineFilesPresent": true,
+    "allInFinalCommit": true,
+    "numbersMatchLogs": true,
+    "noProductionOrDeployClaimFound": true,
+    "residualRisksComplete": true,
+    "pendingDecisionsRegistered": true,
+    "discrepanciesFound": [
+      "Test regression scripts (engine-validation-v0/v01/v02 run-all.ts) rewrite report file timestamps as a side effect; not explicitly documented in the third-stage docs, though without impact on any decision data."
+    ]
+  },
+  "finalDecision": "THIRD_STAGE_INDEPENDENTLY_VERIFIED_LOCAL_ONLY",
+  "requiredMarkers": {
+    "NO_REMOTE_MIGRATION": true,
+    "NO_DEPLOY": true,
+    "NO_PRODUCTION_VALIDATION": true,
+    "NO_REAL_CROSS_TENANT_VALIDATION": true,
+    "SHADOW_FLAGS_OFF": true
+  },
+  "noPushPerformedByThisVerification": true,
+  "noMergePerformedByThisVerification": true,
+  "noFlagActivatedByThisVerification": true,
+  "noDataAlteredByThisVerification": true
+}
