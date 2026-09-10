@@ -79,6 +79,24 @@ check(
   'authorized-user-context.ts: distinguishes authUserId from publicUserId'
 )
 
+// Resolver must use AuthenticatedIdentity (typed input, not bare strings)
+check(
+  resolverSource.includes('AuthenticatedIdentity'),
+  'authorized-user-context.ts: uses typed AuthenticatedIdentity input'
+)
+
+// Resolver must require emailConfirmedAt for legacy path
+check(
+  resolverSource.includes('emailConfirmedAt'),
+  'authorized-user-context.ts: requires emailConfirmedAt for legacy email binding'
+)
+
+// Resolver must use identityBinding (not isLegacyEmailMatch)
+check(
+  resolverSource.includes('identityBinding') && !resolverSource.includes('isLegacyEmailMatch'),
+  'authorized-user-context.ts: uses identityBinding type (replaces isLegacyEmailMatch)'
+)
+
 // Resolver must fail closed when no user found
 check(
   resolverSource.includes('status: 403'),
