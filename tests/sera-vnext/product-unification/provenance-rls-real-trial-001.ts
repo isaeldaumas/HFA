@@ -47,6 +47,14 @@ async function run() {
     process.exit(0);
   }
 
+  // Require explicit fixture IDs — hardcoded UUIDs replaced with env vars.
+  const FIXTURE_TENANT_A = process.env.HFA_TEST_TENANT_A_ID?.trim() ?? ''
+  const FIXTURE_USER_A = process.env.HFA_TEST_USER_A_ID?.trim() ?? ''
+  if (!FIXTURE_TENANT_A || !FIXTURE_USER_A) {
+    console.log('ENVIRONMENT_NOT_CONFIGURED: HFA_TEST_TENANT_A_ID and HFA_TEST_USER_A_ID must be set. Skipping.')
+    process.exit(0)
+  }
+
   const admin = createSupabaseClient(supabaseUrl, serviceRole, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
@@ -112,8 +120,8 @@ async function run() {
 
     // Anon INSERT with provenance columns should be blocked by RLS
     const { error: insErr } = await (anon.from('sera_vnext_analyses' as never) as any).insert({
-      tenant_id: '3a68c15d-5a10-467c-ad67-e6ad0083376c',
-      created_by: '977a8b7a-531f-40e2-8e18-4d145ae5c7d1',
+      tenant_id: FIXTURE_TENANT_A,
+      created_by: FIXTURE_USER_A,
       title: '[PROVENANCE_RLS_TEST] anon insert with provenance — should be blocked',
       client_request_id: `provenance-rls-anon-insert-${Date.now()}`,
       narrative: 'Anon provenance insert attempt',
@@ -148,7 +156,7 @@ async function run() {
   // --- 4. Tenant isolation: authenticated user sees only own tenant ---
   console.log('4. Tenant isolation with provenance');
   {
-    const TENANT_A = '3a68c15d-5a10-467c-ad67-e6ad0083376c';
+    const TENANT_A = FIXTURE_TENANT_A;
     const TENANT_B = '00000000-0000-0000-0000-000000000099';
 
     // Admin (service role) confirms analyses exist for tenant A

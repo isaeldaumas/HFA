@@ -74,13 +74,13 @@ async function run() {
     }
   }
 
-  // Constraints
-  const { data: tenants } = await admin.from('tenants').select('id').limit(1);
-  const { data: users } = await admin.from('users').select('id').limit(1);
+  // Constraints — require explicit fixture IDs; never select arbitrary tenant/user via .limit(1)
+  // Use HFA_TEST_TENANT_A_ID and HFA_TEST_USER_A_ID environment variables.
+  // If not set, skip mutation tests to avoid writing to arbitrary production data.
+  const tenantId = process.env.HFA_TEST_TENANT_A_ID?.trim() ?? '';
+  const userId = process.env.HFA_TEST_USER_A_ID?.trim() ?? '';
 
-  if (tenants?.length && users?.length) {
-    const tenantId = (tenants[0] as { id: string }).id;
-    const userId = (users[0] as { id: string }).id;
+  if (tenantId && userId) {
     const runSuffix = `${Date.now()}`;
     const safe = { selectedCode: null, releasedCode: null, finalConclusion: null, classifiedOutput: false, readyPromotion: false, downstreamAllowed: false };
     const base = {

@@ -3,6 +3,12 @@ name: HFA Integrated Regression
 # AVISO: Este workflow executa regressão integrada com ambiente real controlado.
 # NÃO usar produção. NÃO escrever em produção ou staging com dados reais de usuário.
 # Habilitado apenas via workflow_dispatch até que ambiente de staging seja configurado.
+#
+# Dois níveis de execução:
+#   READ_ONLY (padrão) — apenas testes com dataAccess=READ_ONLY ou NONE
+#   MUTATING_SYNTHETIC — também executa testes com dataAccess=MUTATING_SYNTHETIC,
+#                        que escrevem APENAS em fixtures explícitas de staging.
+#                        Requer confirmação adicional explícita.
 
 on:
   workflow_dispatch:
@@ -10,6 +16,14 @@ on:
       confirm_staging_only:
         description: "Confirma que o ambiente alvo é exclusivamente staging/dev (nunca produção)"
         required: true
+        type: boolean
+        default: false
+      confirm_mutating_synthetic_fixture_only:
+        description: >
+          [OPCIONAL] Confirma que deseja executar testes MUTATING_SYNTHETIC.
+          Esses testes escrevem dados sintéticos de fixture no staging.
+          SÓ marque se você provisionou fixtures HFA_TEST_TENANT_A_ID/HFA_TEST_USER_A_ID.
+        required: false
         type: boolean
         default: false
 
@@ -23,6 +37,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       environment_available: ${{ steps.check.outputs.available }}
+      run_mutating: ${{ steps.check.outputs.run_mutating }}
 
     steps:
       - name: Verify staging confirmation
@@ -32,7 +47,7 @@ jobs:
           echo "Este workflow NÃO pode ser executado em produção."
           exit 1
 
-      - name: Check required secrets
+      - name: Check required secrets and project ref allowlist
         id: check
         run: |
           missing=""
@@ -40,28 +55,66 @@ jobs:
           if [ -z "$SUPABASE_STAGING_SERVICE_ROLE_KEY" ]; then missing="$missing SUPABASE_STAGING_SERVICE_ROLE_KEY"; fi
           if [ -z "$SUPABASE_STAGING_ANON_KEY" ]; then missing="$missing SUPABASE_STAGING_ANON_KEY"; fi
           if [ -z "$NEXTAUTH_SECRET_STAGING" ]; then missing="$missing NEXTAUTH_SECRET_STAGING"; fi
+          if [ -z "$HFA_STAGING_SUPABASE_PROJECT_REF" ]; then missing="$missing HFA_STAGING_SUPABASE_PROJECT_REF"; fi
 
           if [ -n "$missing" ]; then
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "ENVIRONMENT_UNAVAILABLE: missing secrets:$missing"
+            echo "run_mutating=false" >> "$GITHUB_OUTPUT"
+            echo "ENVIRONMENT_UNAVAILABLE: missing secrets/variables:$missing"
             echo "Status: INTEGRATED_REGRESSION_WORKFLOW_READY_ENVIRONMENT_NOT_CONFIGURED"
             echo ""
-            echo "Para habilitar este workflow, configure os secrets de staging:"
-            echo "  - SUPABASE_STAGING_URL"
-            echo "  - SUPABASE_STAGING_SERVICE_ROLE_KEY"
-            echo "  - SUPABASE_STAGING_ANON_KEY"
-            echo "  - NEXTAUTH_SECRET_STAGING"
+            echo "Para habilitar este workflow, configure no repositório:"
+            echo "  Secrets:   SUPABASE_STAGING_URL, SUPABASE_STAGING_SERVICE_ROLE_KEY"
+            echo "             SUPABASE_STAGING_ANON_KEY, NEXTAUTH_SECRET_STAGING"
+            echo "  Variables: HFA_STAGING_SUPABASE_PROJECT_REF (ref do projeto Supabase staging)"
             echo ""
             echo "IMPORTANTE: usar exclusivamente ambiente dev/staging, nunca produção."
           else
+            # Verify project ref matches URL
+            URL_HOST=$(echo "$SUPABASE_STAGING_URL" | sed 's|https://||' | cut -d'.' -f1)
+            if [ "$URL_HOST" != "$HFA_STAGING_SUPABASE_PROJECT_REF" ]; then
+              echo "available=false" >> "$GITHUB_OUTPUT"
+              echo "run_mutating=false" >> "$GITHUB_OUTPUT"
+              echo "ENVIRONMENT_MISCONFIGURED: SUPABASE_STAGING_URL project ref does not match HFA_STAGING_SUPABASE_PROJECT_REF"
+              echo "  URL ref extracted: $URL_HOST"
+              echo "  Expected ref:      $HFA_STAGING_SUPABASE_PROJECT_REF"
+              echo "Refusing to run against unallowlisted Supabase project."
+              exit 1
+            fi
+
+            # Verify HTTPS
+            if [[ "$SUPABASE_STAGING_URL" != https://* ]]; then
+              echo "available=false" >> "$GITHUB_OUTPUT"
+              echo "run_mutating=false" >> "$GITHUB_OUTPUT"
+              echo "ENVIRONMENT_MISCONFIGURED: SUPABASE_STAGING_URL must use HTTPS"
+              exit 1
+            fi
+
             echo "available=true" >> "$GITHUB_OUTPUT"
-            echo "All required environment secrets found."
+            echo "All required environment secrets found. Project ref verified."
+
+            # Mutating level: requires both confirm flags AND fixture IDs
+            if [ "${{ inputs.confirm_mutating_synthetic_fixture_only }}" = "true" ] && \
+               [ -n "$HFA_TEST_TENANT_A_ID" ] && [ -n "$HFA_TEST_USER_A_ID" ]; then
+              echo "run_mutating=true" >> "$GITHUB_OUTPUT"
+              echo "MUTATING_SYNTHETIC level: ENABLED (fixture IDs present)"
+            else
+              echo "run_mutating=false" >> "$GITHUB_OUTPUT"
+              echo "MUTATING_SYNTHETIC level: DISABLED (default READ_ONLY only)"
+              if [ "${{ inputs.confirm_mutating_synthetic_fixture_only }}" = "true" ]; then
+                echo "  Warning: confirm_mutating_synthetic_fixture_only=true but HFA_TEST_TENANT_A_ID or HFA_TEST_USER_A_ID not set"
+                echo "  Falling back to READ_ONLY level"
+              fi
+            fi
           fi
         env:
           SUPABASE_STAGING_URL: ${{ secrets.SUPABASE_STAGING_URL }}
           SUPABASE_STAGING_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_STAGING_SERVICE_ROLE_KEY }}
           SUPABASE_STAGING_ANON_KEY: ${{ secrets.SUPABASE_STAGING_ANON_KEY }}
           NEXTAUTH_SECRET_STAGING: ${{ secrets.NEXTAUTH_SECRET_STAGING }}
+          HFA_STAGING_SUPABASE_PROJECT_REF: ${{ vars.HFA_STAGING_SUPABASE_PROJECT_REF }}
+          HFA_TEST_TENANT_A_ID: ${{ vars.HFA_TEST_TENANT_A_ID }}
+          HFA_TEST_USER_A_ID: ${{ vars.HFA_TEST_USER_A_ID }}
 
   integrated-regression:
     name: HFA Integrated Regression (Staging/Dev Only)
@@ -75,10 +128,21 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_STAGING_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_STAGING_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_STAGING_SERVICE_ROLE_KEY }}
+      SUPABASE_STAGING_URL: ${{ secrets.SUPABASE_STAGING_URL }}
       NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET_STAGING }}
       NEXTAUTH_URL: http://127.0.0.1:3100
       SERA_VNEXT_TEST_BASE_URL: http://127.0.0.1:3100
-      # SERA vNext flags: desligados em integração também (shadow mode requer autorização separada)
+      # Project ref allowlist — must match SUPABASE_STAGING_URL extracted ref
+      HFA_STAGING_SUPABASE_PROJECT_REF: ${{ vars.HFA_STAGING_SUPABASE_PROJECT_REF }}
+      # Staging fixture IDs — set in repository variables; required for MUTATING_SYNTHETIC tests
+      HFA_TEST_TENANT_A_ID: ${{ vars.HFA_TEST_TENANT_A_ID }}
+      HFA_TEST_USER_A_ID: ${{ vars.HFA_TEST_USER_A_ID }}
+      HFA_TEST_TENANT_B_ID: ${{ vars.HFA_TEST_TENANT_B_ID }}
+      HFA_TEST_USER_B_ID: ${{ vars.HFA_TEST_USER_B_ID }}
+      # Execution level — READ_ONLY or MUTATING_SYNTHETIC
+      HFA_INTEGRATED_REGRESSION_LEVEL: ${{ needs.check-environment.outputs.run_mutating == 'true' && 'MUTATING_SYNTHETIC' || 'READ_ONLY' }}
+      HFA_TEST_ENVIRONMENT: staging
+      # SERA vNext flags: desligados em integração (shadow mode requer autorização separada)
       SERA_VNEXT_READONLY_ENABLED: "false"
       SERA_VNEXT_INTERNAL_PILOT_ENABLED: "false"
       NEXT_PUBLIC_SERA_VNEXT_DIAGNOSTICS_ENABLED: "false"
@@ -127,6 +191,11 @@ jobs:
           fi
           echo "Frontend ready at http://127.0.0.1:3100"
 
+      - name: Report execution level
+        run: |
+          echo "Execution level: $HFA_INTEGRATED_REGRESSION_LEVEL"
+          echo "MUTATING_SYNTHETIC tests: ${{ needs.check-environment.outputs.run_mutating }}"
+
       - name: Run integrated regression
         run: ./frontend/node_modules/.bin/tsx scripts/run-sera-vnext-regression.ts
 
@@ -156,11 +225,15 @@ jobs:
           echo "NÃO usar produção."
           echo "NÃO inventar credenciais."
           echo ""
-          echo "Para configurar: adicionar os seguintes secrets no repositório:"
-          echo "  - SUPABASE_STAGING_URL"
-          echo "  - SUPABASE_STAGING_SERVICE_ROLE_KEY"
-          echo "  - SUPABASE_STAGING_ANON_KEY"
-          echo "  - NEXTAUTH_SECRET_STAGING"
+          echo "Para configurar, adicione no repositório:"
+          echo "  Secrets:"
+          echo "    - SUPABASE_STAGING_URL"
+          echo "    - SUPABASE_STAGING_SERVICE_ROLE_KEY"
+          echo "    - SUPABASE_STAGING_ANON_KEY"
+          echo "    - NEXTAUTH_SECRET_STAGING"
+          echo "  Variables:"
+          echo "    - HFA_STAGING_SUPABASE_PROJECT_REF (ref do projeto Supabase de staging)"
+          echo "    - HFA_TEST_TENANT_A_ID  (para testes MUTATING_SYNTHETIC)"
+          echo "    - HFA_TEST_USER_A_ID    (para testes MUTATING_SYNTHETIC)"
           echo "======================================================="
           exit 0
-# Integrated Regression Workflow
