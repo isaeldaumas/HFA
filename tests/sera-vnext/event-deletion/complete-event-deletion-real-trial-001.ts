@@ -1,3 +1,4 @@
+import { assertSafeTestEnvironment } from '../../../helpers/assert-safe-test-environment'
 import assert from 'node:assert/strict'
 import {
   apiJson,
@@ -55,6 +56,9 @@ function forbiddenLeak(value: unknown): boolean {
 }
 
 async function main() {
+  // Safety guard: must be called before any mutation
+  assertSafeTestEnvironment({ requiresFixtureIds: true })
+
   const baseUrl = buildBaseUrl()
   await waitForServer(baseUrl)
   const { admin } = createSupabaseClients()

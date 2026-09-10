@@ -1,3 +1,4 @@
+import { assertSafeTestEnvironment } from '../../helpers/assert-safe-test-environment'
 import assert from 'node:assert/strict'
 import {
   apiJson,
@@ -25,6 +26,9 @@ type TrialReport = {
 }
 
 async function main() {
+  // Safety guard: must be called before any mutation
+  assertSafeTestEnvironment({ requiresFixtureIds: true })
+
   const baseUrl = buildBaseUrl()
   await waitForServer(baseUrl)
 

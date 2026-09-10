@@ -1784,5 +1784,21 @@
     "requiredEnvironment": [],
     "expectedExit": 0,
     "expectedStatus": "PASS"
+  },
+  {
+    "path": "tests/sera-vnext/integrated-regression-level-enforcement-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS"
+  },
+  {
+    "path": "tests/sera-vnext/integrated-regression-workflow-safety-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS"
   }
 ]

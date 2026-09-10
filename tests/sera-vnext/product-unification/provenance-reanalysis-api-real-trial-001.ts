@@ -6,6 +6,7 @@
  *
  * Run: npx tsx tests/sera-vnext/product-unification/provenance-reanalysis-api-real-trial-001.ts
  */
+import { assertSafeTestEnvironment } from '../../../helpers/assert-safe-test-environment'
 import {
   apiJson,
   buildBaseUrl,
@@ -17,6 +18,9 @@ const TRIAL_ID = 'provenance-reanalysis-api-real-trial-001'
 const ENTERPRISE_TENANT_PREFIX = '3a68c15d'
 
 async function main() {
+  // Safety guard: must be called before any mutation
+  assertSafeTestEnvironment({ requiresFixtureIds: true })
+
   const baseUrl = buildBaseUrl()
   await waitForServer(baseUrl)
 

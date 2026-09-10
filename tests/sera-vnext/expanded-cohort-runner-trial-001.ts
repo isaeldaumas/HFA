@@ -1,3 +1,4 @@
+import { assertSafeTestEnvironment } from '../../helpers/assert-safe-test-environment'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -452,6 +453,9 @@ function ensureDir(dir: string): void {
 }
 
 async function main(): Promise<void> {
+  // Safety guard: must be called before any mutation
+  assertSafeTestEnvironment({ requiresFixtureIds: true })
+
   const baseUrl = buildBaseUrl()
   await waitForServer(baseUrl)
 

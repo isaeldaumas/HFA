@@ -1,3 +1,4 @@
+import { assertSafeTestEnvironment } from '../../helpers/assert-safe-test-environment'
 import assert from "node:assert/strict";
 import { handleSeraVNextStatusRequest } from "../../frontend/src/app/api/admin/sera-vnext/status/route";
 import { getSeraVNextRuntimeStatus } from "../../frontend/src/lib/sera-vnext-runtime/runtime-service";
@@ -140,6 +141,9 @@ const scenarios: Scenario[] = [
 ];
 
 async function main() {
+  // Safety guard: verify staging environment before flag manipulation tests
+  assertSafeTestEnvironment({ requiresFixtureIds: false })
+
   const savedReadOnly = process.env.SERA_VNEXT_READONLY_ENABLED;
   const savedPilot = process.env.SERA_VNEXT_INTERNAL_PILOT_ENABLED;
 

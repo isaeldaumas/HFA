@@ -10,6 +10,7 @@ export {};
  * Run: NODE_PATH=frontend/node_modules npx tsx tests/sera-vnext/product-beta-db-real-trial-001.ts
  */
 
+import { assertSafeTestEnvironment } from '../../helpers/assert-safe-test-environment'
 import * as fs from 'fs';
 import { createRequire } from 'module';
 import * as path from 'path';
@@ -46,6 +47,11 @@ function logCheck(name: string, pass: boolean, detail: string) {
 }
 
 async function run() {
+  // Safety guard: must be called before any mutation.
+  // Throws ENVIRONMENT_NOT_CONFIGURED if staging env or fixture IDs are missing.
+  // Runner excludes this test in READ_ONLY mode before it reaches here.
+  const fixture = assertSafeTestEnvironment({ requiresFixtureIds: true })
+
   if (!supabaseUrl || !serviceRole) {
     console.log(`[${TRIAL_ID}] SKIPPED — DB credentials not available`);
     process.exit(0);
@@ -74,13 +80,12 @@ async function run() {
     }
   }
 
-  // Constraints — require explicit fixture IDs; never select arbitrary tenant/user via .limit(1)
-  // Use HFA_TEST_TENANT_A_ID and HFA_TEST_USER_A_ID environment variables.
-  // If not set, skip mutation tests to avoid writing to arbitrary production data.
-  const tenantId = process.env.HFA_TEST_TENANT_A_ID?.trim() ?? '';
-  const userId = process.env.HFA_TEST_USER_A_ID?.trim() ?? '';
+  // Constraints — fixture IDs are guaranteed by assertSafeTestEnvironment above.
+  // Use them directly; never re-read env vars or call .limit(1).
+  const tenantId = fixture.tenantAId;
+  const userId = fixture.userAId;
 
-  if (tenantId && userId) {
+  if (true) { // always run — guard above ensures fixture is present
     const runSuffix = `${Date.now()}`;
     const safe = { selectedCode: null, releasedCode: null, finalConclusion: null, classifiedOutput: false, readyPromotion: false, downstreamAllowed: false };
     const base = {
