@@ -65,12 +65,27 @@ for (const file of collectFiles(rel("frontend/src/lib/sera-vnext-runtime"))) {
   assert.equal(source.includes("appendFile"), false, `${file}: must not append files`);
 }
 
-const importHits = execSync(
-  "rg -n \"(^import .*sera-vnext-runtime(/|[\\\"'])| from [\\\"'].*sera-vnext-runtime(/|[\\\"']))\" frontend/src tests/sera-vnext -g '*.ts' -g '*.tsx'",
-  { cwd: rootDir, encoding: "utf8" },
-)
-  .split("\n")
-  .filter(Boolean);
+const runtimeImportPattern =
+  /(^import .*sera-vnext-runtime(?:\/|["'])| from ["'].*sera-vnext-runtime(?:\/|["']))/
+
+const importSearchDirs = [
+  path.join(rootDir, "frontend", "src"),
+  path.join(rootDir, "tests", "sera-vnext"),
+]
+
+const importHits: string[] = []
+for (const searchDir of importSearchDirs) {
+  for (const file of collectFiles(searchDir)) {
+    if (!file.endsWith(".ts") && !file.endsWith(".tsx")) continue
+    const lines = readFileSync(file, "utf8").split("\n")
+    const relPath = path.relative(rootDir, file).split(path.sep).join("/")
+    for (let i = 0; i < lines.length; i++) {
+      if (runtimeImportPattern.test(lines[i])) {
+        importHits.push(`${relPath}:${i + 1}:${lines[i]}`)
+      }
+    }
+  }
+}
 
 for (const hit of importHits) {
   const a4r221IntegrationAuthorized = rel("tests/sera-vnext/runtime-service-a4r221max-trial-001.ts");

@@ -3,8 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const TRIAL_ID = 'expanded-cohort-integrity-trial-001'
-const COHORT_DIR = '/Users/filipedaumas/SAAS/HFA/docs/sera-vnext/expanded-cohort'
-const ROOT_DIR = '/Users/filipedaumas/SAAS/HFA'
+const ROOT_DIR = path.resolve(__dirname, '..', '..')
+const COHORT_DIR = path.join(ROOT_DIR, 'docs', 'sera-vnext', 'expanded-cohort')
 
 const REQUIRED_COHORT_DOCS = [
   'SERA_VNEXT_EXPANDED_COHORT_OVERVIEW.md',
