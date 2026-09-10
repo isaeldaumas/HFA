@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildAnalysisUpsertPayload, runSeraPipeline, type SourceMeta } from '@/lib/sera/pipeline'
 import { assertFileSize, detectDocumentKind } from '@/lib/sera/document-extraction'
+import { isShadowExecutionEnabled } from '@/lib/sera-shadow/feature-flags'
+import { runShadowVNextIfEnabled } from '@/lib/sera-shadow/run-shadow-analysis'
 
 type UserCtx = { userId: string; tenantId: string }
 
@@ -31,10 +33,21 @@ export async function completeSeraAnalysisAfterEventCreated(
 
   if (aerr) {
     const errMsg = aerr.message ?? ''
-    if (errMsg.includes('analysis_completeness') || errMsg.includes('completeness_reason') || errMsg.includes('motor_version')) {
-      delete (payload as Record<string, unknown>).analysis_completeness
-      delete (payload as Record<string, unknown>).completeness_reason
-      delete (payload as Record<string, unknown>).motor_version
+    const PROVENANCE_COLUMNS = [
+      'analysis_completeness',
+      'completeness_reason',
+      'motor_version',
+      'engine_id',
+      'generated_by_type',
+      'generated_at',
+      'validation_status',
+      'risk_method_id',
+      'risk_method_version',
+    ]
+    if (PROVENANCE_COLUMNS.some((col) => errMsg.includes(col))) {
+      // Compatibilidade com ambientes onde a migration de proveniência
+      // (20260710010000_methodology_provenance_and_shadow_infra.sql) ainda não foi aplicada.
+      for (const col of PROVENANCE_COLUMNS) delete (payload as Record<string, unknown>)[col]
       const retry = await admin
         .from('analyses')
         .upsert(payload, { onConflict: 'event_id' })
@@ -48,6 +61,30 @@ export async function completeSeraAnalysisAfterEventCreated(
   if (aerr || !upserted) throw new Error(aerr?.message || 'Falha ao gravar análise')
 
   const analysisId = upserted.id as string
+
+  // Shadow mode (auditoria HFA, 3ª etapa) — desligado por padrão (isShadowExecutionEnabled()).
+  // Nunca deve afetar o fluxo legado: falha aqui é engolida e logada, nunca relançada.
+  if (isShadowExecutionEnabled()) {
+    try {
+      await runShadowVNextIfEnabled({
+        admin,
+        narrative: rawInput,
+        context: {
+          tenantId: user.tenantId,
+          legacyAnalysisId: analysisId,
+          legacyEventId: eventId,
+          legacyEngineVersion: String((payload as Record<string, unknown>).motor_version ?? null),
+          legacyCodes: {
+            perception: (payload as Record<string, unknown>).perception_code as string | null,
+            objective: (payload as Record<string, unknown>).objective_code as string | null,
+            action: (payload as Record<string, unknown>).action_code as string | null,
+          },
+        },
+      })
+    } catch (shadowErr) {
+      console.error('[shadow-mode] falha isolada (não afeta fluxo legado)', shadowErr)
+    }
+  }
 
   if (sourceFile) {
     assertFileSize(sourceFile.size)

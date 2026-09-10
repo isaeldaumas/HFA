@@ -89,6 +89,19 @@ export type SeraVNextAnalysisRecord = {
   limitations: string[]
   current_revision: number
   metadata: Record<string, unknown>
+
+  // Proveniência metodológica (auditoria HFA, 3ª etapa) — opcionais para não quebrar
+  // fixtures/tipos existentes; NULL em linhas anteriores a esta coluna (não inventar valor).
+  engine_id?: string | null
+  taxonomy_version?: string | null
+  risk_method_id?: string | null
+  risk_method_version?: string | null
+  generated_by_type?: string | null
+  generated_by_id?: string | null
+  validation_status?: string | null
+  validated_at?: string | null
+  validated_by?: string | null
+  source_analysis_version?: string | null
 }
 
 export type SeraVNextRevisionRecord = {

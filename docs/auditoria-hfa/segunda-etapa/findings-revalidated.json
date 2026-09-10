@@ -1,0 +1,46 @@
+{
+  "stage": "segunda-etapa-validacao-contraditoria",
+  "branch": "auditoria-hfa-20260709",
+  "headInitial": "315eac1a4728346dc893d6b09e7c9e91a4e000f6",
+  "headFinal": "315eac1a4728346dc893d6b09e7c9e91a4e000f6",
+  "codeChanged": false,
+  "experimentsIsolated": ["scratchpad/vnext-experiment.ts", "scratchpad/erc-divergence.ts"],
+  "counts": { "P0": 2, "P1": 3, "P2": 6, "P3": 3, "total": 14 },
+  "severityChanges": [
+    { "id": "F-01", "from": "P1", "to": "P2", "reason": "exposicao refutada; RLS fail-closed; enforcement app-layer correto" },
+    { "id": "F-10", "from": "P2", "to": "P3", "reason": "mitigacoes encontradas (data-confidence + guardrails do prompt ai-insight)" },
+    { "id": "F-13", "from": "P1", "to": "P2", "reason": "estrutura confirmada mas divergencia LLM nao reproduzida; temperature 0 mitiga" }
+  ],
+  "findings": [
+    { "id": "F-01", "verdict": "reformulado_rebaixado", "severity": "P2", "nature": "exposicao_REFUTADA_mecanismo_FATO", "evidence": ["STAT-ROUTES","STAT-RLS","STAT-RLSALL","STAT-RPC","STAT-REPO"], "note": "Nenhuma das 10 tentativas cruzadas explora; RLS inerte fail-closed" },
+    { "id": "F-02", "verdict": "confirmado", "severity": "P0", "nature": "FATO", "evidence": ["STAT-FLAG"] },
+    { "id": "F-03", "verdict": "confirmado_reproduzido", "severity": "P0", "nature": "FATO+REPRO", "evidence": ["STAT-FALLBACK","EXP-VNEXT-01"] },
+    { "id": "F-04", "verdict": "confirmado_reproduzido", "severity": "P1", "nature": "REPRO", "evidence": ["EXP-ERC-01","STAT-ERC2"], "note": "P-A/O-A/A-A: trend HFA4 vs card HFA1" },
+    { "id": "F-05", "verdict": "confirmado", "severity": "P1", "nature": "FATO", "evidence": ["STAT-ERC1"] },
+    { "id": "F-06", "verdict": "confirmado", "severity": "P1", "nature": "FATO", "evidence": ["STAT-FLAG"] },
+    { "id": "F-07", "verdict": "confirmado_parcial", "severity": "P2", "nature": "INF", "evidence": ["STAT-LABELS"], "note": "mapeamento HFACS pode cruzar eixo; decidir em D4" },
+    { "id": "F-08", "verdict": "confirmado", "severity": "P2", "nature": "FATO", "evidence": ["STAT-ERCINV"] },
+    { "id": "F-09", "verdict": "confirmado", "severity": "P2", "nature": "FATO", "evidence": ["STAT-PRECAP"] },
+    { "id": "F-10", "verdict": "reformulado", "severity": "P3", "nature": "FATO+mitigacao", "evidence": ["STAT-AIGUARD"] },
+    { "id": "F-11", "verdict": "confirmado", "severity": "P3", "nature": "FATO", "evidence": ["STAT-LINT"] },
+    { "id": "F-12", "verdict": "confirmado", "severity": "P3", "nature": "FATO", "evidence": ["BASE-HEAD"] },
+    { "id": "F-13", "verdict": "confirmado_reformulado", "severity": "P2", "nature": "INF+HIP", "evidence": ["STAT-ERC2"], "note": "divergencia LLM nao reproduzida nesta etapa" },
+    { "id": "F-14", "verdict": "confirmado", "severity": "P3", "nature": "FATO", "evidence": ["STAT-LABELS"] }
+  ],
+  "ercDefinitions": {
+    "totalMechanisms": 6,
+    "producingRiskValue": 4,
+    "incompatibleFamilies": 2,
+    "withValidatedSource": 0,
+    "inProduction": 6,
+    "mixesEngineVersions": true,
+    "operationalDecisionRisk": true
+  },
+  "tenantIsolationTests": {
+    "crossTenantAttempts": 10,
+    "exploitable": 0,
+    "enforcement": "application_layer + security_definer_rpc",
+    "rlsStatus": "inert_fail_closed"
+  },
+  "immediateContainment": ["RC-1 divergencia ERC card/trend", "RC-2 ERC alto sem evidencia", "RC-3 resultado nao-canonico sem rotulo"]
+}

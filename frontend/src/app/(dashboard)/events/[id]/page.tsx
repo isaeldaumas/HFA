@@ -10,6 +10,14 @@ import EditHistoryPanel from '@/components/EditHistoryPanel'
 import { STEP3_CODES, STEP4_CODES, STEP5_CODES } from '@/data/tutorials'
 import { mapToHfacs, type HfacsEntry, type HfacsResult } from '@/lib/sera/hfacs-mapper'
 import { useT } from '@/lib/i18n'
+import {
+  computeHfaErcCategoryFromCodes,
+  getArmsSeverityRow,
+  getArmsBarrierLevel,
+  ARMS_CODE_MATRIX_MECHANISM_ID,
+  ARMS_CODE_MATRIX_VERSION,
+} from '@/lib/risk-profile/erc'
+import { EngineProvenanceBadge, type GeneratedByType, type ValidationStatus } from '@/components/sera/EngineProvenanceBadge'
 
 const FlowDiagram = dynamic(() => import('@/components/FlowDiagram'), { ssr: false })
 
@@ -50,6 +58,10 @@ type AnalysisPayload = {
   conclusions?: string | null
   recommendations?: Recommendation[] | null
   edit_count?: number | null
+  engine_id?: string | null
+  motor_version?: string | null
+  generated_by_type?: string | null
+  validation_status?: string | null
   raw_llm_output?: {
     causal_consistency?: {
       passed?: boolean
@@ -142,30 +154,18 @@ function SectionNav({ anchors }: { anchors: SectionAnchor[] }) {
 
 // ── Per-event risk computation (ARMS-ERC + ISO severity) ─────────────────────
 
+// ISO severity (1–4) por código de percepção — conceito distinto da matriz ARMS abaixo,
+// não duplicado em outro arquivo.
 const EV_P_SEVERITY: Record<string, number> = {
   'P-B': 4, 'P-F': 4,
   'P-C': 3, 'P-D': 3, 'P-E': 3, 'P-G': 3,
   'P-H': 2, 'P-A': 1,
 }
 
-const EV_ARMS_SEV_ROW: Record<string, 'A' | 'B' | 'C' | 'D'> = {
-  'P-B': 'B', 'P-F': 'B', 'P-A': 'D',
-}
-
-const EV_ARMS_ERC: Record<string, number> = {
-  A1: 5, A2: 5, A3: 4, A4: 3,
-  B1: 4, B2: 4, B3: 3, B4: 2,
-  C1: 3, C2: 3, C3: 2, C4: 1,
-  D1: 2, D2: 2, D3: 1, D4: 1,
-}
-
-function evBarrierLevel(p: string | null, o: string | null, a: string | null): 1 | 2 | 3 | 4 {
-  const fails = [p && p !== 'P-A', o && o !== 'O-A', a && a !== 'A-A'].filter(Boolean).length
-  if (fails >= 3) return 1
-  if (fails === 2) return 2
-  if (fails === 1) return 3
-  return 4
-}
+// A matriz ARMS×código (severidade, matriz 4×4, nível de barreira) vive em
+// @/lib/risk-profile/erc.ts (ARMS_CODE_MATRIX_V1). Antes da 3ª etapa da auditoria HFA
+// (docs/auditoria-hfa/segunda-etapa/05-auditoria-erc.md) essa matriz estava duplicada aqui
+// com uma cópia hardcoded independente — corrigido para importar da fonte única.
 
 type EventRisk = {
   erc: number
@@ -174,15 +174,17 @@ type EventRisk = {
   sevLabel: string
   sevKey: 'A' | 'B' | 'C' | 'D'
   barrierKey: 1 | 2 | 3 | 4
+  mechanismId: string
+  mechanismVersion: string
 }
 
 function computeEventRisk(
   p: string | null, o: string | null, a: string | null
 ): EventRisk | null {
   if (!p) return null
-  const sevKey  = EV_ARMS_SEV_ROW[p] ?? 'C'
-  const barrier = evBarrierLevel(p, o, a)
-  const erc     = EV_ARMS_ERC[`${sevKey}${barrier}`] ?? 2
+  const sevKey  = getArmsSeverityRow(p)
+  const barrier = getArmsBarrierLevel(p, o, a)
+  const erc     = computeHfaErcCategoryFromCodes(p, o, a) ?? 2
   const sevLevel = EV_P_SEVERITY[p] ?? 3
   const ercLabels: Record<number, string> = {
     5: 'Ação imediata obrigatória',
@@ -199,6 +201,8 @@ function computeEventRisk(
     sevLevel, sevLabel: sevLabels[sevLevel] ?? 'Moderada',
     sevKey: sevKey as 'A' | 'B' | 'C' | 'D',
     barrierKey: barrier,
+    mechanismId: ARMS_CODE_MATRIX_MECHANISM_ID,
+    mechanismVersion: ARMS_CODE_MATRIX_VERSION,
   }
 }
 
@@ -248,6 +252,9 @@ function EventRiskCard({ risk }: { risk: EventRisk }) {
       </div>
       <p className="text-xs text-slate-600 border-t border-slate-800/60 pt-2">
         Nível de risco estimado com base nas evidências disponíveis. Escala HFA 1–5 adaptada do ARMS/ERC (EASA, 2010) — não é o índice ARMS canônico (1–2500). Revise a classificação antes de aprovar o relatório formal.
+      </p>
+      <p className="text-[10px] text-slate-700">
+        Mecanismo: {risk.mechanismId} {risk.mechanismVersion} — estimativa heurística não validada, não canônica (decisão D3 pendente).
       </p>
     </div>
   )
@@ -735,7 +742,17 @@ export default function EventDetailPage() {
               analysis.objective_code  ?? null,
               analysis.action_code     ?? null,
             )
-            return risk ? <EventRiskCard risk={risk} /> : null
+            return risk ? (
+              <div className="space-y-2">
+                <EventRiskCard risk={risk} />
+                <EngineProvenanceBadge
+                  engineId={analysis.engine_id}
+                  engineVersion={analysis.motor_version}
+                  generatedByType={analysis.generated_by_type as GeneratedByType}
+                  validationStatus={analysis.validation_status as ValidationStatus}
+                />
+              </div>
+            ) : null
           })()}
 
           {/* Edit history banner */}

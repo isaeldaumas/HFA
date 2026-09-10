@@ -1,0 +1,138 @@
+{
+  "audit": {
+    "system": "HFA / SERA",
+    "date": "2026-07-09",
+    "branch": "auditoria-hfa-20260709",
+    "baselineCommit": "315eac1a4728346dc893d6b09e7c9e91a4e000f6",
+    "runtime": { "node": "26.0.0", "npm": "11.12.1", "next": "16.2.5" },
+    "baselineChecks": {
+      "tsc": "PASS (0 errors)",
+      "eslint": "PASS (0 errors, 22 warnings)",
+      "build": "PASS",
+      "vnextSafeTrials": "161 PASS / 1 GATE NOT_READY (expected) / 43 skipped (external env required)"
+    },
+    "codeChanged": false,
+    "note": "Locks metodologicos vigentes impedem correcao automatica; achados encaminhados para decisao autoral."
+  },
+  "counts": { "P0": 2, "P1": 5, "P2": 4, "P3": 3, "total": 14 },
+  "findings": [
+    {
+      "id": "F-02", "severity": "P0", "confidence": "high",
+      "title": "Runtime de producao nao usa a arvore de perguntas canonica SERA",
+      "requirement": ["R-03","R-04","R-05","L-01"],
+      "file": "frontend/src/lib/sera/pipeline.ts", "lines": "210-301",
+      "expected": "P/O/A conduzido pelas perguntas canonicas das decision ladders no escape point",
+      "observed": "Fluxo default usa LLM + heuristicas de substring PT para P/O/A; nenhuma pergunta canonica percorrida",
+      "impact": "Canonical Method Question Lock classifica como METHODOLOGY_VIOLATION",
+      "recommendation": "Decisao autoral: promover vNext a producao sob revisao humana OU rotular resultado legado como nao-canonico e bloquear uso para conclusoes",
+      "autoFix": false
+    },
+    {
+      "id": "F-03", "severity": "P0", "confidence": "high",
+      "title": "Ausencia de evidencia convertida em 'nenhuma falha' (sem UNRESOLVED)",
+      "requirement": ["L-02","audit-3.4"],
+      "file": "frontend/src/lib/sera/pipeline.ts", "lines": "282,110,300,285-301",
+      "expected": "Evidencia insuficiente => UNRESOLVED/HOLD, sem fechar o eixo",
+      "observed": "Fallbacks retornam P-A/O-A/A-A ('sem falha'); pipeline nunca emite UNRESOLVED; completeness marcada 'complete'",
+      "impact": "Conclusao metodologica falsa: ausencia de informacao vira ausencia do fator",
+      "recommendation": "Introduzir UNRESOLVED/INSUFFICIENT_EVIDENCE no pipeline legado ou desativa-lo para producao",
+      "autoFix": false
+    },
+    {
+      "id": "F-01", "severity": "P1", "confidence": "high",
+      "title": "RLS nao isola tenants: get_tenant_id() le claim JWT inexistente",
+      "requirement": ["audit-4","invariant-tenant-isolation"],
+      "file": "supabase/migrations/20260507120000_rls_policies.sql", "lines": "7-18",
+      "expected": "Politicas RLS restringem linhas por tenant independentes da aplicacao",
+      "observed": "tenant_id so em user_metadata; hook custom_access_token comentado; get_tenant_id() retorna NULL => policies sempre falsas",
+      "impact": "Sem exposicao cross-tenant hoje (service_role + filtro app), mas defesa em profundidade inoperante; sem backstop para consultas client-side futuras",
+      "recommendation": "Habilitar custom_access_token hook OU reescrever get_tenant_id para ler user_metadata.tenant_id; validar com JWT real (fora do escopo desta fase - mexe em migration)",
+      "autoFix": false
+    },
+    {
+      "id": "F-04", "severity": "P1", "confidence": "high",
+      "title": "Tres derivacoes de ERC divergentes; numeros de risco nao reconciliaveis",
+      "requirement": ["audit-5","R-08"],
+      "file": "frontend/src/lib/risk-profile/erc.ts", "lines": "34",
+      "observed": "Card usa computeHfaErcCategoryFromCodes (matriz ARMS dos codigos); trend usa coerceMotorErcToHfaCategory(erc_level heuristico); podem divergir para o mesmo evento",
+      "recommendation": "Unificar numa unica definicao de categoria ERC reconciliavel entre telas/banco/relatorio",
+      "autoFix": false
+    },
+    {
+      "id": "F-05", "severity": "P1", "confidence": "high",
+      "title": "Indice ERC via matriz ARMS hardcoded sem fonte metodologica declarada",
+      "requirement": ["R-08","audit-3.7"],
+      "file": "frontend/src/lib/risk-profile/erc.ts", "lines": "3-31",
+      "observed": "Severidade e matriz ARMS 4x4 hardcoded; barreira = contagem de eixos != codigo 'sem falha'; sem citacao de fonte",
+      "impact": "Converte contagem de falhas em nivel de risco sem fundamento declarado (proibido pela secao 3.7)",
+      "recommendation": "Declarar fonte/decisao formal ou rotular como estimativa nao validada",
+      "autoFix": false
+    },
+    {
+      "id": "F-06", "severity": "P1", "confidence": "high",
+      "title": "Governanca canonica aplicada so ao vNext; producao fora da governanca",
+      "requirement": ["S4","S5","audit-7"],
+      "file": "frontend/src/lib/sera/pipeline.ts", "lines": "1936",
+      "observed": "Control Board, Authority Index e locks referem-se ao vNext; pipeline de producao (default) nao e coberto e diverge",
+      "recommendation": "Estender governanca ao pipeline de producao ou promover vNext",
+      "autoFix": false
+    },
+    {
+      "id": "F-13", "severity": "P1", "confidence": "medium-high",
+      "title": "LLM na cadeia deterministica de classificacao sem separacao clara",
+      "requirement": ["audit-3.8","audit-7"],
+      "file": "frontend/src/lib/sera/pipeline.ts", "lines": "1944-1970",
+      "observed": "Codigo P/O/A de producao vem primariamente do LLM; heuristica so como fallback; sem marcacao de 'sugestao ate validacao humana' no fluxo comum",
+      "recommendation": "Separar IA de regras deterministicas; marcar saida da IA como sugestao; validar contra schema canonico",
+      "autoFix": false
+    },
+    {
+      "id": "F-07", "severity": "P2", "confidence": "medium",
+      "title": "Tres representacoes codigo->rotulo->eixo com divergencia potencial",
+      "file": "frontend/src/lib/sera/hfacs-mapper.ts", "lines": "34",
+      "observed": "P-C e eixo Percepcao (Daumas T5) mas hfacs-mapper o mapeia como Decision Error",
+      "recommendation": "Reconciliar codigo<->rotulo<->eixo entre failure-names, hfacs-mapper e canonical-codes",
+      "autoFix": false
+    },
+    {
+      "id": "F-08", "severity": "P2", "confidence": "high",
+      "title": "erc_level como intervalo 1-5 sem enum canonico; duas escalas invertidas coexistem",
+      "file": "frontend/src/lib/sera/erc-conversion.ts", "lines": "1-20",
+      "observed": "Motor 1=critico vs HFA 5=critico (F-001 conhecido); risco de inversao em novas telas",
+      "autoFix": false
+    },
+    {
+      "id": "F-09", "severity": "P2", "confidence": "medium",
+      "title": "Multifatorialidade limitada: precondicoes truncadas em 5",
+      "file": "frontend/src/lib/sera/pipeline.ts", "lines": "1994-1997",
+      "observed": "Hendy diz 'pode haver muitas'; corte fixo em 5 sem sinalizar truncamento",
+      "autoFix": false
+    },
+    {
+      "id": "F-10", "severity": "P2", "confidence": "medium",
+      "title": "Amostra pequena / limitacoes nem sempre explicitas no card de risco",
+      "file": "frontend/src/lib/risk-profile/erc.ts", "lines": "34",
+      "observed": "data-confidence mitiga parcialmente, mas card ERC/trend pode ser lido como risco consolidado",
+      "autoFix": false
+    },
+    {
+      "id": "F-11", "severity": "P3", "confidence": "high",
+      "title": "22 warnings de lint (codigo morto legado: runStep3Legacy/runStep5Legacy)",
+      "file": "frontend/src/lib/sera/all-steps.ts", "lines": "2378,3407",
+      "autoFix": false
+    },
+    {
+      "id": "F-12", "severity": "P3", "confidence": "high",
+      "title": "Relatorios de trials com diff nao commitado no working tree",
+      "file": "tests/sera-vnext/engine-validation-v0/reports/engine-validation-v0-report.json", "lines": "1",
+      "autoFix": false
+    },
+    {
+      "id": "F-14", "severity": "P3", "confidence": "medium",
+      "title": "UI comum nao informa qual motor produziu a analise (canonico vs heuristico)",
+      "file": "frontend/src/app/api/analyze/route.ts", "lines": "345",
+      "observed": "vnextNotice so aparece com flag ligada; usuario nao distingue resultado canonico de legado",
+      "autoFix": false
+    }
+  ]
+}

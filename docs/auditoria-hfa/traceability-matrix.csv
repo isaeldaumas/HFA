@@ -1,0 +1,21 @@
+id,requisito,fonte,codigo_responsavel,interface,banco,teste,situacao,achado
+R-01,12 falhas ativas canonicas,Hendy p.11,sera-vnext/canonical-codes.ts; sera/failure-names.ts,flow-renderer,analyses.*_code,canonical-codes-trial-001,implementado_comprovado_vnext/divergente_prod,F-02;F-07
+R-02,4 niveis latentes,Hendy p.12,sera/preconditions.ts; risk-profile/server.ts,risk-profile,analyses.preconditions,parcial,implementado_parcial,F-09
+R-03,STEP1 escape point,Hendy p.69,sera-vnext/escape-point-*; sera/pipeline.ts:700,-,safe_operation_escape_point,colgan-escape-point-reaudit,comprovado_vnext/parcial_prod,F-02
+R-04,STEP2 tres perguntas POA,Hendy p.70,sera-vnext/canonical-tree.ts,interview,canonical_tree_version,canonical-tree-trial-001,comprovado_vnext/nao_implementado_prod,F-02
+R-05,STEPS3-5 decision ladders,Hendy p.71-95,sera-vnext/canonical-tree/traverse-tree.ts vs sera/pipeline.ts:210-301,-,-,traversal-trials,comprovado_vnext/divergente_prod,F-02;F-13
+R-06,Precondicoes >=1 muitas,Hendy p.71,sera/pipeline.ts:1976-1997,risk-profile,analyses.preconditions,-,implementado_divergente_corte5,F-09
+R-07,Ato inseguro supervisor recursivo,Hendy p.71,-,-,-,-,nao_implementado,-
+R-08,Risco conceitual nao validado,Hendy p.33,risk-profile/erc.ts; sera/pipeline.ts:285,risk-profile,analyses.erc_level,risk-trials,implementado_divergente,F-04;F-05
+R-09,MDC+SERA complementares,Daumas,-,interview,-,-,implementado_parcial,-
+R-10,Amostra pequena limitacoes,Daumas,sera/data-confidence.ts,risk-profile,-,-,implementado_parcial,F-10
+L-01,So perguntas canonicas conduzem POA,S3,vnext ok/prod nao,-,-,canonical-trials,implementado_divergente_prod,F-02
+L-02,Evidencia insuficiente UNRESOLVED,S3,run-evidence-traversal.ts:83 vs pipeline.ts,-,-,-,comprovado_vnext/nao_implementado_prod,F-03
+L-03,Escape point quando sem causa,S3+skill,escape-point-enforcement.ts,-,escape-point-col,escape-trials,implementado_comprovado_vnext,-
+L-04,POA no escape point,A4R137,vnext,-,-,reaudit-trials,implementado_comprovado_vnext,-
+L-05,O-E NON_EXISTENT,skill,canonical-codes.ts:38,-,-,canonical-code-enforcement,implementado_comprovado,-
+L-06,proposedCode != releasedCode,S3,sera-vnext-product/statuses.ts,admin,*_candidate_code,code-release-gate-trial,implementado_comprovado,-
+L-07,Sem downstream/HFACS/risk sem governanca,S3,flag-gated mas prod gera ERC/HFACS,risk-profile;hfacs,-,-,implementado_divergente_prod,F-04;F-05;F-06
+ISO,Isolamento multi-tenant,Secao4,app-layer ok/RLS inoperante,-,RLS-policies,staging-tenant-isolation-env,implementado_parcial,F-01
+NUM,Numeros reconciliaveis,Secao5,risk-profile/server.ts; risk-quality-trend.ts,dashboard,analyses,-,implementado_divergente,F-04
+IA,IA separada sugestao,Secao3.8,sera/llm.ts; pipeline.ts,-,-,-,implementado_parcial,F-13

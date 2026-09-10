@@ -1,4 +1,18 @@
 /**
+ * ⚠ MOTOR LEGADO EM MANUTENÇÃO RESTRITA (auditoria HFA, 3ª etapa — 2026-07-10) ⚠
+ * Ver docs/auditoria-hfa/terceira-etapa/04-congelamento-legado.md.
+ *
+ * Este motor (SERA_LEGACY_ENGINE) está CONGELADO metodologicamente:
+ *   - NÃO adicionar novas perguntas/regras de classificação P/O/A aqui (F-02).
+ *   - NÃO adicionar nova fórmula de ERC ou alterar inferErcLevel/inferDeterministicErcLevel (F-04/F-05).
+ *   - NÃO adicionar novos códigos de taxonomia hardcoded (aguardar decisão D4).
+ *   - NÃO alterar a semântica de classificação de prompts em all-steps.ts sem registro formal.
+ * Correções de segurança, integridade de dados e disponibilidade CONTINUAM PERMITIDAS,
+ * desde que não alterem a semântica metodológica (ex.: corrigir um crash, um vazamento de
+ * tenant, um upsert que perde dado). Qualquer PR que mude comportamento de classificação
+ * neste arquivo deve linkar a uma decisão do Methodology Control Board.
+ * O motor-alvo futuro é o SERA vNext (frontend/src/lib/sera-vnext/), hoje candidate-only.
+ *
  * Orquestrador do pipeline SERA (TypeScript) — espelha backend/app/sera/pipeline.run_analysis
  * sem atualizar Supabase (quem grava é a rota /api/events ou /api/analyze).
  *
@@ -2373,5 +2387,19 @@ export function buildAnalysisUpsertPayload(
     motor_version: SERA_MOTOR_VERSION,
     analysis_completeness: completeness,
     completeness_reason: reason,
+    // Proveniência metodológica (auditoria HFA, 3ª etapa — docs/auditoria-hfa/terceira-etapa/03-proveniencia-metodologica.md).
+    // O motor legado não distingue, por eixo, se o código veio do LLM ou da heurística
+    // determinística de fallback (F-13). Aproximação honesta: 'llm_suggestion' quando nenhum
+    // eixo precisou de fallback; 'deterministic_engine' quando ao menos um eixo foi decidido
+    // pela heurística (pipeline.ts infer*Code). Não inventa granularidade que não existe.
+    engine_id: 'SERA_LEGACY_ENGINE',
+    generated_by_type:
+      traceContext?.perception_inferred || traceContext?.objective_inferred || traceContext?.action_inferred
+        ? 'deterministic_engine'
+        : 'llm_suggestion',
+    generated_at: new Date().toISOString(),
+    validation_status: 'not_validated',
+    risk_method_id: typeof step6_7.erc_level === 'number' ? 'MOTOR_HEURISTIC_V1' : null,
+    risk_method_version: typeof step6_7.erc_level === 'number' ? 'v0.1' : null,
   }
 }

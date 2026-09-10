@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { PrintReportButton } from '@/components/product/PrintReportButton'
 import { apiCall } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
-import { computeHfaErcCategoryFromCodes } from '@/lib/risk-profile/erc'
+import { describeErcValue, buildErcContainmentNotice } from '@/lib/risk-profile/erc-containment'
 
 type Recommendation = {
   related_code?: string | null
@@ -36,6 +36,26 @@ type AnalysisPayload = {
   erc_level?: number | null
   preconditions?: Precondition[] | null
   recommendations?: Recommendation[] | null
+  engine_id?: string | null
+  motor_version?: string | null
+  generated_by_type?: string | null
+  validation_status?: string | null
+}
+
+const GENERATED_BY_LABEL_PT: Record<string, string> = {
+  deterministic_engine: 'motor determinístico',
+  llm_suggestion: 'sugestão de IA (não validada por humano)',
+  human_analyst: 'analista humano',
+  imported_legacy: 'importado (legado)',
+  migration: 'migração',
+  unknown_legacy: 'origem legada não rastreada',
+}
+
+const VALIDATION_LABEL_PT: Record<string, string> = {
+  not_validated: 'não validado',
+  pending_review: 'revisão pendente',
+  validated: 'validado por humano',
+  rejected: 'rejeitado',
 }
 
 type EventPayload = {
@@ -54,15 +74,6 @@ function formatDate(value?: string | null) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return 'Nao informado'
   return date.toLocaleDateString('pt-BR')
-}
-
-function hfaLabel(category: number | null) {
-  if (category === 5) return '5 (critico)'
-  if (category === 4) return '4 (alto)'
-  if (category === 3) return '3 (moderado)'
-  if (category === 2) return '2 (baixo)'
-  if (category === 1) return '1 (aceitavel)'
-  return 'Nao disponivel'
 }
 
 export default function EventReportPage() {
@@ -105,12 +116,16 @@ export default function EventReportPage() {
   const analysis = eventData?.analyses ?? null
 
   const emittedAt = useMemo(() => new Date().toLocaleDateString('pt-BR'), [])
-  const hfaCategory = analysis
-    ? computeHfaErcCategoryFromCodes(
-        analysis.perception_code ?? null,
-        analysis.objective_code ?? null,
-        analysis.action_code ?? null,
-      )
+  // Contenção F-04 (docs/auditoria-hfa/segunda-etapa/08-decisao-d3-erc.md): os dois valores
+  // abaixo vêm de mecanismos ERC incompatíveis (escalas invertidas, entradas diferentes) e
+  // NUNCA devem ser apresentados como o mesmo indicador. describeErcValue identifica cada um.
+  const motorErc = describeErcValue('MOTOR_HEURISTIC_V1', analysis?.erc_level ?? null)
+  const armsErc = analysis
+    ? describeErcValue('ARMS_CODE_MATRIX_V1', {
+        p: analysis.perception_code ?? null,
+        o: analysis.objective_code ?? null,
+        a: analysis.action_code ?? null,
+      })
     : null
 
   const eventTitle = eventData?.title ?? analysis?.summary ?? `Evento ${eventId}`
@@ -193,16 +208,24 @@ export default function EventReportPage() {
           <p className="report-note">
             A classificacao depende da evidencia disponivel no relato analisado e requer revisao humana antes de qualquer conclusao formal.
           </p>
+          <p className="report-note">
+            <strong>Motor:</strong> {analysis?.engine_id ?? 'não identificado'}
+            {analysis?.motor_version ? ` v${analysis.motor_version}` : ''}
+            {' — '}
+            {GENERATED_BY_LABEL_PT[analysis?.generated_by_type ?? ''] ?? 'origem não identificada'}
+            {' — '}
+            {VALIDATION_LABEL_PT[analysis?.validation_status ?? ''] ?? 'status de validação desconhecido'}
+          </p>
         </section>
 
         <section className="report-section">
           <h3 className="report-title">3. Avaliacao de risco (apoio a triagem)</h3>
           <div className="report-box space-y-1">
-            <p><strong>ERC legado (motor):</strong> {analysis?.erc_level ?? 'Nao disponivel'}</p>
-            <p><strong>Categoria visual HFA ERC:</strong> {hfaLabel(hfaCategory)}</p>
+            <p>{motorErc.label}</p>
+            <p>{armsErc?.label ?? 'Matriz ARMS a partir dos códigos: não disponível'}</p>
           </div>
           <p className="report-note">
-            A categoria visual HFA ERC e apoio a triagem e nao representa, isoladamente, conclusao formal de risco.
+            {buildErcContainmentNotice()}
           </p>
         </section>
 

@@ -1,0 +1,51 @@
+{
+  "stage": "terceira-etapa-contencao-e-infraestrutura",
+  "branch": "auditoria-hfa-terceira-etapa-20260710",
+  "baseline": {
+    "headInitial": "315eac1a4728346dc893d6b09e7c9e91a4e000f6",
+    "tsc": "PASS (0 errors)",
+    "lint": "PASS (0 errors, 22 pre-existing warnings)",
+    "build": "PASS"
+  },
+  "afterChanges": {
+    "tsc": "PASS (0 errors)",
+    "lint": "PASS (0 errors, 22 warnings, 0 new)",
+    "build": "PASS",
+    "safeRegressionBeforeCommit": { "PASS": 131, "FAIL": 8, "note": "8 fails were git-diff protected-path false alarms on dirty working tree" },
+    "safeRegressionAfterCommit": { "PASS": 161, "SKIP_ENV": 43, "NOT_READY": 1, "FAIL": 0, "note": "identical to stage-1 baseline; the 8 prior fails resolved once working tree was clean" }
+  },
+  "migrationValidation": {
+    "method": "disposable local Postgres 16 instance (initdb/pg_ctl), destroyed after use, zero contact with real project database",
+    "allRealMigrationsReplayed": true,
+    "bugFoundAndFixed": "COMMENT ON TABLE ... IS '...' || '...' invalid syntax; fixed to adjacent string literal concatenation",
+    "functionalChecks": [
+      { "check": "invalid generated_by_type rejected", "result": "PASS" },
+      { "check": "valid generated_by_type accepted", "result": "PASS" },
+      { "check": "shadow_results insert accepted", "result": "PASS" },
+      { "check": "shadow_results UPDATE blocked (append-only)", "result": "PASS" },
+      { "check": "shadow_results DELETE blocked (append-only)", "result": "PASS" },
+      { "check": "validated without validated_at rejected (never_released)", "result": "PASS" },
+      { "check": "validated with validated_at accepted", "result": "PASS" },
+      { "check": "sera_taxonomy_entries remains empty throughout", "result": "PASS" },
+      { "check": "empty shadow_run_id rejected", "result": "PASS" },
+      { "check": "RLS enabled on sera_vnext_shadow_results", "result": "PASS" }
+    ]
+  },
+  "auditSuites": [
+    { "file": "tests/hfa-audit/erc-containment/erc-containment-trial-001.ts", "result": "PASS", "assertions": 12 },
+    { "file": "tests/hfa-audit/erc-containment/erc-containment-trial-002-static.ts", "result": "PASS", "assertions": 5 },
+    { "file": "tests/hfa-audit/legacy-freeze/legacy-freeze-trial-001.ts", "result": "PASS", "assertions": 7 },
+    { "file": "tests/hfa-audit/shadow-mode/shadow-mode-trial-001.ts", "result": "PASS", "assertions": 6 },
+    { "file": "tests/hfa-audit/tenant-isolation/tenant-isolation-contract-trial-001.ts", "result": "PASS", "scenarios": 12 }
+  ],
+  "tenantIsolationScenarios": {
+    "1_cross_read": "PASS", "2_cross_update": "PASS", "3_cross_delete": "PASS",
+    "4_direct_id_access": "PASS", "5_export": "PASS", "6_storage": "PASS", "7_rpc": "PASS",
+    "8_missing_tenant": "PASS", "9_client_supplied_tenant": "PASS", "10_indirect_relation": "PASS",
+    "11_shadow_result_other_tenant": "PASS", "12_legacy_vnext_comparison_other_tenant": "PASS"
+  },
+  "noHistoricalDataAltered": true,
+  "noErcFormulaDeclaredCanonical": true,
+  "noProductionFlagChanged": true,
+  "noDeployOrPush": true
+}

@@ -1,4 +1,9 @@
 /**
+ * ⚠ MOTOR LEGADO EM MANUTENÇÃO RESTRITA (auditoria HFA, 3ª etapa — 2026-07-10) ⚠
+ * Ver docs/auditoria-hfa/terceira-etapa/04-congelamento-legado.md — mesmas restrições de
+ * frontend/src/lib/sera/pipeline.ts: sem novas regras de classificação, sem nova fórmula de
+ * ERC (tabela ERC do prompt de step6/7 abaixo é congelada), sem novos códigos hardcoded.
+ *
  * Steps 1–6/7 do SERA — lógica espelhada do Python (sequencial: cada step depende dos anteriores;
  * steps 3/4/5 NÃO são independentes, contrariando paralelização ingênua).
  */

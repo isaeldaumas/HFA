@@ -1,5 +1,17 @@
 // frontend/src/lib/sera/risk-quality-trend.ts
 //
+// ⚠ DEPRECATED / NÃO USAR SEM PASSAR PELA CONTENÇÃO ERC (auditoria HFA, 3ª etapa) ⚠
+// Esta função não está atualmente ligada a nenhuma tela ou rota (auditoria HFA,
+// docs/auditoria-hfa/segunda-etapa/05-auditoria-erc.md, mecanismo MOTOR_HEURISTIC_V1).
+// Ela deriva a categoria HFA ERC a partir de `analyses.erc_level` (escala motor,
+// 1=crítico), que é INCOMPATÍVEL com o mecanismo ARMS_CODE_MATRIX_V1
+// (frontend/src/lib/risk-profile/erc.ts, escala 5=crítico) usado hoje pelo card e
+// pela tendência de risco em `lib/risk-profile/server.ts`.
+// Reintroduzir esta função em qualquer tela SEM passar por
+// `@/lib/risk-profile/erc-containment.ts` (describeErcValue) reproduz o achado F-04
+// (dois números incompatíveis apresentados como o mesmo indicador). Ver decisão D3
+// pendente antes de qualquer novo uso: docs/auditoria-hfa/segunda-etapa/08-decisao-d3-erc.md.
+//
 // Pure helper — no Supabase, no React, no browser APIs.
 // Builds a qualitative risk trend from SERA analyses by grouping
 // HFA ERC Categories per calendar month.

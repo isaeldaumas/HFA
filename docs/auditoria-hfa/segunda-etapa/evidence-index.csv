@@ -1,0 +1,18 @@
+evidence_id,achado,tipo,comando_ou_fonte,resultado_esperado,resultado_observado,natureza
+EXP-VNEXT-01,F-03,experimento,npx tsx scratchpad/vnext-experiment.ts,vNext preserva incerteza sem humano,"todos eixos UNRESOLVED/INSUFFICIENT_EVIDENCE, humanReview=true, NOT_ELIGIBLE nos 3 casos",REPRO
+EXP-ERC-01,F-04,experimento,npx tsx scratchpad/erc-divergence.ts,card e trend iguais,"P-C/O-A/A-A trend=3 card=2; P-A/O-A/A-A trend=4 card=1 (divergem)",REPRO
+STAT-ROUTES,F-01,estatico,enumeracao 49 rotas api,filtro tenant consistente,"todas rotas de dado usam tenantId do JWT; nenhuma le tenant do cliente",FATO
+STAT-RLS,F-01,estatico,rls_policies.sql:7-18 + config.toml:228,get_tenant_id funcional,"get_tenant_id le claim topo inexistente; hook comentado => NULL => fail-closed",FATO
+STAT-RLSALL,F-01,estatico,grep enable row level security,todas tabelas com RLS,"14/14 tabelas com RLS habilitada",FATO
+STAT-RPC,F-01,estatico,20260609200000_..sql:155-312,rpc enforca tenant,"security definer + and tenant_id=p_tenant_id em todas as clausulas",FATO
+STAT-REPO,F-01,estatico,sera-vnext-product/persistence/repositories.ts:85-89,fetch por id tenant-scoped,".eq('tenant_id',tenantId) inclusive no getAnalysis",FATO
+STAT-FLAG,F-02,estatico,feature-flags.ts:1-3,30,flag off default,"readBooleanEnv retorna false salvo env=='true'; canonical analyze off por default",FATO
+STAT-FALLBACK,F-03,estatico,pipeline.ts:110,282,300,301,fallback preserva incerteza,"retornos 'O-A','P-A','A-A' e default erc 2; nenhum UNRESOLVED nos eixos",FATO
+STAT-ERC1,F-05,estatico,risk-profile/erc.ts:3-31,fonte declarada,"ARMS_SEVERITY_ROW e ARMS_ERC hardcoded sem fonte; barrierLevel=contagem",FATO
+STAT-ERC2,F-04,estatico,all-steps.ts:3865-3919 + pipeline.ts:285,uma derivacao ERC,"LLM erc_level + inferDeterministicErcLevel + inferErcLevel; card recomputa dos codigos",FATO
+STAT-ERCINV,F-08,estatico,erc-conversion.ts:28-35,escala unica,"motor 1=critico vs HFA 5=critico; MOTOR_TO_HFA auto-inversa",FATO
+STAT-PRECAP,F-09,estatico,pipeline.ts:1994-1997,sem limite artificial,"sanitizePreconditions(...,5) trunca em 5 sem sinal",FATO
+STAT-AIGUARD,F-10,estatico,app/api/org/ai-insight/route.ts:8-19,sem caveat de amostra,"prompt impoe 'perfil em formacao' <10 e proibe probabilidade absoluta",FATO
+STAT-LABELS,F-07;F-14,estatico,failure-names.ts:3-24 + hfacs-mapper.ts:34,rotulos consistentes,"P-D=P-G='Falha de Atencao'; P-E=A-H mesmo rotulo; P-C->HFACS Decision Error",FATO
+STAT-LINT,F-11,estatico,npm run lint,0 warnings,"0 erros, 22 warnings (codigo morto runStepXLegacy)",FATO
+BASE-HEAD,-,preservacao,git rev-parse HEAD,inalterado,"315eac1a inicial e final; sem alteracao de codigo",FATO

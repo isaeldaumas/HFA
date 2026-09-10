@@ -1,3 +1,10 @@
+/**
+ * ⚠ MECANISMO ERC EM MANUTENÇÃO RESTRITA (auditoria HFA, 3ª etapa — 2026-07-10) ⚠
+ * ARMS_CODE_MATRIX_V1 está CONGELADA: não alterar valores/fórmula sem decisão D3
+ * (docs/auditoria-hfa/segunda-etapa/08-decisao-d3-erc.md e
+ * docs/auditoria-hfa/terceira-etapa/02-contencao-erc.md). Qualquer exibição de um valor
+ * derivado daqui deve passar por describeErcValue (erc-containment.ts).
+ */
 import type { HfaErcCategory } from '@/lib/sera/erc-conversion'
 
 const ARMS_SEVERITY_ROW: Record<string, 'A' | 'B' | 'C' | 'D'> = {
@@ -28,6 +35,31 @@ function barrierLevel(
   if (fails === 2) return 2
   if (fails === 1) return 3
   return 4
+}
+
+/**
+ * Identificador único desta matriz ARMS×código (ver erc-containment.ts / ERC_MECHANISMS).
+ * Congelado nesta versão — não alterar sem decisão D3 (docs/auditoria-hfa/segunda-etapa/08-decisao-d3-erc.md).
+ */
+export const ARMS_CODE_MATRIX_MECHANISM_ID = 'ARMS_CODE_MATRIX_V1' as const
+export const ARMS_CODE_MATRIX_VERSION = 'v0.1' as const
+
+/**
+ * Expostos para reuso por telas que precisam do detalhe severidade/barreira (ex.: events/[id]).
+ * Antes da 3ª etapa da auditoria, este cálculo estava duplicado em events/[id]/page.tsx com
+ * uma cópia hardcoded independente da matriz — corrigido para importar daqui (fonte única).
+ */
+export function getArmsSeverityRow(perceptionCode: string | null | undefined): 'A' | 'B' | 'C' | 'D' {
+  if (!perceptionCode) return 'C'
+  return ARMS_SEVERITY_ROW[perceptionCode] ?? 'C'
+}
+
+export function getArmsBarrierLevel(
+  perceptionCode: string | null | undefined,
+  objectiveCode: string | null | undefined,
+  actionCode: string | null | undefined,
+): 1 | 2 | 3 | 4 {
+  return barrierLevel(perceptionCode, objectiveCode, actionCode)
 }
 
 export function computeHfaErcCategoryFromCodes(

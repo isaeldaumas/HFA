@@ -117,6 +117,14 @@ export async function createSeraVNextAnalysis(args: {
       inputPayloadHash: hashJson({ title: args.input.title, narrativeHash, sourceType: args.input.sourceType }),
       stableEngineOutput: stableJson(engineOutput).length,
     },
+    // Proveniência metodológica (auditoria HFA, 3ª etapa). engine-v0 roda com allowLlm:false
+    // (buildEngineInput acima) — é puramente determinístico, nunca sugestão de LLM.
+    engine_id: 'SERA_VNEXT_ENGINE',
+    taxonomy_version: versions.canonicalTreeVersion,
+    risk_method_id: null, // risco permanece locked no vNext (canonical method question lock).
+    risk_method_version: null,
+    generated_by_type: 'deterministic_engine',
+    validation_status: 'not_validated',
   })
 
   const revision = await repository.insertRevision({

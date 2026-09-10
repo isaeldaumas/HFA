@@ -1,4 +1,11 @@
 /**
+ * ⚠ DEPRECATED / NÃO USAR SEM PASSAR PELA CONTENÇÃO ERC (auditoria HFA, 3ª etapa) ⚠
+ * Esta função não está atualmente ligada a nenhuma tela ou rota. Deriva de
+ * `analyses.erc_level` (mecanismo MOTOR_HEURISTIC_V1), incompatível com o mecanismo
+ * ARMS_CODE_MATRIX_V1 usado hoje pelo perfil de risco. Ver
+ * frontend/src/lib/risk-profile/erc-containment.ts e
+ * docs/auditoria-hfa/segunda-etapa/08-decisao-d3-erc.md antes de reintroduzir.
+ *
  * Modal ERC category calculation — RISK v0.8-B
  *
  * Computes the modal (most frequent) HFA ERC category from a list of raw

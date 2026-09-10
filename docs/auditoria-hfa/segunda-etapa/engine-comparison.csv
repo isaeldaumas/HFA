@@ -1,0 +1,18 @@
+funcao_metodologica,fonte_canonica,legado,vnext,producao_atual,divergencia,impacto
+perguntas_canonicas_sera,Hendy STEP2-5,nao_percorre_llm_keyword,arvore_canonica_sera-pt-v1,legado,alta,F-02
+sequencia_decisoria_ladders,Hendy Fig5,ausente,traverse-tree/run-evidence-traversal,legado,alta,F-02
+escape_point_quando,Hendy STEP1+lock,textual,estruturado_enforcement,legado_parcial,media,-
+poa_no_escape_point,A4R137,nao_garante,sim_gated,legado,media,-
+multiplos_fatores_atos,Hendy p71,codigos_unicos,multi-ator_mixed,legado_limitado,media,multifatorialidade
+evidencia_ligada_classificacao,Auditoria 3.4,parcial,evidence_por_eixo,legado_parcial,media,rastreabilidade
+incerteza_unresolved,Lock L-02,nunca_emite,UNRESOLVED/INSUFFICIENT,legado_ausente,alta,F-03
+fallback_pa_oa_aa,-,sim_na_ausencia,nao_fica_unresolved,legado,alta,F-03
+fatores_fora_taxonomia,Auditoria 3.6,nao_suporta,UNKNOWN_OR_UNCATEGORIZED,legado,media,-
+classificacao_por_ia,Auditoria 3.8,llm_base_primaria,llm_opcional_codes_por_humano,legado,alta,F-13
+validacao_humana,Auditoria 3.8,nao_gated,humanReviewRequired_gate,legado,alta,F-13
+versionamento,Auditoria 3.5,motor_version,engine+taxonomy+tree_version,legado_parcial,media,-
+rastreabilidade_codigo,Auditoria 3.5,limitada,code-traceability_derivationPath,legado_parcial,media,-
+atualizacao_revisao,Auditoria 3.5,analysis_edits,revisions+reviews+audit,legado_parcial,baixa,-
+relatorios,Auditoria 8.2,pdf-report_flow-renderer,build-reviewer-output,legado,media,F-14
+indicadores_erc_risco,Hendy p33,gera_heuristico,locked_sem_risco,legado_gera,alta,F-04;F-05;L-07
+commit_axis_sem_humano,Lock L-02,sempre_fecha,nunca_fecha_sem_humano,legado,alta,F-03

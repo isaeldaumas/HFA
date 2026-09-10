@@ -1,0 +1,37 @@
+arquivo,tipo,motivo,achado_relacionado,commit
+tests/hfa-audit/erc-containment/erc-containment-trial-001.ts,novo,teste que reproduz mecanismos ERC incompativeis,F-04,test: reproduce conflicting ERC presentations
+tests/hfa-audit/erc-containment/erc-containment-trial-002-static.ts,novo,contrato estatico de contencao ERC,F-04,test: reproduce conflicting ERC presentations
+frontend/src/lib/risk-profile/erc-containment.ts,novo,registro de mecanismos ERC e rotulagem obrigatoria,F-04,fix: contain non-canonical ERC outputs
+frontend/src/lib/risk-profile/erc.ts,modificado,expõe getArmsSeverityRow/getArmsBarrierLevel para dedup + aviso de congelamento,F-04;F-05,fix: contain non-canonical ERC outputs
+frontend/src/lib/sera/erc-modal.ts,modificado,marcado DEPRECATED (mecanismo morto incompativel),F-04,fix: contain non-canonical ERC outputs
+frontend/src/lib/sera/risk-quality-trend.ts,modificado,marcado DEPRECATED (mecanismo morto incompativel),F-04,fix: contain non-canonical ERC outputs
+frontend/src/app/(dashboard)/reports/event/[id]/page.tsx,modificado,rotula os dois valores ERC exibidos com mecanismo/versao,F-04;F-14,fix: contain non-canonical ERC outputs
+frontend/src/app/(dashboard)/events/[id]/page.tsx,modificado,remove matriz ARMS duplicada + badge de proveniencia,F-04;F-14,fix: contain non-canonical ERC outputs
+supabase/migrations/20260710010000_methodology_provenance_and_shadow_infra.sql,novo,colunas de proveniencia + tabelas shadow/taxonomia,proveniencia;D4,feat: add methodology provenance model
+frontend/src/lib/sera/pipeline.ts,modificado,grava proveniencia em novas analises + aviso de congelamento,F-13;congelamento,feat: add methodology provenance model
+frontend/src/lib/sera-vnext-product/types.ts,modificado,campos opcionais de proveniencia no tipo do registro,proveniencia,feat: add methodology provenance model
+frontend/src/lib/sera-vnext-product/persistence/create-analysis.ts,modificado,grava proveniencia em novas analises vNext,proveniencia,feat: add methodology provenance model
+frontend/src/components/sera/EngineProvenanceBadge.tsx,novo,componente de identificacao de motor/origem/validacao,F-14,feat: identify engine and validation status
+frontend/src/lib/sera/all-steps.ts,modificado,aviso de congelamento do motor legado,congelamento,chore: freeze legacy methodology changes
+tests/hfa-audit/legacy-freeze/legacy-freeze-trial-001.ts,novo,teste tripwire do congelamento,congelamento,chore: freeze legacy methodology changes
+frontend/src/lib/sera-shadow/feature-flags.ts,novo,5 flags de shadow mode desligadas por padrao,shadow-mode,feat: prepare isolated vNext shadow mode
+frontend/src/lib/sera-shadow/types.ts,novo,tipos do shadow mode,shadow-mode,feat: prepare isolated vNext shadow mode
+frontend/src/lib/sera-shadow/repository.ts,novo,persistencia tenant-scoped do shadow mode,shadow-mode;F-01,feat: prepare isolated vNext shadow mode
+frontend/src/lib/sera-shadow/run-shadow-analysis.ts,novo,orquestrador fail-safe do shadow mode,shadow-mode,feat: prepare isolated vNext shadow mode
+frontend/src/lib/server/complete-sera-analysis.ts,modificado,integra shadow mode guardado + compat de proveniencia,shadow-mode;proveniencia,feat: prepare isolated vNext shadow mode
+tests/hfa-audit/shadow-mode/shadow-mode-trial-001.ts,novo,teste de no-op seguro do shadow mode,shadow-mode,feat: prepare isolated vNext shadow mode
+tests/hfa-audit/tenant-isolation/tenant-isolation-contract-trial-001.ts,novo,12 cenarios automatizados de isolamento,F-01,test: automate cross-tenant isolation
+docs/auditoria-hfa/terceira-etapa/00-resumo-executivo.md,novo,entregavel,-,docs: document phase-three architecture
+docs/auditoria-hfa/terceira-etapa/01-decisoes-aprovadas.md,novo,entregavel,-,docs: document phase-three architecture
+docs/auditoria-hfa/terceira-etapa/02-contencao-erc.md,novo,entregavel,F-04,docs: document phase-three architecture
+docs/auditoria-hfa/terceira-etapa/03-proveniencia-metodologica.md,novo,entregavel,-,docs: document phase-three architecture
+docs/auditoria-hfa/terceira-etapa/04-congelamento-legado.md,novo,entregavel,-,docs: document phase-three architecture
+docs/auditoria-hfa/terceira-etapa/05-arquitetura-shadow-mode.md,novo,entregavel,-,docs: document phase-three architecture
+docs/auditoria-hfa/terceira-etapa/06-testes-isolamento.md,novo,entregavel,F-01,docs: document phase-three architecture
+docs/auditoria-hfa/terceira-etapa/07-taxonomia-versionada.md,novo,entregavel,D4,docs: document phase-three architecture
+docs/auditoria-hfa/terceira-etapa/08-migrations.md,novo,entregavel,-,docs: document phase-three architecture
+docs/auditoria-hfa/terceira-etapa/09-testes-e-resultados.md,novo,entregavel,-,docs: document phase-three architecture
+docs/auditoria-hfa/terceira-etapa/10-riscos-residuais.md,novo,entregavel,-,docs: document phase-three architecture
+docs/auditoria-hfa/terceira-etapa/11-plano-proxima-etapa.md,novo,entregavel,-,docs: document phase-three architecture
+docs/auditoria-hfa/terceira-etapa/changed-files.csv,novo,entregavel,-,docs: document phase-three architecture
+docs/auditoria-hfa/terceira-etapa/test-evidence.json,novo,entregavel,-,docs: document phase-three architecture
