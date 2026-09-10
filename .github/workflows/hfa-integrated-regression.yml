@@ -180,6 +180,25 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Write frontend staging env file
+        working-directory: frontend
+        run: |
+          # REAL_* readiness trials require frontend/.env.local to exist.
+          # Values come from staging secrets already injected as job env — never echoed.
+          umask 077
+          cat > .env.local <<EOF
+          NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+          SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+          SUPABASE_STAGING_URL=${SUPABASE_STAGING_URL}
+          NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+          NEXTAUTH_URL=${NEXTAUTH_URL}
+          HFA_STAGING_SUPABASE_PROJECT_REF=${HFA_STAGING_SUPABASE_PROJECT_REF}
+          HFA_TEST_ENVIRONMENT=${HFA_TEST_ENVIRONMENT}
+          EOF
+          test -f .env.local
+          echo "frontend/.env.local written (contents not printed)"
+
       - name: Build frontend
         working-directory: frontend
         run: npm run build
