@@ -7,6 +7,7 @@
  * Run: npx tsx tests/sera-vnext/product-unification/provenance-reanalysis-api-real-trial-001.ts
  */
 import { assertSafeTestEnvironment } from '../../../helpers/assert-safe-test-environment'
+import { resolveTestTenantPrefix } from '../helpers/resolve-test-tenant-prefix'
 import {
   apiJson,
   buildBaseUrl,
@@ -15,7 +16,7 @@ import {
 } from '../product-beta-real-helpers'
 
 const TRIAL_ID = 'provenance-reanalysis-api-real-trial-001'
-const ENTERPRISE_TENANT_PREFIX = '3a68c15d'
+const ENTERPRISE_TENANT_PREFIX = resolveTestTenantPrefix()
 
 async function main() {
   // Safety guard: must be called before any mutation
