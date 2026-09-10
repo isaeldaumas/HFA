@@ -16,7 +16,7 @@ type ManifestEntry = {
   dataAccess?: DataAccess;
 };
 
-type ResultStatus = "PASS" | "FAIL" | "SKIP" | "NOT_READY" | "ENVIRONMENT_MISSING" | "ACCESS_LEVEL_SKIP";
+type ResultStatus = "PASS" | "FAIL" | "SKIP" | "NOT_READY" | "ENVIRONMENT_MISSING" | "ACCESS_LEVEL_SKIP" | "CI_EXCLUSION_SKIP";
 
 type Result = {
   path: string;
@@ -42,6 +42,19 @@ if (!existsSync(manifestPath)) {
 
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as ManifestEntry[];
 const npxBin = process.platform === "win32" ? "npx.cmd" : "npx";
+
+// Documented CI exclusions (manifest inconsistencies pending authorial decision).
+// Applied only when an integrated execution level is set — preserves historical
+// full-runner behavior when HFA_INTEGRATED_REGRESSION_LEVEL is unset.
+const exclusionsPath = path.join(rootDir, "tests/sera-vnext/ci-exclusions.json");
+type Exclusion = { path: string; reason: string; classifiedAs: string };
+const ciExclusions = new Map<string, Exclusion>();
+if (existsSync(exclusionsPath)) {
+  const excFile = JSON.parse(readFileSync(exclusionsPath, "utf8")) as { exclusions: Exclusion[] };
+  for (const exc of excFile.exclusions) {
+    ciExclusions.set(exc.path, exc);
+  }
+}
 
 // ── Execution level ────────────────────────────────────────────────────────
 // When HFA_INTEGRATED_REGRESSION_LEVEL is NOT set, preserve historical behavior:
@@ -221,6 +234,23 @@ async function main() {
   let mutatingSyntheticExecuted = 0;
 
   for (const entry of manifest) {
+    // ── Documented CI exclusions (integrated mode only) ──────────────────
+    if (integratedLevel !== null && ciExclusions.has(entry.path)) {
+      const exc = ciExclusions.get(entry.path)!;
+      results.push({
+        path: entry.path,
+        type: entry.type,
+        status: "CI_EXCLUSION_SKIP",
+        exitCode: null,
+        durationMs: 0,
+        requiredForRegression: entry.requiredForRegression,
+        failureSignature: `ci_exclusion:${exc.classifiedAs}`,
+        dataAccess: entry.dataAccess,
+      });
+      console.log(`CI_EXCLUSION_SKIP ${entry.path} (${exc.classifiedAs})`);
+      continue;
+    }
+
     // ── Access level filter ──────────────────────────────────────────────
     if (accessLevelSkip(entry)) {
       accessLevelSkipped++;
@@ -280,7 +310,7 @@ async function main() {
   // ── Summary ───────────────────────────────────────────────────────────
   const testsDiscovered = manifest.length;
   const testsExecuted = results.filter(
-    (item) => !["SKIP", "ENVIRONMENT_MISSING", "ACCESS_LEVEL_SKIP"].includes(item.status)
+    (item) => !["SKIP", "ENVIRONMENT_MISSING", "ACCESS_LEVEL_SKIP", "CI_EXCLUSION_SKIP"].includes(item.status)
   ).length;
   const requiredResults = results.filter((item) => item.requiredForRegression && item.type !== "GATE");
   const regressionFailures = results.filter((item) => item.requiredForRegression && item.status === "FAIL");

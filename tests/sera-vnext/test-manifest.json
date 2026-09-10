@@ -1800,5 +1800,36 @@
     "requiredEnvironment": [],
     "expectedExit": 0,
     "expectedStatus": "PASS"
+  },
+  {
+    "path": "tests/hfa-audit/tenant-isolation/db-authoritative-tenant-rls-migration-contract-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS"
+  },
+  {
+    "path": "tests/sera-vnext/staging-rls-auth-ab-real-trial-001.ts",
+    "type": "REAL_DB",
+    "requiredForRegression": false,
+    "requiredEnvironment": [
+      "SUPABASE_STAGING_URL",
+      "SUPABASE_STAGING_ANON_KEY",
+      "SUPABASE_STAGING_SERVICE_ROLE_KEY",
+      "HFA_STAGING_SUPABASE_PROJECT_REF",
+      "HFA_TEST_ENVIRONMENT",
+      "HFA_TEST_TENANT_A_ID",
+      "HFA_TEST_USER_A_ID",
+      "HFA_TEST_TENANT_B_ID",
+      "HFA_TEST_USER_B_ID",
+      "HFA_TEST_USER_A_EMAIL",
+      "HFA_TEST_USER_B_EMAIL",
+      "HFA_TEST_USER_A_PASSWORD",
+      "HFA_TEST_USER_B_PASSWORD"
+    ],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "dataAccess": "MUTATING_SYNTHETIC"
   }
 ]

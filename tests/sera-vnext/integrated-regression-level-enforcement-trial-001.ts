@@ -149,10 +149,20 @@ const mutatingOut = `${mutatingResult.stdout ?? ''}${mutatingResult.stderr ?? ''
 console.log(mutatingOut.split('\n').filter(Boolean).map(l => '  ' + l).join('\n'))
 
 check(mutatingResult.status === 0, 'list-only MUTATING_SYNTHETIC exits 0')
-// Extract the MUTATING_SYNTHETIC selected count
+// Extract the MUTATING_SYNTHETIC selected count and compare to manifest
+const manifest = JSON.parse(readFileSync(join(ROOT, 'tests/sera-vnext/test-manifest.json'), 'utf8')) as Array<{
+  type: string
+  dataAccess?: string
+}>
+const expectedMutating = manifest.filter(
+  (e) => ['REAL_DB', 'REAL_API', 'REAL_UI'].includes(e.type) && e.dataAccess === 'MUTATING_SYNTHETIC'
+).length
 const mutatingCountMatch = mutatingOut.match(/MUTATING_SYNTHETIC selected:\s*(\d+)/)
 const mutatingCount = mutatingCountMatch ? parseInt(mutatingCountMatch[1]) : 0
-check(mutatingCount === 14, `list-only MUTATING_SYNTHETIC: 14 selected (got ${mutatingCount})`)
+check(
+  mutatingCount === expectedMutating && expectedMutating > 0,
+  `list-only MUTATING_SYNTHETIC: ${expectedMutating} selected (got ${mutatingCount})`
+)
 
 // ── Behavioral check: invalid level fails immediately ────────────────────
 console.log('\n--- Behavioral: invalid level ---')

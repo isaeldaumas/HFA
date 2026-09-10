@@ -128,6 +128,8 @@ jobs:
           HFA_STAGING_SUPABASE_PROJECT_REF: ${{ vars.HFA_STAGING_SUPABASE_PROJECT_REF }}
           HFA_TEST_TENANT_A_ID: ${{ vars.HFA_TEST_TENANT_A_ID }}
           HFA_TEST_USER_A_ID: ${{ vars.HFA_TEST_USER_A_ID }}
+          HFA_TEST_TENANT_B_ID: ${{ vars.HFA_TEST_TENANT_B_ID }}
+          HFA_TEST_USER_B_ID: ${{ vars.HFA_TEST_USER_B_ID }}
 
   integrated-regression:
     name: HFA Integrated Regression (Staging/Dev Only)
@@ -142,6 +144,8 @@ jobs:
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_STAGING_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_STAGING_SERVICE_ROLE_KEY }}
       SUPABASE_STAGING_URL: ${{ secrets.SUPABASE_STAGING_URL }}
+      SUPABASE_STAGING_ANON_KEY: ${{ secrets.SUPABASE_STAGING_ANON_KEY }}
+      SUPABASE_STAGING_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_STAGING_SERVICE_ROLE_KEY }}
       NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET_STAGING }}
       NEXTAUTH_URL: http://127.0.0.1:3100
       SERA_VNEXT_TEST_BASE_URL: http://127.0.0.1:3100
@@ -152,6 +156,10 @@ jobs:
       HFA_TEST_USER_A_ID: ${{ vars.HFA_TEST_USER_A_ID }}
       HFA_TEST_TENANT_B_ID: ${{ vars.HFA_TEST_TENANT_B_ID }}
       HFA_TEST_USER_B_ID: ${{ vars.HFA_TEST_USER_B_ID }}
+      HFA_TEST_USER_A_EMAIL: ${{ secrets.HFA_TEST_USER_A_EMAIL }}
+      HFA_TEST_USER_B_EMAIL: ${{ secrets.HFA_TEST_USER_B_EMAIL }}
+      HFA_TEST_USER_A_PASSWORD: ${{ secrets.HFA_TEST_USER_A_PASSWORD }}
+      HFA_TEST_USER_B_PASSWORD: ${{ secrets.HFA_TEST_USER_B_PASSWORD }}
       # Execution level — READ_ONLY or MUTATING_SYNTHETIC
       HFA_INTEGRATED_REGRESSION_LEVEL: ${{ needs.check-environment.outputs.run_mutating == 'true' && 'MUTATING_SYNTHETIC' || 'READ_ONLY' }}
       HFA_TEST_ENVIRONMENT: staging
@@ -175,6 +183,27 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
+
+      - name: Write frontend staging env file
+        working-directory: frontend
+        run: |
+          # REAL_* readiness trials require frontend/.env.local to exist.
+          # Values come from staging secrets already injected as job env — never echoed.
+          umask 077
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}"
+            echo "SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}"
+            echo "SUPABASE_STAGING_URL=${SUPABASE_STAGING_URL}"
+            echo "SUPABASE_STAGING_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}"
+            echo "SUPABASE_STAGING_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}"
+            echo "NEXTAUTH_SECRET=${NEXTAUTH_SECRET}"
+            echo "NEXTAUTH_URL=${NEXTAUTH_URL}"
+            echo "HFA_STAGING_SUPABASE_PROJECT_REF=${HFA_STAGING_SUPABASE_PROJECT_REF}"
+            echo "HFA_TEST_ENVIRONMENT=${HFA_TEST_ENVIRONMENT}"
+          } > .env.local
+          test -s .env.local
+          echo "frontend/.env.local written (contents not printed)"
 
       - name: Build frontend
         working-directory: frontend
