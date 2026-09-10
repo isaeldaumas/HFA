@@ -1,0 +1,75 @@
+name: HFA Core CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hfa-core-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: HFA Core CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
+      NEXTAUTH_SECRET: ci-placeholder
+      NEXTAUTH_URL: http://localhost:3000
+      SERA_VNEXT_READONLY_ENABLED: "false"
+      SERA_VNEXT_INTERNAL_PILOT_ENABLED: "false"
+      NEXT_PUBLIC_SERA_VNEXT_DIAGNOSTICS_ENABLED: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: TypeScript
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      - name: ERC containment runtime
+        run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/erc-containment/erc-containment-trial-001.ts
+
+      - name: ERC containment static
+        run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/erc-containment/erc-containment-trial-002-static.ts
+
+      - name: Legacy freeze
+        run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/legacy-freeze/legacy-freeze-trial-001.ts
+
+      - name: Shadow mode
+        run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/shadow-mode/shadow-mode-trial-001.ts
+
+      - name: Tenant isolation contract
+        run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/tenant-isolation/tenant-isolation-contract-trial-001.ts
