@@ -55,7 +55,7 @@ async function main() {
   const checks: Check[] = []
 
   try {
-    pwExec(ENTERPRISE_SESSION_ID, ['open', enterprise.actionLink, '--browser', 'firefox'])
+    pwExec(ENTERPRISE_SESSION_ID, ['open', enterprise.actionLink, '--browser', 'chromium'])
     await pwWaitForUrlMatch(ENTERPRISE_SESSION_ID, new RegExp(`^${escapeRegExp(baseUrl)}`), 20_000)
     await sleep(2_000)
 
@@ -99,7 +99,7 @@ async function main() {
     })
 
     try {
-      pwExec(BLOCKED_SESSION_ID, ['open', blocked.actionLink, '--browser', 'firefox'])
+      pwExec(BLOCKED_SESSION_ID, ['open', blocked.actionLink, '--browser', 'chromium'])
       await pwWaitForUrlMatch(BLOCKED_SESSION_ID, new RegExp(`^${escapeRegExp(baseUrl)}`), 20_000)
       await sleep(2_000)
       pwExec(BLOCKED_SESSION_ID, ['goto', `${baseUrl}/admin`])

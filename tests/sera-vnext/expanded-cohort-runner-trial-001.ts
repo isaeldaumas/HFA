@@ -777,8 +777,8 @@ async function main(): Promise<void> {
 
   const reportPath = writeJsonReport(`${TRIAL_ID}.json`, report)
 
-  const csvDir = '/Users/filipedaumas/SAAS/HFA/docs/sera-vnext/expanded-cohort'
-  ensureDir(csvDir)
+  const csvDir = path.join(process.cwd(), 'tmp', 'sera-vnext-expanded-cohort')
+  fs.mkdirSync(csvDir, { recursive: true })
 
   const caseResultsRows = [
     'case_id,reviewer_id,analysis_id_sanitized,created_ok,detail_opened,review_submitted,reanalyzed,exported,archived_restored,escape_point_useful,poa_useful,preconditions_useful,uncertainty_clear,warnings_clear,reviewer_decision,review_time_minutes,issues',

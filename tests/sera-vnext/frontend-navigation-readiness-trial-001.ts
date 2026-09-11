@@ -73,7 +73,7 @@ async function main() {
   const checks: Check[] = []
 
   try {
-    pwExec(SESSION_ID, ['open', enterpriseBrowser.actionLink, '--browser', 'firefox'])
+    pwExec(SESSION_ID, ['open', enterpriseBrowser.actionLink, '--browser', 'chromium'])
     await pwWaitForUrlMatch(SESSION_ID, new RegExp(`^${escapeRegExp(baseUrl)}`), 20_000)
     await sleep(2_000)
 

@@ -69,7 +69,7 @@ async function main() {
 
   const screenshots: string[] = []
   try {
-    pwExec(SESSION_ID, ['open', browserUser.actionLink, '--browser', 'firefox'])
+    pwExec(SESSION_ID, ['open', browserUser.actionLink, '--browser', 'chromium'])
     await pwWaitForUrlMatch(SESSION_ID, new RegExp(`^${escapeRegExp(baseUrl)}`), 20_000)
     await sleep(2_000)
 

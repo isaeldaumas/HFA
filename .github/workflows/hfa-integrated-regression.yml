@@ -255,8 +255,8 @@ jobs:
       - name: Install Playwright CLI browser (MUTATING REAL_UI)
         if: needs.check-environment.outputs.run_mutating == 'true'
         run: |
-          # REAL_UI trials use scripts/playwright-cli.sh → @playwright/cli with Firefox.
-          npx --yes playwright install --with-deps firefox
+          # REAL_UI trials use scripts/playwright-cli.sh → @playwright/cli with Chromium.
+          npx --yes playwright install --with-deps chromium
 
       - name: Report execution level
         run: |

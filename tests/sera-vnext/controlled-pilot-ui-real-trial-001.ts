@@ -85,7 +85,7 @@ async function main() {
   const networkChecks: UiPilotReport['networkChecks'] = []
 
   try {
-    pwExec(SESSION_ID, ['open', participant.actionLink, '--browser', 'firefox'])
+    pwExec(SESSION_ID, ['open', participant.actionLink, '--browser', 'chromium'])
     await pwWaitForUrlMatch(SESSION_ID, new RegExp(`^${escapeRegExp(baseUrl)}`), 20_000)
     await sleep(2_000) // SDK sets session in localStorage from hash before goto fires
 

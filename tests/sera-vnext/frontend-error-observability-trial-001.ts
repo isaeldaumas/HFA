@@ -106,7 +106,7 @@ async function main() {
   })
 
   try {
-    pwExec(SESSION_ID, ['open', browserSession.actionLink, '--browser', 'firefox'])
+    pwExec(SESSION_ID, ['open', browserSession.actionLink, '--browser', 'chromium'])
     await pwWaitForUrlMatch(SESSION_ID, new RegExp(`^${baseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`), 20_000)
     await sleep(2_000)
     pwExec(SESSION_ID, ['goto', `${baseUrl}/admin/sera-vnext/analyses/new`])
