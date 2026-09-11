@@ -144,6 +144,11 @@ check(
     wf.includes("&& 'true' || 'false'"),
   'workflow: Product Beta enabled only ephemerally for MUTATING jobs'
 )
+check(
+  wf.includes('NEXT_PUBLIC_SERA_VNEXT_PRODUCT_BETA_UI_ENABLED:') &&
+    wf.includes("run_mutating == 'true'"),
+  'workflow: Product Beta UI flag enabled only ephemerally for MUTATING jobs'
+)
 
 // ── Secrets used (not hardcoded) ─────────────────────────────────────────
 check(
