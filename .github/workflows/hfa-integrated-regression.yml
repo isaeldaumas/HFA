@@ -168,6 +168,7 @@ jobs:
       SERA_VNEXT_INTERNAL_PILOT_ENABLED: "false"
       NEXT_PUBLIC_SERA_VNEXT_DIAGNOSTICS_ENABLED: "false"
       SERA_VNEXT_PRODUCT_BETA_ENABLED: ${{ needs.check-environment.outputs.run_mutating == 'true' && 'true' || 'false' }}
+      NEXT_PUBLIC_SERA_VNEXT_PRODUCT_BETA_UI_ENABLED: ${{ needs.check-environment.outputs.run_mutating == 'true' && 'true' || 'false' }}
       # Synthetic purge execute gate — only for MUTATING jobs; never production.
       EVENT_PURGE_SYNTHETIC_EXECUTE_ENABLED: ${{ needs.check-environment.outputs.run_mutating == 'true' && 'true' || 'false' }}
       PWCLI: ${{ github.workspace }}/scripts/playwright-cli.sh
@@ -210,6 +211,7 @@ jobs:
             echo "HFA_STAGING_SUPABASE_PROJECT_REF=${HFA_STAGING_SUPABASE_PROJECT_REF}"
             echo "HFA_TEST_ENVIRONMENT=${HFA_TEST_ENVIRONMENT}"
             echo "SERA_VNEXT_PRODUCT_BETA_ENABLED=${SERA_VNEXT_PRODUCT_BETA_ENABLED}"
+            echo "NEXT_PUBLIC_SERA_VNEXT_PRODUCT_BETA_UI_ENABLED=${NEXT_PUBLIC_SERA_VNEXT_PRODUCT_BETA_UI_ENABLED}"
             echo "EVENT_PURGE_SYNTHETIC_EXECUTE_ENABLED=${EVENT_PURGE_SYNTHETIC_EXECUTE_ENABLED}"
             echo "HFA_INTEGRATED_REGRESSION_LEVEL=${HFA_INTEGRATED_REGRESSION_LEVEL}"
             echo "SERA_SHADOW_EXECUTION_ENABLED=false"
@@ -221,6 +223,7 @@ jobs:
           test -s .env.local
           echo "frontend/.env.local written (contents not printed)"
           echo "Product Beta ephemeral flag for this job: ${SERA_VNEXT_PRODUCT_BETA_ENABLED}"
+          echo "Product Beta UI ephemeral flag for this job: ${NEXT_PUBLIC_SERA_VNEXT_PRODUCT_BETA_UI_ENABLED}"
           echo "EVENT_PURGE_SYNTHETIC_EXECUTE_ENABLED=${EVENT_PURGE_SYNTHETIC_EXECUTE_ENABLED}"
           echo "Shadow flags: all false"
 
