@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { resolveTestTenantPrefix } from './helpers/resolve-test-tenant-prefix'
 import {
+import { assertSafeTestEnvironment } from './helpers/assert-safe-test-environment'
   PLAYWRIGHT_OUTPUT_DIR,
   buildBaseUrl,
   createMagicLinkBrowserSession,
@@ -58,6 +59,7 @@ async function waitForNewDownload(before: string[], timeoutMs = 15_000): Promise
 }
 
 async function main() {
+  assertSafeTestEnvironment({ requiresFixtureIds: true, requiresCrossTenant: false })
   const baseUrl = buildBaseUrl()
   await waitForServer(baseUrl)
 

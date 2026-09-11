@@ -111,6 +111,22 @@ check(
   'workflow: SERA_SHADOW_EXECUTION_ENABLED=false'
 )
 check(
+  wf.includes('SERA_SHADOW_PERSISTENCE_ENABLED: "false"'),
+  'workflow: SERA_SHADOW_PERSISTENCE_ENABLED=false'
+)
+check(
+  wf.includes('SERA_SHADOW_ADMIN_VIEW_ENABLED: "false"'),
+  'workflow: SERA_SHADOW_ADMIN_VIEW_ENABLED=false'
+)
+check(
+  wf.includes('SERA_SHADOW_AUTO_COMPARISON_ENABLED: "false"'),
+  'workflow: SERA_SHADOW_AUTO_COMPARISON_ENABLED=false'
+)
+check(
+  wf.includes('SERA_SHADOW_VALIDATION_REPORTS_ENABLED: "false"'),
+  'workflow: SERA_SHADOW_VALIDATION_REPORTS_ENABLED=false'
+)
+check(
   wf.includes('SERA_VNEXT_READONLY_ENABLED: "false"'),
   'workflow: SERA_VNEXT_READONLY_ENABLED=false'
 )
@@ -121,6 +137,12 @@ check(
 check(
   wf.includes('NEXT_PUBLIC_SERA_VNEXT_DIAGNOSTICS_ENABLED: "false"'),
   'workflow: NEXT_PUBLIC_SERA_VNEXT_DIAGNOSTICS_ENABLED=false'
+)
+check(
+  wf.includes('SERA_VNEXT_PRODUCT_BETA_ENABLED:') &&
+    wf.includes("run_mutating == 'true'") &&
+    wf.includes("&& 'true' || 'false'"),
+  'workflow: Product Beta enabled only ephemerally for MUTATING jobs'
 )
 
 // ── Secrets used (not hardcoded) ─────────────────────────────────────────

@@ -2,24 +2,39 @@
  * Resolve tenant prefix for REAL_* session helpers.
  *
  * Preference order:
- * 1. Explicit SERA_VNEXT_TEST_TENANT_PREFIX
- * 2. First 8 hex chars of HFA_TEST_TENANT_A_ID (staging fixtures A/B)
+ * 1. Explicit SERA_VNEXT_TEST_TENANT_PREFIX (or SERA_VNEXT_TEST_BLOCKED_TENANT_PREFIX for B)
+ * 2. First 8 hex chars of HFA_TEST_TENANT_A_ID / HFA_TEST_TENANT_B_ID
  *
- * Does not fall back to the legacy enterprise prefix `3a68c15d` when running
- * under integrated staging (`HFA_TEST_ENVIRONMENT=staging` or an integrated
- * regression level). That legacy default caused false FAIL noise against the
- * authorized HFA staging project, which has no such tenant.
+ * Integrated staging never falls back to legacy enterprise prefixes.
  */
-export function resolveTestTenantPrefix(): string {
-  const explicit = process.env.SERA_VNEXT_TEST_TENANT_PREFIX?.trim()
-  if (explicit) return explicit
 
-  const tenantA = process.env.HFA_TEST_TENANT_A_ID?.trim()
-  if (tenantA) {
-    const compact = tenantA.replace(/-/g, '')
-    if (/^[0-9a-f]{8}/i.test(compact)) {
-      return compact.slice(0, 8).toLowerCase()
-    }
+export type ResolveTenantPrefixOpts = {
+  /** Which staging fixture pair to resolve. Default: A */
+  fixture?: 'A' | 'B'
+}
+
+function prefixFromUuid(tenantId: string): string | null {
+  const compact = tenantId.replace(/-/g, '')
+  if (/^[0-9a-f]{8}/i.test(compact)) return compact.slice(0, 8).toLowerCase()
+  return null
+}
+
+export function resolveTestTenantPrefix(opts: ResolveTenantPrefixOpts = {}): string {
+  const fixture = opts.fixture ?? 'A'
+  const explicitEnv =
+    fixture === 'B'
+      ? process.env.SERA_VNEXT_TEST_BLOCKED_TENANT_PREFIX?.trim() ||
+        process.env.SERA_VNEXT_TEST_TENANT_B_PREFIX?.trim()
+      : process.env.SERA_VNEXT_TEST_TENANT_PREFIX?.trim()
+  if (explicitEnv) return explicitEnv
+
+  const tenantId =
+    fixture === 'B'
+      ? process.env.HFA_TEST_TENANT_B_ID?.trim()
+      : process.env.HFA_TEST_TENANT_A_ID?.trim()
+  if (tenantId) {
+    const prefix = prefixFromUuid(tenantId)
+    if (prefix) return prefix
   }
 
   const integrated =
@@ -28,11 +43,11 @@ export function resolveTestTenantPrefix(): string {
 
   if (integrated) {
     throw new Error(
-      'ENVIRONMENT_NOT_CONFIGURED: set SERA_VNEXT_TEST_TENANT_PREFIX or HFA_TEST_TENANT_A_ID ' +
-        'before running staging REAL_* trials (legacy enterprise prefix is not used).'
+      `ENVIRONMENT_NOT_CONFIGURED: set fixture ${fixture} tenant id/prefix before running staging REAL_* trials ` +
+        '(legacy enterprise prefixes are not used in integrated staging).'
     )
   }
 
   // Non-integrated local/dev legacy path only.
-  return '3a68c15d'
+  return fixture === 'B' ? '9a52a850' : '3a68c15d'
 }

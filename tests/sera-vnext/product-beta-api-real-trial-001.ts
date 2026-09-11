@@ -14,7 +14,7 @@ import {
 
 const TRIAL_ID = 'product-beta-api-real-trial-001'
 const ENTERPRISE_TENANT_PREFIX = resolveTestTenantPrefix()
-const BLOCKED_TENANT_PREFIX = process.env.SERA_VNEXT_TEST_BLOCKED_TENANT_PREFIX?.trim() || '9a52a850'
+const BLOCKED_TENANT_PREFIX = resolveTestTenantPrefix({ fixture: 'B' })
 
 type TrialReport = {
   trialId: string

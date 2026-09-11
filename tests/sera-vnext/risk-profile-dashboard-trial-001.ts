@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { resolveTestTenantPrefix } from './helpers/resolve-test-tenant-prefix'
 import {
+import { assertSafeTestEnvironment } from './helpers/assert-safe-test-environment'
   buildBaseUrl,
   createMagicLinkBrowserSession,
   pwExec,
@@ -22,6 +23,7 @@ function escapeRegExp(value: string): string {
 }
 
 async function main() {
+  assertSafeTestEnvironment({ requiresFixtureIds: true, requiresCrossTenant: false })
   const baseUrl = buildBaseUrl()
   await waitForServer(baseUrl)
 

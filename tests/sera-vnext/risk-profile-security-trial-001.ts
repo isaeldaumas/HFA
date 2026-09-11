@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { resolveTestTenantPrefix } from './helpers/resolve-test-tenant-prefix'
 import {
+import { assertSafeTestEnvironment } from './helpers/assert-safe-test-environment'
   apiJson,
   buildBaseUrl,
   createMagicLinkSession,
@@ -13,9 +14,10 @@ import {
 
 const TRIAL_ID = 'risk-profile-security-trial-001'
 const ENTERPRISE_TENANT_PREFIX = resolveTestTenantPrefix()
-const BLOCKED_TENANT_PREFIX = process.env.SERA_VNEXT_TEST_BLOCKED_TENANT_PREFIX?.trim() || '9a52a850'
+const BLOCKED_TENANT_PREFIX = resolveTestTenantPrefix({ fixture: 'B' })
 
 async function main() {
+  assertSafeTestEnvironment({ requiresFixtureIds: true, requiresCrossTenant: true })
   const baseUrl = buildBaseUrl()
   await waitForServer(baseUrl)
 

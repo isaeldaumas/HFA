@@ -20,6 +20,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { resolveTestTenantPrefix } from '../helpers/resolve-test-tenant-prefix'
 import {
+import { assertSafeTestEnvironment } from '../helpers/assert-safe-test-environment'
   apiJson,
   buildBaseUrl,
   createMagicLinkSession,
@@ -34,6 +35,7 @@ function readFile(relPath: string): string {
 }
 
 async function main() {
+  assertSafeTestEnvironment({ requiresFixtureIds: true, requiresCrossTenant: false })
   const baseUrl = buildBaseUrl()
   await waitForServer(baseUrl)
 
