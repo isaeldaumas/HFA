@@ -83,8 +83,10 @@ function DeleteEventModal(props: {
   busy: boolean
   error: string | null
   reason: string
+  confirmationTitle: string
   onClose: () => void
   onReasonChange: (value: string) => void
+  onConfirmationTitleChange: (value: string) => void
   onConfirm: () => void
 }) {
   const {
@@ -93,10 +95,13 @@ function DeleteEventModal(props: {
     busy,
     error,
     reason,
+    confirmationTitle,
     onClose,
     onReasonChange,
+    onConfirmationTitleChange,
     onConfirm,
   } = props
+  const titleMatches = !!event && confirmationTitle.trim() === event.title
 
   if (!event) return null
 
@@ -195,6 +200,15 @@ function DeleteEventModal(props: {
               placeholder="Explique por que o evento e os dados relacionados devem entrar em recuperação."
             />
           </label>
+          <label className="grid gap-2">
+            <span className="text-sm font-medium text-slate-200">Digite o título do evento para confirmar</span>
+            <input
+              value={confirmationTitle}
+              onChange={(e) => onConfirmationTitleChange(e.target.value)}
+              className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-red-400"
+              placeholder="Título exato do evento"
+            />
+          </label>
         </div>
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
@@ -208,7 +222,7 @@ function DeleteEventModal(props: {
             <button
               type="button"
               onClick={onConfirm}
-              disabled={busy || !reason.trim()}
+              disabled={busy || !reason.trim() || !titleMatches}
               className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy ? 'Excluindo...' : 'Excluir e iniciar período de recuperação'}
@@ -231,6 +245,7 @@ export default function EventsPage() {
   const [deleteTarget, setDeleteTarget] = useState<EventItem | null>(null)
   const [deleteImpact, setDeleteImpact] = useState<DeletionImpact | null>(null)
   const [deleteReason, setDeleteReason] = useState('')
+  const [deleteConfirmationTitle, setDeleteConfirmationTitle] = useState('')
 
   useEffect(() => {
     async function load() {
@@ -324,6 +339,7 @@ export default function EventsPage() {
     setDeleteTarget(event)
     setDeleteImpact(null)
     setDeleteReason('')
+    setDeleteConfirmationTitle('')
     setActionError(null)
     setBusyEventId(event.id)
     try {
@@ -358,6 +374,7 @@ export default function EventsPage() {
         },
         body: JSON.stringify({
           reason: deleteReason,
+          confirmationTitle: deleteConfirmationTitle,
         }),
       })
       const body = await res.json().catch(() => ({}))
@@ -367,6 +384,7 @@ export default function EventsPage() {
       setDeleteTarget(null)
       setDeleteImpact(null)
       setDeleteReason('')
+      setDeleteConfirmationTitle('')
       await refreshEvents()
     } catch (error) {
       setActionError(error instanceof Error ? error.message : String(error))
@@ -383,12 +401,15 @@ export default function EventsPage() {
         busy={!!deleteTarget && busyEventId === deleteTarget.id}
         error={actionError}
         reason={deleteReason}
+        confirmationTitle={deleteConfirmationTitle}
         onClose={() => {
           setDeleteTarget(null)
           setDeleteImpact(null)
           setDeleteReason('')
+          setDeleteConfirmationTitle('')
         }}
         onReasonChange={setDeleteReason}
+        onConfirmationTitleChange={setDeleteConfirmationTitle}
         onConfirm={() => void confirmDelete()}
       />
 

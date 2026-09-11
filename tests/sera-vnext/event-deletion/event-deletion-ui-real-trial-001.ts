@@ -109,7 +109,11 @@ async function main() {
     screenshots.push(desktopShot)
 
     assert.equal(pwSetFormValue(SESSION_ID, 'textarea', ''), true, 'clear reason textarea')
-    assert.equal(pwSetFormValue(SESSION_ID, 'input[placeholder]', 'wrong title'), true, 'set wrong confirmation title')
+    assert.equal(
+      pwSetFormValue(SESSION_ID, 'input[placeholder="Título exato do evento"]', 'wrong title'),
+      true,
+      'set wrong confirmation title',
+    )
     assert.equal(
       pwEval<boolean>(SESSION_ID, `document.querySelector('div[role="dialog"] button.bg-red-600')?.hasAttribute('disabled') === true`),
       true,
@@ -117,7 +121,11 @@ async function main() {
     )
 
     assert.equal(pwSetFormValue(SESSION_ID, 'textarea', 'synthetic UI deletion validation'), true, 'set reason')
-    assert.equal(pwSetFormValue(SESSION_ID, 'input[placeholder]', title), true, 'set matching confirmation title')
+    assert.equal(
+      pwSetFormValue(SESSION_ID, 'input[placeholder="Título exato do evento"]', title),
+      true,
+      'set matching confirmation title',
+    )
     assert.equal(
       pwEval<boolean>(SESSION_ID, `document.querySelector('div[role="dialog"] button.bg-red-600')?.hasAttribute('disabled') === false`),
       true,

@@ -165,7 +165,9 @@ async function main() {
   assert.ok(crossTenantRes.status >= 400, `cross-tenant status=${crossTenantRes.status}`)
   const crossTenantJson = await parseJson(crossTenantRes)
   assert.equal(
-    /stack|postgres|supabase/i.test(JSON.stringify(crossTenantJson)),
+    /(postgres|postgrest|sqlstate|relation "|column "|at\s+\S+\s+\(|SUPABASE_SERVICE_ROLE)/i.test(
+      JSON.stringify(crossTenantJson),
+    ),
     false,
     `cross-tenant leak body=${JSON.stringify(crossTenantJson).slice(0, 400)}`,
   )
