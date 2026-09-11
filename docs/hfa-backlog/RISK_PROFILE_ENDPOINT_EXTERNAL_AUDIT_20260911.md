@@ -21,15 +21,35 @@ Decision: **DO NOT REMOVE** · behavior unchanged in this continuation
 
 ## Vercel / production telemetry (90 days)
 
+Attempted 2026-09-11 continuation (no ZIP search; no behavior change to endpoint).
+
+```text
+PROJECT=
+TEAM=
+ENVIRONMENT=
+START=
+END=
+QUERY=/api/analyses/risk-profile
+REQUEST_COUNT=
+STATUS_CODES=
+LAST_SEEN=
+```
+
 | Field | Value |
 |-------|-------|
-| team/project | UNKNOWN — blocked |
-| environment | production / staging / preview | UNKNOWN |
-| window | last 90 days | NOT QUERIED |
-| requestPath filter | `/api/analyses/risk-profile` | NOT QUERIED |
-| call count / status codes / last call | N/A | BLOCKED_OBSERVABILITY |
+| PROJECT | (empty) — blocked |
+| TEAM | (empty) — blocked |
+| ENVIRONMENT | (empty) — blocked |
+| START / END | intended last 90 days — **not queried** |
+| QUERY | `/api/analyses/risk-profile` |
+| REQUEST_COUNT | (empty) — not queried |
+| STATUS_CODES | (empty) — not queried |
+| LAST_SEEN | (empty) — not queried |
+| Blockers | no `.vercel/project.json`; `vercel` CLI token invalid; GitHub Deployments API empty; no versioned Postman/bookmarks |
 
-Status: **BLOCKED_EXTERNAL** / **BLOCKED_OBSERVABILITY**
+Status: **ENDPOINT_EXTERNAL_TELEMETRY=BLOCKED_EXTERNAL**
+
+Absence of access ≠ zero calls. Zero calls (if later observed) ≠ proof of zero non-logged consumers.
 
 ## Human inventory still required (non-repo)
 

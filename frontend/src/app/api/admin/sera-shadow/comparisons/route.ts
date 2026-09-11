@@ -30,9 +30,23 @@ export async function GET(req: Request) {
 
     const rows = await listShadowResultsForTenant(admin, user.tenantId, limit)
     const comparisons: ShadowDivergenceV1Result[] = rows.map((row) => {
-      const stored = row.divergence_summary as { divergenceContract?: ShadowDivergenceV1Result } | null
+      const stored = row.divergence_summary as {
+        divergenceContract?: ShadowDivergenceV1Result
+        axisDivergences?: Array<{
+          axis?: string
+          legacyCode?: string | null
+        }>
+      } | null
       if (stored?.divergenceContract?.contractId === 'SERA_SHADOW_DIVERGENCE_V1') {
         return stored.divergenceContract
+      }
+
+      // Pre-V1 / partial summaries: rebuild mechanically. Prefer stored legacy
+      // axis codes when present; never invent codes. Absent legacy → excluded
+      // from denominator (fail-closed), not reinterpreted as a new contract.
+      const legacyByAxis = new Map<string, string | null>()
+      for (const axis of stored?.axisDivergences ?? []) {
+        if (axis?.axis) legacyByAxis.set(axis.axis, axis.legacyCode ?? null)
       }
 
       const output = row.vnext_engine_output as {
@@ -45,17 +59,17 @@ export async function GET(req: Request) {
 
       return compareShadowTripletV1({
         perception: {
-          legacyCode: null,
+          legacyCode: legacyByAxis.get('perception') ?? null,
           vnextCode: output.poaClassification?.perception?.selectedCode ?? null,
           vnextStatus: output.poaClassification?.perception?.status ?? null,
         },
         objective: {
-          legacyCode: null,
+          legacyCode: legacyByAxis.get('objective') ?? null,
           vnextCode: output.poaClassification?.objective?.selectedCode ?? null,
           vnextStatus: output.poaClassification?.objective?.status ?? null,
         },
         action: {
-          legacyCode: null,
+          legacyCode: legacyByAxis.get('action') ?? null,
           vnextCode: output.poaClassification?.action?.selectedCode ?? null,
           vnextStatus: output.poaClassification?.action?.status ?? null,
         },

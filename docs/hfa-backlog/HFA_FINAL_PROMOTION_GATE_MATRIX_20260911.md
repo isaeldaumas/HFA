@@ -2,7 +2,7 @@
 
 Status: **PRODUCTION_NOT_AUTHORIZED**  
 Prepared from continuation work after `main` @ `a71d24464e4f3475d71de3d6d4016d9ed9e13ed8`.  
-Packs zip `HFA_*_20260911.zip` were **not found on disk**; matrix reflects repository + execution evidence.
+Updated after PR #47 technical audit: `MAIN_MERGE_PRODUCTION_DEPLOY=UNKNOWN` (see `PR47_SHADOW_TECHNICAL_AUDIT_20260911.md`).
 
 ## Gate matrix
 
@@ -19,6 +19,7 @@ Packs zip `HFA_*_20260911.zip` were **not found on disk**; matrix reflects repos
 | required CI checks | PASS | Local: tsc, lint, build, mandatory trials, deterministic regression CI_PASS |
 | author approval | AUTHOR_DECISION_PENDING | Required for D3, D4, shadow enablement, endpoint removal, production |
 | production authorization | NOT_READY | Explicitly not authorized; CI green ≠ production auth |
+| main merge → production deploy | UNKNOWN | GitHub Actions = CI only; Vercel Git production link unverified (`vercel` CLI unauthenticated; no `.vercel/project.json`) |
 
 ## Absolute locks (still in force)
 

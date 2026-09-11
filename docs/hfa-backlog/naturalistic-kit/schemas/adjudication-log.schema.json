@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hfa-naturalistic-adjudication-log",
+  "title": "NaturalisticAdjudicationLog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "caseId", "entries"],
+  "properties": {
+    "schemaVersion": { "const": "NATURALISTIC_ADJUDICATION_LOG_V1" },
+    "caseId": { "type": "string", "minLength": 1 },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["at", "actorId", "decision"],
+        "properties": {
+          "at": { "type": "string" },
+          "actorId": { "type": "string" },
+          "decision": { "enum": ["defer", "confirm", "revise", "exclude_case"] },
+          "notes": { "type": "string" }
+        }
+      }
+    }
+  }
+}
