@@ -31,6 +31,12 @@ jobs:
       SERA_VNEXT_READONLY_ENABLED: "false"
       SERA_VNEXT_INTERNAL_PILOT_ENABLED: "false"
       NEXT_PUBLIC_SERA_VNEXT_DIAGNOSTICS_ENABLED: "false"
+      SERA_SHADOW_EXECUTION_ENABLED: "false"
+      SERA_SHADOW_PERSISTENCE_ENABLED: "false"
+      SERA_SHADOW_ADMIN_VIEW_ENABLED: "false"
+      SERA_SHADOW_AUTO_COMPARISON_ENABLED: "false"
+      SERA_SHADOW_VALIDATION_REPORTS_ENABLED: "false"
+      NEXT_PUBLIC_SERA_SHADOW_ADMIN_VIEW_ENABLED: "false"
 
     steps:
       - name: Checkout
@@ -70,6 +76,12 @@ jobs:
 
       - name: Shadow mode
         run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/shadow-mode/shadow-mode-trial-001.ts
+
+      - name: Shadow divergence V1 contract
+        run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/shadow-mode/shadow-mode-trial-002-comparison.ts
+
+      - name: Shadow rollback contract
+        run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/shadow-mode/shadow-mode-trial-003-rollback.ts
 
       - name: Tenant isolation contract
         run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/tenant-isolation/tenant-isolation-contract-trial-001.ts

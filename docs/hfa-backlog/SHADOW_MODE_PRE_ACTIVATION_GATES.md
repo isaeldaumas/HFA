@@ -39,15 +39,16 @@ separada (`sera_shadow_results`), e permite comparação sem afetar o output ao 
 - [ ] Naturalistic gate `NOT_READY` → precisa chegar a `VALIDATION_PASS` primeiro
 
 ### Gate 3 — Observabilidade
-- [ ] Logs estruturados de execução do shadow configurados
-- [ ] Métricas de concordância legado×vNext definidas e implementadas
-- [ ] Alertas de divergência configurados
-- [ ] Dashboard de comparação de resultados
+- [x] Contrato versionado `SERA_SHADOW_DIVERGENCE_V1` (igualdade literal P/O/A; ERC excluído)
+- [x] Métricas agregadas (`exactTripletMatch`, agreementRate sobre denominador comparável)
+- [x] Dashboard administrativo somente leitura (fail-closed; flags OFF)
+- [x] Endpoint admin tenant-scoped (404 com flag OFF)
+- [ ] Alertas de divergência em runtime (ainda não — requer ativação controlada futura)
 
 ### Gate 4 — Rollback
-- [ ] Procedimento de rollback documentado e testado
-- [ ] Tempo máximo de rollback: < 5 minutos
-- [ ] Flag de desativação emergencial testado
+- [x] Procedimento de rollback documentado (`sera-shadow/rollback.ts`)
+- [x] Tempo máximo de rollback: < 5 minutos (env flip + restart)
+- [x] Flag de desativação emergencial testado (`shadow-mode-trial-003-rollback.ts`)
 
 ### Gate 5 — Aprovação formal
 - [ ] Todos os gates anteriores passando
