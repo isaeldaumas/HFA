@@ -8,8 +8,8 @@ import {
   writeJsonReport,
 } from './product-beta-real-helpers'
 import { resolveTestTenantPrefix } from './helpers/resolve-test-tenant-prefix'
-import {
 import { assertSafeTestEnvironment } from './helpers/assert-safe-test-environment'
+import {
   handleGetSeraVNextAnalysisRequest,
   handleListSeraVNextAnalysesRequest,
 } from '../../frontend/src/lib/sera-vnext-product/api-handlers'

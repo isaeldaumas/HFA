@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { resolveTestTenantPrefix } from './helpers/resolve-test-tenant-prefix'
-import {
 import { assertSafeTestEnvironment } from './helpers/assert-safe-test-environment'
+import {
   buildBaseUrl,
   createMagicLinkBrowserSession,
   pwEval,

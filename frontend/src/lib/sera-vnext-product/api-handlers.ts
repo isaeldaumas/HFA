@@ -80,8 +80,15 @@ function responseError(error: unknown, requestId: string): NextResponse | Respon
       { status: error.status, headers: { ...productBetaNoStoreHeaders, 'x-request-id': requestId } },
     )
   }
+  const stagingDiagnostics =
+    process.env.HFA_TEST_ENVIRONMENT?.trim().toLowerCase() === 'staging' ||
+    process.env.HFA_INTEGRATED_REGRESSION_LEVEL?.trim()
+  const detail =
+    stagingDiagnostics && error instanceof Error && error.message
+      ? `Erro interno SERA vNext Product Beta: ${error.message}`
+      : 'Erro interno SERA vNext Product Beta'
   return NextResponse.json(
-    { detail: 'Erro interno SERA vNext Product Beta', request_id: requestId },
+    { detail, request_id: requestId },
     { status: 500, headers: { ...productBetaNoStoreHeaders, 'x-request-id': requestId } },
   )
 }
