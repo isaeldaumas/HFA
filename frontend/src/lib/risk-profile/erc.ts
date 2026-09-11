@@ -1,9 +1,8 @@
 /**
- * ⚠ MECANISMO ERC EM MANUTENÇÃO RESTRITA (auditoria HFA, 3ª etapa — 2026-07-10) ⚠
- * ARMS_CODE_MATRIX_V1 está CONGELADA: não alterar valores/fórmula sem decisão D3
- * (docs/auditoria-hfa/segunda-etapa/08-decisao-d3-erc.md e
- * docs/auditoria-hfa/terceira-etapa/02-contencao-erc.md). Qualquer exibição de um valor
- * derivado daqui deve passar por describeErcValue (erc-containment.ts).
+ * ⚠ MECANISMO ERC EM MANUTENÇÃO RESTRITA (D3-b aprovado 2026-09-11) ⚠
+ * ARMS_CODE_MATRIX_V1 permanece CONGELADA: não é ERC canônico do vNext.
+ * UNRESOLVED nunca gera ERC. Qualquer exibição deve passar por describeErcValue.
+ * Não alterar valores/fórmula sem nova decisão autoral pós-D3-b.
  */
 import type { HfaErcCategory } from '@/lib/sera/erc-conversion'
 
@@ -62,11 +61,26 @@ export function getArmsBarrierLevel(
   return barrierLevel(perceptionCode, objectiveCode, actionCode)
 }
 
+function isUnresolvedCode(code: string | null | undefined): boolean {
+  return typeof code === 'string' && /^unresolved$/i.test(code.trim())
+}
+
+/**
+ * ARMS×código heurístico legado. D3-b: UNRESOLVED never yields ERC.
+ * Not a canonical vNext ERC mechanism — callers must not present this as vNext ERC.
+ */
 export function computeHfaErcCategoryFromCodes(
   perceptionCode: string | null | undefined,
   objectiveCode: string | null | undefined,
   actionCode: string | null | undefined,
 ): HfaErcCategory | null {
+  if (
+    isUnresolvedCode(perceptionCode) ||
+    isUnresolvedCode(objectiveCode) ||
+    isUnresolvedCode(actionCode)
+  ) {
+    return null
+  }
   if (!perceptionCode) return null
   const severity = ARMS_SEVERITY_ROW[perceptionCode] ?? 'C'
   const barrier = barrierLevel(perceptionCode, objectiveCode, actionCode)

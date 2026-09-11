@@ -8,6 +8,12 @@ import {
 } from '@/lib/sera/safety-issue-candidates'
 import { getSupabaseAdmin } from '@/lib/server/supabase-admin'
 import { computeHfaErcCategoryFromCodes, describeHfaErcCategory } from './erc'
+import {
+  D3_DECISION_ID,
+  buildErcContainmentNotice,
+  resolveErcPresentationMode,
+  shouldSuppressConsolidatedNumericErc,
+} from './erc-containment'
 import type {
   RiskProfileRecurringPattern,
   RiskProfileSourceEvent,
@@ -258,17 +264,13 @@ function toVNextSource(
   row: VNextAnalysisRow,
   exclusionLookup: Map<string, ExclusionRow>,
 ): RiskProfileSourceEvent {
-  const category = computeHfaErcCategoryFromCodes(
-    row.perception_candidate_code,
-    row.objective_candidate_code,
-    row.action_candidate_code,
-  )
-  const erc = describeHfaErcCategory(category)
+  // D3-b: no numeric ERC for vNext — do not apply ARMS matrix as if it were vNext ERC.
   const exclusion = exclusionLookup.get(`sera_vnext_analysis:${row.id}`)
   const warnings = [
     ...ensureStringArray(row.warnings),
     ...ensureStringArray(row.limitations),
     ...ensureStringArray(row.uncertainties),
+    'D3-b: ERC numérico canônico do vNext não disponível; valor não gerado a partir da matriz ARMS legada.',
   ]
 
   return {
@@ -285,10 +287,10 @@ function toVNextSource(
     methodologyVersion: row.methodology_version,
     canonicalTreeVersion: row.canonical_tree_version,
     erc: {
-      code: erc.code,
-      severity: erc.severity,
-      label: erc.label,
-      category,
+      code: null,
+      severity: null,
+      label: null,
+      category: null,
     },
     perceptionCode: row.perception_candidate_code,
     objectiveCode: row.objective_candidate_code,
@@ -475,7 +477,7 @@ export async function getRiskProfileSummaryForTenant(
       combinationEvidenceIds[pair] = [...(combinationEvidenceIds[pair] ?? []), source.id]
     }
 
-    if (source.erc?.category) {
+    if (source.source === 'legacy_event' && source.erc?.category) {
       const code = String(source.erc.category)
       ercCounts[code] = (ercCounts[code] || 0) + 1
     }
@@ -581,8 +583,21 @@ export async function getRiskProfileSummaryForTenant(
   }
   alerts.push(`${eventsThisMonth} evento${eventsThisMonth !== 1 ? 's' : ''} ativo${eventsThisMonth !== 1 ? 's' : ''} este mês vs média de ${Math.round(monthlyAverage)}/mês`)
 
-  const validErcCount = includedSources.filter((source) => source.erc?.category != null).length
+  const legacyCount = includedSources.filter((s) => s.source === 'legacy_event').length
+  const vnextCount = includedSources.filter((s) => s.source === 'sera_vnext_analysis').length
+  const legacyErcPresent = Object.keys(ercCounts).length > 0
+  const ercPresentationMode = resolveErcPresentationMode({
+    legacyCount,
+    vnextCount,
+    legacyErcPresent,
+  })
+  const suppressConsolidatedErc = shouldSuppressConsolidatedNumericErc(ercPresentationMode)
+
+  const validErcCount = includedSources.filter(
+    (source) => source.source === 'legacy_event' && source.erc?.category != null,
+  ).length
   const modalErcLevel = (() => {
+    if (suppressConsolidatedErc) return null
     const entries = Object.entries(ercCounts)
     if (!entries.length) return null
     entries.sort((left, right) => right[1] - left[1] || Number(right[0]) - Number(left[0]))
@@ -617,10 +632,12 @@ export async function getRiskProfileSummaryForTenant(
   })
 
   const qualityTrend = buildQualityTrendFromCategories(
-    includedSources.map((source) => ({
-      createdAt: source.createdAt,
-      category: source.erc?.category ?? null,
-    })),
+    includedSources
+      .filter((source) => source.source === 'legacy_event')
+      .map((source) => ({
+        createdAt: source.createdAt,
+        category: source.erc?.category ?? null,
+      })),
   )
 
   const summaryLimitations = [...universeLimitations]
@@ -640,11 +657,19 @@ export async function getRiskProfileSummaryForTenant(
   if (excludedSources.length > 0) {
     summaryLimitations.push(`${excludedSources.length} fonte(s) foram desconsideradas manualmente do Perfil de Risco.`)
   }
-  const legacyCount = includedSources.filter((s) => s.source === 'legacy_event').length
-  const vnextCount = includedSources.filter((s) => s.source === 'sera_vnext_analysis').length
-  if (legacyCount > 0 && vnextCount > 0) {
+  const legacyCountForLimitation = legacyCount
+  const vnextCountForLimitation = vnextCount
+  if (legacyCountForLimitation > 0 && vnextCountForLimitation > 0) {
     summaryLimitations.push(
-      `Agregados combinam ${legacyCount} análise(s) LEGACY_SERA e ${vnextCount} análise(s) VNEXT: versões metodológicas distintas. Classificação: MIXED_VERSION_LIMITATION.`
+      `Agregados combinam ${legacyCountForLimitation} análise(s) LEGACY_SERA e ${vnextCountForLimitation} análise(s) VNEXT: versões metodológicas distintas. Classificação: MIXED_VERSION_LIMITATION.`
+    )
+  }
+  summaryLimitations.push(buildErcContainmentNotice())
+  if (suppressConsolidatedErc) {
+    summaryLimitations.push(
+      ercPresentationMode === 'SUPPRESSED_D3B_MIXED'
+        ? 'D3-b: perfil misto — ERC numérico consolidado omitido (modal_erc_level=null; erc_distribution vazia).'
+        : 'D3-b: perfil somente vNext — ERC numérico canônico omitido até mecanismo validado/versionado.',
     )
   }
 
@@ -653,6 +678,7 @@ export async function getRiskProfileSummaryForTenant(
     validErcCount,
     safetyIssueCandidateCount: safetyIssueCandidates.length,
     minimumRecommended: 10,
+    ercShareAffectsLevel: !suppressConsolidatedErc,
   })
 
   const recentEvents = includedSources.slice(0, 5).map((source) => ({
@@ -695,6 +721,8 @@ export async function getRiskProfileSummaryForTenant(
     total_analyses: totalAnalyses,
     total_events_90d: totalEvents90d,
     modal_erc_level: modalErcLevel,
+    erc_presentation_mode: ercPresentationMode,
+    d3_decision: D3_DECISION_ID,
     safety_issue_candidates: safetyIssueCandidates,
     quality_trend: qualityTrend,
     data_confidence: dataConfidence,
@@ -704,13 +732,15 @@ export async function getRiskProfileSummaryForTenant(
     completed_analyses: includedSources.length,
     error_analyses: errorSources.length,
     confidence: dataConfidence.level,
-    erc_distribution: Object.entries(ercCounts)
-      .sort((left, right) => Number(right[0]) - Number(left[0]))
-      .map(([code, count]) => ({
-        code: `ERC ${code}`,
-        label: describeHfaErcCategory(Number(code) as HfaErcCategory).label ?? `ERC ${code}`,
-        count,
-      })),
+    erc_distribution: suppressConsolidatedErc
+      ? []
+      : Object.entries(ercCounts)
+          .sort((left, right) => Number(right[0]) - Number(left[0]))
+          .map(([code, count]) => ({
+            code: `ERC ${code}`,
+            label: describeHfaErcCategory(Number(code) as HfaErcCategory).label ?? `ERC ${code}`,
+            count,
+          })),
     perception_distribution: countMapToSortedArray(perceptionCounts),
     objective_distribution: countMapToSortedArray(objectiveCounts),
     action_distribution: countMapToSortedArray(actionCounts),

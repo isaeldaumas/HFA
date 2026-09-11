@@ -633,11 +633,35 @@ function ercMeaning(erc: number): string {
 
 function ARMSMatrix({ data }: { data: Intelligence }) {
   const [selected, setSelected] = useState<ARMSCellInfo | null>(null)
+  const consolidatedSuppressed =
+    data.erc_presentation_mode === 'SUPPRESSED_D3B_MIXED' ||
+    data.erc_presentation_mode === 'SUPPRESSED_D3B_VNEXT_ONLY'
 
   const topCodes = data.distribution.perception.top_codes ?? []
   const barrier = isHfaErcCategory(data.modal_erc_level)
     ? hfaErcToArmsBarrier(data.modal_erc_level)
-    : barrierLevel(data.score.value)
+    : consolidatedSuppressed
+      ? null
+      : barrierLevel(data.score.value)
+
+  if (consolidatedSuppressed || barrier === null) {
+    return (
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-2">
+        <h3 className="text-white font-semibold text-sm">Matriz ARMS-ERC</h3>
+        <p className="text-sm text-slate-400">
+          D3-b: ERC numérico consolidado omitido
+          {data.erc_presentation_mode === 'SUPPRESSED_D3B_MIXED'
+            ? ' (perfil misto legacy/vNext).'
+            : data.erc_presentation_mode === 'SUPPRESSED_D3B_VNEXT_ONLY'
+              ? ' (somente vNext — sem ERC canônico).'
+              : '.'}
+        </p>
+        <p className="text-xs text-slate-500">
+          Decisão autoral D3-b. Não se inventa ERC a partir do índice de cobertura.
+        </p>
+      </div>
+    )
+  }
 
   const cellMap: Record<string, { count: number; codes: string[] }> = {}
   for (const tc of topCodes) {
@@ -924,10 +948,29 @@ function SeraReasoningPanel({ data, matrixTab }: { data: Intelligence; matrixTab
   const score = prob * dominantSev
 
   if (matrixTab === 'arms') {
+    const consolidatedSuppressed =
+      data.erc_presentation_mode === 'SUPPRESSED_D3B_MIXED' ||
+      data.erc_presentation_mode === 'SUPPRESSED_D3B_VNEXT_ONLY'
+    if (consolidatedSuppressed || !isHfaErcCategory(data.modal_erc_level)) {
+      return (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-2">
+          <h3 className="text-white font-semibold text-sm">Como a análise chegou aqui</h3>
+          <p className="text-sm text-slate-400">
+            D3-b: sem ERC numérico consolidado para este perfil
+            {data.erc_presentation_mode === 'SUPPRESSED_D3B_MIXED'
+              ? ' misto.'
+              : data.erc_presentation_mode === 'SUPPRESSED_D3B_VNEXT_ONLY'
+                ? ' somente vNext.'
+                : ' (sem ERC legado calculável).'}
+          </p>
+          <p className="text-xs text-slate-500">
+            Códigos P/O/A e pré-condições permanecem disponíveis; não se deriva ERC do índice de cobertura.
+          </p>
+        </div>
+      )
+    }
     const armsSevKey: 'A' | 'B' | 'C' | 'D' = ARMS_SEV_ROW[topCode.code] ?? 'C'
-    const barKey = isHfaErcCategory(data.modal_erc_level)
-      ? hfaErcToArmsBarrier(data.modal_erc_level)
-      : barrierLevel(data.score.value)
+    const barKey = hfaErcToArmsBarrier(data.modal_erc_level)
     const cellKey = `${armsSevKey}${barKey}`
     const erc = ARMS_ERC[cellKey] ?? 2
     const armsSevDef = ARMS_SEV_DEFS.find(d => d.key === armsSevKey)

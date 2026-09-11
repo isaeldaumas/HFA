@@ -366,7 +366,7 @@ export default function DashboardPage() {
             { label: 'Universo canônico', value: data.total_events, tone: 'text-white' },
             { label: 'Considerados no perfil', value: data.included_events, tone: 'text-green-300' },
             { label: 'Desconsiderados', value: data.excluded_events, tone: 'text-amber-300' },
-            { label: 'ERC predominante', value: data.modal_erc_level ? `ERC ${data.modal_erc_level}` : 'n/d', tone: 'text-blue-300' },
+            { label: 'ERC predominante', value: data.modal_erc_level ? `ERC ${data.modal_erc_level}` : (data.erc_presentation_mode === 'SUPPRESSED_D3B_MIXED' || data.erc_presentation_mode === 'SUPPRESSED_D3B_VNEXT_ONLY' ? 'omitido (D3-b)' : 'n/d'), tone: 'text-blue-300' },
           ].map((item) => (
             <div key={item.label} className="bg-slate-900 border border-slate-800 rounded-xl px-5 py-4">
               <p className="text-slate-500 text-xs uppercase tracking-wide mb-2">{item.label}</p>

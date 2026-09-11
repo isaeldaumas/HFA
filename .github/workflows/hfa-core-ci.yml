@@ -71,6 +71,9 @@ jobs:
       - name: ERC containment static
         run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/erc-containment/erc-containment-trial-002-static.ts
 
+      - name: ERC containment D3-b
+        run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/erc-containment/erc-containment-trial-003-d3b.ts
+
       - name: Legacy freeze
         run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/legacy-freeze/legacy-freeze-trial-001.ts
 
