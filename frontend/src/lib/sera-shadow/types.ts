@@ -25,6 +25,8 @@ export type ShadowRunSummary = {
   shadowRunId: string
   humanReviewRequired: boolean
   axisDivergences: ShadowAxisDivergence[]
+  /** Present when comparison used SERA_SHADOW_DIVERGENCE_V1. */
+  divergenceContract?: unknown
   skippedReason?: string
 }
 

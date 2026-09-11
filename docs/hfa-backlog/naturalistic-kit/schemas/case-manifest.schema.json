@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hfa-naturalistic-case-manifest",
+  "title": "NaturalisticCaseManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "status", "cases"],
+  "properties": {
+    "schemaVersion": { "const": "NATURALISTIC_CASE_MANIFEST_V1" },
+    "status": { "const": "ENGINE_NATURALISTIC_VALIDATION_NOT_READY" },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["caseId", "sourceType", "humanLabelsPresent"],
+        "properties": {
+          "caseId": { "type": "string", "minLength": 1 },
+          "sourceType": { "enum": ["real_event", "authorized_fixture", "pending"] },
+          "humanLabelsPresent": { "type": "boolean" },
+          "notes": { "type": "string" }
+        }
+      }
+    }
+  }
+}

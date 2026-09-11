@@ -39,15 +39,16 @@ separada (`sera_shadow_results`), e permite comparação sem afetar o output ao 
 - [ ] Naturalistic gate `NOT_READY` → precisa chegar a `VALIDATION_PASS` primeiro
 
 ### Gate 3 — Observabilidade
-- [ ] Logs estruturados de execução do shadow configurados
-- [ ] Métricas de concordância legado×vNext definidas e implementadas
-- [ ] Alertas de divergência configurados
-- [ ] Dashboard de comparação de resultados
+- [x] Contrato versionado `SERA_SHADOW_DIVERGENCE_V1` (igualdade literal P/O/A; ERC excluído)
+- [x] Métricas agregadas (`exactTripletMatch`, agreementRate sobre denominador comparável)
+- [x] Dashboard administrativo somente leitura (fail-closed; flags OFF)
+- [x] Endpoint admin tenant-scoped (404 com flag OFF)
+- [ ] Alertas de divergência em runtime (ainda não — requer ativação controlada futura)
 
 ### Gate 4 — Rollback
-- [ ] Procedimento de rollback documentado e testado
-- [ ] Tempo máximo de rollback: < 5 minutos
-- [ ] Flag de desativação emergencial testado
+- [x] Procedimento de rollback documentado (`sera-shadow/rollback.ts`)
+- [x] Tempo máximo de rollback: < 5 minutos (env flip + restart)
+- [x] Flag de desativação emergencial testado (`shadow-mode-trial-003-rollback.ts`)
 
 ### Gate 5 — Aprovação formal
 - [ ] Todos os gates anteriores passando
@@ -67,9 +68,22 @@ Só então ativar os demais flags progressivamente.
 - Não usar shadow results para decisões de produto antes de validação naturalística
 - Não persistir shadow results de usuários reais sem consentimento/LGPD
 
+## Matriz de gates (#13) — 2026-09-11
+
+Ver `SHADOW_13_GATE_MATRIX_20260911.md` e auditoria `PR47_SHADOW_TECHNICAL_AUDIT_20260911.md`.
+
+| Gate | State |
+|------|-------|
+| TENANT_ISOLATION | PASS |
+| TECHNICAL_INTEGRITY | PASS |
+| NATURALISTIC_VALIDATION | NOT_READY |
+| OBSERVABILITY | NOT_READY |
+| ROLLBACK_LT_5_MIN | PASS |
+| FORMAL_AUTHOR_APPROVAL | AUTHOR_PENDING |
+
 ## Próximos passos (técnicos, sem bloquear outras frentes)
 
-1. Implementar observabilidade: métricas de concordância
-2. Definir dashboard de comparação legado×vNext
-3. Documentar procedimento de rollback
-4. Testar flag de desativação em dev
+1. ~~Implementar contrato/métricas/dashboard fail-closed~~ (PR #47 — flags OFF)
+2. ~~Documentar/testar rollback~~ (PR #47)
+3. Manter flags OFF até Gate 5 + naturalistic
+4. Não mergear em `main` enquanto `MAIN_MERGE_PRODUCTION_DEPLOY=UNKNOWN`

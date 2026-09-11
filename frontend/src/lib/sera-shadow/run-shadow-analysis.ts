@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createHash } from 'node:crypto'
 import { analyzeSeraVNext } from '@/lib/sera-vnext/engine'
 import { SERA_VNEXT_ENGINE_VERSION } from '@/lib/sera-vnext/constants'
-import type { PoaAxis } from '@/lib/sera-vnext/types'
+import { compareShadowTripletV1 } from './divergence-v1'
 import { isShadowExecutionEnabled, isShadowPersistenceEnabled } from './feature-flags'
 import { findExistingShadowResult, insertShadowResult } from './repository'
 import type { ShadowAxisDivergence, ShadowRunContext, ShadowRunOutcome, ShadowRunSummary } from './types'
@@ -16,23 +16,21 @@ function buildShadowRunId(tenantId: string, legacyAnalysisId: string | null, eng
     .slice(0, 32)
 }
 
-function computeAxisDivergence(
-  axis: PoaAxis,
-  legacyCode: string | null,
-  vnextSelectedCode: string,
-  vnextStatus: string
+function toLegacyAxisSummary(
+  axis: ShadowAxisDivergence['axis'],
+  comparison: ReturnType<typeof compareShadowTripletV1>['axes'][number],
 ): ShadowAxisDivergence {
-  const vnextCandidateCode = vnextStatus === 'CLASSIFIED' ? vnextSelectedCode : null
-  const diverges = legacyCode !== null && vnextCandidateCode !== null && legacyCode !== vnextCandidateCode
-  let note: string
-  if (vnextStatus !== 'CLASSIFIED') {
-    note = `vNext requer revisão humana (${vnextStatus}); legado fechou em '${legacyCode ?? 'null'}' sem gate humano — ver F-03.`
-  } else if (diverges) {
-    note = `Divergência: legado='${legacyCode}' vNext='${vnextCandidateCode}'.`
-  } else {
-    note = 'Sem divergência detectável nesta comparação.'
+  return {
+    axis,
+    legacyCode: comparison.legacyCode,
+    vnextCandidateCode: comparison.vnextCode,
+    vnextStatus: comparison.vnextStatus ?? 'absent',
+    diverges: comparison.diverges,
+    note: comparison.exclusionReason
+      ?? (comparison.diverges
+        ? `Divergência literal V1: legado='${comparison.legacyCode}' vNext='${comparison.vnextCode}'.`
+        : 'Sem divergência literal nesta comparação (SERA_SHADOW_DIVERGENCE_V1).'),
   }
-  return { axis, legacyCode, vnextCandidateCode, vnextStatus, diverges, note }
 }
 
 /**
@@ -72,31 +70,32 @@ export async function runShadowVNextIfEnabled(args: {
     })
 
     const legacyCodes = args.context.legacyCodes ?? { perception: null, objective: null, action: null }
-    const axisDivergences: ShadowAxisDivergence[] = [
-      computeAxisDivergence(
-        'perception',
-        legacyCodes.perception,
-        engineOutput.poaClassification.perception.selectedCode,
-        engineOutput.poaClassification.perception.status
-      ),
-      computeAxisDivergence(
-        'objective',
-        legacyCodes.objective,
-        engineOutput.poaClassification.objective.selectedCode,
-        engineOutput.poaClassification.objective.status
-      ),
-      computeAxisDivergence(
-        'action',
-        legacyCodes.action,
-        engineOutput.poaClassification.action.selectedCode,
-        engineOutput.poaClassification.action.status
-      ),
-    ]
+    const divergenceV1 = compareShadowTripletV1({
+      perception: {
+        legacyCode: legacyCodes.perception,
+        vnextCode: engineOutput.poaClassification.perception.selectedCode,
+        vnextStatus: engineOutput.poaClassification.perception.status,
+      },
+      objective: {
+        legacyCode: legacyCodes.objective,
+        vnextCode: engineOutput.poaClassification.objective.selectedCode,
+        vnextStatus: engineOutput.poaClassification.objective.status,
+      },
+      action: {
+        legacyCode: legacyCodes.action,
+        vnextCode: engineOutput.poaClassification.action.selectedCode,
+        vnextStatus: engineOutput.poaClassification.action.status,
+      },
+    })
+    const axisDivergences: ShadowAxisDivergence[] = divergenceV1.axes.map((axis) =>
+      toLegacyAxisSummary(axis.axis, axis),
+    )
 
     const summary: ShadowRunSummary = {
       shadowRunId,
       humanReviewRequired: engineOutput.humanReviewRequired,
       axisDivergences,
+      divergenceContract: divergenceV1,
     }
 
     if (isShadowPersistenceEnabled()) {

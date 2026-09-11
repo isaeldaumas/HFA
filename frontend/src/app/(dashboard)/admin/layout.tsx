@@ -14,6 +14,8 @@ const seraVNextProductBetaUiEnabled =
   process.env.NEXT_PUBLIC_SERA_VNEXT_PRODUCT_BETA_UI_ENABLED?.trim().toLowerCase() === 'true'
 const seraVNextCandidateUiEnabled =
   process.env.NEXT_PUBLIC_SERA_VNEXT_CANDIDATE_UI_ENABLED?.trim().toLowerCase() === 'true'
+const seraShadowAdminUiEnabled =
+  process.env.NEXT_PUBLIC_SERA_SHADOW_ADMIN_VIEW_ENABLED?.trim().toLowerCase() === 'true'
 
 const adminNav = [
   { href: '/admin', label: 'Visão Geral', icon: LayoutDashboard, exact: true },
@@ -25,6 +27,7 @@ const adminNav = [
   ...(seraVNextProductBetaUiEnabled ? [{ href: '/admin/sera-vnext/analyses', label: 'SERA vNext Beta', icon: Activity }] : []),
   ...(seraVNextDiagnosticsEnabled ? [{ href: '/admin/sera-vnext', label: 'SERA vNext Runtime', icon: Activity, exact: true }] : []),
   ...(seraVNextCandidateUiEnabled ? [{ href: '/admin/sera-vnext/candidate', label: 'SERA Candidate', icon: Activity }] : []),
+  ...(seraShadowAdminUiEnabled ? [{ href: '/admin/sera-shadow/comparisons', label: 'Shadow comparisons', icon: Activity }] : []),
 ]
 
 function Sidebar({ pathname, close }: { pathname: string; close?: () => void }) {

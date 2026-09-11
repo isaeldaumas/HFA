@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hfa-naturalistic-blind-evaluator-form",
+  "title": "NaturalisticBlindEvaluatorForm",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "caseId", "evaluatorId", "blindConfirmed"],
+  "properties": {
+    "schemaVersion": { "const": "NATURALISTIC_BLIND_FORM_V1" },
+    "caseId": { "type": "string", "minLength": 1 },
+    "evaluatorId": { "type": "string", "minLength": 1 },
+    "blindConfirmed": { "const": true },
+    "perceptionCode": { "type": ["string", "null"] },
+    "objectiveCode": { "type": ["string", "null"] },
+    "actionCode": { "type": ["string", "null"] },
+    "confidence": { "enum": ["low", "medium", "high", null] },
+    "comments": { "type": "string" }
+  }
+}

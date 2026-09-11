@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hfa-naturalistic-human-reference",
+  "title": "NaturalisticHumanReference",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "caseId", "sealedFromBlindEvaluators"],
+  "properties": {
+    "schemaVersion": { "const": "NATURALISTIC_HUMAN_REFERENCE_V1" },
+    "caseId": { "type": "string", "minLength": 1 },
+    "sealedFromBlindEvaluators": { "const": true },
+    "perceptionCode": { "type": ["string", "null"] },
+    "objectiveCode": { "type": ["string", "null"] },
+    "actionCode": { "type": ["string", "null"] },
+    "adjudicatorId": { "type": ["string", "null"] },
+    "notes": { "type": "string" }
+  }
+}
