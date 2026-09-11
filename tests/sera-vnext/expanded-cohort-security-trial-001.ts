@@ -121,7 +121,11 @@ async function main(): Promise<void> {
       metadata: { internalUseConfirmed: true },
     },
   })
-  assert.equal(probeCreate.status, 201, `Enterprise create must succeed, got ${probeCreate.status}`)
+  assert.equal(
+    probeCreate.status,
+    201,
+    `Enterprise create must succeed, got ${probeCreate.status} body=${JSON.stringify(probeCreate.json)}`,
+  )
   const probeId = probeCreate.json.analysis.id
   results.push({
     check: 'enterprise_user_create_allowed',

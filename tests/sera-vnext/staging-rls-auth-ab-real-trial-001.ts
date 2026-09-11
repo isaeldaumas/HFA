@@ -492,6 +492,10 @@ async function main() {
   record('b_reads_a_analysis_edit', (bSeesAEdit?.length ?? 0) === 0, `rows=${bSeesAEdit?.length ?? 0}`)
 
   // ── Metadata tampering (synthetic user only) ─────────────────────────────
+  // Authorization is DB-authoritative: user_metadata must not rewrite public.users.role.
+  // Fixture A may already be admin (enterprise); ephemeral path uses analyst.
+  const { data: roleBeforeMeta } = await admin.from('users').select('role').eq('id', authAId).maybeSingle()
+  const roleBefore = roleBeforeMeta?.role ?? null
   const { error: metaErr } = await admin.auth.admin.updateUserById(authAId, {
     user_metadata: {
       tenant_id: tenantB.id,
@@ -513,8 +517,8 @@ async function main() {
   const { data: roleRow } = await clientA.from('users').select('role').eq('id', authAId).maybeSingle()
   record(
     'metadata_role_escalation',
-    roleRow?.role === 'analyst',
-    `db_role=${roleRow?.role ?? 'null'}`
+    roleRow?.role === roleBefore,
+    `db_role=${roleRow?.role ?? 'null'} unchanged_from=${roleBefore ?? 'null'}`
   )
 
   const { data: aSeesBAfterMeta } = await clientA.from('events').select('id').eq('id', eventB!.id)

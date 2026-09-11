@@ -406,7 +406,14 @@ export function writeJsonReport(fileName: string, value: unknown): string {
 }
 
 export function pwcliPath(): string {
-  return process.env.PWCLI || path.join(process.env.HOME || '', '.codex', 'skills', 'playwright', 'scripts', 'playwright_cli.sh')
+  if (process.env.PWCLI?.trim()) return process.env.PWCLI.trim()
+  const repoCli = path.join(ROOT_DIR, 'scripts', 'playwright-cli.sh')
+  if (fs.existsSync(repoCli)) return repoCli
+  const codexCli = path.join(process.env.HOME || '', '.codex', 'skills', 'playwright', 'scripts', 'playwright_cli.sh')
+  if (fs.existsSync(codexCli)) return codexCli
+  throw new Error(
+    'ENVIRONMENT_NOT_CONFIGURED: Playwright CLI missing. Set PWCLI or keep scripts/playwright-cli.sh in the repo.'
+  )
 }
 
 export function pwExec(session: string, args: string[], mode: 'plain' | 'raw' | 'json' = 'plain'): string {
