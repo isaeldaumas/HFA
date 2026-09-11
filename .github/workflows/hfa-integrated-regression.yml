@@ -252,6 +252,12 @@ jobs:
           fi
           echo "Frontend ready at http://127.0.0.1:3100"
 
+      - name: Install Playwright CLI browser (MUTATING REAL_UI)
+        if: needs.check-environment.outputs.run_mutating == 'true'
+        run: |
+          # REAL_UI trials use scripts/playwright-cli.sh → @playwright/cli with Firefox.
+          npx --yes playwright install --with-deps firefox
+
       - name: Report execution level
         run: |
           echo "Execution level: $HFA_INTEGRATED_REGRESSION_LEVEL"
