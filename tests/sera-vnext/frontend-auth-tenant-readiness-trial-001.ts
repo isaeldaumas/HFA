@@ -61,7 +61,7 @@ async function main() {
     baseUrl,
     path: '/api/auth/me',
   })
-  assert.equal(noAuthMe.status, 401)
+  assert.equal(noAuthMe.status, 401, `noAuth /api/auth/me => ${noAuthMe.status} ${JSON.stringify(noAuthMe.json)}`)
   checks.push({ name: 'no_session_me_returns_401', status: 'PASS', detail: String(noAuthMe.json.detail ?? '401') })
 
   const enterpriseMe = await apiJson<{ plan?: string; role?: string; is_admin?: boolean }>({
@@ -69,9 +69,9 @@ async function main() {
     path: '/api/auth/me',
     token: enterprise.accessToken,
   })
-  assert.equal(enterpriseMe.status, 200)
-  assert.equal(enterpriseMe.json.plan, 'enterprise')
-  assert.equal(enterpriseMe.json.is_admin, true)
+  assert.equal(enterpriseMe.status, 200, `enterprise /api/auth/me => ${enterpriseMe.status} ${JSON.stringify(enterpriseMe.json)}`)
+  assert.equal(enterpriseMe.json.plan, 'enterprise', `plan=${String(enterpriseMe.json.plan)}`)
+  assert.equal(enterpriseMe.json.is_admin, true, `is_admin=${String(enterpriseMe.json.is_admin)} role=${String(enterpriseMe.json.role)}`)
   checks.push({
     name: 'enterprise_admin_me_returns_200',
     status: 'PASS',
@@ -83,7 +83,7 @@ async function main() {
     path: '/api/admin/stats',
     token: enterprise.accessToken,
   })
-  assert.equal(adminStats.status, 200)
+  assert.equal(adminStats.status, 200, `admin/stats => ${adminStats.status} ${JSON.stringify(adminStats.json).slice(0, 300)}`)
   checks.push({ name: 'enterprise_admin_can_access_admin_routes', status: 'PASS', detail: `tenants=${adminStats.json.total_tenants ?? 'n/a'}` })
 
   if (blockedToken) {
@@ -92,7 +92,7 @@ async function main() {
       path: '/api/admin/stats',
       token: blockedToken,
     })
-    assert.equal(blockedStats.status, 403)
+    assert.equal(blockedStats.status, 403, `blocked admin/stats => ${blockedStats.status} ${JSON.stringify(blockedStats.json)}`)
     checks.push({
       name: 'non_enterprise_or_blocked_admin_is_denied',
       status: 'PASS',
@@ -106,7 +106,7 @@ async function main() {
     })
   }
 
-  const created = await apiJson<{ analysis?: { id?: string } }>({
+  const created = await apiJson<{ analysis?: { id?: string }; detail?: string }>({
     baseUrl,
     path: '/api/admin/sera-vnext/analyses',
     method: 'POST',
@@ -120,7 +120,7 @@ async function main() {
       metadata: { internalUseConfirmed: true },
     },
   })
-  assert.equal(created.status, 201)
+  assert.equal(created.status, 201, `create analysis => ${created.status} ${JSON.stringify(created.json).slice(0, 400)}`)
   const analysisId = String(created.json.analysis?.id ?? '')
   assert.match(analysisId, /^[0-9a-f-]{36}$/i)
   checks.push({ name: 'enterprise_admin_can_create_beta_analysis', status: 'PASS', detail: sanitizeId(analysisId) })
@@ -131,7 +131,7 @@ async function main() {
       path: '/api/admin/sera-vnext/analyses',
       token: blockedToken,
     })
-    assert.equal(blockedBeta.status, 403)
+    assert.equal(blockedBeta.status, 403, `blocked beta list => ${blockedBeta.status} ${JSON.stringify(blockedBeta.json)}`)
     checks.push({
       name: 'non_enterprise_or_blocked_admin_cannot_open_beta_api',
       status: 'PASS',
@@ -162,9 +162,13 @@ async function main() {
     }),
   })
   assert.ok(crossTenantRes)
-  assert.ok(crossTenantRes.status >= 400)
+  assert.ok(crossTenantRes.status >= 400, `cross-tenant status=${crossTenantRes.status}`)
   const crossTenantJson = await parseJson(crossTenantRes)
-  assert.equal(/stack|postgres|supabase/i.test(JSON.stringify(crossTenantJson)), false)
+  assert.equal(
+    /stack|postgres|supabase/i.test(JSON.stringify(crossTenantJson)),
+    false,
+    `cross-tenant leak body=${JSON.stringify(crossTenantJson).slice(0, 400)}`,
+  )
   checks.push({
     name: 'wrong_tenant_context_fails_closed_without_data_leak',
     status: 'PASS',
@@ -181,7 +185,7 @@ async function main() {
     },
   })
   assert.ok(missingTenantRes)
-  assert.equal(missingTenantRes.status, 403)
+  assert.equal(missingTenantRes.status, 403, `missing tenant status=${missingTenantRes.status}`)
   const missingTenantJson = await parseJson(missingTenantRes)
   assert.match(String(missingTenantJson.detail ?? ''), /tenant_id ausente/i)
   checks.push({
@@ -194,9 +198,9 @@ async function main() {
     isEnabled: () => false,
   })
   assert.ok(flagOffRes)
-  assert.equal(flagOffRes.status, 404)
+  assert.equal(flagOffRes.status, 404, `flag-off status=${flagOffRes.status}`)
   const flagOffJson = await parseJson(flagOffRes)
-  assert.equal(flagOffJson.detail, 'Not found')
+  assert.equal(flagOffJson.detail, 'Not found', `flag-off detail=${String(flagOffJson.detail)}`)
   checks.push({
     name: 'flag_off_returns_fail_closed_404',
     status: 'PASS',

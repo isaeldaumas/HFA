@@ -88,6 +88,7 @@ async function main() {
 
     pwExec(SESSION_ID, ['goto', `${baseUrl}/events`])
     await pwWaitForText(SESSION_ID, title, 20_000)
+    await pwWaitForText(SESSION_ID, 'Excluir evento e dados relacionados', 20_000)
     const opened = pwEval<boolean>(SESSION_ID, `(() => {
       const title = ${JSON.stringify(title)};
       const card = Array.from(document.querySelectorAll('div')).find((node) =>
@@ -100,21 +101,33 @@ async function main() {
       button.click();
       return true;
     })()`)
-    assert.equal(opened, true)
+    assert.equal(opened, true, 'events list delete button must be clickable after /api/auth/me admin gate')
     await pwWaitForText(SESSION_ID, 'Excluir evento e dados relacionados', 20_000)
 
     const desktopShot = path.join(PLAYWRIGHT_OUTPUT_DIR, 'event-deletion-modal-desktop.png')
     pwExec(SESSION_ID, ['screenshot', '--filename', desktopShot, '--full-page'])
     screenshots.push(desktopShot)
 
-    assert.equal(pwSetFormValue(SESSION_ID, 'textarea', ''), true)
-    assert.equal(pwSetFormValue(SESSION_ID, 'input[placeholder]', 'wrong title'), true)
-    assert.equal(pwEval<boolean>(SESSION_ID, `document.querySelector('div[role="dialog"] button.bg-red-600')?.hasAttribute('disabled') === true`), true)
+    assert.equal(pwSetFormValue(SESSION_ID, 'textarea', ''), true, 'clear reason textarea')
+    assert.equal(pwSetFormValue(SESSION_ID, 'input[placeholder]', 'wrong title'), true, 'set wrong confirmation title')
+    assert.equal(
+      pwEval<boolean>(SESSION_ID, `document.querySelector('div[role="dialog"] button.bg-red-600')?.hasAttribute('disabled') === true`),
+      true,
+      'confirm button must stay disabled with wrong title',
+    )
 
-    assert.equal(pwSetFormValue(SESSION_ID, 'textarea', 'synthetic UI deletion validation'), true)
-    assert.equal(pwSetFormValue(SESSION_ID, 'input[placeholder]', title), true)
-    assert.equal(pwEval<boolean>(SESSION_ID, `document.querySelector('div[role="dialog"] button.bg-red-600')?.hasAttribute('disabled') === false`), true)
-    assert.equal(pwClickByText(SESSION_ID, 'button', 'Excluir e iniciar período de recuperação'), true)
+    assert.equal(pwSetFormValue(SESSION_ID, 'textarea', 'synthetic UI deletion validation'), true, 'set reason')
+    assert.equal(pwSetFormValue(SESSION_ID, 'input[placeholder]', title), true, 'set matching confirmation title')
+    assert.equal(
+      pwEval<boolean>(SESSION_ID, `document.querySelector('div[role="dialog"] button.bg-red-600')?.hasAttribute('disabled') === false`),
+      true,
+      'confirm button must enable with matching title+reason',
+    )
+    assert.equal(
+      pwClickByText(SESSION_ID, 'button', 'Excluir e iniciar período de recuperação'),
+      true,
+      'confirm soft-delete click',
+    )
     await pwWaitFor<boolean>(
       SESSION_ID,
       `!document.body.innerText.includes(${JSON.stringify(title)})`,

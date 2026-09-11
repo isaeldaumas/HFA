@@ -124,14 +124,24 @@ function requiredEnvironmentAvailable(name: string, localFrontendReachable: bool
 }
 
 function firstFailureLine(output: string): string | null {
-  const lines = output
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  return (
-    lines.find((line) => /AssertionError|Error:|Fatal:|FAIL|✗|not ready|NOT_READY/i.test(line)) ??
-    null
+  const lines = output.split(/\r?\n/).map((line) => line.trimEnd());
+  const start = lines.findIndex((line) =>
+    /AssertionError|Error:|Fatal:|FAIL|✗|not ready|NOT_READY/i.test(line.trim()),
   );
+  if (start < 0) return null;
+
+  const chunk: string[] = [];
+  for (let i = start; i < lines.length && chunk.length < 8; i += 1) {
+    const line = lines[i].trim();
+    if (!line) {
+      if (chunk.length > 0) continue;
+      continue;
+    }
+    // Stop once the next unrelated PASS/FAIL summary line begins.
+    if (i > start && /^(PASS|FAIL|SKIP|NOT_READY|CI_EXCLUSION_SKIP)\s+tests\//.test(line)) break;
+    chunk.push(line);
+  }
+  return chunk.join(' | ') || null;
 }
 
 function isExpectedNotReady(entry: ManifestEntry, exitCode: number, output: string): boolean {

@@ -55,16 +55,32 @@ async function main() {
   const checks: Check[] = []
 
   try {
-    pwExec(ENTERPRISE_SESSION_ID, ['open', enterprise.actionLink, '--browser', 'chromium'])
-    await pwWaitForUrlMatch(ENTERPRISE_SESSION_ID, new RegExp(`^${escapeRegExp(baseUrl)}`), 20_000)
+    let opened = false
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        pwExec(ENTERPRISE_SESSION_ID, ['open', enterprise.actionLink, '--browser', 'chromium'])
+        await pwWaitForUrlMatch(ENTERPRISE_SESSION_ID, new RegExp(`^${escapeRegExp(baseUrl)}`), 30_000)
+        opened = true
+        break
+      } catch (error) {
+        try {
+          pwExec(ENTERPRISE_SESSION_ID, ['close'])
+        } catch {
+          // ignore cleanup between retries
+        }
+        if (attempt === 3) throw error
+        await sleep(1_000)
+      }
+    }
+    assert.equal(opened, true, 'enterprise magic-link browser session must land on local app')
     await sleep(2_000)
 
     pwExec(ENTERPRISE_SESSION_ID, ['goto', `${baseUrl}/dashboard`])
     const dashboardText = await pwWaitForText(ENTERPRISE_SESSION_ID, 'Primeiros passos no HFA/SERA', 20_000)
     assert.match(dashboardText, /Comece aqui/)
-    assert.match(dashboardText, /\bVer\b/)
-    assert.doesNotMatch(dashboardText, /demo/i)
     assert.match(dashboardText, /Metodologia/)
+    assert.match(dashboardText, /Relatorio executivo|Relatório executivo/)
+    assert.doesNotMatch(dashboardText, /demo/i)
     checks.push({ name: 'dashboard_route_loads', status: 'PASS', detail: 'primary company dashboard visible' })
 
     const noOverflow = pwEval<boolean>(

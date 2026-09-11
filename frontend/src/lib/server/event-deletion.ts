@@ -94,7 +94,16 @@ export async function resolvePublicUserId(args: {
     .eq('tenant_id', tenantId)
     .maybeSingle()
   if (byId.error) throw new Error('EVENT_DELETE_IDENTITY_LOOKUP_FAILED')
-  if (byId.data?.is_active) return String(byId.data.id)
+  if (byId.data?.is_active !== false && byId.data?.id) return String(byId.data.id)
+
+  const byAuth = await admin
+    .from('users')
+    .select('id, tenant_id, is_active')
+    .eq('auth_user_id', authUserId)
+    .eq('tenant_id', tenantId)
+    .maybeSingle()
+  if (byAuth.error) throw new Error('EVENT_DELETE_IDENTITY_LOOKUP_FAILED')
+  if (byAuth.data?.is_active !== false && byAuth.data?.id) return String(byAuth.data.id)
 
   if (email?.trim()) {
     const byEmail = await admin
@@ -104,7 +113,7 @@ export async function resolvePublicUserId(args: {
       .eq('tenant_id', tenantId)
       .maybeSingle()
     if (byEmail.error) throw new Error('EVENT_DELETE_IDENTITY_LOOKUP_FAILED')
-    if (byEmail.data?.is_active) return String(byEmail.data.id)
+    if (byEmail.data?.is_active !== false && byEmail.data?.id) return String(byEmail.data.id)
   }
 
   throw new Error('EVENT_DELETE_FORBIDDEN')
@@ -144,11 +153,15 @@ async function storageObjectExists(
   const folder = slash >= 0 ? object.path.slice(0, slash) : ''
   const name = slash >= 0 ? object.path.slice(slash + 1) : object.path
   const { data, error } = await admin.storage.from(object.bucket).list(folder, {
-    limit: 100,
-    search: name,
+    limit: 1000,
   })
   if (error) return false
-  return (data ?? []).some((item) => item.name === name)
+  if ((data ?? []).some((item) => item.name === name)) return true
+
+  // Fallback: attempt a metadata probe via download of 0 bytes range is unavailable;
+  // createSignedUrl succeeds only when the object exists.
+  const signed = await admin.storage.from(object.bucket).createSignedUrl(object.path, 10)
+  return !signed.error && typeof signed.data?.signedUrl === 'string'
 }
 
 function countEvidenceValues(value: unknown): number {
