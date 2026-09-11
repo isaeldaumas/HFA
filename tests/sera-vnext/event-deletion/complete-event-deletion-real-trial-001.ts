@@ -139,7 +139,7 @@ async function main() {
         metadata: { internalUseConfirmed: true, eventId },
       },
     })
-    assert.equal(vnext.status, 201)
+    assert.equal(vnext.status, 201, `vnext create => ${vnext.status} ${JSON.stringify(vnext.json).slice(0, 400)}`)
     const vnextId = vnext.json.analysis.id
 
     const review = await apiJson({
@@ -154,7 +154,7 @@ async function main() {
         requiresMoreEvidence: true,
       },
     })
-    assert.equal(review.status, 201)
+    assert.equal(review.status, 201, `vnext review => ${review.status} ${JSON.stringify(review.json).slice(0, 400)}`)
 
     const impactResponse = await apiJson<Impact>({
       baseUrl,
@@ -163,17 +163,21 @@ async function main() {
     })
     assert.equal(impactResponse.status, 200, JSON.stringify(impactResponse.json))
     const impact = impactResponse.json
-    assert.equal(impact.event, 1)
-    assert.equal(impact.legacyAnalyses, 1)
-    assert.equal(impact.vnextAnalyses, 1)
-    assert.ok(impact.revisions >= 1)
-    assert.ok(impact.reviews >= 1)
-    assert.ok(impact.analysisEvents >= 1)
-    assert.equal(impact.attachments, 1)
-    assert.equal(impact.storageObjects.length, 1)
-    assert.equal(impact.storageObjects[0].exists, true)
-    assert.equal(impact.correctiveActionsClosed, 1)
-    assert.deepEqual(impact.unknownDependencies, [])
+    assert.equal(impact.event, 1, `impact.event=${impact.event}`)
+    assert.equal(impact.legacyAnalyses, 1, `impact.legacyAnalyses=${impact.legacyAnalyses}`)
+    assert.equal(impact.vnextAnalyses, 1, `impact.vnextAnalyses=${impact.vnextAnalyses}`)
+    assert.ok(impact.revisions >= 1, `impact.revisions=${impact.revisions}`)
+    assert.ok(impact.reviews >= 1, `impact.reviews=${impact.reviews}`)
+    assert.ok(impact.analysisEvents >= 1, `impact.analysisEvents=${impact.analysisEvents}`)
+    assert.equal(impact.attachments, 1, `impact.attachments=${impact.attachments}`)
+    assert.equal(impact.storageObjects.length, 1, `storageObjects=${JSON.stringify(impact.storageObjects)}`)
+    assert.equal(
+      impact.storageObjects[0].exists,
+      true,
+      `storage missing: ${JSON.stringify(impact.storageObjects[0])}`,
+    )
+    assert.equal(impact.correctiveActionsClosed, 1, `correctiveActionsClosed=${impact.correctiveActionsClosed}`)
+    assert.deepEqual(impact.unknownDependencies, [], `unknownDependencies=${JSON.stringify(impact.unknownDependencies)}`)
     checks.push({ name: '01-impact-complete-real', status: 'PASS', detail: JSON.stringify(impact) })
 
     const wrongTitle = await apiJson<ApiError>({
@@ -183,7 +187,7 @@ async function main() {
       token: enterprise.accessToken,
       body: { reason: 'synthetic validation', confirmationTitle: 'wrong' },
     })
-    assert.equal(wrongTitle.status, 400)
+    assert.equal(wrongTitle.status, 400, `wrongTitle => ${wrongTitle.status}`)
     assert.equal(wrongTitle.json.error?.code, 'EVENT_DELETE_TITLE_MISMATCH')
     assert.equal(forbiddenLeak(wrongTitle.json), false)
 
@@ -194,7 +198,7 @@ async function main() {
       token: enterprise.accessToken,
       body: { reason: '', confirmationTitle: title },
     })
-    assert.equal(emptyReason.status, 400)
+    assert.equal(emptyReason.status, 400, `emptyReason => ${emptyReason.status}`)
     assert.equal(emptyReason.json.error?.code, 'EVENT_DELETE_REASON_REQUIRED')
     checks.push({ name: '10-error-sanitization-real', status: 'PASS', detail: 'stable envelope; no raw database terms' })
 
@@ -203,14 +207,14 @@ async function main() {
       path: `/api/events/${eventId}/deletion-impact`,
       token: blocked.accessToken,
     })
-    assert.ok([403, 404].includes(crossTenant.status))
+    assert.ok([403, 404].includes(crossTenant.status), `crossTenant => ${crossTenant.status}`)
     checks.push({ name: '11-cross-tenant-real', status: 'PASS', detail: `status=${crossTenant.status}` })
 
     const nonAdmin = await apiJson<ApiError>({
       baseUrl,
       path: `/api/events/${eventId}/deletion-impact`,
     })
-    assert.equal(nonAdmin.status, 401)
+    assert.equal(nonAdmin.status, 401, `nonAdmin => ${nonAdmin.status} ${JSON.stringify(nonAdmin.json)}`)
     checks.push({ name: '12-non-admin-real', status: 'PASS', detail: 'anonymous/non-admin request rejected' })
 
     const concurrencyRequestId = `delete-concurrency-${suffix}`
@@ -229,7 +233,11 @@ async function main() {
       concurrent.every((item) => item.status === 200 || (item.status === 409 && item.json.error?.code === 'EVENT_DELETE_CONFLICT')),
       JSON.stringify(concurrent.map((item) => ({ status: item.status, body: item.json }))),
     )
-    assert.equal(concurrent.filter((item) => item.json.idempotent === false).length, 1)
+    assert.equal(
+      concurrent.filter((item) => item.json.idempotent === false).length,
+      1,
+      `idempotent=false count; statuses=${JSON.stringify(concurrent.map((item) => ({ status: item.status, idempotent: item.json.idempotent, code: item.json.error?.code })))}`,
+    )
     checks.push({ name: '03-soft-delete-atomic-real', status: 'PASS', detail: 'event + lifecycle + audit committed' })
     checks.push({ name: '04-soft-delete-idempotency-real', status: 'PASS', detail: 'same request returned same state' })
     checks.push({ name: '05-soft-delete-concurrency-real', status: 'PASS', detail: '10 requests; one real transition' })
@@ -241,8 +249,12 @@ async function main() {
       admin.from('corrective_actions').select('id, status').eq('id', closedActionId).single(),
     ])
     if (eventState.error || lifecycle.error || audit.error || preservedAction.error) throw new Error('post-delete state query failed')
-    assert.equal(eventState.data.deleted_by, enterprise.publicUserId)
-    assert.equal(eventState.data.deletion_status, 'SOFT_DELETED')
+    assert.equal(
+      eventState.data.deleted_by,
+      enterprise.publicUserId,
+      `deleted_by=${eventState.data.deleted_by} publicUserId=${enterprise.publicUserId}`,
+    )
+    assert.equal(eventState.data.deletion_status, 'SOFT_DELETED', `deletion_status=${eventState.data.deletion_status}`)
     assert.equal(lifecycle.data.filter((row: { event_status: string }) => row.event_status === 'SOFT_DELETED').length, 1)
     assert.ok(audit.data.some((row: { event_type: string; user_id: string | null }) => row.event_type === 'event.soft_deleted' && row.user_id === enterprise.publicUserId))
     assert.equal(preservedAction.data.status, 'completed')

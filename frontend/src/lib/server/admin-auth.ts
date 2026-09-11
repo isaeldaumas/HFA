@@ -7,7 +7,7 @@ export async function requireAdmin(req: Request): Promise<ApiUserContext> {
   const admin = getSupabaseAdmin()
   const [tenant, userRow] = await Promise.all([
     admin.from('tenants').select('plan').eq('id', user.tenantId).single(),
-    admin.from('users').select('role').eq('id', user.userId).maybeSingle(),
+    admin.from('users').select('role').eq('id', user.publicUserId).maybeSingle(),
   ])
   const role = String(userRow.data?.role ?? user.role ?? '').toLowerCase()
   if (tenant.data?.plan !== 'enterprise' || role !== 'admin') {

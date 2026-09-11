@@ -13,7 +13,7 @@ export async function GET(req: Request) {
 
     const [tenantRes, userRes] = await Promise.all([
       admin.from('tenants').select('plan, credits_balance').eq('id', user.tenantId).single(),
-      admin.from('users').select('role').eq('id', user.userId).maybeSingle(),
+      admin.from('users').select('role').eq('id', user.publicUserId).maybeSingle(),
     ])
 
     if (tenantRes.error) return jsonError('Tenant não encontrado', 404)
