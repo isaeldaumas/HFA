@@ -1,16 +1,14 @@
 /**
- * ERC containment layer — RISK v0.9-F (auditoria HFA, terceira etapa)
+ * ERC containment layer — RISK v0.9-F + author decision D3-b (2026-09-11)
  *
- * Contexto: a auditoria HFA (docs/auditoria-hfa/, F-04/F-05/F-08) encontrou múltiplos
- * mecanismos ERC incompatíveis coexistindo no sistema (escalas invertidas, matrizes
- * duplicadas, uma família de código morta). Nenhum foi declarado canônico (decisão D3
- * pendente — docs/auditoria-hfa/segunda-etapa/08-decisao-d3-erc.md).
+ * D3-b (author-approved):
+ * - no new canonical numeric ERC for SERA vNext until a validated/versioned mechanism exists;
+ * - legacy/historical ERC preserved with provenance (not reinterpreted as vNext ERC);
+ * - UNRESOLVED never yields ERC;
+ * - mixed legacy+vNext profiles do not present consolidated numeric ERC;
+ * - deliberate vNext ERC absence must not alone reduce data-confidence.
  *
- * Esta contenção NÃO escolhe uma fórmula canônica. Ela obriga qualquer valor ERC exibido
- * a se identificar (mecanismo + versão + direção de escala) e impede que dois mecanismos
- * diferentes sejam apresentados como se fossem o mesmo indicador ou somados/consolidados.
- *
- * Não apaga nem reinterpreta dados históricos — apenas rotula corretamente sua origem.
+ * This layer does NOT invent a new ERC formula.
  */
 
 import { computeHfaErcCategoryFromCodes, describeHfaErcCategory } from './erc'
@@ -30,12 +28,18 @@ export type ErcMechanismDescriptor = {
   inputs: string
 }
 
+/** Author decision id — D3-b approved 2026-09-11. */
+export const D3_DECISION_ID = 'D3_B' as const
+
+export type ErcPresentationMode =
+  | 'LEGACY_ARMS_MODAL'
+  | 'SUPPRESSED_D3B_MIXED'
+  | 'SUPPRESSED_D3B_VNEXT_ONLY'
+  | 'NO_LEGACY_ERC'
+
 /**
  * Registro fechado dos mecanismos ERC atualmente vivos no sistema.
- * Ver docs/auditoria-hfa/segunda-etapa/05-auditoria-erc.md para o catálogo completo
- * (inclui mecanismos hoje não utilizados em produção, marcados como DEPRECATED nos
- * próprios arquivos — risk-quality-trend.ts e erc-modal.ts — e que não devem ser
- * reintroduzidos sem passar por esta camada de contenção).
+ * Nenhum é ERC canônico do vNext sob D3-b.
  */
 export const ERC_MECHANISMS: Record<ErcMechanismId, ErcMechanismDescriptor> = {
   MOTOR_HEURISTIC_V1: {
@@ -44,7 +48,8 @@ export const ERC_MECHANISMS: Record<ErcMechanismId, ErcMechanismDescriptor> = {
     shortLabel: 'Estimativa heurística do motor',
     description:
       'Valor produzido pelo LLM e por heurísticas de palavra-chave do motor legado ' +
-      '(analyses.erc_level). Escala 1=crítico … 5=mínimo. Não validado cientificamente.',
+      '(analyses.erc_level). Escala 1=crítico … 5=mínimo. Não validado cientificamente. ' +
+      'Proveniência legada — não é ERC canônico do vNext (D3-b).',
     scaleDirection: '1_IS_CRITICAL',
     sourceStatus: 'HEURISTIC_NOT_VALIDATED',
     inputs: 'narrativa (texto) + códigos P/O/A',
@@ -55,8 +60,8 @@ export const ERC_MECHANISMS: Record<ErcMechanismId, ErcMechanismDescriptor> = {
     shortLabel: 'Matriz ARMS a partir dos códigos',
     description:
       'Valor recomputado a partir de uma matriz de severidade×barreira inspirada no ARMS, ' +
-      'aplicada apenas aos códigos P/O/A (risk-profile/erc.ts). Escala 5=crítico … 1=aceitável. ' +
-      'Matriz hardcoded sem fonte metodológica validada declarada.',
+      'aplicada apenas aos códigos P/O/A legados (risk-profile/erc.ts). Escala 5=crítico … 1=aceitável. ' +
+      'Não é ERC canônico do vNext (D3-b).',
     scaleDirection: '5_IS_CRITICAL',
     sourceStatus: 'HEURISTIC_NOT_VALIDATED',
     inputs: 'apenas códigos P/O/A',
@@ -75,8 +80,8 @@ export type DescribedErcValue = {
 
 const SHARED_CAVEAT =
   'Estimativa heurística não validada cientificamente. Não representa probabilidade ' +
-  'operacional nem conclusão de risco isolada. Consulte docs/auditoria-hfa/segunda-etapa/' +
-  '08-decisao-d3-erc.md antes de qualquer uso decisório.'
+  'operacional nem conclusão de risco isolada. Decisão autoral D3-b: sem ERC numérico ' +
+  'canônico para o SERA vNext até mecanismo validado/versionado.'
 
 /**
  * Descreve um valor ERC bruto identificando explicitamente seu mecanismo de origem.
@@ -120,10 +125,30 @@ export function describeErcValue(
   }
 }
 
+/** D3-b: no vNext numeric ERC escape via consolidated product view. */
+export function isVNextNumericErcAllowed(): boolean {
+  return false
+}
+
+export function resolveErcPresentationMode(args: {
+  legacyCount: number
+  vnextCount: number
+  legacyErcPresent: boolean
+}): ErcPresentationMode {
+  const { legacyCount, vnextCount, legacyErcPresent } = args
+  if (legacyCount > 0 && vnextCount > 0) return 'SUPPRESSED_D3B_MIXED'
+  if (legacyCount === 0 && vnextCount > 0) return 'SUPPRESSED_D3B_VNEXT_ONLY'
+  if (legacyCount > 0 && legacyErcPresent) return 'LEGACY_ARMS_MODAL'
+  return 'NO_LEGACY_ERC'
+}
+
+export function shouldSuppressConsolidatedNumericErc(mode: ErcPresentationMode): boolean {
+  return mode === 'SUPPRESSED_D3B_MIXED' || mode === 'SUPPRESSED_D3B_VNEXT_ONLY'
+}
+
 /**
- * Modo de contenção. Enquanto DESLIGADO (padrão), o sistema não deve apresentar um único
- * "ERC consolidado" quando mais de um mecanismo incompatível está em jogo. Ligar esta flag
- * exige decisão D3 formal registrada — não deve ser ativada apenas para conveniência de UI.
+ * Consolidated single-card ERC remains disabled by default.
+ * Enabling still requires explicit env — D3-b does not authorize a new formula.
  */
 export function isErcConsolidatedViewEnabled(): boolean {
   return process.env.SERA_ERC_CONSOLIDATED_VIEW_ENABLED?.trim().toLowerCase() === 'true'
@@ -131,18 +156,13 @@ export function isErcConsolidatedViewEnabled(): boolean {
 
 export function buildErcContainmentNotice(): string {
   return (
-    'Indicador de risco (ERC) temporariamente apresentado apenas por mecanismo individual, ' +
-    'para revisão metodológica (decisão D3 pendente). Os valores abaixo vêm de mecanismos ' +
-    'diferentes e não devem ser somados, comparados diretamente ou tratados como um único ' +
-    'índice consolidado. Ver docs/auditoria-hfa/segunda-etapa/08-decisao-d3-erc.md.'
+    'Decisão autoral D3-b: sem ERC numérico canônico no SERA vNext até mecanismo validado/versionado. ' +
+    'Valores legados (motor / ARMS×código) preservam proveniência e não devem ser somados, ' +
+    'comparados diretamente ou tratados como indicador consolidado com vNext. ' +
+    'UNRESOLVED não gera ERC. Perfis mistos não apresentam ERC numérico consolidado.'
   )
 }
 
-/**
- * Guarda de desenvolvimento: garante que uma lista de valores ERC descritos não está sendo
- * silenciosamente tratada como um único indicador quando os mecanismos divergem. Lança erro
- * em vez de permitir a criação de uma UI "consolidada" acidental.
- */
 export function assertNoSilentErcConsolidation(values: DescribedErcValue[]): void {
   const mechanisms = new Set(values.map((v) => v.mechanismId))
   if (mechanisms.size > 1 && !isErcConsolidatedViewEnabled()) {

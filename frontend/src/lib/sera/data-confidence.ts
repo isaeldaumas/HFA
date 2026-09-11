@@ -16,6 +16,12 @@ export type DataConfidenceInput = {
   validErcCount: number
   safetyIssueCandidateCount?: number
   minimumRecommended?: number
+  /**
+   * D3-b: when false, deliberate absence of numeric ERC (vNext-only / mixed suppression)
+   * must not alone downgrade level via validErcShare.
+   * Default true preserves legacy behavior for pure-legacy profiles.
+   */
+  ercShareAffectsLevel?: boolean
 }
 
 export type DataConfidence = {
@@ -27,6 +33,7 @@ export type DataConfidence = {
   has_safety_issue_candidates: boolean
   messages: string[]
   caveat: string
+  erc_share_affects_level: boolean
 }
 
 const CAVEAT =
@@ -42,6 +49,7 @@ export function buildDataConfidence(input: DataConfidenceInput): DataConfidence 
   )
   const safetyIssueCandidateCount = Math.max(0, input.safetyIssueCandidateCount ?? 0)
   const hasCandidates = safetyIssueCandidateCount > 0
+  const ercShareAffectsLevel = input.ercShareAffectsLevel !== false
 
   const validErcShare = totalAnalyses > 0 ? validErcCount / totalAnalyses : 0
 
@@ -51,7 +59,7 @@ export function buildDataConfidence(input: DataConfidenceInput): DataConfidence 
     level = 'insufficient'
   } else if (totalAnalyses < minimumRecommended) {
     level = 'limited'
-  } else if (validErcShare < 0.8) {
+  } else if (ercShareAffectsLevel && validErcShare < 0.8) {
     level = 'moderate'
   } else {
     level = 'strong'
@@ -68,9 +76,13 @@ export function buildDataConfidence(input: DataConfidenceInput): DataConfidence 
     )
   }
 
-  if (totalAnalyses > 0 && validErcShare < 0.8) {
+  if (ercShareAffectsLevel && totalAnalyses > 0 && validErcShare < 0.8) {
     messages.push(
       'Parte das análises ainda não possui ERC válido; interpretações por risco devem ser cautelosas.',
+    )
+  } else if (!ercShareAffectsLevel && totalAnalyses > 0) {
+    messages.push(
+      'D3-b: ausência deliberada de ERC numérico no vNext (ou perfil misto sem consolidado) não reduz sozinha a confiança dos dados.',
     )
   }
 
@@ -93,5 +105,6 @@ export function buildDataConfidence(input: DataConfidenceInput): DataConfidence 
     has_safety_issue_candidates: hasCandidates,
     messages,
     caveat: CAVEAT,
+    erc_share_affects_level: ercShareAffectsLevel,
   }
 }

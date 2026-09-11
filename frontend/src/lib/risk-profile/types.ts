@@ -2,6 +2,7 @@ import type { DataConfidence } from '@/lib/sera/data-confidence'
 import type { HfaErcCategory } from '@/lib/sera/erc-conversion'
 import type { RiskQualityTrendPoint } from '@/lib/sera/risk-quality-trend'
 import type { SafetyIssueCandidate } from '@/lib/sera/safety-issue-candidates'
+import type { ErcPresentationMode } from './erc-containment'
 
 export type RiskProfileSourceType = 'legacy_event' | 'sera_vnext_analysis'
 
@@ -84,6 +85,9 @@ export type RiskProfileSummary = {
   total_analyses: number
   total_events_90d: number
   modal_erc_level: HfaErcCategory | null
+  /** D3-b presentation mode for consolidated numeric ERC. */
+  erc_presentation_mode: ErcPresentationMode
+  d3_decision: 'D3_B'
   safety_issue_candidates: SafetyIssueCandidate[]
   quality_trend: RiskQualityTrendPoint[]
   data_confidence: DataConfidence

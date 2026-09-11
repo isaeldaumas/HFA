@@ -82,7 +82,7 @@ export default function ExecutiveReportPage() {
             <section className={styles.reportSection}>
               <h3 className={styles.reportTitle}>1. Resumo executivo</h3>
               <p className={styles.reportText}>
-                A base ativa inclui <strong>{profile.included_events}</strong> eventos considerados no perfil, <strong>{profile.completed_analyses}</strong> análises concluídas, <strong>{profile.source_events_excluded.length}</strong> registros desconsiderados e categoria ERC dominante <strong>{profile.modal_erc_level ? `ERC ${profile.modal_erc_level}` : 'n/d'}</strong>.
+                A base ativa inclui <strong>{profile.included_events}</strong> eventos considerados no perfil, <strong>{profile.completed_analyses}</strong> análises concluídas, <strong>{profile.source_events_excluded.length}</strong> registros desconsiderados e categoria ERC dominante <strong>{profile.modal_erc_level ? `ERC ${profile.modal_erc_level}` : (profile.erc_presentation_mode === 'SUPPRESSED_D3B_MIXED' || profile.erc_presentation_mode === 'SUPPRESSED_D3B_VNEXT_ONLY' ? 'omitida (D3-b)' : 'n/d')}</strong>.
               </p>
             </section>
 
