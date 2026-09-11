@@ -19,7 +19,7 @@ Updated after PR #47 technical audit: `MAIN_MERGE_PRODUCTION_DEPLOY=UNKNOWN` (se
 | required CI checks | PASS | Local: tsc, lint, build, mandatory trials, deterministic regression CI_PASS |
 | author approval | AUTHOR_DECISION_PENDING | Required for D3, D4, shadow enablement, endpoint removal, production |
 | production authorization | NOT_READY | Explicitly not authorized; CI green ≠ production auth |
-| main merge → production deploy | UNKNOWN | GitHub Actions = CI only; Vercel Git production link unverified (`vercel` CLI unauthenticated; no `.vercel/project.json`) |
+| main merge → production deploy | NO | Evidence: `MAIN_MERGE_PRODUCTION_DEPLOY_EVIDENCE_20260911.md` (isaeldaumas/HFA has no Vercel Git link; production is on `system-hfa/HFA`) |
 
 ## Absolute locks (still in force)
 

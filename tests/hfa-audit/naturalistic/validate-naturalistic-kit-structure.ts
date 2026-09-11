@@ -17,6 +17,8 @@ const REQUIRED = [
   'schemas/adjudication-log.schema.json',
   'templates/blind-evaluator-form.md',
   'templates/case-manifest.md',
+  'fixtures/TEST_TOOLING_PAIR_001.json',
+  'fixtures/TEST_TOOLING_PAIR_002.json',
 ]
 
 let structuralOk = true

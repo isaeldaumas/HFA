@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "NATURALISTIC_DESCRIPTIVE_PAIR_V1",
+  "caseId": "TEST_TOOLING_PAIR_002",
+  "scientificUse": false,
+  "human": { "perception": "P-B", "objective": "O-C", "action": "A-C" },
+  "vnext": { "perception": "P-B", "objective": "O-C", "action": "A-C" },
+  "note": "Synthetic TEST fixture for tooling only. NOT scientific evidence."
+}
