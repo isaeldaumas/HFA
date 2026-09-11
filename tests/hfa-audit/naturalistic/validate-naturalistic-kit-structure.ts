@@ -10,15 +10,18 @@ import { join } from 'node:path'
 const ROOT = join(process.cwd(), 'docs/hfa-backlog/naturalistic-kit')
 const REQUIRED = [
   'README.md',
+  'OPERATIONAL_RUNBOOK.md',
   'schemas/case-manifest.schema.json',
   'schemas/human-reference.schema.json',
   'schemas/blind-evaluator-form.schema.json',
   'schemas/vnext-output-capture.schema.json',
   'schemas/adjudication-log.schema.json',
+  'schemas/descriptive-pair.schema.json',
   'templates/blind-evaluator-form.md',
   'templates/case-manifest.md',
   'fixtures/TEST_TOOLING_PAIR_001.json',
   'fixtures/TEST_TOOLING_PAIR_002.json',
+  'campaigns/_TEMPLATE/manifest.json',
 ]
 
 let structuralOk = true

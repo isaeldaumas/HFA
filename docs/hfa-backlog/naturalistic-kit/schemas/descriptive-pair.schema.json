@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hfa-naturalistic-descriptive-pair",
+  "title": "NaturalisticDescriptivePair",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "caseId", "scientificUse", "human", "vnext"],
+  "properties": {
+    "schemaVersion": { "const": "NATURALISTIC_DESCRIPTIVE_PAIR_V1" },
+    "caseId": { "type": "string", "minLength": 1 },
+    "scientificUse": { "type": "boolean" },
+    "taxonomyVersion": { "type": "string" },
+    "engineVersion": { "type": "string" },
+    "human": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["perception", "objective", "action"],
+      "properties": {
+        "perception": { "type": ["string", "null"] },
+        "objective": { "type": ["string", "null"] },
+        "action": { "type": ["string", "null"] }
+      }
+    },
+    "humanB": {
+      "type": "object",
+      "description": "Optional second human rater for inter-reviewer agreement",
+      "additionalProperties": false,
+      "properties": {
+        "perception": { "type": ["string", "null"] },
+        "objective": { "type": ["string", "null"] },
+        "action": { "type": ["string", "null"] }
+      }
+    },
+    "vnext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["perception", "objective", "action"],
+      "properties": {
+        "perception": { "type": ["string", "null"] },
+        "objective": { "type": ["string", "null"] },
+        "action": { "type": ["string", "null"] }
+      }
+    },
+    "note": { "type": "string" }
+  }
+}
