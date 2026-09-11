@@ -9,13 +9,14 @@ import {
 } from './product-beta-real-helpers'
 import { resolveTestTenantPrefix } from './helpers/resolve-test-tenant-prefix'
 import {
+import { assertSafeTestEnvironment } from './helpers/assert-safe-test-environment'
   handleGetSeraVNextAnalysisRequest,
   handleListSeraVNextAnalysesRequest,
 } from '../../frontend/src/lib/sera-vnext-product/api-handlers'
 
 const TRIAL_ID = 'frontend-auth-tenant-readiness-trial-001'
 const ENTERPRISE_TENANT_PREFIX = resolveTestTenantPrefix()
-const BLOCKED_TENANT_PREFIX = process.env.SERA_VNEXT_TEST_BLOCKED_TENANT_PREFIX?.trim() || '9a52a850'
+const BLOCKED_TENANT_PREFIX = resolveTestTenantPrefix({ fixture: 'B' })
 
 type Check = {
   name: string
@@ -28,6 +29,7 @@ async function parseJson(response: Response): Promise<Record<string, unknown>> {
 }
 
 async function main() {
+  assertSafeTestEnvironment({ requiresFixtureIds: true, requiresCrossTenant: true })
   const baseUrl = buildBaseUrl()
   await waitForServer(baseUrl)
 

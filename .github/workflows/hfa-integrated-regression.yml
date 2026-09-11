@@ -163,11 +163,16 @@ jobs:
       # Execution level — READ_ONLY or MUTATING_SYNTHETIC
       HFA_INTEGRATED_REGRESSION_LEVEL: ${{ needs.check-environment.outputs.run_mutating == 'true' && 'MUTATING_SYNTHETIC' || 'READ_ONLY' }}
       HFA_TEST_ENVIRONMENT: staging
-      # SERA vNext flags: desligados em integração (shadow mode requer autorização separada)
+      # SERA vNext flags: shadow always OFF. Product Beta only enabled ephemerally for MUTATING.
       SERA_VNEXT_READONLY_ENABLED: "false"
       SERA_VNEXT_INTERNAL_PILOT_ENABLED: "false"
       NEXT_PUBLIC_SERA_VNEXT_DIAGNOSTICS_ENABLED: "false"
+      SERA_VNEXT_PRODUCT_BETA_ENABLED: ${{ needs.check-environment.outputs.run_mutating == 'true' && 'true' || 'false' }}
       SERA_SHADOW_EXECUTION_ENABLED: "false"
+      SERA_SHADOW_PERSISTENCE_ENABLED: "false"
+      SERA_SHADOW_ADMIN_VIEW_ENABLED: "false"
+      SERA_SHADOW_AUTO_COMPARISON_ENABLED: "false"
+      SERA_SHADOW_VALIDATION_REPORTS_ENABLED: "false"
 
     steps:
       - name: Checkout
@@ -201,9 +206,17 @@ jobs:
             echo "NEXTAUTH_URL=${NEXTAUTH_URL}"
             echo "HFA_STAGING_SUPABASE_PROJECT_REF=${HFA_STAGING_SUPABASE_PROJECT_REF}"
             echo "HFA_TEST_ENVIRONMENT=${HFA_TEST_ENVIRONMENT}"
+            echo "SERA_VNEXT_PRODUCT_BETA_ENABLED=${SERA_VNEXT_PRODUCT_BETA_ENABLED}"
+            echo "SERA_SHADOW_EXECUTION_ENABLED=false"
+            echo "SERA_SHADOW_PERSISTENCE_ENABLED=false"
+            echo "SERA_SHADOW_ADMIN_VIEW_ENABLED=false"
+            echo "SERA_SHADOW_AUTO_COMPARISON_ENABLED=false"
+            echo "SERA_SHADOW_VALIDATION_REPORTS_ENABLED=false"
           } > .env.local
           test -s .env.local
           echo "frontend/.env.local written (contents not printed)"
+          echo "Product Beta ephemeral flag for this job: ${SERA_VNEXT_PRODUCT_BETA_ENABLED}"
+          echo "Shadow flags: all false"
 
       - name: Build frontend
         working-directory: frontend

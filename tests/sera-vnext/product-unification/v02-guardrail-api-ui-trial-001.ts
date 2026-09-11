@@ -13,6 +13,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { resolveTestTenantPrefix } from '../helpers/resolve-test-tenant-prefix'
 import {
+import { assertSafeTestEnvironment } from '../helpers/assert-safe-test-environment'
   apiJson,
   buildBaseUrl,
   createMagicLinkSession,
@@ -23,6 +24,7 @@ const TRIAL_ID = 'v02-guardrail-api-ui-trial-001'
 const ROOT = path.resolve(__dirname, '../../..')
 
 async function main() {
+  assertSafeTestEnvironment({ requiresFixtureIds: true, requiresCrossTenant: false })
   const baseUrl = buildBaseUrl()
   await waitForServer(baseUrl)
 

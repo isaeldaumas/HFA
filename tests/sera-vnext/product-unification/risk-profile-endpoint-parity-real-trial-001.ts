@@ -16,6 +16,7 @@
  */
 import { resolveTestTenantPrefix } from '../helpers/resolve-test-tenant-prefix'
 import {
+import { assertSafeTestEnvironment } from '../helpers/assert-safe-test-environment'
   apiJson,
   buildBaseUrl,
   createMagicLinkSession,
@@ -26,6 +27,7 @@ const TRIAL_ID = 'risk-profile-endpoint-parity-real-trial-001'
 const ENTERPRISE_TENANT_PREFIX = resolveTestTenantPrefix()
 
 async function main() {
+  assertSafeTestEnvironment({ requiresFixtureIds: true, requiresCrossTenant: true })
   const baseUrl = buildBaseUrl()
   await waitForServer(baseUrl)
 

@@ -11,6 +11,7 @@ import {
   handleRestoreSeraVNextAnalysisRequest,
 } from '../../frontend/src/lib/sera-vnext-product/api-handlers'
 import type {
+import { assertSafeTestEnvironment } from './helpers/assert-safe-test-environment'
   InsertAnalysisRow,
   InsertAuditEventRow,
   InsertReviewRow,
@@ -137,6 +138,7 @@ async function ensureResponse(value: Promise<Response | undefined>): Promise<Res
 const narrative = 'During approach the crew noticed an unstable condition, continued below the safe profile, and the operation left the safe envelope before corrective action was completed.'
 
 async function main() {
+  assertSafeTestEnvironment({ requiresFixtureIds: true, requiresCrossTenant: false })
   const repo = new MemoryRepo()
   let res = await ensureResponse(handleCreateSeraVNextAnalysisRequest(request('http://localhost/api/admin/sera-vnext/analyses', 'POST', { title: 'Disabled', narrative, clientRequestId: 'disabled' }), {
     ...deps(repo),

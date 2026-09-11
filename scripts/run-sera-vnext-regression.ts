@@ -313,7 +313,9 @@ async function main() {
     );
 
     if (missingEnv.length > 0) {
-      const status: ResultStatus = entry.requiredForRegression ? "ENVIRONMENT_MISSING" : "SKIP";
+      // Integrated mode: never soft-skip as plain SKIP — classify as ENVIRONMENT_MISSING.
+      const status: ResultStatus =
+        integratedLevel !== null || entry.requiredForRegression ? "ENVIRONMENT_MISSING" : "SKIP";
       results.push({
         path: entry.path,
         type: entry.type,
@@ -416,6 +418,28 @@ async function main() {
         `This is a runner bug. Failing the run.`
     );
     process.exitCode = 3;
+    return;
+  }
+
+  // Integrated mode is fail-closed: any REAL_* FAIL / ENV gap / timeout / unexpected skip
+  // makes the workflow red. Historical non-integrated behavior is preserved when level unset.
+  if (integratedLevel !== null) {
+    const integratedEnvGaps = results.filter(
+      (item) => item.status === "ENVIRONMENT_MISSING" || item.status === "ENVIRONMENT_NOT_CONFIGURED"
+    );
+    const integratedUnexpectedSkips = results.filter((item) => item.status === "SKIP");
+    if (
+      allRealFails.length > 0 ||
+      integratedEnvGaps.length > 0 ||
+      timeoutFailures.length > 0 ||
+      integratedUnexpectedSkips.length > 0 ||
+      regressionFailures.length > 0
+    ) {
+      console.error(
+        "FATAL: integrated regression fail-closed — REAL_* FAIL, ENVIRONMENT_* gap, timeout, or unexpected SKIP present."
+      );
+      process.exitCode = 1;
+    }
     return;
   }
 

@@ -83,6 +83,11 @@ check(
   'runner: ENVIRONMENT_NOT_CONFIGURED is a distinct status value'
 )
 check(
+  runner.includes('integrated regression fail-closed') ||
+    runner.includes('FATAL: integrated regression fail-closed'),
+  'runner: integrated mode fail-closed for REAL_* FAIL / ENV gaps'
+)
+check(
   runner.includes('mutating_synthetic_executed') && runner.includes('read_only_executed'),
   'runner: summary includes mutating_synthetic_executed and read_only_executed counts'
 )
