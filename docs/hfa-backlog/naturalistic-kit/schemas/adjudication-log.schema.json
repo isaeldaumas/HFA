@@ -13,11 +13,13 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["at", "actorId", "decision"],
+        "required": ["at", "actorId", "decision", "reason", "phase"],
         "properties": {
           "at": { "type": "string" },
           "actorId": { "type": "string" },
           "decision": { "enum": ["defer", "confirm", "revise", "exclude_case"] },
+          "reason": { "type": "string", "minLength": 1 },
+          "phase": { "enum": ["pre_unblind", "post_unblind"] },
           "notes": { "type": "string" }
         }
       }
