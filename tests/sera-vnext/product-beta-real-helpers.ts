@@ -422,12 +422,24 @@ export function pwExec(session: string, args: string[], mode: 'plain' | 'raw' | 
   if (mode === 'raw') cliArgs.push('--raw')
   if (mode === 'json') cliArgs.push('--json')
   cliArgs.push(...args)
-  return execFileSync(pwcliPath(), cliArgs, {
-    cwd: PLAYWRIGHT_OUTPUT_DIR,
-    encoding: 'utf8',
-    env: process.env,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  }).trim()
+  try {
+    return execFileSync(pwcliPath(), cliArgs, {
+      cwd: PLAYWRIGHT_OUTPUT_DIR,
+      encoding: 'utf8',
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim()
+  } catch (error) {
+    const err = error as { status?: number; stdout?: string; stderr?: string; message?: string }
+    const stderr = typeof err.stderr === 'string' ? err.stderr.trim() : ''
+    const stdout = typeof err.stdout === 'string' ? err.stdout.trim() : ''
+    throw new Error(
+      `PLAYWRIGHT_CLI_FAILED session=${session} args=${args.join(' ')} status=${err.status ?? 'null'}` +
+        (stderr ? ` stderr=${stderr.slice(0, 2000)}` : '') +
+        (stdout ? ` stdout=${stdout.slice(0, 500)}` : '') +
+        (err.message && !stderr ? ` message=${err.message}` : ''),
+    )
+  }
 }
 
 export function pwEval<T>(session: string, expression: string): T {

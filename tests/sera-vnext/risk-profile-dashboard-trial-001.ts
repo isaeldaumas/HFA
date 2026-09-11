@@ -35,7 +35,7 @@ async function main() {
   })
 
   try {
-    pwExec(SESSION_ID, ['open', enterprise.actionLink, '--browser', 'firefox'])
+    pwExec(SESSION_ID, ['open', enterprise.actionLink, '--browser', 'chromium'])
     await pwWaitForUrlMatch(SESSION_ID, new RegExp(`^${escapeRegExp(baseUrl)}`), 20_000)
     await sleep(2_000)
     pwExec(SESSION_ID, ['goto', `${baseUrl}/dashboard`])

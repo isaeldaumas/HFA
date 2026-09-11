@@ -67,7 +67,7 @@ async function main() {
     requirePlan: 'enterprise',
   })
 
-  pwExec(SESSION_ID, ['open', browserSession.actionLink, '--browser', 'firefox'])
+  pwExec(SESSION_ID, ['open', browserSession.actionLink, '--browser', 'chromium'])
   await pwWaitForUrlMatch(SESSION_ID, new RegExp(`^${baseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`), 20_000)
   await sleep(2_000) // SDK sets session in localStorage from hash before goto fires
 
