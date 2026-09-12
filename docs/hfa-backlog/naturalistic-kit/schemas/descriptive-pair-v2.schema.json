@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hfa-naturalistic-descriptive-pair-v2",
+  "title": "NaturalisticDescriptivePairV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "caseId",
+    "scientificUse",
+    "caseRole",
+    "developmentExposure",
+    "human",
+    "vnext"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "NATURALISTIC_DESCRIPTIVE_PAIR_V2"
+    },
+    "caseId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scientificUse": {
+      "type": "boolean"
+    },
+    "caseRole": {
+      "enum": [
+        "calibration",
+        "internal_validation",
+        "sealed_holdout"
+      ]
+    },
+    "developmentExposure": {
+      "type": "boolean"
+    },
+    "taxonomyVersion": {
+      "type": "string"
+    },
+    "engineVersion": {
+      "type": "string"
+    },
+    "human": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "perception",
+        "objective",
+        "action"
+      ],
+      "properties": {
+        "perception": {
+          "$ref": "axis-assessment-v2.schema.json"
+        },
+        "objective": {
+          "$ref": "axis-assessment-v2.schema.json"
+        },
+        "action": {
+          "$ref": "axis-assessment-v2.schema.json"
+        }
+      }
+    },
+    "humanB": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "perception": {
+          "$ref": "axis-assessment-v2.schema.json"
+        },
+        "objective": {
+          "$ref": "axis-assessment-v2.schema.json"
+        },
+        "action": {
+          "$ref": "axis-assessment-v2.schema.json"
+        }
+      }
+    },
+    "vnext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "perception",
+        "objective",
+        "action"
+      ],
+      "properties": {
+        "perception": {
+          "$ref": "axis-assessment-v2.schema.json"
+        },
+        "objective": {
+          "$ref": "axis-assessment-v2.schema.json"
+        },
+        "action": {
+          "$ref": "axis-assessment-v2.schema.json"
+        }
+      }
+    },
+    "note": {
+      "type": "string"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "scientificUse": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "caseRole": {
+            "const": "sealed_holdout"
+          },
+          "developmentExposure": {
+            "const": false
+          }
+        }
+      }
+    }
+  ]
+}

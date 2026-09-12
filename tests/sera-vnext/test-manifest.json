@@ -8,6 +8,22 @@
     "expectedStatus": "PASS"
   },
   {
+    "path": "tests/hfa-audit/naturalistic/validate-naturalistic-v04-kit.ts",
+    "type": "GATE",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "NOT_READY"
+  },
+  {
+    "path": "tests/hfa-audit/naturalistic/run-naturalistic-v04-descriptive-analysis.ts",
+    "type": "GATE",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "NOT_READY"
+  },
+  {
     "path": "tests/sera-vnext/perception-naturalistic-precision-recall-post-pr50-trial-001.ts",
     "type": "UNIT",
     "requiredForRegression": true,

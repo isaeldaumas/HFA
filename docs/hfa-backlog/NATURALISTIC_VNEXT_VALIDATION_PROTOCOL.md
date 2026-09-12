@@ -1,7 +1,8 @@
 # SERA vNext — Protocolo de Validação Naturalística
 
-**Status**: `ENGINE_NATURALISTIC_VALIDATION_NOT_READY`  
-**Tooling**: `NATURALISTIC_TOOLING=READY` (see `naturalistic-kit/OPERATIONAL_RUNBOOK.md`)  
+**Status**: `ENGINE_NATURALISTIC_VALIDATION_NOT_READY`
+**Tooling**: `NATURALISTIC_TOOLING=READY` (see `naturalistic-kit/OPERATIONAL_RUNBOOK.md`)
+**V04 per-axis tooling**: `READY` for new campaigns; human/holdout execution remains blocked until real independent cases + reviewers exist.
 **Restrição ativa**: `SHADOW_FLAGS_OFF` | `NO_PRODUCTION_VALIDATION` | `NO_FABRICATED_VALIDATION`
 
 ---

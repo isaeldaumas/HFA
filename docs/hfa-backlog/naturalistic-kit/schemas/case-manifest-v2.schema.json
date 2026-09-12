@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hfa-naturalistic-case-manifest-v2",
+  "title": "NaturalisticCaseManifestV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "status",
+    "campaignId",
+    "cases"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "NATURALISTIC_CASE_MANIFEST_V2"
+    },
+    "status": {
+      "const": "ENGINE_NATURALISTIC_VALIDATION_NOT_READY"
+    },
+    "campaignId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "canonVersion": {
+      "type": "string"
+    },
+    "engineVersion": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "caseId",
+          "sourceType",
+          "caseRole",
+          "developmentExposure",
+          "holdoutEligible",
+          "eligibility",
+          "provenance"
+        ],
+        "properties": {
+          "caseId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceType": {
+            "enum": [
+              "real_event",
+              "authorized_fixture",
+              "pending"
+            ]
+          },
+          "caseRole": {
+            "enum": [
+              "calibration",
+              "internal_validation",
+              "sealed_holdout"
+            ]
+          },
+          "developmentExposure": {
+            "type": "boolean"
+          },
+          "holdoutEligible": {
+            "type": "boolean"
+          },
+          "eligibility": {
+            "enum": [
+              "eligible",
+              "excluded",
+              "pending_review"
+            ]
+          },
+          "provenance": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "narrativeHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "caseRole": {
+                  "const": "sealed_holdout"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "developmentExposure": {
+                  "const": false
+                },
+                "holdoutEligible": {
+                  "const": true
+                },
+                "eligibility": {
+                  "const": "eligible"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
