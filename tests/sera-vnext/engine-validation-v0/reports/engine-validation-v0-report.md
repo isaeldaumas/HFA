@@ -1,6 +1,6 @@
 # SERA vNext Engine Validation V0
 
-Generated at: 2026-09-12T17:09:51.980Z
+Generated at: 2026-06-09T02:54:12.990Z
 
 Final decision: SERA_VNEXT_ENGINE_V0_VALIDATION_BLOCKED
 Product Beta gate: PRODUCT_BETA_FOUNDATION_BLOCKED
@@ -42,12 +42,12 @@ Error: 0
 - passed=true
 
 ## Case results
-- OFFICIAL-COMAIR-5191 [official] passed=false findings=partial:P code outside authored allowed set: null | partial:O code outside authored allowed set: null | partial:A code outside authored allowed set: null
+- OFFICIAL-COMAIR-5191 [official] passed=false findings=partial:O code outside authored allowed set: null | partial:A code outside authored allowed set: null
 - OFFICIAL-ASIANA-214 [official] passed=false findings=partial:P code outside authored allowed set: null | partial:O code outside authored allowed set: null | partial:A code outside authored allowed set: null
-- OFFICIAL-UPS-1354 [official] passed=false findings=partial:P code outside authored allowed set: null | partial:O code outside authored allowed set: null | partial:A code outside authored allowed set: A-B
+- OFFICIAL-UPS-1354 [official] passed=false findings=partial:O code outside authored allowed set: null
 - OFFICIAL-GAP-004 [official] passed=true findings=pass:output matches authored boundary checks
 - OFFICIAL-DELTA-191 [official] passed=true findings=pass:output matches authored boundary checks
 - OFFICIAL-USAIR-427 [official] passed=true findings=pass:output matches authored boundary checks
 - OFFICIAL-5N-BQJ [official] passed=true findings=pass:output matches authored boundary checks
-- HUMAN-THEBAUD [human] passed=false findings=partial:escape point boundary not matched: visual approach
+- HUMAN-THEBAUD [human] passed=false findings=partial:escape point boundary not matched: visual approach | partial:P code outside authored allowed set: null
 - HUMAN-CRANK-2026-0001 [human] passed=false findings=partial:O code outside authored allowed set: null

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-12T17:09:51.980Z",
+  "generatedAt": "2026-06-09T02:54:12.990Z",
   "totalCases": 9,
   "groups": {
     "official": 7,
@@ -20,10 +20,6 @@
       "findings": [
         {
           "severity": "partial",
-          "detail": "P code outside authored allowed set: null"
-        },
-        {
-          "severity": "partial",
           "detail": "O code outside authored allowed set: null"
         },
         {
@@ -34,10 +30,10 @@
       "outputSummary": {
         "escapePointStatus": "PROGRESSIVE_ZONE",
         "directActor": "flight crew (collective)",
-        "pCode": null,
+        "pCode": "P-B",
         "oCode": null,
         "aCode": null,
-        "unansweredQuestions": 3,
+        "unansweredQuestions": 2,
         "uncertainties": 2
       }
     },
@@ -78,24 +74,16 @@
       "findings": [
         {
           "severity": "partial",
-          "detail": "P code outside authored allowed set: null"
-        },
-        {
-          "severity": "partial",
           "detail": "O code outside authored allowed set: null"
-        },
-        {
-          "severity": "partial",
-          "detail": "A code outside authored allowed set: A-B"
         }
       ],
       "outputSummary": {
         "escapePointStatus": "PROGRESSIVE_ZONE",
         "directActor": "flight crew (collective)",
-        "pCode": null,
+        "pCode": "P-B",
         "oCode": null,
-        "aCode": "A-B",
-        "unansweredQuestions": 2,
+        "aCode": "A-C",
+        "unansweredQuestions": 1,
         "uncertainties": 2
       }
     },
@@ -115,7 +103,7 @@
         "directActor": "flight crew (collective)",
         "pCode": null,
         "oCode": null,
-        "aCode": "A-B",
+        "aCode": "A-C",
         "unansweredQuestions": 2,
         "uncertainties": 2
       }
@@ -192,15 +180,19 @@
         {
           "severity": "partial",
           "detail": "escape point boundary not matched: visual approach"
+        },
+        {
+          "severity": "partial",
+          "detail": "P code outside authored allowed set: null"
         }
       ],
       "outputSummary": {
         "escapePointStatus": "PROGRESSIVE_ZONE",
         "directActor": "flight crew (collective)",
-        "pCode": "P-B",
+        "pCode": null,
         "oCode": null,
         "aCode": null,
-        "unansweredQuestions": 2,
+        "unansweredQuestions": 3,
         "uncertainties": 3
       }
     },

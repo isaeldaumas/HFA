@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-12T17:08:24.778Z",
-  "manifestHash": "b1010553970909d2a283a60f4053dfc16c09cbe6b58488e6d3019dca7ee4a4ae",
+  "generatedAt": "2026-06-09T13:42:06.770Z",
+  "manifestHash": "cd66cae2a9c63a78f18ddf425830cc9ae703a5c7ca48ee741575b32879b1a207",
   "existingRegressionCases": 39,
   "v02Cases": 64,
   "caseResults": [
@@ -9,7 +9,7 @@
       "group": "existing_regression",
       "expected": "REGRESSION_GUARDRAIL_ONLY",
       "actual": {
-        "perception": null,
+        "perception": "P-B",
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -65,9 +65,9 @@
       "group": "existing_regression",
       "expected": "REGRESSION_GUARDRAIL_ONLY",
       "actual": {
-        "perception": null,
+        "perception": "P-B",
         "objective": null,
-        "action": "A-B",
+        "action": "A-C",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -95,7 +95,7 @@
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-B",
+        "action": "A-C",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -205,7 +205,7 @@
       "group": "existing_regression",
       "expected": "REGRESSION_GUARDRAIL_ONLY",
       "actual": {
-        "perception": "P-B",
+        "perception": null,
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -261,7 +261,7 @@
       "group": "existing_regression",
       "expected": "REGRESSION_GUARDRAIL_ONLY",
       "actual": {
-        "perception": "P-B",
+        "perception": null,
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -317,7 +317,7 @@
       "group": "existing_regression",
       "expected": "REGRESSION_GUARDRAIL_ONLY",
       "actual": {
-        "perception": "P-B",
+        "perception": null,
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -401,7 +401,7 @@
       "group": "existing_regression",
       "expected": "REGRESSION_GUARDRAIL_ONLY",
       "actual": {
-        "perception": null,
+        "perception": "P-B",
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -543,7 +543,7 @@
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-B",
+        "action": "A-C",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -571,7 +571,7 @@
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-B",
+        "action": "A-C",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -627,7 +627,7 @@
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-B",
+        "action": "A-C",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -1017,7 +1017,7 @@
       "group": "existing_regression",
       "expected": "REGRESSION_GUARDRAIL_ONLY",
       "actual": {
-        "perception": "P-B",
+        "perception": null,
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -1267,12 +1267,12 @@
       "expected": {
         "kind": "code",
         "axis": "action",
-        "code": "A-B"
+        "code": "A-C"
       },
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-B",
+        "action": "A-C",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -1291,7 +1291,7 @@
       "findings": [],
       "tags": [
         "pt-BR",
-        "slip-lapse"
+        "A-A/A-C-boundary"
       ]
     },
     {
@@ -1399,12 +1399,12 @@
       "expected": {
         "kind": "code",
         "axis": "action",
-        "code": "A-G"
+        "code": "A-J"
       },
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-G",
+        "action": "A-J",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -1499,12 +1499,12 @@
       "expected": {
         "kind": "code",
         "axis": "action",
-        "code": "A-C"
+        "code": "A-B"
       },
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-C",
+        "action": "A-B",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -1524,7 +1524,7 @@
       "tags": [
         "en",
         "technical-dominant",
-        "own-action-feedback"
+        "feedback"
       ]
     },
     {
@@ -1662,12 +1662,12 @@
       "expected": {
         "kind": "code",
         "axis": "action",
-        "code": "A-I"
+        "code": "A-F"
       },
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-I",
+        "action": "A-F",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -1727,12 +1727,12 @@
       "expected": {
         "kind": "code",
         "axis": "action",
-        "code": "A-J"
+        "code": "A-G"
       },
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-J",
+        "action": "A-G",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -2220,7 +2220,7 @@
       "tags": [
         "leaf:A-B",
         "en",
-        "slip-lapse"
+        "feedback"
       ]
     },
     {
@@ -2254,7 +2254,7 @@
       "tags": [
         "leaf:A-C",
         "pt-BR",
-        "own-action-feedback"
+        "A-A/A-C-boundary"
       ]
     },
     {
@@ -2362,12 +2362,12 @@
       "expected": {
         "kind": "code",
         "axis": "action",
-        "code": "A-J"
+        "code": "A-G"
       },
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-J",
+        "action": "A-G",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -2385,7 +2385,7 @@
       "passed": true,
       "findings": [],
       "tags": [
-        "leaf:A-J",
+        "leaf:A-G",
         "pt-BR"
       ]
     },
@@ -2461,12 +2461,12 @@
       "expected": {
         "kind": "code",
         "axis": "action",
-        "code": "A-G"
+        "code": "A-J"
       },
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-G",
+        "action": "A-J",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -2484,7 +2484,7 @@
       "passed": true,
       "findings": [],
       "tags": [
-        "leaf:A-G",
+        "leaf:A-J",
         "en"
       ]
     },
@@ -3088,7 +3088,7 @@
       "expected": {
         "kind": "notCode",
         "axis": "action",
-        "code": "A-J"
+        "code": "A-G"
       },
       "actual": {
         "perception": null,
@@ -3111,7 +3111,7 @@
       "passed": true,
       "findings": [],
       "tags": [
-        "negative:A-J",
+        "negative:A-G",
         "pt-BR"
       ]
     },
@@ -3187,7 +3187,7 @@
       "expected": {
         "kind": "notCode",
         "axis": "action",
-        "code": "A-G"
+        "code": "A-J"
       },
       "actual": {
         "perception": null,
@@ -3210,7 +3210,7 @@
       "passed": true,
       "findings": [],
       "tags": [
-        "negative:A-G",
+        "negative:A-J",
         "en"
       ]
     }

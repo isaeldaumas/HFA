@@ -77,24 +77,6 @@ function decideP(nodeId: string, statements: string[]): Decision {
       const negative = concept(statements, 'inadequateAssessment')
       if (negative.length > 0) return { answer: 'NÃO', supportingEvidence: negative, rationale: 'Pre-escape evidence supports inaccurate or inadequate situation assessment.' }
       if (positive.length > 0) return { answer: 'SIM', supportingEvidence: positive, rationale: 'Pre-escape evidence supports adequate perception or timely recognition.' }
-      // Implicit inadequate-assessment inference: when causal capability limitation
-      // (sensory barrier or knowledge gap) is present in the pre-escape evidence and
-      // no perception-capability counter-evidence exists, the assessment was necessarily
-      // inadequate.  This preserves the canonical P-branch semantics without altering
-      // taxonomy or tree structure.
-      // Precision guard: perceptionCapabilityPresent (e.g. "clear visual references",
-      // "had received training for this system") suppresses the inference.
-      const sensory = concept(statements, 'sensoryLimitation')
-      const knowledge = concept(statements, 'knowledgeLimitation')
-      const capabilityPresent = concept(statements, 'perceptionCapabilityPresent')
-      if ((sensory.length > 0 || knowledge.length > 0) && capabilityPresent.length === 0) {
-        const implicitEvidence = unique([...sensory, ...knowledge]).slice(0, 3)
-        return {
-          answer: 'NÃO',
-          supportingEvidence: implicitEvidence,
-          rationale: 'Causal capability limitation (sensory or knowledge) without perception counter-evidence implies assessment was not adequate.',
-        }
-      }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'No pre-escape evidence answers whether assessment was adequate.' }
     }
     case 'P_CAPABILITY': {

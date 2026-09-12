@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-12T17:08:03.077Z",
+  "generatedAt": "2026-06-09T13:42:07.839Z",
   "manifestHash": "9dd566074e45ce95a681cf0d7da9e26cf935354350597174023e50c0b4f1d6ed",
   "expectedOutputsHash": "858d17a75c2b3f7235a0d89fdc1d8404fd64c10a9c9df54dc7febdb4f19f97de",
   "totalCases": 36,
@@ -17,7 +17,7 @@
         "code": "P-B"
       },
       "actual": {
-        "perception": "P-B",
+        "perception": null,
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -33,9 +33,11 @@
           "awarenessMissingForViolation": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "INCORRECT_ABSTENTION: expected {\"kind\":\"code\",\"axis\":\"perception\",\"code\":\"P-B\"} but engine abstained"
+      ],
       "tags": [
         "offshore",
         "helicopter",
@@ -130,7 +132,7 @@
         "code": "P-C"
       },
       "actual": {
-        "perception": "P-C",
+        "perception": null,
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -146,9 +148,11 @@
           "awarenessMissingForViolation": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "INCORRECT_ABSTENTION: expected {\"kind\":\"code\",\"axis\":\"perception\",\"code\":\"P-C\"} but engine abstained"
+      ],
       "tags": [
         "technical-dominant",
         "automation",
@@ -474,7 +478,7 @@
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-B",
+        "action": "A-C",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -488,9 +492,11 @@
           "awarenessMissingForViolation": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_CODE",
+      "passed": false,
+      "findings": [
+        "INCORRECT_CODE: expected {\"kind\":\"code\",\"axis\":\"action\",\"code\":\"A-B\"}, got perception=null objective=null action=A-C"
+      ],
       "tags": [
         "offshore",
         "helicopter",
@@ -510,7 +516,7 @@
         "code": "P-B"
       },
       "actual": {
-        "perception": "P-B",
+        "perception": null,
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -526,9 +532,11 @@
           "awarenessMissingForViolation": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "INCORRECT_ABSTENTION: expected {\"kind\":\"code\",\"axis\":\"perception\",\"code\":\"P-B\"} but engine abstained"
+      ],
       "tags": [
         "offshore",
         "helicopter",
@@ -914,18 +922,18 @@
   ],
   "metrics": {
     "code_expected_cases": 14,
-    "correct_code": 4,
-    "incorrect_code": 0,
-    "code_precision": 1,
-    "code_recall": 0.2857142857142857,
+    "correct_code": 0,
+    "incorrect_code": 1,
+    "code_precision": 0,
+    "code_recall": 0,
     "abstention_expected_cases": 10,
     "correct_abstention": 10,
-    "incorrect_abstention": 10,
-    "abstention_precision": 0.5,
+    "incorrect_abstention": 13,
+    "abstention_precision": 0.43478260869565216,
     "abstention_recall": 1,
-    "portuguese_code_recall": 0.3333333333333333,
-    "english_code_recall": 0.25,
-    "language_recall_gap": 0.08333333333333331,
+    "portuguese_code_recall": 0,
+    "english_code_recall": 0,
+    "language_recall_gap": 0,
     "guardrail_true_positive_rate": 0,
     "guardrail_false_positive_rate": 0,
     "critical_boundary_accuracy": 0.625,
@@ -939,7 +947,8 @@
   },
   "finalDecision": "ENGINE_NATURALISTIC_VALIDATION_NOT_READY",
   "limitations": [
-    "PT_CODE_RECALL_BELOW_70: 33.3%",
-    "EN_CODE_RECALL_BELOW_70: 25.0%"
+    "INCORRECT_CRITICAL_CODE: 1 incorrect codes on critical boundaries",
+    "PT_CODE_RECALL_BELOW_70: 0.0%",
+    "EN_CODE_RECALL_BELOW_70: 0.0%"
   ]
 }
