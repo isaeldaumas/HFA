@@ -24,7 +24,7 @@
     },
     {
       "node": "P_ASSESSMENT",
-      "expectedAnswer": "NO",
+      "expectedAnswer": "YES",
       "consequence": "Continue"
     },
     {
@@ -59,7 +59,7 @@
     },
     {
       "node": "O_MANAGED_RISK",
-      "expectedAnswer": "NO",
+      "expectedAnswer": "YES",
       "consequence": "O-D"
     },
     {

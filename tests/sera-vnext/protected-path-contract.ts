@@ -70,3 +70,24 @@ export function isAllowedSeraVNextCanonicalTreePath(rootDir: string, changedPath
   assertCanonicalTreeEngineContract(rootDir);
   return true;
 }
+
+export function isAllowedA4R190LegacyMethodologyPath(rootDir: string, changedPath: string): boolean {
+  if (![
+    "frontend/src/lib/sera/all-steps.ts",
+    "frontend/src/lib/sera/rules/objective/select.ts",
+  ].includes(changedPath)) return false;
+
+  assert.ok(
+    existsSync(path.join(rootDir, "docs/sera-vnext/runtime-alignment-a4r190/SERA_A4R190_A_CANONICAL_SEMANTIC_REMEDIATION_v0.2.1.md")),
+    "A4R190 legacy methodology changes require the semantic-remediation record",
+  );
+  assert.ok(
+    existsSync(path.join(rootDir, "tests/sera/objective-generalization-static.ts")),
+    "A4R190 legacy methodology changes require objective boundary coverage",
+  );
+  assert.ok(
+    existsSync(path.join(rootDir, "tests/sera-vnext/canonical-tree-semantic-trial-002.ts")),
+    "A4R190 legacy methodology changes require canonical semantic coverage",
+  );
+  return true;
+}

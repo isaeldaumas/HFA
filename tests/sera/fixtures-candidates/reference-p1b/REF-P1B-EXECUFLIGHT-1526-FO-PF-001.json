@@ -53,7 +53,7 @@
     },
     {
       "node": "O_MANAGED_RISK",
-      "expectedAnswer": "NO",
+      "expectedAnswer": "YES",
       "consequence": "O-D"
     },
     {

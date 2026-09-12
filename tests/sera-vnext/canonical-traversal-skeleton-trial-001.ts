@@ -70,10 +70,11 @@ function main() {
     answers: [
       { nodeId: 'O_ROOT', answerValue: 'START', answerSource: 'AUTHOR_DECISION' },
       { nodeId: 'O_RULES', answerValue: 'SIM', answerSource: 'AUTHOR_DECISION' },
-      { nodeId: 'O_MANAGED_RISK', answerValue: 'SIM', answerSource: 'AUTHOR_DECISION' },
+      { nodeId: 'O_MANAGED_RISK', answerValue: 'NÃO', answerSource: 'AUTHOR_DECISION' },
     ],
   })
   assert.equal(oLeaf.status, 'LEAF_REACHED_NOT_CLASSIFIED', 'O path should reach a structural leaf candidate.')
+  assert.equal(oLeaf.leafCandidate?.candidateOnlyLeafCode, 'O-A', 'Managed-risk path must reach the O-A no-failure leaf.')
   assert.notEqual(oLeaf.leafCandidate?.candidateOnlyLeafCode, 'O-E', 'O-E must never be returned as leaf.')
   assertNoFinalClassification(oLeaf)
 

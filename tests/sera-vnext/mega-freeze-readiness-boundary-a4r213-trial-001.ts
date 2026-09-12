@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { isAllowedSeraVNextProtectedApiPath } from "./protected-path-contract";
+import { isAllowedA4R190LegacyMethodologyPath, isAllowedSeraVNextProtectedApiPath } from "./protected-path-contract";
 
 type Candidate = {
   id: string;
@@ -203,7 +203,7 @@ function isAllowedRiskProfileProductApiPath(changedPath: string): boolean {
 
 for (const changedPath of changedTracked) {
   assert.ok(!changedPath.startsWith("tests/sera/fixtures/"), `official fixture path changed: ${changedPath}`);
-  assert.ok(!changedPath.startsWith("frontend/src/lib/sera/"), `engine lib path changed: ${changedPath}`);
+  assert.ok(isAllowedA4R190LegacyMethodologyPath(root, changedPath) || !changedPath.startsWith("frontend/src/lib/sera/"), `engine lib path changed: ${changedPath}`);
   if (changedPath.startsWith("frontend/src/app/api/")) {
     assert.ok(
       isAllowedSeraVNextAdminApiPath(changedPath) ||

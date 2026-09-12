@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import { writeJsonReport } from './product-beta-real-helpers'
+import { isAllowedA4R190LegacyMethodologyPath } from './protected-path-contract'
 
 const TRIAL_ID = 'risk-profile-integrity-trial-001'
 
@@ -26,7 +27,7 @@ async function main() {
 
   for (const prefix of forbiddenPrefixes) {
     assert.equal(
-      combined.some((file) => file.startsWith(prefix)),
+      combined.some((file) => file.startsWith(prefix) && !isAllowedA4R190LegacyMethodologyPath(process.cwd(), file)),
       false,
       `protected area changed unexpectedly: ${prefix}`,
     )

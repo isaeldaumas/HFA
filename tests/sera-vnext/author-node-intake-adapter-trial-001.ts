@@ -220,7 +220,7 @@ function main() {
     records: [
       mkAccepted({ intakeId: 'MOCK-O-001', eventId: 'MOCK-O', axis: 'O', nodeId: 'O_ROOT', answerValue: 'START' }),
       mkAccepted({ intakeId: 'MOCK-O-002', eventId: 'MOCK-O', axis: 'O', nodeId: 'O_RULES', answerValue: 'SIM' }),
-      mkAccepted({ intakeId: 'MOCK-O-003', eventId: 'MOCK-O', axis: 'O', nodeId: 'O_MANAGED_RISK', answerValue: 'SIM' }),
+      mkAccepted({ intakeId: 'MOCK-O-003', eventId: 'MOCK-O', axis: 'O', nodeId: 'O_MANAGED_RISK', answerValue: 'NÃO' }),
     ],
   })
   const oAxis = axisResultByEvent(oMockOutput, 'MOCK-O', 'O')

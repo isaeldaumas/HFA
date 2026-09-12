@@ -133,6 +133,8 @@ function decideO(nodeId: string, statements: string[]): Decision {
 
       if (safeGoal.length > 0) return { answer: 'SIM', supportingEvidence: safeGoal, rationale: 'Objective evidence supports a safe or rule-consistent goal.' }
 
+      // Conservative known-rule anchor retained: a rule mention alone never
+      // opens O-C or converts a documented violation into O-D.
       // Three-tier violation detection (all negation-aware):
       // Tier 1 — Strict triad with contextual window (≤ 3 sentences apart)
       const knownRuleWindow = matchingConceptStatementsWithoutNegation(statements, 'knownRule')
@@ -156,10 +158,11 @@ function decideO(nodeId: string, statements: string[]): Decision {
         return { answer: 'NÃO', supportingEvidence: violationPrerequisites, rationale: 'Violation path opened by known-rule, awareness, and conscious-deviation evidence (all three present without negation).' }
       }
 
-      // Tier 3: conservative partial triad. Awareness plus a known-rule anchor can open
-      // the violation path; awareness plus continuation alone remains unanswered.
-      if (hasKnownRule && hasAwareness) {
-        return { answer: 'NÃO', supportingEvidence: violationPrerequisites, rationale: 'Violation path opened by awareness evidence combined with known-rule evidence.' }
+      // A documented formal violation cannot be reinterpreted as the O-D
+      // non-violation branch merely because the complete O-C triad is absent.
+      // It remains unresolved until the missing awareness evidence is supplied.
+      if (hasKnownRule && hasConscious) {
+        return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: violationPrerequisites, rationale: 'Known-rule plus conscious-deviation evidence blocks the non-violation risk-management branch until explicit awareness completes the O-C evidence.' }
       }
 
       if (unmanagedRisk.length > 0) return { answer: 'SIM', supportingEvidence: unmanagedRisk, rationale: 'Goal evidence is rule-compatible enough to test risk-management adequacy without inferring violation.' }
@@ -180,8 +183,11 @@ function decideO(nodeId: string, statements: string[]): Decision {
     case 'O_MANAGED_RISK': {
       const managed = concept(statements, 'managedRisk')
       const unmanaged = concept(statements, 'unmanagedRisk')
-      if (managed.length > 0) return { answer: 'SIM', supportingEvidence: managed, rationale: 'Risk was actively managed by the objective evidence.' }
-      if (unmanaged.length > 0) return { answer: 'NÃO', supportingEvidence: unmanaged, rationale: 'Evidence supports unmanaged/risk-accepting goal pressure.' }
+      // The exact PT question is negative: it asks whether the goal did not
+      // manage or limit risk. Keep its answer polarity identical in EN, the
+      // evaluator, and the canonical branch map.
+      if (unmanaged.length > 0) return { answer: 'SIM', supportingEvidence: unmanaged, rationale: 'Evidence supports a rule-compatible but non-conservative or unmanaged-risk objective.' }
+      if (managed.length > 0) return { answer: 'NÃO', supportingEvidence: managed, rationale: 'Risk was actively managed; the negative O_MANAGED_RISK proposition is not supported.' }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Managed-risk status is not established.' }
     }
     default:
@@ -196,7 +202,9 @@ function decideA(nodeId: string, statements: string[]): Decision {
     case 'A_IMPLEMENTED': {
       const safeAction = concept(statements, 'safeAction')
       const implemented = concept(statements, 'implementedAction')
-      const feedbackFailure = concept(statements, 'feedbackImplementationFailure')
+      const feedbackFailure = concept(statements, 'feedbackImplementationFailure').filter((statement) =>
+        /\b(pr[oó]pria a[cç][aã]o|pr[oó]prio comando|own action|own command|resultado da a[cç][aã]o|resultado do comando|fma|modo ativo|post[- ]?checklist)\b/i.test(statement)
+      )
       const slipOrLapse = concept(statements, 'slipLapse')
       const selected = concept(statements, 'selectionSubtype')
       if (feedbackFailure.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: feedbackFailure, rationale: 'Evidence supports failure in feedback/verification during action implementation.' }
@@ -226,10 +234,10 @@ function decideA(nodeId: string, statements: string[]): Decision {
       const feedback = concept(statements, 'feedbackSubtype')
       const rushed = concept(statements, 'timeManagementAction')
       const selection = concept(statements, 'selectionSubtype')
-      if (selectionFailed.length > 0) return { answer: 'NÃO_SELECAO', supportingEvidence: selectionFailed, rationale: 'Evidence supports selection failure under excessive time pressure.' }
-      if (feedbackFailed.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: feedbackFailed, rationale: 'Evidence supports feedback failure under excessive time pressure.' }
-      if (feedback.length > 0) return { answer: 'SIM_FEEDBACK', supportingEvidence: feedback, rationale: 'Evidence supports feedback/communication action subtype.' }
-      if (selection.length > 0) return { answer: 'SIM_SELECAO', supportingEvidence: selection, rationale: 'Evidence supports selection/action-choice subtype.' }
+      if (selectionFailed.length > 0) return { answer: 'SIM_SELECAO', supportingEvidence: selectionFailed, rationale: 'Evidence supports selection failure under excessive time pressure.' }
+      if (feedbackFailed.length > 0) return { answer: 'SIM_FEEDBACK', supportingEvidence: feedbackFailed, rationale: 'Evidence supports feedback or communication failure under excessive time pressure.' }
+      if (feedback.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: feedback, rationale: 'Evidence supports third-party feedback, supervision, or coordination failure without dominant time pressure.' }
+      if (selection.length > 0) return { answer: 'NÃO_SELECAO', supportingEvidence: selection, rationale: 'Evidence supports action-selection failure without dominant time pressure.' }
       if (rushed.length > 0) return { answer: 'SIM_GERENCIAMENTO', supportingEvidence: rushed, rationale: 'Evidence supports time-management action subtype.' }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Action subtype under time pressure is not established.' }
     }

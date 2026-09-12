@@ -1,5 +1,13 @@
 [
   {
+    "path": "tests/sera-vnext/canonical-tree-semantic-trial-002.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS"
+  },
+  {
     "path": "tests/sera-vnext/adversarial-set-2-contract-trial-001.ts",
     "type": "CONTRACT",
     "requiredForRegression": true,
@@ -1710,11 +1718,18 @@
   },
   {
     "path": "tests/sera-vnext/product-unification/canonical-routing-dynamic-real-trial-001.ts",
-    "type": "CONTRACT",
-    "requiredForRegression": true,
-    "requiredEnvironment": [],
+    "type": "REAL_API",
+    "requiredForRegression": false,
+    "requiredEnvironment": [
+      "HFA_STAGING_SUPABASE_PROJECT_REF",
+      "HFA_TEST_ENVIRONMENT",
+      "HFA_TEST_TENANT_A_ID",
+      "HFA_TEST_USER_A_ID",
+      "LOCAL_FRONTEND_SERVER"
+    ],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "dataAccess": "MUTATING_SYNTHETIC"
   },
   {
     "path": "tests/sera-vnext/product-unification/canonical-routing-real-trial-001.ts",

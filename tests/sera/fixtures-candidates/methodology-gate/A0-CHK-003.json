@@ -6,16 +6,16 @@
   "expected": {
     "perception_code": "P-G",
     "objective_code": "O-A",
-    "action_code": "A-G",
+    "action_code": "A-C",
     "erc_level": 3
   },
-  "rationale": "O objetivo de pousar permanecia adequado, mas o controle de feedback pos-checklist falhou. O caso sustenta P-G pela percepcao incompleta do estado real e A-G pela omissao/falha de verificacao esperada apos declaracao de checklist completo.",
+  "rationale": "O objetivo de pousar permanecia adequado, mas o controle de feedback pos-checklist falhou. O caso sustenta P-G pela percepcao incompleta do estado real e A-C pela falha de verificar o resultado da propria acao apos declaracao de checklist completo.",
   "discriminators": [
-    "A-G requer etapa de feedback/cross-check disponivel e esperada, explicitada no relato.",
+    "A-C requer etapa de feedback/cross-check da propria acao, disponivel e esperada, explicitada no relato.",
     "Nao tratar complacencia abstrata como falha ativa sem evento observavel.",
     "Primeiro desvio observavel e a falta de convergencia entre checklist declarado e configuracao real."
   ],
-  "methodology_notes": "Candidate fixture isolated from official baseline. ERC numeric value is a technical placeholder for current runner compatibility. ERC is not PASS/FAIL criterion in A1-GOV+. A2-g: description enriched to explicitly encode omitted post-checklist feedback stage for A-G.",
+  "methodology_notes": "Candidate fixture isolated from official baseline. ERC numeric value is a technical placeholder for current runner compatibility. ERC is not PASS/FAIL criterion in A1-GOV+. Canonical migration: omitted post-checklist feedback of the crew's own action maps to A-C; A-G is reserved for third-party supervision, verification, or coordination.",
   "sera_context": {
     "track": "methodology-gate",
     "phase": "SERA v0.1.4-A2-g",
