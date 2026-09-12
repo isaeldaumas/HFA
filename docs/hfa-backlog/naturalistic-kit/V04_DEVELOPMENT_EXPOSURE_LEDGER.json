@@ -22,5 +22,21 @@
       "reason": "Cases used in reentry/source-enrichment and methodology adjudication."
     }
   ],
-  "rule": "Any case exposed to runtime patching, oracle repair, test design, or methodology adjudication is ineligible for sealed holdout."
+  "rule": "Any case exposed to runtime patching, oracle repair, test design, or methodology adjudication is ineligible for sealed holdout.",
+  "sealedCohorts": [
+    {
+      "cohortId": "V04_SEALED_001",
+      "count": 30,
+      "holdoutEligible": true,
+      "developmentExposure": false,
+      "sourceLockMode": "SOURCE_IDENTITY_LOCK",
+      "publicSeal": "campaigns/V04_SEALED_001/PUBLIC_SEAL.json",
+      "privateSourceIndexSha256": "1c2ebd6852fe53038cee5d2ca63608e363243a067e219c71ec2335e67bef1af6",
+      "caseManifestSha256": "ed5e0aa036959d420d591e85c77b33ded6e278d277555fb10943112264522db7",
+      "engineExecuted": false,
+      "poaOracleAssigned": false,
+      "humanReviewStarted": false,
+      "note": "Private source identities are intentionally kept outside the repository."
+    }
+  ]
 }

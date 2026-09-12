@@ -70,3 +70,10 @@ ENGINE_NATURALISTIC_VALIDATION_NOT_READY
 - Inventing cases, reviewers, labels, thresholds, or methodological PASS
 - Treating `TEST_*` fixtures as scientific evidence
 - Converting structural/tooling OK into `ENGINE_NATURALISTIC_VALIDATION_PASS`
+## V04 sealed source lock
+
+`V04_SEALED_001` now has a public cryptographic seal for 30 independent official-source cases.
+Source identities and URLs remain outside the repository to reduce holdout contamination risk.
+The public seal proves cohort identity/count; it does **not** mean human review or scientific validation has started.
+
+Current state: `sealedHoldoutCases=30`, `humanValidation=BLOCKED_HUMAN`, `scientificValidation=NOT_RUN`.

@@ -1,0 +1,23 @@
+{
+  "agencyCounts": {
+    "AAIB": 20,
+    "ATSB": 6,
+    "TSB": 4
+  },
+  "campaignId": "V04_SEALED_001",
+  "caseCount": 30,
+  "caseIdRange": "V04-H001..V04-H030",
+  "caseManifestSha256": "ed5e0aa036959d420d591e85c77b33ded6e278d277555fb10943112264522db7",
+  "createdAt": "2026-09-12",
+  "developmentExposure": false,
+  "engineExecuted": false,
+  "holdoutEligible": true,
+  "humanReviewStarted": false,
+  "poaOracleAssigned": false,
+  "privateSourceIndexSha256": "1c2ebd6852fe53038cee5d2ca63608e363243a067e219c71ec2335e67bef1af6",
+  "productionAuthorization": "NOT_AUTHORIZED",
+  "schemaVersion": "SERA_V04_HOLDOUT_PUBLIC_SEAL_V1",
+  "sourceContentSnapshotLimitation": "Raw ATSB page fetch blocked by transport; source identity and canonical URLs are sealed.",
+  "sourceContentSnapshotsCaptured": false,
+  "sourceLockMode": "SOURCE_IDENTITY_LOCK"
+}
