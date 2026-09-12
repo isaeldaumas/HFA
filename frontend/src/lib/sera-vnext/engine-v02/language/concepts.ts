@@ -70,6 +70,7 @@ const CONCEPT_PATTERNS: Record<SeraEvidenceConcept, RegExp[]> = {
     /\b(horizon|visual reference|visual references|visual cues?)\b.*\b(hard(?:er)? to distinguish|difficult to distinguish|indistinct|lost|missing)\b/i,
     /\b(perdeu|perderam)\b.*\b(no[cç][aã]o|refer[eê]ncia)\b.*\b(altura|visual|horizonte)\b/i,
     /\b(significado|meaning)\b.*\b(n[aã]o (?:estava|ficou|era) claro|not clear|unclear|amb[ií]gu[ao]|ambiguous)\b/i,
+    /\b(mensagem|alerta|indica[cç][aã]o|message|alert|indication)\b.*\b(t[eé]cnic[ao]|technical)\b.*\b(n[aã]o (?:havia|tinha) recebido|had not received|without)\b.*\b(treinamento espec[ií]fico|specific training)\b/i,
   ],
   sensoryLimitation: [
     /\b(poor visibility|low visibility|reduced visibility|degraded visibility|degraded visual(?: environment| cues?)?|visual cues? (?:were )?(?:lost|missing|degraded|limited|insufficient|poor)|visual environment (?:was )?(?:degraded|poor|limited))\b/i,
