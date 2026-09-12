@@ -24,6 +24,19 @@ This kit prepares **forms, schemas, and structural validators**. It does **not**
 | `../../../../tests/hfa-audit/naturalistic/validate-naturalistic-campaign-layout.ts` | Blinding layout validator |
 | `../../../../tests/hfa-audit/naturalistic/run-naturalistic-descriptive-analysis.ts` | Descriptive stats / Kappa when applicable |
 
+
+## V04 per-axis protocol (preferred for new campaigns)
+
+New campaigns should use `V04_PROTOCOL.md`, `schemas/*-v2.schema.json`, and `campaigns/_TEMPLATE_V04`. V04 keeps the V1 files for traceability but fixes the V03/V1 ambiguity between global abstention, axis-level `UNRESOLVED`, and `NOT_SCORED`.
+
+V04 also enforces a development-exposure ledger: V03 and the A4R78/A4R193 cohorts are calibration/internal evidence only and are not eligible for a sealed scientific holdout.
+
+```bash
+./frontend/node_modules/.bin/tsx tests/hfa-audit/naturalistic/validate-naturalistic-v04-kit.ts
+./frontend/node_modules/.bin/tsx tests/hfa-audit/naturalistic/run-naturalistic-v04-descriptive-analysis.ts \
+  --input docs/hfa-backlog/naturalistic-kit/fixtures
+```
+
 ## Operator workflow (when humans/cases exist)
 
 See `OPERATIONAL_RUNBOOK.md`. Short path:

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "NATURALISTIC_DEVELOPMENT_EXPOSURE_LEDGER_V1",
+  "status": "ENGINE_NATURALISTIC_VALIDATION_NOT_READY",
+  "updatedAt": "2026-09-12",
+  "excludedCohorts": [
+    {
+      "cohortId": "V03_NATURALISTIC_36",
+      "count": 36,
+      "holdoutEligible": false,
+      "reason": "Used in oracle audit, runtime diagnosis, and post-PR50 calibration."
+    },
+    {
+      "cohortId": "A4R78_REAL_EVENTS_30",
+      "count": 30,
+      "holdoutEligible": false,
+      "reason": "Historical real-event corpus used in methodology and reentry work."
+    },
+    {
+      "cohortId": "A4R193_REENTRY",
+      "count": null,
+      "holdoutEligible": false,
+      "reason": "Cases used in reentry/source-enrichment and methodology adjudication."
+    }
+  ],
+  "rule": "Any case exposed to runtime patching, oracle repair, test design, or methodology adjudication is ineligible for sealed holdout."
+}

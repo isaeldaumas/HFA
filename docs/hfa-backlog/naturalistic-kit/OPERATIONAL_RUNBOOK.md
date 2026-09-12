@@ -19,6 +19,15 @@ TEST_FIXTURES=docs/hfa-backlog/naturalistic-kit/fixtures/TEST_*.json (scientific
 
 Note: `tests/sera-vnext/engine-validation-v03-naturalistic/*` is an **engine corpus**, not an authorized human-blind naturalistic cohort. Do not treat it as `REAL_CASES` for issue #15.
 
+
+## V04 upgrade for all new campaigns
+
+For any campaign created after the PR #50/V3 remediation, use `_TEMPLATE_V04` and the V2 schemas. V1 remains readable for historical campaigns only. V04 requires per-axis `code | unresolved | not_scored` and records development exposure before holdout eligibility is decided.
+
+A case with Action=A-B and Objective=UNRESOLVED is **not** a global abstention. `not_scored` is reserved for an axis intentionally outside the designed question.
+
+Known development-exposed cohorts are listed in `V04_DEVELOPMENT_EXPOSURE_LEDGER.json` and cannot be promoted to `sealed_holdout`.
+
 ## Mandatory flow
 
 ```text

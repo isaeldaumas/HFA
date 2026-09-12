@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hfa-naturalistic-human-reference-v2",
+  "title": "NaturalisticHumanReferenceV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "caseId",
+    "taxonomyVersion",
+    "perception",
+    "objective",
+    "action",
+    "sealedFromBlindEvaluators",
+    "lockedAt"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "NATURALISTIC_HUMAN_REFERENCE_V2"
+    },
+    "caseId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "taxonomyVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "perception": {
+      "$ref": "axis-assessment-v2.schema.json"
+    },
+    "objective": {
+      "$ref": "axis-assessment-v2.schema.json"
+    },
+    "action": {
+      "$ref": "axis-assessment-v2.schema.json"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "sealedFromBlindEvaluators": {
+      "const": true
+    },
+    "lockedAt": {
+      "type": "string",
+      "minLength": 1
+    },
+    "adjudicatorId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

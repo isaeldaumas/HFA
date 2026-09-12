@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hfa-naturalistic-vnext-output-capture-v2",
+  "title": "NaturalisticVNextOutputCaptureV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "caseId",
+    "taxonomyVersion",
+    "perception",
+    "objective",
+    "action",
+    "engineVersion",
+    "capturedAt",
+    "candidateOnlyLocksPreserved"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "NATURALISTIC_VNEXT_OUTPUT_V2"
+    },
+    "caseId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "taxonomyVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "perception": {
+      "$ref": "axis-assessment-v2.schema.json"
+    },
+    "objective": {
+      "$ref": "axis-assessment-v2.schema.json"
+    },
+    "action": {
+      "$ref": "axis-assessment-v2.schema.json"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "engineVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "methodologyVersion": {
+      "type": "string"
+    },
+    "capturedAt": {
+      "type": "string",
+      "minLength": 1
+    },
+    "candidateOnlyLocksPreserved": {
+      "const": true
+    },
+    "rawOutputRef": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

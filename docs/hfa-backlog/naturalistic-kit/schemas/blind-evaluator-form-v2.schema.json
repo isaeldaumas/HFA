@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hfa-naturalistic-blind-evaluator-form-v2",
+  "title": "NaturalisticBlindEvaluatorFormV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "caseId",
+    "taxonomyVersion",
+    "perception",
+    "objective",
+    "action",
+    "evaluatorId",
+    "blindConfirmed",
+    "confirmedNoVNextAccess",
+    "evaluatedAt"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "NATURALISTIC_BLIND_FORM_V2"
+    },
+    "caseId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "taxonomyVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "perception": {
+      "$ref": "axis-assessment-v2.schema.json"
+    },
+    "objective": {
+      "$ref": "axis-assessment-v2.schema.json"
+    },
+    "action": {
+      "$ref": "axis-assessment-v2.schema.json"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "evaluatorId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "blindConfirmed": {
+      "const": true
+    },
+    "confirmedNoVNextAccess": {
+      "const": true
+    },
+    "evaluatedAt": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

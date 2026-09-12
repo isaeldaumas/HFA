@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "NATURALISTIC_DESCRIPTIVE_PAIR_V2",
+  "caseId": "TEST_V04_001",
+  "scientificUse": false,
+  "caseRole": "calibration",
+  "developmentExposure": true,
+  "taxonomyVersion": "TEST",
+  "engineVersion": "TEST",
+  "human": {
+    "perception": {
+      "score": true,
+      "status": "code",
+      "code": "P-B",
+      "confidence": "high",
+      "evidence": [
+        "tooling fixture"
+      ],
+      "rejectedAlternatives": [],
+      "notes": ""
+    },
+    "objective": {
+      "score": false,
+      "status": "not_scored",
+      "code": null,
+      "confidence": null,
+      "evidence": [],
+      "rejectedAlternatives": [],
+      "notes": ""
+    },
+    "action": {
+      "score": false,
+      "status": "not_scored",
+      "code": null,
+      "confidence": null,
+      "evidence": [],
+      "rejectedAlternatives": [],
+      "notes": ""
+    }
+  },
+  "humanB": null,
+  "vnext": {
+    "perception": {
+      "score": true,
+      "status": "code",
+      "code": "P-B",
+      "confidence": "high",
+      "evidence": [
+        "tooling fixture"
+      ],
+      "rejectedAlternatives": [],
+      "notes": ""
+    },
+    "objective": {
+      "score": false,
+      "status": "not_scored",
+      "code": null,
+      "confidence": null,
+      "evidence": [],
+      "rejectedAlternatives": [],
+      "notes": ""
+    },
+    "action": {
+      "score": false,
+      "status": "not_scored",
+      "code": null,
+      "confidence": null,
+      "evidence": [],
+      "rejectedAlternatives": [],
+      "notes": ""
+    }
+  },
+  "note": "tooling fixture only"
+}
