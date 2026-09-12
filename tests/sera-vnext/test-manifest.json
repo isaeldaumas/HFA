@@ -8,6 +8,14 @@
     "expectedStatus": "PASS"
   },
   {
+    "path": "tests/sera-vnext/perception-naturalistic-precision-recall-post-pr50-trial-001.ts",
+    "type": "UNIT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS"
+  },
+  {
     "path": "tests/sera-vnext/adversarial-set-2-contract-trial-001.ts",
     "type": "CONTRACT",
     "requiredForRegression": true,
