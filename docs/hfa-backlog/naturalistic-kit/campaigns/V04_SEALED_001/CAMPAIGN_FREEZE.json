@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "SERA_V04_CAMPAIGN_FREEZE_V1",
+  "campaignId": "V04_SEALED_001",
+  "frozenAt": "2026-09-12",
+  "runtimeBaselineCommit": "258bd32d1c0636245e3593fa19f9ed916a774362",
+  "seraVNextTreeOid": "1ff76740a5f161f57cb5fa043c79b5153b30e65f",
+  "seraVNextRuntimeTreeOid": "3a04c5a6dfdbbb350adc872834705ea06ad51671",
+  "taxonomyPath": "docs/sera-vnext/SERA_PT_TAXONOMY_CANONICAL_v1.0.md",
+  "taxonomySha256": "222741125f36097075f44ba1bbca1eb5be2fa1e8413e1eed8c9f34af2647e224",
+  "curatorPackSha256": "d57a10d48bcce84c32f62f0c483af873702ba68dd609d57406ddb6ccde013b36",
+  "raterOnboardingSha256": "d2e5d1643883907af2a8cfcfa6e5b61a9ce72318e44fd0464b7fed858482bdc7",
+  "sealCuratedCorpusScriptSha256": "54d336f1e2706ec24c41eb8a8f06813498dee63bf6107ca06c72acc542ce366a",
+  "engineExecutedOnHoldout": false,
+  "humanReferenceFrozen": false,
+  "holdoutSourceContentReviewedByRuntimeDeveloper": false,
+  "freezeRule": "Any change to the SERA vNext engine/runtime tree or canonical taxonomy before human-reference freeze requires explicit campaign invalidation/versioning before holdout execution.",
+  "productionAuthorization": "NOT_AUTHORIZED"
+}

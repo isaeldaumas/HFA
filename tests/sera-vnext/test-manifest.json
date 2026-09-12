@@ -8,6 +8,14 @@
     "expectedStatus": "PASS"
   },
   {
+    "path": "tests/hfa-audit/naturalistic/validate-v04-campaign-freeze.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS"
+  },
+  {
     "path": "tests/hfa-audit/naturalistic/validate-naturalistic-v04-kit.ts",
     "type": "GATE",
     "requiredForRegression": true,
