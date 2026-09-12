@@ -6,16 +6,16 @@
   "expected": {
     "perception_code": "P-A",
     "objective_code": "O-A",
-    "action_code": "A-G",
+    "action_code": "A-C",
     "erc_level": 3
   },
   "rationale": "Percepcao primaria pode estar correta quanto ao objetivo; objetivo de alterar plano vertical era adequado; falha ativa e feedback/verificacao do modo FMA apos acao.",
   "discriminators": [
-    "A-G por falha de verificacao/cross-check de FMA.",
+    "A-C por falha de verificacao/cross-check do resultado da propria acao no FMA.",
     "Nao P-G se o foco do cenario e feedback pos-acao.",
     "Nao O-C."
   ],
-  "methodology_notes": "Candidate fixture isolated from official baseline. ERC numeric value is a technical placeholder for current runner compatibility. ERC is not PASS/FAIL criterion in A1-GOV+.",
+  "methodology_notes": "Candidate fixture isolated from official baseline. ERC numeric value is a technical placeholder for current runner compatibility. ERC is not PASS/FAIL criterion in A1-GOV+. Canonical migration: omitted FMA verification of the crew's own action maps to A-C; A-G is reserved for third-party supervision, verification, or coordination.",
   "sera_context": {
     "track": "methodology-gate",
     "phase": "SERA v0.1.4-A2-c",

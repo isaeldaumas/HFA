@@ -103,7 +103,7 @@ const EXHAUSTIVE_PATHS: ExhaustivePath[] = [
     answers: [
       { nodeId: 'O_ROOT', answerValue: 'START' },
       { nodeId: 'O_RULES', answerValue: 'SIM' },
-      { nodeId: 'O_MANAGED_RISK', answerValue: 'SIM' },
+      { nodeId: 'O_MANAGED_RISK', answerValue: 'NÃO' },
     ],
   },
   {
@@ -130,7 +130,7 @@ const EXHAUSTIVE_PATHS: ExhaustivePath[] = [
     answers: [
       { nodeId: 'O_ROOT', answerValue: 'START' },
       { nodeId: 'O_RULES', answerValue: 'SIM' },
-      { nodeId: 'O_MANAGED_RISK', answerValue: 'NÃO' },
+      { nodeId: 'O_MANAGED_RISK', answerValue: 'SIM' },
     ],
   },
   // Action (10)
@@ -148,7 +148,7 @@ const EXHAUSTIVE_PATHS: ExhaustivePath[] = [
     expectedLeaf: 'A-B',
     answers: [
       { nodeId: 'A_ROOT', answerValue: 'START' },
-      { nodeId: 'A_IMPLEMENTED', answerValue: 'NÃO_FEEDBACK' },
+      { nodeId: 'A_IMPLEMENTED', answerValue: 'NÃO_DESLIZE_LAPSO_ERRO' },
     ],
   },
   {
@@ -156,7 +156,7 @@ const EXHAUSTIVE_PATHS: ExhaustivePath[] = [
     expectedLeaf: 'A-C',
     answers: [
       { nodeId: 'A_ROOT', answerValue: 'START' },
-      { nodeId: 'A_IMPLEMENTED', answerValue: 'NÃO_DESLIZE_LAPSO_ERRO' },
+      { nodeId: 'A_IMPLEMENTED', answerValue: 'NÃO_FEEDBACK' },
     ],
   },
   {

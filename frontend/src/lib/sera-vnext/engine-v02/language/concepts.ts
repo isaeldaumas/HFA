@@ -203,6 +203,7 @@ const CONCEPT_PATTERNS: Record<SeraEvidenceConcept, RegExp[]> = {
     /\b(readback failed|failed feedback|feedback was not checked|verification failed|did not cross-check|callout missed)\b/i,
     /\b(readback falhou|feedback falhou|retorno n[aã]o foi verificado|verifica[cç][aã]o falhou|n[aã]o cruzou a checagem|callout perdido)\b/i,
     /\b(n[aã]o) (confirmou|checou|verificou|conferiu|validou|cruzou|cotejou)\b.*\b((o|a) (leitura|resposta|a[cç][aã]o|informa[cç][aã]o|dado|valor|comando|instru[cç][aã]o)|retorno|feedback)\b/i,
+    /\b(n[aã]o) (confirmou|checou|verificou|conferiu|validou)\b.*\b(resultado|efeito)\b.*\b(pr[oó]pria a[cç][aã]o|pr[oó]prio comando)\b/i,
     /\b(both pilots|crew members?|neither pilot|copilot) (did not|failed to|neglected to)\b.*\b(check|verify|confirm|cross-check|validate)\b/i,
   ],
   slipLapse: [

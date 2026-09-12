@@ -22,6 +22,7 @@
  */
 import assert from 'node:assert/strict'
 import { resolveTestTenantPrefix } from '../helpers/resolve-test-tenant-prefix'
+import { assertSafeTestEnvironment } from '../helpers/assert-safe-test-environment'
 import {
   apiJson,
   createMagicLinkSession,
@@ -104,6 +105,7 @@ async function testFlagsOff(baseUrl: string) {
 }
 
 async function main() {
+  assertSafeTestEnvironment({ requiresFixtureIds: true, requiresCrossTenant: false })
   const mode = process.argv.includes('--mode') ? process.argv[process.argv.indexOf('--mode') + 1] : 'auto'
   const onBaseUrl = process.env.SERA_VNEXT_TEST_BASE_URL_ON?.trim() || 'http://127.0.0.1:3111'
   const offBaseUrl = process.env.SERA_VNEXT_TEST_BASE_URL_OFF?.trim() || 'http://127.0.0.1:3110'

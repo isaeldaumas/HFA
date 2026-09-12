@@ -22,7 +22,7 @@ function main() {
     answers: [
       { nodeId: 'O_ROOT', answerValue: 'START', answerSource: 'TEST_FIXTURE' },
       { nodeId: 'O_RULES', answerValue: 'SIM', answerSource: 'TEST_FIXTURE' },
-      { nodeId: 'O_MANAGED_RISK', answerValue: 'NÃO', answerSource: 'TEST_FIXTURE' },
+      { nodeId: 'O_MANAGED_RISK', answerValue: 'SIM', answerSource: 'TEST_FIXTURE' },
     ],
   })
   assert.equal(oSmoke.status, 'LEAF_REACHED_NOT_CLASSIFIED')
@@ -33,7 +33,7 @@ function main() {
     axis: 'A',
     answers: [
       { nodeId: 'A_ROOT', answerValue: 'START', answerSource: 'TEST_FIXTURE' },
-      { nodeId: 'A_IMPLEMENTED', answerValue: 'NÃO_FEEDBACK', answerSource: 'TEST_FIXTURE' },
+      { nodeId: 'A_IMPLEMENTED', answerValue: 'NÃO_DESLIZE_LAPSO_ERRO', answerSource: 'TEST_FIXTURE' },
     ],
   })
   assert.equal(aSmoke.status, 'LEAF_REACHED_NOT_CLASSIFIED')

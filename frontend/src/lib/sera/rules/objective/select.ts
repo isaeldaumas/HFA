@@ -175,6 +175,12 @@ function hasExplicitEfficiencyObjective(text: string): boolean {
   ])
 }
 
+function hasExplicitFormalObjectiveViolation(text: string): boolean {
+  const rule = hasAny(text, ['regra', 'procedimento', 'protocolo', 'sop', 'norma', 'autorizacao exigida'])
+  const deviation = hasAny(text, ['violo', 'violad', 'descumpr', 'nao cumpr', 'nao seguiu', 'ignor', 'desvi'])
+  return rule && deviation
+}
+
 function hasExplicitConsciousMinimumOrRuleDeviation(text: string): boolean {
   const awareness = hasAny(text, [
     'consciencia explicita',
@@ -236,18 +242,26 @@ function hasExplicitConsciousMinimumOrRuleDeviation(text: string): boolean {
     'kept going',
   ])
 
-  return awareness && ruleOrLimit && deviation && continued
+  const nonRoutine = hasAny(text, [
+    'violacao excepcional',
+    'violacao isolada',
+    'desvio excepcional',
+    'desvio isolado',
+    'decisao pontual',
+    'caso isolado',
+    'nao era rotineiro',
+    'nao era habitual',
+    'nao rotineir',
+    'nao habitual',
+    'fora do habitual',
+    'fora da rotina',
+  ])
+
+  return awareness && ruleOrLimit && deviation && continued && nonRoutine
 }
 
 export function classifyObjectiveByRules(text: string): ObjectiveOverrideResult {
   const t = normalizeObjectiveText(text)
-
-  if (hasExplicitProtectiveHumanIntent(t)) {
-    return {
-      code: 'O-C',
-      reason: 'explicit human/protective objective',
-    }
-  }
 
   if (hasExplicitRoutineNormalization(t)) {
     return {
@@ -259,11 +273,13 @@ export function classifyObjectiveByRules(text: string): ObjectiveOverrideResult 
   if (hasExplicitConsciousMinimumOrRuleDeviation(t)) {
     return {
       code: 'O-C',
-      reason: 'explicit awareness of known limit/rule deviation with continued operation',
+      reason: hasExplicitProtectiveHumanIntent(t)
+        ? 'explicit awareness of known limit/rule deviation with continued operation; protective intent is motive only'
+        : 'explicit awareness of known limit/rule deviation with continued operation',
     }
   }
 
-  if (hasExplicitEfficiencyObjective(t)) {
+  if (hasExplicitEfficiencyObjective(t) && !hasExplicitFormalObjectiveViolation(t)) {
     return {
       code: 'O-D',
       reason: 'efficiency, economy, time, connection, fuel, or productivity objective',

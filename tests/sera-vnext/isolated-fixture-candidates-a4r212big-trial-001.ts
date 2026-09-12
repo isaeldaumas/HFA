@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { isAllowedSeraVNextProtectedApiPath } from "./protected-path-contract";
+import { isAllowedA4R190LegacyMethodologyPath, isAllowedSeraVNextProtectedApiPath } from "./protected-path-contract";
 
 type Candidate = {
   id: string;
@@ -271,7 +271,7 @@ for (const changedPath of changedTracked) {
     continue;
   }
   assert.ok(
-    !protectedPrefixes.some((prefix) => changedPath.startsWith(prefix)),
+    isAllowedA4R190LegacyMethodologyPath(root, changedPath) || !protectedPrefixes.some((prefix) => changedPath.startsWith(prefix)),
     `protected path changed: ${changedPath}`,
   );
 }

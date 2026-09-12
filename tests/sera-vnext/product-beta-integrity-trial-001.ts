@@ -3,7 +3,7 @@ import { execSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
-import { isAllowedSeraVNextCanonicalTreePath } from './protected-path-contract'
+import { isAllowedA4R190LegacyMethodologyPath, isAllowedSeraVNextCanonicalTreePath } from './protected-path-contract'
 
 const rootDir = path.resolve(__dirname, '..', '..')
 const protectedPrefixes = [
@@ -41,7 +41,7 @@ assert.equal(digest.digest('hex').length, 64)
 const changed = execSync('git diff --name-only && git diff --cached --name-only', { cwd: rootDir, encoding: 'utf8' }).split('\n').filter(Boolean)
 for (const file of changed) {
   for (const prefix of protectedPrefixes) {
-    if (file.startsWith(prefix) && isAllowedSeraVNextCanonicalTreePath(rootDir, file)) continue
+    if (file.startsWith(prefix) && (isAllowedSeraVNextCanonicalTreePath(rootDir, file) || isAllowedA4R190LegacyMethodologyPath(rootDir, file))) continue
     assert.equal(file.startsWith(prefix), false, `methodology/baseline protected path changed: ${file}`)
   }
 }

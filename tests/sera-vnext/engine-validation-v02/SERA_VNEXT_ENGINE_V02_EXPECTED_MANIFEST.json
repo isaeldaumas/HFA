@@ -10,7 +10,7 @@
     "leafReachabilityPositive": 22,
     "leafReachabilityNegative": 22
   },
-  "casePayloadSha256": "cd66cae2a9c63a78f18ddf425830cc9ae703a5c7ca48ee741575b32879b1a207",
+  "casePayloadSha256": "b1010553970909d2a283a60f4053dfc16c09cbe6b58488e6d3019dca7ee4a4ae",
   "expectedStatusVocabulary": [
     "CORRECT_CODE",
     "CORRECT_ABSTENTION",

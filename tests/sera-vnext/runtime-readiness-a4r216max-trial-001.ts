@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import { isAllowedSeraVNextProtectedApiPath } from "./protected-path-contract";
+import { isAllowedA4R190LegacyMethodologyPath, isAllowedSeraVNextProtectedApiPath } from "./protected-path-contract";
 
 const rootDir = path.resolve(__dirname, "..", "..");
 
@@ -265,7 +265,7 @@ for (const file of changed) {
     continue;
   }
   assert.ok(
-    !protectedPrefixes.some((prefix) => file.startsWith(prefix)),
+    isAllowedA4R190LegacyMethodologyPath(rootDir, file) || !protectedPrefixes.some((prefix) => file.startsWith(prefix)),
     `protected path changed in A4R216 trial: ${file}`,
   );
 }

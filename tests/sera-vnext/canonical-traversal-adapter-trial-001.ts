@@ -69,7 +69,7 @@ function main() {
   assertCandidateOnlyLocks(pCase as unknown as Record<string, unknown>)
   assertCandidateOnlyLocks(pAxis as unknown as Record<string, unknown>)
 
-  // 2) O complete leaf: O_ROOT START -> O_RULES SIM -> O_MANAGED_RISK SIM -> O-A
+  // 2) O complete leaf: O_ROOT START -> O_RULES SIM -> O_MANAGED_RISK NÃO -> O-A
   const oCase = buildCanonicalTraversalFromNodeDecisions({
     nodeDecisions: [
       d({
@@ -99,7 +99,7 @@ function main() {
         eventId: 'EVENTO001',
         axis: 'O',
         nodeId: 'O_MANAGED_RISK',
-        answerValue: 'SIM',
+        answerValue: 'NÃO',
         authorDecision: 'ACCEPT_NODE_ANSWER',
         rationale: 'Managed risk accepted',
         evidenceRefs: ['EO003'],

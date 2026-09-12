@@ -9,9 +9,10 @@ type ObjectiveCase = {
 
 const cases: ObjectiveCase[] = [
   {
-    name: 'O-C off-procedure landing for medical emergency',
+    name: 'protective medical motive alone does not establish O-C',
     text: 'Pouso fora do procedimento padrão por emergência médica.',
-    expected: 'O-C',
+    expected: null,
+    forbidden: ['O-B', 'O-C', 'O-D'],
   },
   {
     name: 'O-B tolerated intermediate check omission',
@@ -34,24 +35,45 @@ const cases: ObjectiveCase[] = [
     expected: 'O-B',
   },
   {
-    name: 'O-C passenger suspected infarction',
+    name: 'protective passenger medical motive alone does not establish O-C',
     text: 'Piloto pousa sem autorização porque passageiro apresentava suspeita de infarto.',
-    expected: 'O-C',
+    expected: null,
+    forbidden: ['O-B', 'O-C', 'O-D'],
   },
   {
-    name: 'O-C patient aggravation',
+    name: 'protective patient motive alone does not establish O-C',
     text: 'Comandante desvia do procedimento para evitar agravamento de paciente a bordo.',
-    expected: 'O-C',
+    expected: null,
+    forbidden: ['O-B', 'O-C', 'O-D'],
   },
   {
-    name: 'O-C person in immediate risk area',
+    name: 'protective immediate-risk motive alone does not establish O-C',
     text: 'Operador interrompe protocolo para proteger pessoa presa em área de risco imediato.',
+    expected: null,
+    forbidden: ['O-B', 'O-C', 'O-D'],
+  },
+  {
+    name: 'medical care motive alone does not establish O-C',
+    text: 'Tripulação prioriza atendimento médico de passageiro em emergência médica.',
+    expected: null,
+    forbidden: ['O-B', 'O-C', 'O-D'],
+  },
+  {
+    name: 'O-C requires known rule awareness conscious deviation and non-routine evidence',
+    text: 'Em decisão pontual e não rotineira, o comandante, ciente de que o procedimento conhecido proibia a continuidade, violou conscientemente a regra e continuou a operação para proteger passageiro em emergência médica.',
     expected: 'O-C',
   },
   {
-    name: 'O-C medical emergency passenger care',
-    text: 'Tripulação prioriza atendimento médico de passageiro em emergência médica.',
+    name: 'O-D efficiency objective is blocked by explicit formal violation',
+    text: 'Em decisão pontual e não rotineira, o comandante, ciente de que o procedimento conhecido proibia a continuidade, violou conscientemente a regra e continuou para ganhar tempo.',
     expected: 'O-C',
+    forbidden: ['O-D'],
+  },
+  {
+    name: 'O-D remains blocked when a formal violation is explicit but O-C triad is incomplete',
+    text: 'O procedimento conhecido foi descumprido para reduzir tempo de voo.',
+    expected: null,
+    forbidden: ['O-D'],
   },
   {
     name: 'O-D fuel saving short route',

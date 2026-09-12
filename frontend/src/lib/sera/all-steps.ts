@@ -838,10 +838,16 @@ function evidenceOfEfficiencyObjective(text: string): boolean {
   ]))
 }
 
+function hasExplicitFormalObjectiveViolation(text: string): boolean {
+  const rule = containsAny(text, ['regra', 'procedimento', 'protocolo', 'sop', 'norma', 'autorizacao exigida'])
+  const deviation = containsAny(text, ['violo', 'violad', 'descumpr', 'nao cumpr', 'nao seguiu', 'ignor', 'desvi'])
+  return rule && deviation
+}
+
 // Bloqueia P-G apenas quando eficiência é o mecanismo único, sem padrão de rotina/normalização.
 // Casos O-B com "ganhar tempo" mas também com "rota habitual" / "altitude minima" não são O-D puro.
 function isPureEfficiencyObjective(text: string): boolean {
-  return evidenceOfEfficiencyObjective(text) && !evidenceOfRoutineOrNormalizedViolation(text)
+  return evidenceOfEfficiencyObjective(text) && !evidenceOfRoutineOrNormalizedViolation(text) && !hasExplicitFormalObjectiveViolation(text)
 }
 
 function evidenceOfRoutineOrNormalizedViolation(text: string): boolean {
@@ -1009,32 +1015,6 @@ function forceObjectiveOverride(text: string): null | { code: 'O-B' | 'O-C' | 'O
   const t = normalizeForRuleMatch(text)
   const has = (token: string) => t.includes(token)
 
-  const forceOC =
-    has('passageiro doente') ||
-    has('evitar piorar') ||
-    has('evitar piorar condicao') ||
-    (has('piorar') && has('passageiro')) ||
-    (has('agravar') && has('passageiro')) ||
-    (has('pousa sem autorizacao') && (has('passageiro') || has('doente') || has('condicao'))) ||
-    (has('sem autorizacao') && has('passageiro doente')) ||
-    has('evitar agravamento') ||
-    has('emergencia medica') ||
-    has('necessidade medica') ||
-    has('suspeita de infarto') ||
-    (has('passageiro') && has('infarto')) ||
-    (has('passageiro') && has('atendimento medico')) ||
-    has('dano humano iminente') ||
-    has('deterioracao clinica') ||
-    (has('atendimento imediato') && has('passageiro')) ||
-    has('mitigacao de dano humano')
-
-  if (forceOC) {
-    return {
-      code: 'O-C',
-      reason: 'override determinístico: objetivo protetivo/humano explícito por condição médica de passageiro',
-    }
-  }
-
   const forceOB =
     has('rota habitual') ||
     (has('altitude minima') && has('rota')) ||
@@ -1061,7 +1041,14 @@ function forceObjectiveOverride(text: string): null | { code: 'O-B' | 'O-C' | 'O
     }
   }
 
-  if (evidenceOfEfficiencyObjective(t) && !evidenceOfRoutineOrNormalizedViolation(t)) {
+  if (hasConsciousObjectiveDeviationEvidence(t)) {
+    return {
+      code: 'O-C',
+      reason: 'override determinístico: desvio consciente, não rotineiro, de regra/procedimento conhecido; eventual motivo protetivo não substitui a evidência de awareness/desvio',
+    }
+  }
+
+  if (evidenceOfEfficiencyObjective(t) && !evidenceOfRoutineOrNormalizedViolation(t) && !hasExplicitFormalObjectiveViolation(t)) {
     return {
       code: 'O-D',
       reason: 'override determinístico: objetivo explícito de eficiência/economia sem evidência de normalização rotineira',
@@ -1733,19 +1720,30 @@ function evidenceOfObjectiveCForbiddenContext(text: string): boolean {
   ]))
 }
 
-// Gate pós-LLM para Step 4: exige evidência de desvio CONSCIENTE de regra/procedimento/expectativa
-// conhecida antes de retornar O-C pelo caminho LLM. Situação excepcional, pressão operacional,
-// ilusão, briefing ambíguo ou ferramenta indisponível NÃO bastam — são O-A até confirmação.
+// Gate pós-LLM para Step 4: O-C exige todos os elementos canônicos: regra/procedimento
+// conhecido, awareness, decisão consciente de desviar e caráter não rotineiro. Pressão,
+// emergência ou finalidade protetiva nunca substituem essa prova cumulativa.
 function hasConsciousObjectiveDeviationEvidence(text: string): boolean {
-  return containsAny(text, [
-    // Conhecimento explícito da proibição/procedimento
+  const knownRule = containsAny(text, [
     'sabia que era contra',
     'sabia que era proibido',
     'sabia que nao devia',
     'sabia que precisava de autorizacao',
     'ciente da proibicao',
     'ciente de que era contra',
-    // Decisão explícita de não cumprir (verbo de escolha + violação)
+    'regra conhecida',
+    'procedimento conhecido',
+    'procedimento exigia',
+    'regra exigia',
+  ])
+  const awareness = containsAny(text, [
+    'ciente de que',
+    'consciente de que',
+    'sabia que',
+    'tinha consciencia',
+    'tinha conhecimento',
+  ])
+  const consciousDeviation = containsAny(text, [
     'decidiu descumprir',
     'decidiu nao cumprir',
     'decidiu nao seguir o procedimento',
@@ -1774,6 +1772,21 @@ function hasConsciousObjectiveDeviationEvidence(text: string): boolean {
     'adotou atalho fora do procedimento',
     'nao realizou sobrevoo obrigatorio',
   ])
+  const nonRoutine = containsAny(text, [
+    'violacao excepcional',
+    'violacao isolada',
+    'desvio excepcional',
+    'desvio isolado',
+    'decisao pontual',
+    'caso isolado',
+    'nao era rotineiro',
+    'nao era habitual',
+    'nao rotineir',
+    'nao habitual',
+    'fora do habitual',
+    'fora da rotina',
+  ])
+  return knownRule && awareness && consciousDeviation && nonRoutine
 }
 
 function evidenceOfKnownLimitDeviationContinuation(text: string): boolean {
@@ -3087,8 +3100,8 @@ ${NO_ARTIFACTS}`
       'Gate A-A (O-C)',
       'A-A',
       ['A-A'],
-      'Gate determinístico: objetivo protetivo/humano explícito sem falha específica de execução.',
-      'A-I e A-B descartados neste contexto — desvio orientado por proteção humana classifica como A-A'
+      'Gate determinístico: objetivo contém desvio consciente O-C, sem mecanismo independente de falha de ação.',
+      'A-B, A-C, A-D, A-E, A-F, A-G, A-H, A-I, A-J descartados — desvio de objetivo O-C sem falha de ação independente'
     )
   }
 
@@ -3181,11 +3194,11 @@ ${NO_ARTIFACTS}`
 
   if (evidenceOfProtectiveObjective(relatoNorm)) {
     return finishDeterministic(
-      'Gate A-A (O-C)',
+      'Gate A-A (objetivo protetivo)',
       'A-A',
       ['A-A'],
-      'Gate determinístico: ato inseguro decorre de objetivo protetivo/humano explícito, sem falha específica de execução.',
-      'A-B descartado neste contexto — quando há objetivo protetivo explícito, "sem autorização" representa desvio por objetivo e não omissão procedural'
+      'Gate determinístico: motivo protetivo/humano isolado não cria falha específica de ação nem prova O-C.',
+      'A-B, A-C, A-D, A-E, A-F, A-G, A-H, A-I, A-J descartados — motivo protetivo isolado não substitui evidência de mecanismo de ação'
     )
   }
 
