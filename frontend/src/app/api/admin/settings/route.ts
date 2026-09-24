@@ -11,7 +11,7 @@ const SENSITIVE = new Set([
 const ENV_DEFAULTS: Record<string, string> = {
   ai_provider: process.env.AI_PROVIDER ?? 'deepseek',
   deepseek_model: process.env.DEEPSEEK_MODEL ?? 'deepseek-reasoner',
-  openai_model: process.env.OPENAI_MODEL ?? 'gpt-4o',
+  openai_model: process.env.OPENAI_MODEL ?? 'gpt-6-luna',
   anthropic_model: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-5',
   google_model: process.env.GOOGLE_MODEL ?? 'gemini-2.0-flash',
   groq_model: process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile',

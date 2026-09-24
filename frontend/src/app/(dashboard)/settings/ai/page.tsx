@@ -37,6 +37,8 @@ export default function AiSettingsPage() {
     groq: '',
   })
 
+  const [models, setModels] = useState<Record<string, string>>({})
+
   const [keyInfo, setKeyInfo] = useState<SettingsResponse['keys']>({
     deepseek: { configured: false, suffix: '' },
     openai: { configured: false, suffix: '' },
@@ -72,6 +74,7 @@ export default function AiSettingsPage() {
 
     setActiveProvider(data.active_provider)
     setKeyInfo(data.keys)
+    setModels(data.models ?? {})
     setLoading(false)
   }, [])
 
@@ -90,7 +93,22 @@ export default function AiSettingsPage() {
       } = await supabase.auth.getSession()
       if (!session) throw new Error('Não autenticado')
 
-      const payload: Record<string, string> = { active_provider: activeProvider }
+      const configuredAfterSave = Object.fromEntries(
+        PROVIDERS.map((p) => [p.id, Boolean(keyInfo[p.id]?.configured || keysDraft[p.id].trim())])
+      ) as Record<AIProvider, boolean>
+
+      let providerToSave = activeProvider
+      if (!configuredAfterSave[providerToSave]) {
+        const configuredProviders = PROVIDERS.filter((p) => configuredAfterSave[p.id])
+        if (configuredProviders.length === 1) {
+          providerToSave = configuredProviders[0].id
+          setActiveProvider(providerToSave)
+        } else {
+          throw new Error('Selecione como provedor ativo um provedor que tenha chave configurada.')
+        }
+      }
+
+      const payload: Record<string, string> = { active_provider: providerToSave }
       for (const p of PROVIDERS.map((x) => x.id)) {
         const v = keysDraft[p].trim()
         if (!v) continue
@@ -180,6 +198,9 @@ export default function AiSettingsPage() {
                     <div className="text-xs text-slate-400 mt-1">
                       {keyInfo[p.id]?.configured ? `Config.: ...${keyInfo[p.id]?.suffix}` : 'Não configurado'}
                     </div>
+                    {models[p.id] && (
+                      <div className="text-[11px] text-slate-500 mt-1">Modelo: {models[p.id]}</div>
+                    )}
                   </button>
                 )
               })}
@@ -216,9 +237,11 @@ export default function AiSettingsPage() {
               <button
                 type="button"
                 onClick={testActive}
-                className="bg-slate-800 hover:bg-slate-700 px-6 py-2 rounded-lg font-medium text-white transition"
+                disabled={!keyInfo[activeProvider]?.configured}
+                className="bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed px-6 py-2 rounded-lg font-medium text-white transition"
+                title={!keyInfo[activeProvider]?.configured ? 'Salve uma chave para o provedor ativo antes de testar.' : undefined}
               >
-                Testar provedor ativo
+                Testar {PROVIDERS.find((p) => p.id === activeProvider)?.label ?? 'provedor ativo'}
               </button>
             </div>
 
