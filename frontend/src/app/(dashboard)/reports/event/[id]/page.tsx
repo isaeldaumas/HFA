@@ -7,6 +7,7 @@ import { PrintReportButton } from '@/components/product/PrintReportButton'
 import { apiCall } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
 import { describeErcValue, buildErcContainmentNotice } from '@/lib/risk-profile/erc-containment'
+import type { SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
 
 type Recommendation = {
   related_code?: string | null
@@ -66,7 +67,17 @@ type EventPayload = {
   created_at?: string | null
   occurred_at?: string | null
   deleted_at?: string | null
+  raw_input?: string | null
   analyses?: AnalysisPayload | null
+  vnext_analysis?: {
+    id: string
+    status?: string | null
+    review_status?: string | null
+    engine_version?: string | null
+    engine_runtime_version?: string | null
+    source_flow?: string | null
+    engine_output?: SeraVNextEngineOutput | null
+  } | null
 }
 
 function formatDate(value?: string | null) {
@@ -114,6 +125,8 @@ export default function EventReportPage() {
   }, [eventId, scope])
 
   const analysis = eventData?.analyses ?? null
+  const vnextAnalysis = eventData?.vnext_analysis ?? null
+  const vnextOutput = vnextAnalysis?.engine_output ?? null
 
   const emittedAt = useMemo(() => new Date().toLocaleDateString('pt-BR'), [])
   // Contenção F-04 (docs/auditoria-hfa/segunda-etapa/08-decisao-d3-erc.md): os dois valores
@@ -134,9 +147,10 @@ export default function EventReportPage() {
 
   const eventType = analysis?.operation_type ?? eventData?.operation_type ?? 'Nao informado'
 
-  const summaryText = analysis?.summary ?? analysis?.event_summary ?? 'Dados indisponíveis'
+  const summaryText = analysis?.summary ?? analysis?.event_summary ?? eventData?.raw_input ?? 'Dados indisponíveis'
 
   const preconditions = analysis?.preconditions ?? []
+  const vnextPreconditions = vnextOutput?.preconditions ?? []
   const recommendations = analysis?.recommendations ?? []
 
   if (loading) {
@@ -200,41 +214,79 @@ export default function EventReportPage() {
 
         <section className="report-section">
           <h3 className="report-title">2. Classificacao SERA</h3>
-          <div className="report-box space-y-1">
-            <p><strong>Percepcao:</strong> {analysis?.perception_code ?? 'Nao disponivel'}</p>
-            <p><strong>Objetivo:</strong> {analysis?.objective_code ?? 'Nao disponivel'}</p>
-            <p><strong>Acao:</strong> {analysis?.action_code ?? 'Nao disponivel'}</p>
-          </div>
-          <p className="report-note">
-            A classificacao depende da evidencia disponivel no relato analisado e requer revisao humana antes de qualquer conclusao formal.
-          </p>
-          <p className="report-note">
-            <strong>Motor:</strong> {analysis?.engine_id ?? 'não identificado'}
-            {analysis?.motor_version ? ` v${analysis.motor_version}` : ''}
-            {' — '}
-            {GENERATED_BY_LABEL_PT[analysis?.generated_by_type ?? ''] ?? 'origem não identificada'}
-            {' — '}
-            {VALIDATION_LABEL_PT[analysis?.validation_status ?? ''] ?? 'status de validação desconhecido'}
-          </p>
+          {vnextOutput ? (
+            <>
+              <div className="report-box space-y-1">
+                <p><strong>Ponto de fuga candidato:</strong> {vnextOutput.escapePoint.statement ?? 'Nao estabelecido'}</p>
+                <p><strong>Ator direto:</strong> {vnextOutput.directActor.actor ?? 'Nao resolvido'}</p>
+                <p><strong>Percepcao:</strong> {vnextOutput.axes.perception.proposedCode ?? 'Nao resolvida'}</p>
+                <p><strong>Objetivo:</strong> {vnextOutput.axes.objective.proposedCode ?? 'Nao resolvido'}</p>
+                <p><strong>Acao:</strong> {vnextOutput.axes.action.proposedCode ?? 'Nao resolvida'}</p>
+              </div>
+              <p className="report-note">
+                Hipotese candidate-only. Nenhum codigo e liberado como classificacao final antes da revisao humana.
+              </p>
+              <p className="report-note">
+                <strong>Motor:</strong> SERA vNext {vnextAnalysis?.engine_runtime_version ?? vnextAnalysis?.engine_version ?? ''}
+                {' — fluxo '}{vnextAnalysis?.source_flow ?? 'VNEXT_CANONICAL'}
+                {' — revisao '}{vnextAnalysis?.review_status ?? 'NOT_REVIEWED'}
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="report-box space-y-1">
+                <p><strong>Percepcao:</strong> {analysis?.perception_code ?? 'Nao disponivel'}</p>
+                <p><strong>Objetivo:</strong> {analysis?.objective_code ?? 'Nao disponivel'}</p>
+                <p><strong>Acao:</strong> {analysis?.action_code ?? 'Nao disponivel'}</p>
+              </div>
+              <p className="report-note">
+                A classificacao depende da evidencia disponivel no relato analisado e requer revisao humana antes de qualquer conclusao formal.
+              </p>
+              <p className="report-note">
+                <strong>Motor:</strong> {analysis?.engine_id ?? 'não identificado'}
+                {analysis?.motor_version ? ` v${analysis.motor_version}` : ''}
+                {' — '}
+                {GENERATED_BY_LABEL_PT[analysis?.generated_by_type ?? ''] ?? 'origem não identificada'}
+                {' — '}
+                {VALIDATION_LABEL_PT[analysis?.validation_status ?? ''] ?? 'status de validação desconhecido'}
+              </p>
+            </>
+          )}
         </section>
 
         <section className="report-section">
           <h3 className="report-title">3. Avaliacao de risco (apoio a triagem)</h3>
-          <div className="report-box space-y-1">
-            <p>{motorErc.label}</p>
-            <p>{armsErc?.label ?? 'Matriz ARMS a partir dos códigos: não disponível'}</p>
-          </div>
-          <p className="report-note">
-            {buildErcContainmentNotice()}
-          </p>
+          {vnextOutput ? (
+            <div className="report-box">
+              <p><strong>Camada de risco bloqueada.</strong> A saida vNext e candidate-only e nao libera ERC, HFACS ou downstream antes da revisao humana.</p>
+            </div>
+          ) : (
+            <>
+              <div className="report-box space-y-1">
+                <p>{motorErc.label}</p>
+                <p>{armsErc?.label ?? 'Matriz ARMS a partir dos códigos: não disponível'}</p>
+              </div>
+              <p className="report-note">{buildErcContainmentNotice()}</p>
+            </>
+          )}
         </section>
 
         <section className="report-section">
           <h3 className="report-title">4. Principais fatores humanos observados</h3>
-          {preconditions.length > 0 ? (
+          {vnextOutput && vnextPreconditions.length > 0 ? (
+            <div className="space-y-2">
+              {vnextPreconditions.map((item) => (
+                <div key={item.id} className="report-box">
+                  <p><strong>{item.category}:</strong> {item.description}</p>
+                  <p className="text-sm text-slate-700 mt-1">Relacao: {item.relationship}</p>
+                  {item.evidence.length > 0 ? <p className="text-sm text-slate-700 mt-1">Evidencia: {item.evidence.join(' | ')}</p> : null}
+                </div>
+              ))}
+            </div>
+          ) : preconditions.length > 0 ? (
             <div className="space-y-2">
               {preconditions.map((item, idx) => (
-                <div key={`${item.code ?? 'factor'}-${idx}`} className="report-box">
+                <div key={(item.code ?? 'factor') + '-' + String(idx)} className="report-box">
                   <p><strong>{item.code ?? 'Sem codigo'}:</strong> {item.name ?? 'Fator observado'}</p>
                   {item.justification ? <p className="text-sm text-slate-700 mt-1">{item.justification}</p> : null}
                 </div>
@@ -249,7 +301,11 @@ export default function EventReportPage() {
 
         <section className="report-section">
           <h3 className="report-title">5. Recomendacoes e acoes sugeridas</h3>
-          {recommendations.length > 0 ? (
+          {vnextOutput ? (
+            <div className="report-box">
+              <p>Recomendacoes automaticas nao sao liberadas pela hipotese vNext antes da revisao humana. Acoes devem ser definidas apos validacao do ponto de fuga e dos eixos P/O/A.</p>
+            </div>
+          ) : recommendations.length > 0 ? (
             <div className="space-y-2">
               {recommendations.map((item, idx) => (
                 <div key={`${item.related_code ?? 'rec'}-${idx}`} className="report-box">
@@ -266,8 +322,28 @@ export default function EventReportPage() {
           )}
         </section>
 
+        {vnextOutput && (
+          <section className="report-section">
+            <h3 className="report-title">6. Fluxo de decisao canonico</h3>
+            <div className="space-y-3">
+              {vnextOutput.canonicalTraversal.paths.map((path) => (
+                <div key={path.axis} className="report-box">
+                  <p><strong>{path.axis} — candidato {path.candidateCode ?? 'nao resolvido'}</strong></p>
+                  {path.answers.map((node, index) => (
+                    <div key={path.axis + node.nodeId + String(index)} className="mt-2 border-t border-slate-200 pt-2 text-sm">
+                      <p><strong>No {index + 1} · {node.nodeId}:</strong> {node.question}</p>
+                      <p>Resposta: {node.answer}</p>
+                      {node.rationale ? <p>Justificativa: {node.rationale}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         <section className="report-section">
-          <h3 className="report-title">6. Limitacoes da analise</h3>
+          <h3 className="report-title">{vnextOutput ? '7' : '6'}. Limitacoes da analise</h3>
           <ul className="report-list">
             <li>A analise depende da qualidade e completude da evidencia registrada.</li>
             <li>Ausencia de informacao pode reduzir precisao classificatoria.</li>
@@ -277,7 +353,7 @@ export default function EventReportPage() {
         </section>
 
         <section className="report-section">
-          <h3 className="report-title">7. Proximos passos sugeridos</h3>
+          <h3 className="report-title">{vnextOutput ? '8' : '7'}. Proximos passos sugeridos</h3>
           <ul className="report-list">
             <li>Revisar evidencias e complementar informacoes faltantes.</li>
             <li>Transformar recomendacoes em acoes corretivas rastreaveis.</li>

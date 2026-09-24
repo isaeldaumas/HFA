@@ -70,6 +70,29 @@ function buildAxisCandidate(input: {
   }
 }
 
+function unresolvedAxisCandidate(input: {
+  axis: CanonicalSeraAxis
+  actor: string | null
+  statement: string | null
+  supportingEvidence: string[]
+  counterEvidence: string[]
+  excludedPostEscapeEvidence: string[]
+}): SeraAxisCandidate {
+  return {
+    axis: input.axis,
+    proposedCode: null,
+    status: 'INSUFFICIENT_EVIDENCE',
+    actor: input.actor,
+    statementAtEscapePoint: input.statement,
+    supportingEvidence: input.supportingEvidence,
+    counterEvidence: input.counterEvidence,
+    excludedPostEscapeEvidence: input.excludedPostEscapeEvidence,
+    alternativesConsidered: [],
+    canonicalPath: [],
+    confidence: 'LOW',
+  }
+}
+
 export function runStep08CanonicalTraversal(input: {
   factualExtraction: SeraVNextEngineOutput['factualExtraction']
   axisStatements: {
@@ -83,6 +106,19 @@ export function runStep08CanonicalTraversal(input: {
   axes: SeraVNextEngineOutput['axes']
   canonicalTraversal: SeraVNextEngineOutput['canonicalTraversal']
 } {
+  if (input.escapePoint.status === 'INSUFFICIENT_EVIDENCE' || input.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT') {
+    const perception = unresolvedAxisCandidate({ axis: 'P', actor: input.directActor.actor, statement: input.axisStatements.perception.statement, supportingEvidence: input.axisStatements.perception.supportingEvidence, counterEvidence: input.axisStatements.perception.counterEvidence, excludedPostEscapeEvidence: input.escapePoint.excludedPostEscapeEvidence })
+    const objective = unresolvedAxisCandidate({ axis: 'O', actor: input.directActor.actor, statement: input.axisStatements.objective.statement, supportingEvidence: input.axisStatements.objective.supportingEvidence, counterEvidence: input.axisStatements.objective.counterEvidence, excludedPostEscapeEvidence: input.escapePoint.excludedPostEscapeEvidence })
+    const action = unresolvedAxisCandidate({ axis: 'A', actor: input.directActor.actor, statement: input.axisStatements.action.statement, supportingEvidence: input.axisStatements.action.supportingEvidence, counterEvidence: input.axisStatements.action.counterEvidence, excludedPostEscapeEvidence: input.escapePoint.excludedPostEscapeEvidence })
+    return {
+      axes: { perception, objective, action },
+      canonicalTraversal: {
+        status: 'INSUFFICIENT_EVIDENCE',
+        paths: [],
+        unansweredQuestions: ['P/O/A não percorridos: ponto de fuga da operação segura não estabelecido com evidência suficiente.'],
+      },
+    }
+  }
   const perception = buildAxisCandidate({
     axis: 'P',
     statement: input.axisStatements.perception.statement,

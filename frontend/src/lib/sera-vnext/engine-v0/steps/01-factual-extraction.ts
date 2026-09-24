@@ -15,7 +15,7 @@ function normalizeCategory(value: string): SeraVNextEngineOutput['factualExtract
 
 export function runStep01FactualExtraction(input: SeraVNextEngineInput): SeraVNextEngineOutput['factualExtraction'] {
   const { facts, sentences } = extractCandidateFacts(input.narrative)
-  const timeline = buildCandidateTimeline(sentences)
+  const timeline = buildCandidateTimeline(sentences, input.narrative)
 
   const normalizedFacts = facts.map((fact: (typeof facts)[number], index: number) => {
     const statement = fact.statement
@@ -36,6 +36,8 @@ export function runStep01FactualExtraction(input: SeraVNextEngineInput): SeraVNe
       statement,
       category,
       sourceSentenceIndex: fact.sourceSentenceIndex,
+      sourceSection: fact.sourceSection,
+      assertionStatus: fact.assertionStatus,
     }
   })
 
@@ -60,6 +62,8 @@ export function runStep01FactualExtraction(input: SeraVNextEngineInput): SeraVNe
     statement: item.statement,
     temporalCue: item.temporalCue,
     sourceSentenceIndex: item.sourceSentenceIndex,
+    sourceSection: item.sourceSection,
+    assertionStatus: item.assertionStatus,
   }))
 
   return {

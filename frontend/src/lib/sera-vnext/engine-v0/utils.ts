@@ -52,28 +52,33 @@ export function classifyPreconditionCategory(args: {
   proposedCode: string | null
 }): SeraPreconditionCategory | null {
   const normalized = args.text.toLowerCase()
-  const mapped = buildPassiveEvidenceCategoryHints({
-    releasedCode: args.proposedCode,
-    evidenceRefs: [args.text],
-  })[0]?.category
+  const mapped = args.proposedCode
+    ? buildPassiveEvidenceCategoryHints({ releasedCode: args.proposedCode, evidenceRefs: [args.text] })[0]?.category
+    : undefined
 
   const explicitMap: Array<[SeraPreconditionCategory, string[]]> = [
     ['SENSORY_LIMITATION', ['visibility', 'fog', 'night', 'sensory', 'low cloud', 'visual references']],
-    ['KNOWLEDGE_TRAINING', ['training', 'knowledge', 'competence', 'unfamiliar']],
-    ['TIME_PRESSURE', ['time pressure', 'urgency', 'rushed', 'late decision', 'very late']],
+    ['KNOWLEDGE_TRAINING', ['training gap', 'knowledge gap', 'competence gap', 'lack of training', 'lack of knowledge', 'insufficient training', 'not trained', 'unfamiliarity', 'lacuna de treinamento', 'lacuna de conhecimento', 'falta de treinamento', 'falta de conhecimento', 'treinamento insuficiente', 'não treinado', 'nao treinado', 'não familiar', 'nao familiar']],
+    ['TIME_PRESSURE', ['time pressure', 'urgency', 'rushed', 'late decision', 'very late', 'pressão de tempo', 'urgência', 'apressado']],
+    ['ATTENTION_WORKLOAD_CONTEXT', ['visão de túnel', 'visao de tunel', 'distração', 'distracao', 'muito focados', 'muito focado', 'carga de trabalho', 'fixação', 'fixacao', 'atenção desviada', 'atencao desviada']],
     ['COMMUNICATION_INFORMATION', ['communication', 'readback', 'briefing', 'callout']],
-    ['PROCEDURAL_MONITORING', ['monitoring', 'cross-check', 'procedure', 'verification']],
+    ['PROCEDURAL_MONITORING', ['monitoring', 'cross-check', 'procedure', 'verification', 'distração', 'distracao', 'visão de túnel', 'visao de tunel', 'focado', 'focada', 'atenção', 'atencao']],
     ['FEEDBACK_VERIFICATION', ['feedback', 'verify', 'verification']],
     ['INTENT_AWARENESS', ['intent', 'conscious', 'knowingly', 'decided', 'decision', 'start the crank']],
-    ['TEAM_COORDINATION', ['crew coordination', 'team', 'captain', 'first officer', 'pf', 'pm']],
+    ['ENVIRONMENTAL_CONTEXT', ['weather', 'wind', 'rain', 'runway condition', 'terrain', 'vento', 'meteorológ', 'meteorolog', 'proximidade', 'próximo', 'proximo', 'distância', 'distancia']],
+    ['TEAM_COORDINATION', ['crew coordination', 'team coordination', 'coordenação da tripulação', 'coordenacao da tripulacao', 'crm', 'falha de coordenação', 'falha de coordenacao']],
     ['ORGANIZATIONAL_CONTEXT', ['schedule', 'organizational', 'dispatch', 'operator pressure', 'reduced staffing', 'degraded supervision', 'staffing', 'supervision']],
-    ['ENVIRONMENTAL_CONTEXT', ['weather', 'wind', 'rain', 'runway condition', 'terrain']],
     ['TECHNICAL_CONTEXT', ['warning', 'system', 'automation', 'fmc', 'equipment', 'control law', 'autothrottle', 'dafcs', 'trim fail', 'rudder', 'technical', 'malfunction', 'failure', 'fault']],
     ['PHYSICAL_CAPABILITY', ['physical', 'fatigue', 'ergonomic', 'motor', 'reach']],
   ]
 
+  const containsToken = (token: string): boolean => {
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    return new RegExp(`(^|[^a-z0-9À-ÿ])${escaped}([^a-z0-9À-ÿ]|$)`, 'i').test(normalized)
+  }
+
   for (const [category, tokens] of explicitMap) {
-    if (tokens.some((token) => normalized.includes(token))) return category
+    if (tokens.some(containsToken)) return category
   }
 
   return (mapped as SeraPreconditionCategory | undefined) || null

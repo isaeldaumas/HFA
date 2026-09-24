@@ -9,6 +9,8 @@ export function axisToEvidenceUse(axis: CanonicalSeraAxis): SeraEvidenceUse {
 
 export function isEvidenceUsableFor(item: SeraEvidenceItem, use: SeraEvidenceUse): boolean {
   if (item.temporalRelation === 'POST_ESCAPE') return false
+  if (item.assertionStatus !== 'AFFIRMED') return false
+  if (item.sourceSection === 'REPORT_ANALYSIS' || item.sourceSection === 'RECOMMENDATION' || item.sourceSection === 'ADMINISTRATIVE') return false
   if (item.prohibitedFor.includes(use)) return false
   return item.supports.includes(use)
 }

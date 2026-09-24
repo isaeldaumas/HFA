@@ -106,6 +106,29 @@ export default function SeraVNextAnalysisDetailPage() {
     }
   }
 
+
+  async function exportPdf() {
+    try {
+      const res = await authFetch(`/api/admin/sera-vnext/analyses/${params.id}/pdf`)
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(String(json.detail ?? 'Falha ao exportar PDF.'))
+      }
+      const blob = await res.blob()
+      const disposition = res.headers.get('content-disposition') ?? ''
+      const match = disposition.match(/filename="?([^";]+)"?/i)
+      const filename = match?.[1] ?? `hfa-sera-${params.id}.pdf`
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = filename
+      anchor.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao exportar PDF.')
+    }
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (betaUiEnabled) void load()
@@ -144,6 +167,7 @@ export default function SeraVNextAnalysisDetailPage() {
           <Link href={`/admin/sera-vnext/analyses/${params.id}/review`} className="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-300">Revisar</Link>
           <button type="button" onClick={() => void postAction('reanalyze')} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-200"><RefreshCw className="size-4" /> Reanalisar</button>
           <button type="button" onClick={() => void postAction(analysis?.status === 'ARCHIVED' ? 'restore' : 'archive')} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-200">{analysis?.status === 'ARCHIVED' ? <RotateCcw className="size-4" /> : <Archive className="size-4" />} {analysis?.status === 'ARCHIVED' ? 'Restaurar' : 'Arquivar'}</button>
+          <button type="button" onClick={() => void exportPdf()} className="inline-flex items-center gap-2 rounded-xl border border-cyan-800 bg-cyan-950/20 px-4 py-2 text-sm text-cyan-200"><Download className="size-4" /> Baixar PDF completo</button>
           <button type="button" onClick={() => void exportJson()} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-200"><Download className="size-4" /> Export JSON</button>
         </div>
       </div>

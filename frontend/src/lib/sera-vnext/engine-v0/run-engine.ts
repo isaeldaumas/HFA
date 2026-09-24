@@ -22,8 +22,8 @@ export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngi
   const safeOperationModel = runStep02SafeOperationModel({ engineInput: input, factualExtraction })
   const escapePoint = runStep03EscapePoint({ factualExtraction })
   const unsafeState = runStep04UnsafeState({ engineInput: input, factualExtraction })
-  const unsafeActOrCondition = runStep05UnsafeActCondition({ engineInput: input, unsafeState })
-  const directActor = runStep06DirectActor({ engineInput: input, unsafeActOrCondition })
+  const unsafeActOrCondition = runStep05UnsafeActCondition({ engineInput: input, unsafeState, escapePoint })
+  const directActor = runStep06DirectActor({ engineInput: input, unsafeActOrCondition, escapePoint })
   const latestEscapeSentenceIndex =
     factualExtraction.timeline.find((item) => item.statement === escapePoint.latestCandidate)?.sourceSentenceIndex ?? null
   const factualExtractionWithEvidence = {
@@ -35,7 +35,13 @@ export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngi
       latestEscapeSentenceIndex,
     }),
   }
-  const axisStatements = runStep07AxisStatements({ engineInput: input, directActor, unsafeActOrCondition })
+  const axisStatements = runStep07AxisStatements({
+    engineInput: input,
+    directActor,
+    unsafeActOrCondition,
+    factualExtraction: factualExtractionWithEvidence,
+    escapePoint,
+  })
   const { axes, canonicalTraversal } = runStep08CanonicalTraversal({
     factualExtraction: factualExtractionWithEvidence,
     axisStatements,

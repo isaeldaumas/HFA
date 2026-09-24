@@ -25,11 +25,16 @@ export type SeraFactCategory =
   | 'warning'
   | 'other'
 
+export type SeraEvidenceSourceSection = 'FACTUAL' | 'REPORT_ANALYSIS' | 'RECOMMENDATION' | 'ADMINISTRATIVE' | 'UNKNOWN'
+export type SeraAssertionStatus = 'AFFIRMED' | 'REJECTED_AS_FACTOR' | 'UNCERTAIN'
+
 export type SeraFact = {
   id: string
   statement: string
   category: SeraFactCategory
   sourceSentenceIndex: number
+  sourceSection?: SeraEvidenceSourceSection
+  assertionStatus?: SeraAssertionStatus
 }
 
 export type SeraTimelineItem = {
@@ -38,6 +43,8 @@ export type SeraTimelineItem = {
   statement: string
   temporalCue: string | null
   sourceSentenceIndex: number
+  sourceSection?: SeraEvidenceSourceSection
+  assertionStatus?: SeraAssertionStatus
 }
 
 export type SeraCanonicalPath = {
@@ -94,6 +101,7 @@ export type SeraPreconditionCategory =
   | 'SENSORY_LIMITATION'
   | 'KNOWLEDGE_TRAINING'
   | 'TIME_PRESSURE'
+  | 'ATTENTION_WORKLOAD_CONTEXT'
   | 'COMMUNICATION_INFORMATION'
   | 'PROCEDURAL_MONITORING'
   | 'FEEDBACK_VERIFICATION'
