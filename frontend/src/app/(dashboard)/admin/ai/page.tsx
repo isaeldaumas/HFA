@@ -25,7 +25,7 @@ function isMaskedKey(value: string): boolean {
 
 const EMPTY: Record<Provider, ProviderState> = {
   anthropic: { api_key: '', model: 'claude-sonnet-4-5' },
-  openai: { api_key: '', model: 'gpt-4o' },
+  openai: { api_key: '', model: 'gpt-6-luna' },
   deepseek: { api_key: '', model: 'deepseek-reasoner' },
   google: { api_key: '', model: 'gemini-2.0-flash' },
   groq: { api_key: '', model: 'llama-3.3-70b-versatile' },
@@ -40,6 +40,9 @@ const MAIN_MODEL_OPTIONS: Record<Provider, string[]> = {
     'claude-3-5-haiku-latest',
   ],
   openai: [
+    'gpt-6-luna',
+    'gpt-6-sol',
+    'gpt-6-astra',
     'gpt-5.1',
     'gpt-5.1-mini',
     'gpt-5',

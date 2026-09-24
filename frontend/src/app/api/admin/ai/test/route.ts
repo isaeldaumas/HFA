@@ -43,7 +43,7 @@ function providerConfig(provider: Provider, settingsMap: Record<string, string>)
   if (provider === 'openai') {
     return {
       key: usableKey(settingsMap.openai_api_key, process.env.OPENAI_API_KEY),
-      model: settingsMap.openai_model || process.env.OPENAI_MODEL || 'gpt-4o',
+      model: settingsMap.openai_model || process.env.OPENAI_MODEL || 'gpt-6-luna',
     }
   }
   if (provider === 'google') {
@@ -81,7 +81,7 @@ async function runTest(provider: Provider, key: string, model: string): Promise<
     const client = new OpenAI({ apiKey: key })
     const response = await client.chat.completions.create({
       model,
-      max_tokens: 30,
+      max_completion_tokens: 64,
       messages: [
         { role: 'system', content: 'You are a connectivity test assistant.' },
         { role: 'user', content: 'Reply with exactly: OK' },

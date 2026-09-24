@@ -62,19 +62,22 @@ export async function POST(req: Request) {
       })
       const r = await model.generateContent('ping')
       void r
-    } else {
-      const baseURL =
-        provider === 'deepseek'
-          ? 'https://api.deepseek.com/v1'
-          : provider === 'groq'
-            ? 'https://api.groq.com/openai/v1'
-            : undefined
-
-      const client = new OpenAI({
-        apiKey,
-        ...(baseURL ? { baseURL } : {}),
+    } else if (provider === 'openai') {
+      const client = new OpenAI({ apiKey })
+      await client.chat.completions.create({
+        model: getModelName('openai'),
+        messages: [
+          { role: 'system', content: 'ping' },
+          { role: 'user', content: 'ping' },
+        ],
+        max_completion_tokens: 32,
       })
+    } else {
+      const baseURL = provider === 'deepseek'
+        ? 'https://api.deepseek.com/v1'
+        : 'https://api.groq.com/openai/v1'
 
+      const client = new OpenAI({ apiKey, baseURL })
       await client.chat.completions.create({
         model: getModelName(provider),
         messages: [

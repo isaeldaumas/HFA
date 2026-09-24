@@ -10,6 +10,7 @@ export type AIProvider = 'deepseek' | 'openai' | 'anthropic' | 'google' | 'groq'
 
 let llmConfigLogged = false
 const DEFAULT_DEEPSEEK_MODEL = 'deepseek-reasoner'
+const DEFAULT_OPENAI_MODEL = 'gpt-6-luna'
 // DeepSeek may show deepseek-v4-flash in billing because deepseek-reasoner is mapped to V4 Flash thinking mode by the provider.
 let deepseekFlashWarningLogged = false
 let seraSupabaseLoaded = false
@@ -134,7 +135,7 @@ export function getModelName(provider?: AIProvider): string {
   const deepseek = resolveDeepseekConfig()
   const models: Record<AIProvider, string> = {
     deepseek: deepseek.model,
-    openai: process.env.OPENAI_MODEL || 'gpt-4o',
+    openai: process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL,
     anthropic: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5',
     google: process.env.GOOGLE_MODEL || 'gemini-2.0-flash',
     groq: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
@@ -260,12 +261,12 @@ export async function callAi(system: string, userMsg: string, maxTokens = 8192):
   } else if (provider === 'openai') {
     const client = new OpenAI({ apiKey: requireApiKey('OPENAI_API_KEY'), timeout: LLM_TIMEOUT_MS })
     const r = await client.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      model: getModelName('openai'),
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: userMsg },
       ],
-      max_tokens: maxTokens,
+      max_completion_tokens: maxTokens,
     })
     raw = r.choices[0]?.message?.content || ''
   } else if (provider === 'google') {
