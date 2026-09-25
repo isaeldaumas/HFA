@@ -33,4 +33,10 @@ assert.equal(clarified.escapePoint.status, 'CANDIDATE')
 assert.match(clarified.escapePoint.statement ?? '', /^Quando a aeronave foi considerada apta\/liberada após o pré-voo/i)
 assert.notEqual(clarified.directActor.actor, 'flight crew (collective)')
 
+const clarifiedOverridesNarrativeCandidate = runSeraVNextEngineV0({
+  inputId: 'CLARIFIED-OVERRIDE-001', narrative: 'A tripulação decidiu continuar a aproximação apesar de uma condição insegura.', locale: 'pt-BR', sourceType: 'real_event', requestId: 'CLARIFIED-OVERRIDE-001', mode: 'CANDIDATE_ONLY', options: { allowLlm: false, requireHumanReview: true, includeDebugTrace: true },
+  supplementalEvidence: [{ evidenceId: 'SUP-ESCAPE-2', linkedQuestionId: 'CLARIFY-ESCAPE-POINT', stage: 'ESCAPE_POINT', temporalRelation: 'AT_ESCAPE', statement: 'Ponto de fuga: Quando a inspeção pré-voo foi concluída e a aeronave foi liberada com o acesso sem travamento efetivo.' }],
+})
+assert.match(clarifiedOverridesNarrativeCandidate.escapePoint.statement ?? '', /^Quando a inspeção pré-voo foi concluída/i)
+
 console.log('PASS maintenance preflight latch regression')

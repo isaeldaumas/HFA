@@ -33,6 +33,14 @@ function formatEscapeStatement(candidate: string | null): string | null {
   return `Quando ${neutral.replace(/^[A-ZÁÉÍÓÚÃÕÇ]/, (m: string) => m.toLowerCase())}`
 }
 
+function usableDirectEscapeClarification(statement: string): boolean {
+  const text = statement.trim()
+  if (!text) return false
+  if (/^(n[aã]o sei|desconhecido|n[aã]o informado|n[aã]o foi poss[ií]vel|indeterminado|unknown|not known|not determined)\b/i.test(text)) return false
+  return /^\s*(?:ponto de fuga\s*[:\-–—]?\s*)?quando\b/i.test(text)
+    || /\b(decidiu|iniciou|concluiu|liberou|considerou|executou|omitiu|deixou de|prosseguiu|selecionou|acionou|inspe[cç][aã]o|pre[- ]?voo|decided|initiated|completed|released|considered|executed|omitted|failed to|continued|selected|preflight)\b/i.test(text)
+}
+
 export function runStep03EscapePoint(input: {
   factualExtraction: SeraVNextEngineOutput['factualExtraction']
   supplementalEvidence?: SeraSupplementalEvidenceInput[]
@@ -51,7 +59,7 @@ export function runStep03EscapePoint(input: {
     assertionStatus: 'AFFIRMED',
   }))
   const clarificationWindow = buildCandidateEscapeWindow(clarificationTimeline)
-  const directClarification = clarificationTimeline.find((item) => item.statement.trim().length > 0) ?? null
+  const directClarification = clarificationTimeline.find((item) => usableDirectEscapeClarification(item.statement)) ?? null
   const directClarificationWindow = directClarification
     ? {
         statement: directClarification.statement,
@@ -61,12 +69,12 @@ export function runStep03EscapePoint(input: {
         counterEvidence: [],
       }
     : null
-  const selectedWindow = legacyWindow.statement
-    ? legacyWindow
-    : clarificationWindow.statement
-      ? clarificationWindow
-      : directClarificationWindow ?? legacyWindow
-  const selectedFromNarrative = Boolean(legacyWindow.statement)
+  const selectedWindow = clarificationWindow.statement
+    ? clarificationWindow
+    : directClarificationWindow
+      ? directClarificationWindow
+      : legacyWindow
+  const selectedFromNarrative = selectedWindow === legacyWindow && Boolean(legacyWindow.statement)
 
   const latestSentenceIndex = selectedFromNarrative
     ? input.factualExtraction.timeline.find((item) => item.statement === selectedWindow.latestCandidate)?.sourceSentenceIndex ?? null
