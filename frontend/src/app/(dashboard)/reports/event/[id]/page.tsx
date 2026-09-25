@@ -8,6 +8,7 @@ import { apiCall } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
 import { describeErcValue, buildErcContainmentNotice } from '@/lib/risk-profile/erc-containment'
 import type { SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
+import { inferOccurrenceDateFromNarrative } from '@/lib/sera-vnext/occurrence-date'
 
 type Recommendation = {
   related_code?: string | null
@@ -143,7 +144,7 @@ export default function EventReportPage() {
 
   const eventTitle = eventData?.title ?? analysis?.summary ?? `Evento ${eventId}`
 
-  const eventDate = analysis?.event_date ?? eventData?.occurred_at ?? eventData?.created_at
+  const eventDate = eventData?.occurred_at ?? inferOccurrenceDateFromNarrative(eventData?.raw_input ?? null) ?? analysis?.event_date ?? eventData?.created_at
 
   const eventType = analysis?.operation_type ?? eventData?.operation_type ?? 'Nao informado'
 
@@ -231,6 +232,19 @@ export default function EventReportPage() {
                 {' — fluxo '}{vnextAnalysis?.source_flow ?? 'VNEXT_CANONICAL'}
                 {' — revisao '}{vnextAnalysis?.review_status ?? 'NOT_REVIEWED'}
               </p>
+              {vnextOutput.evidenceSufficiency.status === 'NEEDS_CLARIFICATION' && vnextOutput.evidenceSufficiency.questions.length > 0 ? (
+                <div className="report-box mt-3 space-y-3">
+                  <p><strong>Análise incompleta — dados adicionais necessários</strong></p>
+                  {vnextOutput.evidenceSufficiency.questions.map((question, index) => (
+                    <div key={question.id} className={index > 0 ? 'border-t border-slate-200 pt-3' : ''}>
+                      <p><strong>{index + 1}. {question.question}</strong></p>
+                      <p className="text-sm text-slate-700 mt-1">Por que é necessário: {question.whyNeeded}</p>
+                      {question.linkedNodeId ? <p className="text-sm text-slate-700 mt-1">Nó bloqueado: {question.linkedNodeId}</p> : null}
+                      {question.requestedEvidence.length > 0 ? <p className="text-sm text-slate-700 mt-1">Evidência solicitada: {question.requestedEvidence.join(' | ')}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </>
           ) : (
             <>

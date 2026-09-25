@@ -196,6 +196,8 @@ const CONCEPT_PATTERNS: Record<SeraEvidenceConcept, RegExp[]> = {
     /\bautoriza[cç][aã]o\b.*\b(somente|apenas|only)\b.*\b(destino|pcp|unidade|plataforma|pista|helideck)\b/i,
     /\b(objetivo|inten[cç][aã]o|meta)\b.*\b(cumprir|seguir|realizar|executar|completar|atingir)\b.*\b(rota|destino|pouso|procedimento|planejamento)\b.*\b(planejad[ao]|previst[ao]|programad[ao]|autorizad[ao])\b/i,
     /\b(goal|objective|intent)\b.*\b(follow|complete|perform|execute|reach)\b.*\b(planned|intended|authorized)\b.*\b(route|destination|landing|procedure)\b/i,
+    /\b(realiz\w*|execut\w*|efetu\w*|atendimento\s+(?:a|[aà]s)|respons[aá]vel\s+por)\b.*\b(tarefas? de pr[eé][ -]?voo|inspe[cç][aã]o (?:de )?pr[eé][ -]?voo)\b/i,
+    /\b(performed|conducted|assigned to|responsible for)\b.*\b(preflight tasks?|preflight inspection)\b/i,
   ],
   knownRule: [
     /\b(known rule|briefed procedure|required by sop|procedure required|clearance required|rule required|knew the rule)\b/i,

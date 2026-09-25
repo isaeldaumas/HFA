@@ -5,10 +5,21 @@ import { confidenceFromCount, excludedPostEscapeEvidence } from '../utils'
 function formatEscapeStatement(candidate: string | null): string | null {
   if (!candidate) return null
   const clean = candidate
+    .replace(/^\s*(?:ponto de fuga\s*[:\-–—]?\s*)?/i, '')
+    .replace(/^\s*\d+(?:\.\d+)*\s*/, '')
     .replace(/^[\s“"']*(por[eé]m|contudo|entretanto|todavia)[,;:]?\s*/i, '')
     .replace(/\b(?:numa|em uma) vis[aã]o de t[uú]nel,?\s*/i, '')
     .replace(/[\s”"']+$/g, '')
     .trim()
+
+  if (/^quando\b/i.test(clean)) return clean.charAt(0).toUpperCase() + clean.slice(1)
+
+  if (
+    /\b(inspe[cç][aã]o (?:de )?pr[eé][ -]?voo|pr[eé][ -]?voo|preflight inspection)\b/i.test(clean) &&
+    /\b(nada de anormal (?:foi|fora) detectado|nenhuma anormalidade (?:foi )?detectada|no abnormality (?:was )?detected)\b/i.test(clean)
+  ) {
+    return 'Quando a inspeção pré-voo foi concluída sem detectar anormalidade.'
+  }
 
   const target = clean.match(/(?:identificou|confundiu|associou|entendeu|acreditou)\s+(?:a|o)?\s*([A-Z0-9-]{2,})\s+(?:como|com)\s+(?:o|a)?\s*(?:primeiro pouso|destino|unidade|plataforma|pista|helideck)/i)
   if (target?.[1]) {
@@ -40,7 +51,21 @@ export function runStep03EscapePoint(input: {
     assertionStatus: 'AFFIRMED',
   }))
   const clarificationWindow = buildCandidateEscapeWindow(clarificationTimeline)
-  const selectedWindow = legacyWindow.statement ? legacyWindow : clarificationWindow
+  const directClarification = clarificationTimeline.find((item) => item.statement.trim().length > 0) ?? null
+  const directClarificationWindow = directClarification
+    ? {
+        statement: directClarification.statement,
+        earliestCandidate: directClarification.statement,
+        latestCandidate: directClarification.statement,
+        supportingEvidence: [directClarification.statement],
+        counterEvidence: [],
+      }
+    : null
+  const selectedWindow = legacyWindow.statement
+    ? legacyWindow
+    : clarificationWindow.statement
+      ? clarificationWindow
+      : directClarificationWindow ?? legacyWindow
   const selectedFromNarrative = Boolean(legacyWindow.statement)
 
   const latestSentenceIndex = selectedFromNarrative

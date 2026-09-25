@@ -16,8 +16,9 @@ export function SeraClarificationForm(props: {
     [props.output],
   )
   const [responses, setResponses] = useState<Record<string, string>>({})
-  const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [state, setState] = useState<'idle' | 'loading' | 'error' | 'success'>('idle')
   const [error, setError] = useState<string | null>(null)
+  const [lastRevision, setLastRevision] = useState<number | null>(null)
 
   if (!questions.length) return null
 
@@ -40,13 +41,14 @@ export function SeraClarificationForm(props: {
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(String(body.detail ?? 'Falha ao registrar informações adicionais.'))
       setResponses({})
+      setLastRevision(typeof body.revision_number === 'number' ? body.revision_number : null)
+      setState('success')
       props.onUpdated?.()
     } catch (e) {
       setState('error')
       setError(e instanceof Error ? e.message : 'Falha ao registrar informações adicionais.')
       return
     }
-    setState('idle')
   }
 
   return (
@@ -71,6 +73,11 @@ export function SeraClarificationForm(props: {
         </div>
       ))}
       {error && <p className="text-sm text-red-300">{error}</p>}
+      {state === 'success' && (
+        <p className="rounded-lg border border-emerald-700/50 bg-emerald-950/30 px-3 py-2 text-sm text-emerald-200">
+          Evidência registrada e reanálise concluída{lastRevision ? ` na revisão ${lastRevision}` : ''}. Confira o ponto de fuga, o ator e as perguntas ainda pendentes acima.
+        </p>
+      )}
       <button
         type="button"
         onClick={() => void submit()}

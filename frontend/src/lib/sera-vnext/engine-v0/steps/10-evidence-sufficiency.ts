@@ -124,6 +124,11 @@ export function runStep10EvidenceSufficiency(input: {
 
   const questions: SeraClarificationQuestion[] = []
   const blockingReasons: string[] = []
+  const maintenancePreflightContext =
+    /\bmaintenance|manuten[cç][aã]o\b/i.test(input.directActor.actor ?? '') &&
+    /\b(inspe[cç][aã]o (?:de )?pr[eé][ -]?voo|pr[eé][ -]?voo|preflight inspection)\b/i.test(
+      `${input.escapePoint.statement ?? ''} ${input.escapePoint.earliestCandidate ?? ''}`,
+    )
 
   if (!input.safeOperationModel.expectedSafeState && !input.safeOperationModel.expectedSafeAction) {
     blockingReasons.push('SAFE_OPERATION_REFERENCE_MISSING')
@@ -169,6 +174,14 @@ export function runStep10EvidenceSufficiency(input: {
     const last = [...path.answers].reverse().find((answer) => answer.answer === 'INSUFFICIENT_EVIDENCE') ?? path.answers[path.answers.length - 1]
     if (!last) continue
     const q = questionForNode(last.nodeId, last.question)
+    if (maintenancePreflightContext && last.nodeId === 'P_ASSESSMENT') {
+      q.question = 'Na inspeção pré-voo, o executor acreditava que a condição de fechamento/travamento estava correta? A confirmação foi apenas visual ou incluiu uma verificação física/tátil do dispositivo?'
+      q.requestedEvidence = ['relato do executor sobre o que acreditava ter verificado', 'método de inspeção visual versus física/tátil', 'condição observada do fechamento/travamento naquele momento']
+    }
+    if (maintenancePreflightContext && last.nodeId === 'A_IMPLEMENTED') {
+      q.question = 'Quem executou a inspeção daquela portinhola e qual passo de inspeção, fechamento ou verificação estava previsto e foi efetivamente executado? Houve omissão de uma etapa, falta de confirmação da própria ação ou uma segunda checagem atribuída a outra pessoa?'
+      q.requestedEvidence = ['responsável pela inspeção/ação', 'procedimento de pré-voo aplicável', 'passo efetivamente executado', 'evidência de confirmação do resultado ou segunda verificação']
+    }
     blockingReasons.push(`${path.axis}_CANONICAL_NODE_UNANSWERED:${last.nodeId}`)
     questions.push({
       id: `CLARIFY-${path.axis}-${last.nodeId}`,
