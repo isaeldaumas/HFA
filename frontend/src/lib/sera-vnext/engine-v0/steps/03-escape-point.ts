@@ -1,32 +1,67 @@
-import type { SeraVNextEngineOutput } from '../../engine-contract'
+import type { SeraSupplementalEvidenceInput, SeraTimelineItem, SeraVNextEngineOutput } from '../../engine-contract'
 import { buildCandidateEscapeWindow } from '../candidate-escape-window'
 import { confidenceFromCount, excludedPostEscapeEvidence } from '../utils'
 
+function formatEscapeStatement(candidate: string | null): string | null {
+  if (!candidate) return null
+  const clean = candidate
+    .replace(/^[\s“"']*(por[eé]m|contudo|entretanto|todavia)[,;:]?\s*/i, '')
+    .replace(/\b(?:numa|em uma) vis[aã]o de t[uú]nel,?\s*/i, '')
+    .replace(/[\s”"']+$/g, '')
+    .trim()
+
+  const target = clean.match(/(?:identificou|confundiu|associou|entendeu|acreditou)\s+(?:a|o)?\s*([A-Z0-9-]{2,})\s+(?:como|com)\s+(?:o|a)?\s*(?:primeiro pouso|destino|unidade|plataforma|pista|helideck)/i)
+  if (target?.[1]) {
+    return `Quando a operação passou a tratar ${target[1].toUpperCase()} como o destino previsto para o primeiro pouso e a comprometer o planejamento/aproximação para esse alvo.`
+  }
+
+  const neutral = clean
+    .replace(/\s+(?:devido a|devido ao|por ser|porque)\b.*$/i, '')
+    .replace(/[.;,\s]+$/g, '')
+    .trim()
+  return `Quando ${neutral.replace(/^[A-ZÁÉÍÓÚÃÕÇ]/, (m: string) => m.toLowerCase())}`
+}
+
 export function runStep03EscapePoint(input: {
   factualExtraction: SeraVNextEngineOutput['factualExtraction']
+  supplementalEvidence?: SeraSupplementalEvidenceInput[]
 }): SeraVNextEngineOutput['escapePoint'] {
   const legacyWindow = buildCandidateEscapeWindow(input.factualExtraction.timeline)
+  const clarificationSentences = (input.supplementalEvidence ?? [])
+    .filter((item) => item.stage === 'ESCAPE_POINT')
+    .flatMap((item) => item.statement.split(/(?<=[.!?])\s+/).map((statement) => statement.trim()).filter(Boolean))
+  const clarificationTimeline: SeraTimelineItem[] = clarificationSentences.map((statement, index) => ({
+    id: `SUP-ESCAPE-${index + 1}`,
+    order: index + 1,
+    statement,
+    temporalCue: 'clarification_response',
+    sourceSentenceIndex: -(index + 1),
+    sourceSection: 'FACTUAL',
+    assertionStatus: 'AFFIRMED',
+  }))
+  const clarificationWindow = buildCandidateEscapeWindow(clarificationTimeline)
+  const selectedWindow = legacyWindow.statement ? legacyWindow : clarificationWindow
+  const selectedFromNarrative = Boolean(legacyWindow.statement)
 
-  const latestSentenceIndex =
-    input.factualExtraction.timeline.find((item) => item.statement === legacyWindow.latestCandidate)?.sourceSentenceIndex ?? null
+  const latestSentenceIndex = selectedFromNarrative
+    ? input.factualExtraction.timeline.find((item) => item.statement === selectedWindow.latestCandidate)?.sourceSentenceIndex ?? null
+    : null
 
-  const status = legacyWindow.statement
-    ? legacyWindow.counterEvidence.length > 0
+  const status = selectedWindow.statement
+    ? selectedWindow.counterEvidence.length > 0
       ? 'PROGRESSIVE_ZONE'
       : 'CANDIDATE'
     : 'INSUFFICIENT_EVIDENCE'
 
   return {
     status,
-    statement: legacyWindow.earliestCandidate
-      ? `Quando ${legacyWindow.earliestCandidate.replace(/^[A-Z]/, (m: string) => m.toLowerCase())}`
-      : null,
-    earliestCandidate: legacyWindow.earliestCandidate,
-    latestCandidate: legacyWindow.latestCandidate,
+    statement: formatEscapeStatement(selectedWindow.earliestCandidate),
+    earliestCandidate: selectedWindow.earliestCandidate,
+    latestCandidate: selectedWindow.latestCandidate,
     directActor: null,
-    supportingEvidence: legacyWindow.supportingEvidence,
-    counterEvidence: legacyWindow.counterEvidence,
+    supportingEvidence: selectedWindow.supportingEvidence,
+    counterEvidence: selectedWindow.counterEvidence,
     excludedPostEscapeEvidence: excludedPostEscapeEvidence(input.factualExtraction.timeline, latestSentenceIndex),
-    confidence: confidenceFromCount(legacyWindow.supportingEvidence.length),
+    confidence: confidenceFromCount(selectedWindow.supportingEvidence.length),
   }
 }

@@ -14,7 +14,7 @@ const result = runSeraVNextEngineV0({
   options: { allowLlm: false, requireHumanReview: true },
 })
 
-assert.equal(result.engineVersion, '0.2.0')
+assert.equal(result.engineVersion, '0.3.0')
 assert.equal(result.methodologyVersion, 'SERA_PT_V1_FROZEN')
 assert.equal(result.baselineId, 'SERA_VNEXT_BASELINE_V0')
 assert.equal(result.fixtureSetId, 'SERA_VNEXT_FIXTURE_SET_V0')

@@ -18,6 +18,8 @@ import {
   ARMS_CODE_MATRIX_VERSION,
 } from '@/lib/risk-profile/erc'
 import { EngineProvenanceBadge, type GeneratedByType, type ValidationStatus } from '@/components/sera/EngineProvenanceBadge'
+import { VNextEventAnalysisPanel } from '@/components/sera-vnext/VNextEventAnalysisPanel'
+import type { SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
 
 const FlowDiagram = dynamic(() => import('@/components/FlowDiagram'), { ssr: false })
 
@@ -70,6 +72,25 @@ type AnalysisPayload = {
     }
   } | null
 }
+type VNextAnalysisSummary = {
+  id: string
+  status?: string | null
+  review_status?: string | null
+  updated_at?: string | null
+  engine_version?: string | null
+  engine_runtime_version?: string | null
+  escape_point_status?: string | null
+  escape_point_statement?: string | null
+  direct_actor?: string | null
+  perception_candidate_code?: string | null
+  objective_candidate_code?: string | null
+  action_candidate_code?: string | null
+  warnings?: string[] | null
+  limitations?: string[] | null
+  source_flow?: string | null
+  engine_output?: SeraVNextEngineOutput | null
+}
+
 type EventPayload = {
   id: string
   title?: string | null
@@ -82,6 +103,7 @@ type EventPayload = {
   recoverable_until?: string | null
   deletion_status?: string | null
   analyses?: AnalysisPayload | null
+  vnext_analysis?: VNextAnalysisSummary | null
 }
 type DeletionImpact = {
   event: number
@@ -336,6 +358,7 @@ export default function EventDetailPage() {
   const [flows, setFlows]         = useState<FlowMap | null>(null)
   const [activeTab, setActiveTab] = useState<FlowTab>('perception')
   const [pdfState, setPdfState]   = useState<PdfState>('idle')
+  const [vnextPdfState, setVnextPdfState] = useState<PdfState>('idle')
   const [badges, setBadges]       = useState<BadgeMap>({})
   const [actionStates, setActionStates] = useState<Record<number, 'idle' | 'loading' | 'done' | 'error'>>({})
   const [canManageDelete, setCanManageDelete] = useState(false)
@@ -437,6 +460,35 @@ export default function EventDetailPage() {
       setTimeout(() => setPdfState('idle'), 3000)
     }
   }, [event, analysis, token])
+
+  const downloadVNextPdf = useCallback(async () => {
+    if (!event?.vnext_analysis?.id || !token) return
+    setVnextPdfState('loading')
+    try {
+      const res = await fetch(`/api/admin/sera-vnext/analyses/${event.vnext_analysis.id}/pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const blob = await res.blob()
+      const disposition = res.headers.get('content-disposition') ?? ''
+      const filenameMatch = disposition.match(/filename="?([^";]+)"?/i)
+      const filename = filenameMatch?.[1] ?? `HFA_SERA_vNext_${event.id}.pdf`
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = filename
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(url)
+      setVnextPdfState('done')
+      setTimeout(() => setVnextPdfState('idle'), 3000)
+    } catch (err) {
+      console.error('vNext PDF error:', err)
+      setVnextPdfState('error')
+      setTimeout(() => setVnextPdfState('idle'), 3000)
+    }
+  }, [event, token])
 
   async function createAction(index: number, r: Recommendation, analysisId: string) {
     setActionStates((prev) => ({ ...prev, [index]: 'loading' }))
@@ -701,6 +753,20 @@ export default function EventDetailPage() {
           >
             Relatorio do evento
           </a>
+          {event.vnext_analysis && (
+            <button
+              onClick={downloadVNextPdf}
+              disabled={vnextPdfState === 'loading'}
+              className={`text-sm px-4 py-2 rounded-lg transition font-medium ${
+                vnextPdfState === 'done' ? 'bg-emerald-700 text-white' :
+                vnextPdfState === 'error' ? 'bg-red-700 text-white' :
+                vnextPdfState === 'loading' ? 'bg-slate-600 text-slate-400 cursor-wait' :
+                'bg-cyan-800 hover:bg-cyan-700 text-cyan-50'
+              }`}
+            >
+              {vnextPdfState === 'idle' ? '⬇ PDF vNext completo' : pdfLabel[vnextPdfState]}
+            </button>
+          )}
           {analysis && (
             <button
               onClick={downloadPdf}
@@ -722,6 +788,40 @@ export default function EventDetailPage() {
           )}
         </div>
       </div>
+
+      {event.vnext_analysis && (
+        <div className="rounded-xl border border-cyan-700/50 bg-cyan-950/20 p-5 space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-cyan-300">SERA vNext — hipótese candidate-only</p>
+              <p className="mt-1 text-sm text-slate-200">
+                Existe uma análise canônica vNext vinculada a este evento. Ela exige revisão humana e não substitui automaticamente uma análise legado nem libera risco, HFACS, recomendações ou classificação final.
+              </p>
+            </div>
+            <a
+              href={`/admin/sera-vnext/analyses/${event.vnext_analysis.id}`}
+              className="shrink-0 rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-300"
+            >
+              Abrir análise vNext
+            </a>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+            <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3"><span className="text-slate-500">Ponto de fuga</span><p className="mt-1 text-slate-200">{event.vnext_analysis.escape_point_status ?? '-'}</p></div>
+            <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3"><span className="text-slate-500">Ator</span><p className="mt-1 text-slate-200">{event.vnext_analysis.direct_actor ?? '-'}</p></div>
+            <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3"><span className="text-slate-500">P / O / A</span><p className="mt-1 text-slate-200">{event.vnext_analysis.perception_candidate_code ?? '-'} / {event.vnext_analysis.objective_candidate_code ?? '-'} / {event.vnext_analysis.action_candidate_code ?? '-'}</p></div>
+            <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3"><span className="text-slate-500">Revisão</span><p className="mt-1 text-slate-200">{event.vnext_analysis.review_status ?? 'NOT_REVIEWED'}</p></div>
+          </div>
+          {analysis && (
+            <p className="text-xs text-amber-300">
+              O conteúdo legado abaixo permanece disponível para auditoria histórica; não use seus códigos como substitutos da hipótese vNext sem revisão.
+            </p>
+          )}
+        </div>
+      )}
+
+      {event.vnext_analysis?.engine_output && (
+        <VNextEventAnalysisPanel output={event.vnext_analysis.engine_output} />
+      )}
 
       {/* Pending / processing state */}
       {!analysis && event.status !== 'completed' && (

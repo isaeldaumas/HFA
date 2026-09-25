@@ -1,6 +1,6 @@
 import type { CausalAssuranceStatus, SeraVNextEngineVersion } from './types'
 
-export const SERA_VNEXT_ENGINE_VERSION: SeraVNextEngineVersion = 'sera-vnext-v0.2.0'
+export const SERA_VNEXT_ENGINE_VERSION: SeraVNextEngineVersion = 'sera-vnext-v0.3.0'
 
 export const SERA_VNEXT_FORBIDDEN_DOWNSTREAM_OUTPUTS = [
   'HFACS',

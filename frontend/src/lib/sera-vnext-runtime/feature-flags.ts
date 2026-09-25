@@ -23,9 +23,9 @@ export function isSeraVNextCandidateUiEnabled(): boolean {
   return readBooleanEnv("NEXT_PUBLIC_SERA_VNEXT_CANDIDATE_UI_ENABLED");
 }
 
-// Controls whether /api/analyze routes new analyses through vNext v02 (canonical)
+// Controls whether /api/analyze routes analyses through the canonical vNext candidate engine
 // instead of the legacy SERA pipeline. Default: false (legacy preserved).
-// With flag on: vNext v02 engine is used; non-final candidate output only;
+// With flag on: current vNext calibrated engine is used; non-final candidate output only;
 // human review required; no final classification produced.
 export function isSeraVNextCanonicalAnalyzeEnabled(): boolean {
   return readBooleanEnv("SERA_VNEXT_CANONICAL_ANALYZE_ENABLED");

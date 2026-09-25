@@ -1,4 +1,4 @@
-import type { SeraTimelineItem } from '../engine-contract'
+import type { SeraEvidenceSourceSection, SeraTimelineItem } from '../engine-contract'
 import type { SeraEvidenceTemporalRelation } from './types'
 
 function normalize(input: string): string {
@@ -7,6 +7,8 @@ function normalize(input: string): string {
 
 function hasConsequenceMarker(text: string): boolean {
   return /\b(crash|impact|impacted|collision|damage|damaged|fatal|injury|injured|ditch|ditched|struck|strike|hit|terrain|runway lights|very low height|acidente|impacto|colis[aã]o|dano|ferid|bateu)\b/i.test(text)
+    || /\b(pousou|realizou o pouso|efetuou o pouso|concluiu o pouso|landed|touchdown)\b.*\b(errad[oa]|equivocad[oa]|erroneamente|por engano|mistakenly|erroneously|nao previst[oa]|não previst[oa]|nao autorizad[oa]|não autorizad[oa]|erro|wrong|diferente|distint[ao]|different|confundindo)\b/i.test(text)
+    || /\b(ap[oó]s concluir o pouso|depois do pouso|after landing|after touchdown)\b/i.test(text)
 }
 
 function hasRecoveryMarker(text: string): boolean {
@@ -26,16 +28,29 @@ function isOpeningTemporalContext(text: string): boolean {
   return /\b(after (?:takeoff|departure|offshore departure)|during (?:approach|taxi|final approach|compressor wash|execution)|on visual approach)\b/i.test(text)
 }
 
+function hasExplicitPreEscapeCue(text: string): boolean {
+  return /\b(before|prior to|during approach|during final approach|during taxi|on visual approach|before landing|rota prevista|planejamento|coordenadas? (?:foram )?inseridas?|gps|briefing|checklist|autoriza[cç][aã]o|proa direta|na aproxima[cç][aã]o|antes do pouso|antes da aproxima[cç][aã]o)\b/i.test(text)
+}
+
 export function classifyTemporalRelation(args: {
   statement: string
   sourceSentenceIndex: number
   latestEscapeSentenceIndex?: number | null
+  sourceSection?: SeraEvidenceSourceSection
 }): SeraEvidenceTemporalRelation {
-  if (args.latestEscapeSentenceIndex != null && args.sourceSentenceIndex > args.latestEscapeSentenceIndex) return 'POST_ESCAPE'
   if (hasExplicitPostEscapeCue(args.statement)) return 'POST_ESCAPE'
   if (hasConsequenceMarker(args.statement) && !isOpeningTemporalContext(args.statement)) return 'POST_ESCAPE'
+  if (hasExplicitPreEscapeCue(args.statement)) return 'PRE_ESCAPE'
   if (args.latestEscapeSentenceIndex != null && args.sourceSentenceIndex === args.latestEscapeSentenceIndex) return 'AT_ESCAPE'
-  if (args.latestEscapeSentenceIndex != null && args.sourceSentenceIndex < args.latestEscapeSentenceIndex) return 'PRE_ESCAPE'
+
+  // Investigation reports are usually structured by topic, not chronology. A sentence that
+  // appears later in the document can describe pre-escape evidence from an interview.
+  // Document order is therefore a temporal fallback only for unstructured narratives.
+  if (!args.sourceSection || args.sourceSection === 'UNKNOWN') {
+    if (args.latestEscapeSentenceIndex != null && args.sourceSentenceIndex > args.latestEscapeSentenceIndex) return 'POST_ESCAPE'
+    if (args.latestEscapeSentenceIndex != null && args.sourceSentenceIndex < args.latestEscapeSentenceIndex) return 'PRE_ESCAPE'
+  }
+
   if (/\b(before|prior to|while|during|when|on visual approach|during approach|during taxi|during final approach)\b/i.test(args.statement)) return 'PRE_ESCAPE'
   return 'UNKNOWN'
 }
@@ -49,10 +64,12 @@ export function excludedPostEscapeEvidenceFromTimeline(
   latestEscapeSentenceIndex: number | null,
 ): string[] {
   return timeline
+    .filter((item) => item.sourceSection !== 'ADMINISTRATIVE' && item.sourceSection !== 'REPORT_ANALYSIS' && item.sourceSection !== 'RECOMMENDATION')
     .filter((item) => classifyTemporalRelation({
       statement: item.statement,
       sourceSentenceIndex: item.sourceSentenceIndex,
       latestEscapeSentenceIndex,
+      sourceSection: item.sourceSection,
     }) === 'POST_ESCAPE')
     .map((item) => item.statement)
 }

@@ -17,7 +17,7 @@ import { applyUserAiSettingsToEnv } from '@/lib/server/apply-user-ai-settings-to
 import { getOrCreateRequestId } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
 import { isSeraVNextCanonicalAnalyzeEnabled } from '@/lib/sera-vnext-runtime/feature-flags'
-import { createSeraVNextAnalysis } from '@/lib/sera-vnext-product/persistence/create-analysis'
+import { canonicalAnalyzeResponse, createCanonicalEventAnalysis } from '@/lib/sera-vnext-product/canonical-event-analysis'
 
 export const maxDuration = 300
 
@@ -127,7 +127,7 @@ export async function POST(req: Request) {
     if (body.eventId) {
       const { data: ev, error: evErr } = await admin
         .from('events')
-        .select('id, tenant_id')
+        .select('id, tenant_id, title')
         .eq('id', body.eventId)
         .eq('tenant_id', user.tenantId)
         .is('deleted_at', null)
@@ -155,6 +155,51 @@ export async function POST(req: Request) {
       })
 
       try {
+        if (isSeraVNextCanonicalAnalyzeEnabled() && String(user.role ?? '').toLowerCase() === 'admin') {
+          const vnextResult = await createCanonicalEventAnalysis({
+            eventId: body.eventId,
+            title: String(ev.title ?? body.title ?? `SERA ${body.eventId}`),
+            narrative: rawInput,
+            mode: 'REANALYSIS',
+            context: {
+              tenantId: user.tenantId,
+              userId: submittedById,
+              role: user.role,
+              email: user.email ?? '',
+              requestId,
+            },
+          })
+
+          const needsClarification = vnextResult.analysis.engine_output.evidenceSufficiency.status === 'NEEDS_CLARIFICATION'
+          const eventUpdate = await admin
+            .from('events')
+            .update({ status: needsClarification ? 'received' : 'completed' })
+            .eq('id', body.eventId)
+            .eq('tenant_id', user.tenantId)
+            .is('deleted_at', null)
+          if (eventUpdate.error) throw new Error('CANONICAL_EVENT_STATUS_UPDATE_FAILED')
+
+          await writeAuditLog({
+            tenantId: user.tenantId, userId: user.userId, requestId,
+            eventType: 'canonical_engine.used', entityType: 'analysis', entityId: vnextResult.analysis.id,
+            route: '/api/analyze', method: 'POST', status: needsClarification ? 'partial' : 'success',
+            metadata: {
+              source: 'reanalysis',
+              source_flow: vnextResult.analysis.source_flow,
+              engine_runtime_version: vnextResult.analysis.engine_runtime_version,
+              canonical_tree_version: vnextResult.analysis.canonical_tree_version,
+              event_id: body.eventId,
+              candidate_only: true,
+              evidence_sufficiency_status: vnextResult.analysis.engine_output.evidenceSufficiency.status,
+            },
+          })
+
+          return NextResponse.json(
+            canonicalAnalyzeResponse(vnextResult, body.eventId),
+            { headers: { 'x-request-id': requestId } },
+          )
+        }
+
         const { analysisId } = await completeSeraAnalysisAfterEventCreated(
           admin,
           { userId: user.userId, tenantId: user.tenantId },
@@ -298,53 +343,42 @@ export async function POST(req: Request) {
         metadata: { source: 'new_analysis' },
       })
 
-      if (isSeraVNextCanonicalAnalyzeEnabled()) {
-        const vnextResult = await createSeraVNextAnalysis({
-          input: {
-            title,
-            narrative: rawInput,
-            sourceType: 'INTERNAL_PILOT',
-            clientRequestId: `CANONICAL_ROUTE_${eventId}`,
-            sourceFlowOverride: 'VNEXT_CANONICAL',
-            metadata: { eventId, source: 'canonical_route' },
-          },
+      if (isSeraVNextCanonicalAnalyzeEnabled() && String(user.role ?? '').toLowerCase() === 'admin') {
+        const vnextResult = await createCanonicalEventAnalysis({
+          eventId,
+          title,
+          narrative: rawInput,
+          mode: 'INITIAL',
           context: { tenantId: user.tenantId, userId: submittedById, role: user.role, email: user.email ?? '', requestId },
         })
         analysisId = vnextResult.analysis.id
+
+        const needsClarification = vnextResult.analysis.engine_output.evidenceSufficiency.status === 'NEEDS_CLARIFICATION'
+        const eventUpdate = await admin
+          .from('events')
+          .update({ status: needsClarification ? 'received' : 'completed', credits_used: 1 })
+          .eq('id', eventId)
+          .eq('tenant_id', user.tenantId)
+          .is('deleted_at', null)
+        if (eventUpdate.error) throw new Error('CANONICAL_EVENT_STATUS_UPDATE_FAILED')
+
         respostaSucesso = true
-        const engineOutput = vnextResult.analysis.engine_output as Record<string, unknown>
         await writeAuditLog({
           tenantId: user.tenantId, userId: user.userId, requestId,
           eventType: 'canonical_engine.used', entityType: 'analysis', entityId: vnextResult.analysis.id,
-          route: '/api/analyze', method: 'POST', status: 'success',
+          route: '/api/analyze', method: 'POST', status: needsClarification ? 'partial' : 'success',
           metadata: {
             source_flow: vnextResult.analysis.source_flow,
             engine_runtime_version: vnextResult.analysis.engine_runtime_version,
             canonical_tree_version: vnextResult.analysis.canonical_tree_version,
             event_id: eventId,
+            candidate_only: true,
+            evidence_sufficiency_status: vnextResult.analysis.engine_output.evidenceSufficiency.status,
           },
         })
         return NextResponse.json(
-          {
-            event_id: eventId,
-            analysis_id: vnextResult.analysis.id,
-            sourceFlow: vnextResult.analysis.source_flow,
-            engineRuntimeVersion: vnextResult.analysis.engine_runtime_version,
-            canonicalTreeVersion: vnextResult.analysis.canonical_tree_version,
-            warnings: vnextResult.analysis.warnings,
-            guardrails: engineOutput?.guardrails ?? null,
-            guardrailEvidence: engineOutput?.guardrailEvidence ?? {},
-            reviewerOutput: engineOutput?.reviewerOutput ?? null,
-            escapePoint: engineOutput?.escapePoint ?? null,
-            axes: engineOutput?.axes ?? null,
-            preconditions: engineOutput?.preconditions ?? null,
-            humanReviewRequired: true,
-            candidateOnly: true,
-            limitations: vnextResult.analysis.limitations ?? [],
-            seraAnalysis: null,
-            vnextNotice: 'Esta análise usa o motor vNext (candidate-only). O resultado completo está disponível apenas na interface administrativa em /admin/sera-vnext/analyses. O fluxo comum ainda não renderiza a saída completa do vNext.',
-          },
-          { headers: { 'x-request-id': requestId } }
+          canonicalAnalyzeResponse(vnextResult, eventId),
+          { headers: { 'x-request-id': requestId } },
         )
       }
 

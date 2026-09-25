@@ -40,6 +40,7 @@ function buildEngineInput(input: SeraVNextCreateAnalysisInput, context: SeraVNex
 function collectWarnings(output: SeraVNextEngineOutput, inputWarnings: string[]): string[] {
   const warnings = new Set<string>(['NON_FINAL_OUTPUT_ONLY', 'HUMAN_REVIEW_REQUIRED', ...inputWarnings])
   if (output.canonicalTraversal.status !== 'COMPLETED_CANDIDATE_ONLY') warnings.add('CANONICAL_TRAVERSAL_REVIEW_REQUIRED')
+  if (output.evidenceSufficiency.status === 'NEEDS_CLARIFICATION') warnings.add('ADDITIONAL_EVIDENCE_REQUIRED')
   if (output.directActor.status !== 'IDENTIFIED') warnings.add('DIRECT_ACTOR_REVIEW_REQUIRED')
   if (output.preconditions.length === 0) warnings.add('NO_PRECONDITION_CANDIDATE')
   for (const [name, violated] of Object.entries(output.guardrails)) {
@@ -75,13 +76,19 @@ export async function createSeraVNextAnalysis(args: {
   assertNonFinalOutput(engineOutput)
   const outputHash = hashJson(engineOutput)
   const warnings = collectWarnings(engineOutput, args.input.warnings ?? [])
+  const initialStatus = engineOutput.evidenceSufficiency.status === 'NEEDS_CLARIFICATION'
+    ? 'REQUIRES_MORE_EVIDENCE' as const
+    : 'CANDIDATE_ANALYSIS_CREATED' as const
+  const initialReviewStatus = engineOutput.evidenceSufficiency.status === 'NEEDS_CLARIFICATION'
+    ? 'MORE_EVIDENCE_REQUIRED' as const
+    : 'NOT_REVIEWED' as const
 
   const analysis = await repository.insertAnalysis({
     tenant_id: args.context.tenantId,
     created_by: args.context.userId,
     deleted_at: null,
-    status: 'CANDIDATE_ANALYSIS_CREATED',
-    review_status: 'NOT_REVIEWED',
+    status: initialStatus,
+    review_status: initialReviewStatus,
     title: args.input.title,
     narrative: args.input.narrative,
     narrative_hash: narrativeHash,
@@ -156,6 +163,8 @@ export async function createSeraVNextAnalysis(args: {
       engineRuntimeVersion: versions.engineRuntimeVersion,
       sourceFlow: effectiveSourceFlow,
       warningsCount: warnings.length,
+      evidenceSufficiencyStatus: engineOutput.evidenceSufficiency.status,
+      clarificationQuestionIds: engineOutput.evidenceSufficiency.questions.map((item) => item.id),
       guardrailViolations: Object.entries(engineOutput.guardrails)
         .filter(([, violated]) => violated)
         .map(([name]) => name),

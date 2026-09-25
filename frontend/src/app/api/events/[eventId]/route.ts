@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/server/supabase-admin'
 import { getOrCreateRequestId } from '@/lib/observability/request-id'
 import { writeCriticalAuditLog } from '@/lib/observability/audit'
 import { resolvePublicUserId } from '@/lib/server/event-deletion'
+import { isSeraVNextCanonicalAnalyzeUiEnabled } from '@/lib/sera-vnext-product/canonical-event-analysis'
 
 function jsonError(requestId: string, code: string, message: string, status: number) {
   return NextResponse.json(
@@ -37,6 +38,36 @@ export async function GET(req: Request, ctx: { params: Promise<{ eventId: string
     }
     if (!data) return jsonError(requestId, 'EVENT_NOT_FOUND', 'Evento não encontrado.', 404)
 
+    let vnextAnalysis: Record<string, unknown> | null = null
+    if (isSeraVNextCanonicalAnalyzeUiEnabled() && String(user.role ?? '').toLowerCase() === 'admin') {
+      const columns = 'id, status, review_status, updated_at, engine_version, engine_runtime_version, escape_point_status, escape_point_statement, direct_actor, perception_candidate_code, objective_candidate_code, action_candidate_code, warnings, limitations, source_flow, engine_output'
+      const [bySource, byMetadata] = await Promise.all([
+        admin
+          .from('sera_vnext_analyses')
+          .select(columns)
+          .eq('tenant_id', user.tenantId)
+          .eq('source_reference', eventId)
+          .is('deleted_at', null)
+          .order('updated_at', { ascending: false })
+          .limit(1),
+        admin
+          .from('sera_vnext_analyses')
+          .select(columns)
+          .eq('tenant_id', user.tenantId)
+          .contains('metadata', { eventId })
+          .is('deleted_at', null)
+          .order('updated_at', { ascending: false })
+          .limit(1),
+      ])
+      if (bySource.error || byMetadata.error) {
+        console.error('[events GET] optional vNext lookup failed', { requestId })
+      } else {
+        const candidates = [...(bySource.data ?? []), ...(byMetadata.data ?? [])]
+        candidates.sort((a, b) => String(b.updated_at ?? '').localeCompare(String(a.updated_at ?? '')))
+        vnextAnalysis = (candidates[0] as Record<string, unknown> | undefined) ?? null
+      }
+    }
+
     const exclusion = await admin
       .from('risk_profile_exclusions')
       .select('id, reason, excluded_at')
@@ -56,6 +87,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ eventId: string
       risk_profile_exclusion_id: exclusion.data?.id ?? null,
       risk_profile_exclusion_reason: exclusion.data?.reason ?? null,
       risk_profile_exclusion_at: exclusion.data?.excluded_at ?? null,
+      vnext_analysis: vnextAnalysis,
     }, { headers: { 'x-request-id': requestId } })
   } catch (e) {
     if (e instanceof Response) return e

@@ -4,7 +4,18 @@ import { runStep03UnsafeActCondition as runLegacyUnsafeActCondition } from '../.
 export function runStep05UnsafeActCondition(input: {
   engineInput: SeraVNextEngineInput
   unsafeState: SeraVNextEngineOutput['unsafeState']
+  escapePoint: SeraVNextEngineOutput['escapePoint']
 }): SeraVNextEngineOutput['unsafeActOrCondition'] {
+  const escapeSource = input.escapePoint.earliestCandidate ?? ''
+  const humanEscape = /\b(crew|pilot|captain|first officer|copilot|tripula[cç][aã]o|piloto|comandante|copiloto)\b/i.test(escapeSource)
+  if (humanEscape && input.escapePoint.statement) {
+    return {
+      type: 'UNSAFE_ACT',
+      statement: input.escapePoint.statement.replace(/^Quando\s+/i, ''),
+      evidence: input.escapePoint.supportingEvidence,
+    }
+  }
+
   const legacy = runLegacyUnsafeActCondition(
     {
       inputId: input.engineInput.inputId,

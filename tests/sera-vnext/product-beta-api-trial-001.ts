@@ -5,6 +5,7 @@ import {
   handleCreateSeraVNextAnalysisRequest,
   handleCreateSeraVNextReviewRequest,
   handleExportSeraVNextAnalysisRequest,
+  handleExportSeraVNextAnalysisPdfRequest,
   handleGetSeraVNextAnalysisRequest,
   handleListSeraVNextAnalysesRequest,
   handleReanalyzeSeraVNextAnalysisRequest,
@@ -209,6 +210,18 @@ async function main() {
   assert.ok(repo.events.some((event) => event.event_type === 'analysis.created'))
   assert.ok(repo.events.some((event) => event.event_type === 'analysis.review_submitted' || event.event_type === 'analysis.returned'))
   assert.ok(repo.events.some((event) => event.event_type === 'analysis.exported'))
+
+  res = await ensureResponse(handleExportSeraVNextAnalysisPdfRequest(
+    request(`http://localhost/api/admin/sera-vnext/analyses/${analysis.id}/pdf`),
+    analysis.id,
+    deps(repo),
+  ))
+  assert.equal(res.status, 200)
+  assert.equal(res.headers.get('content-type'), 'application/pdf')
+  assert.match(res.headers.get('content-disposition') ?? '', /HFA_SERA_.*\.pdf/)
+  const pdfBytes = new Uint8Array(await res.arrayBuffer())
+  assert.ok(pdfBytes.byteLength > 5000, 'detailed PDF must contain substantive content')
+  assert.equal(new TextDecoder().decode(pdfBytes.slice(0, 5)), '%PDF-')
 
   console.log('API_OK')
 }

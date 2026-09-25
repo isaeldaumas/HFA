@@ -1,4 +1,4 @@
-import type { SeraConfidence, SeraFactCategory } from '../engine-contract'
+import type { SeraAssertionStatus, SeraConfidence, SeraEvidenceSourceSection, SeraFactCategory } from '../engine-contract'
 
 export type SeraEvidenceTemporalRelation = 'PRE_ESCAPE' | 'AT_ESCAPE' | 'POST_ESCAPE' | 'UNKNOWN'
 
@@ -32,6 +32,8 @@ export type SeraEvidenceItem = {
   statement: string
   category: SeraFactCategory
   sourceSentenceIndex: number
+  sourceSection: SeraEvidenceSourceSection
+  assertionStatus: SeraAssertionStatus
   temporalRelation: SeraEvidenceTemporalRelation
   actorRelation: SeraEvidenceActorRelation
   actor: string | null
@@ -41,5 +43,7 @@ export type SeraEvidenceItem = {
   prohibitedFor: SeraEvidenceUse[]
   relationshipToFailure: SeraEvidenceRelationshipToFailure
   confidence: SeraConfidence
+  collectionSource?: 'SOURCE_NARRATIVE' | 'CLARIFICATION_RESPONSE'
+  linkedQuestionId?: string | null
   rationale: string[]
 }

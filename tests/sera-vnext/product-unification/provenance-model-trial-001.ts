@@ -24,7 +24,7 @@ const versions = getSeraVNextProductVersionSet()
 
 console.log('1. Versões básicas')
 assert(versions.engineVersion === '0.1.0', 'engineVersion (contrato DB) = 0.1.0')
-assert(versions.engineRuntimeVersion === '0.2.0', 'engineRuntimeVersion (runtime) = 0.2.0')
+assert(versions.engineRuntimeVersion === '0.3.0', 'engineRuntimeVersion (runtime) = 0.3.0')
 assert(versions.engineVersion !== versions.engineRuntimeVersion, 'contrato DB !== runtime (divergência correta)')
 
 console.log('\n2. Metodologia e árvore')
@@ -41,7 +41,7 @@ assert(versions.inputSchemaVersion === 'sera-vnext-product-beta-input-v1', 'inpu
 assert(versions.outputSchemaVersion === 'sera-vnext-product-beta-output-v1', 'outputSchemaVersion correto')
 
 console.log('\n5. ENGINE_VERSION.ts coerência')
-assert(SERA_VNEXT_ENGINE_VERSION === '0.2.0', 'ENGINE_VERSION = 0.2.0')
+assert(SERA_VNEXT_ENGINE_VERSION === '0.3.0', 'ENGINE_VERSION = 0.3.0')
 assert(versions.engineRuntimeVersion === SERA_VNEXT_ENGINE_VERSION, 'engineRuntimeVersion == ENGINE_VERSION')
 
 console.log('\n6. codeCommit não vazio')

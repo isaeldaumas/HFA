@@ -85,18 +85,27 @@ function decideP(nodeId: string, statements: string[]): Decision {
       const capabilityPresent = concept(statements, 'perceptionCapabilityPresent')
       if (sensory.length > 0) return { answer: 'NÃO_SENSORIAL', supportingEvidence: sensory, rationale: 'Evidence localizes the perception issue to sensory/perceptual capability.' }
       if (knowledge.length > 0) return { answer: 'NÃO_CONHECIMENTO', supportingEvidence: knowledge, rationale: 'Evidence localizes the perception issue to knowledge/training capability.' }
-      if (capabilityPresent.length > 0) return { answer: 'SIM', supportingEvidence: capabilityPresent, rationale: 'Evidence supports prerequisite perception capability, so traversal tests time and information branches.' }
+      const informationQuality = unique([
+        ...concept(statements, 'informationAvailableCorrect'),
+        ...concept(statements, 'informationAmbiguous'),
+        ...concept(statements, 'informationUnavailable'),
+      ])
+      if (capabilityPresent.length > 0 || informationQuality.length > 0) return {
+        answer: 'SIM',
+        supportingEvidence: unique([...capabilityPresent, ...informationQuality]),
+        rationale: 'Positive evidence shows that the issue can be evaluated in the information/attention branches rather than being assumed to be sensory or knowledge incapacity.',
+      }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The text does not identify a canonical capability subtype.' }
     }
     case 'P_TIME_PRESSURE': {
       const attention = concept(statements, 'attentionPressure')
       const management = concept(statements, 'timeManagementPressure')
-      if (attention.length > 0) return { answer: 'SIM_ATENCAO', supportingEvidence: attention, rationale: 'Evidence supports attention impact under perceived time pressure.' }
-      if (management.length > 0) return { answer: 'SIM_GERENCIAMENTO', supportingEvidence: management, rationale: 'Evidence supports time-management pressure.' }
-      if (anyConcept(statements, ['informationAmbiguous', 'informationAvailableCorrect', 'informationUnavailable'])) {
-        return { answer: 'NÃO', supportingEvidence: statements.slice(0, 2), rationale: 'No time-pressure evidence is present; information-quality branches can be tested.' }
+      if (management.length > 0 && attention.length > 0) return { answer: 'SIM_ATENCAO', supportingEvidence: unique([...attention, ...management]), rationale: 'Attention impairment is supported together with explicit excessive time/urgency pressure.' }
+      if (management.length > 0) return { answer: 'SIM_GERENCIAMENTO', supportingEvidence: management, rationale: 'Explicit excessive time-management pressure is supported.' }
+      if (attention.length > 0 || anyConcept(statements, ['informationAmbiguous', 'informationAvailableCorrect', 'informationUnavailable'])) {
+        return { answer: 'NÃO', supportingEvidence: attention.length > 0 ? attention : statements.slice(0, 2), rationale: 'Attention-demand evidence exists without explicit excessive time pressure; continue to information-quality branches and retain attention as contextual evidence only.' }
       }
-      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'No evidence supports a time-pressure perception subtype.' }
+      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'No evidence answers whether perceived time pressure was excessive.' }
     }
     case 'P_INFORMATION_AMBIGUOUS': {
       const ambiguous = concept(statements, 'informationAmbiguous')
@@ -176,18 +185,25 @@ function decideO(nodeId: string, statements: string[]): Decision {
         ...matchingConceptStatementsWithoutNegation(statements, 'explicitAwareness'),
         ...matchingConceptStatementsWithoutNegation(statements, 'consciousDeviation'),
       ])
-      if (routine.length > 0 && awareness.length > 0) return { answer: 'SIM', supportingEvidence: unique([...routine, ...awareness]), rationale: 'Routine violation requires positive awareness and known-rule evidence.' }
-      if (exceptional.length > 0 && awareness.length > 0) return { answer: 'NÃO', supportingEvidence: unique([...exceptional, ...awareness]), rationale: 'Exceptional violation requires positive awareness and known-rule evidence.' }
+      if (routine.length > 0 && awareness.length > 0) return { answer: 'SIM', supportingEvidence: unique([...routine, ...awareness]), rationale: 'Routine violation requires positive normalization/habit evidence together with rule awareness.' }
+      if (exceptional.length > 0 && awareness.length > 0) return { answer: 'NÃO', supportingEvidence: unique([...exceptional, ...awareness]), rationale: 'Exceptional violation is explicitly supported together with rule awareness.' }
+      const known = matchingConceptStatementsWithoutNegation(statements, 'knownRule')
+      const explicit = matchingConceptStatementsWithoutNegation(statements, 'explicitAwareness')
+      const conscious = matchingConceptStatementsWithoutNegation(statements, 'consciousDeviation')
+      if (known.length > 0 && explicit.length > 0 && conscious.length > 0 && routine.length === 0) {
+        return { answer: 'NÃO', supportingEvidence: unique([...known, ...explicit, ...conscious]), rationale: 'A conscious rule deviation is established and no positive evidence of normalization/habit exists; the canonical non-routine branch is O-C.' }
+      }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Violation subtype is not established.' }
     }
     case 'O_MANAGED_RISK': {
       const managed = concept(statements, 'managedRisk')
+      const safeGoal = concept(statements, 'safeGoal')
       const unmanaged = concept(statements, 'unmanagedRisk')
       // The exact PT question is negative: it asks whether the goal did not
       // manage or limit risk. Keep its answer polarity identical in EN, the
       // evaluator, and the canonical branch map.
       if (unmanaged.length > 0) return { answer: 'SIM', supportingEvidence: unmanaged, rationale: 'Evidence supports a rule-compatible but non-conservative or unmanaged-risk objective.' }
-      if (managed.length > 0) return { answer: 'NÃO', supportingEvidence: managed, rationale: 'Risk was actively managed; the negative O_MANAGED_RISK proposition is not supported.' }
+      if (managed.length > 0 || safeGoal.length > 0) return { answer: 'NÃO', supportingEvidence: unique([...managed, ...safeGoal]), rationale: 'Positive evidence supports a nominal rule-consistent operational goal; no independent unsafe objective is established.' }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Managed-risk status is not established.' }
     }
     default:
@@ -202,21 +218,32 @@ function decideA(nodeId: string, statements: string[]): Decision {
     case 'A_IMPLEMENTED': {
       const safeAction = concept(statements, 'safeAction')
       const implemented = concept(statements, 'implementedAction')
+      const perceptionDriven = concept(statements, 'inadequateAssessment')
       const feedbackFailure = concept(statements, 'feedbackImplementationFailure').filter((statement) =>
         /\b(pr[oó]pria a[cç][aã]o|pr[oó]prio comando|own action|own command|resultado da a[cç][aã]o|resultado do comando|fma|modo ativo|post[- ]?checklist)\b/i.test(statement)
       )
       const slipOrLapse = concept(statements, 'slipLapse')
       const selected = concept(statements, 'selectionSubtype')
-      if (feedbackFailure.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: feedbackFailure, rationale: 'Evidence supports failure in feedback/verification during action implementation.' }
-      if (slipOrLapse.length > 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: slipOrLapse, rationale: 'Evidence supports a slip/lapse/error in action implementation before the consequence.' }
-      if (safeAction.length > 0 || selected.length > 0 || implemented.length > 0) return { answer: 'SIM', supportingEvidence: [...safeAction, ...selected, ...implemented], rationale: 'Evidence supports that an action was implemented and can be tested for adequacy.' }
+      const timed = concept(statements, 'timeManagementAction')
+      if (feedbackFailure.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: feedbackFailure, rationale: 'Evidence supports an independent failure in feedback/verification of the actor own action.' }
+      if (slipOrLapse.length > 0 && perceptionDriven.length === 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: slipOrLapse, rationale: 'Evidence supports an independent slip/lapse/error in action implementation before the consequence.' }
+      if (safeAction.length > 0 || selected.length > 0 || timed.length > 0 || implemented.length > 0 || perceptionDriven.length > 0) return { answer: 'SIM', supportingEvidence: unique([...safeAction, ...selected, ...timed, ...implemented, ...perceptionDriven]), rationale: perceptionDriven.length > 0 ? 'An action was implemented consistently with the actor perceived state; perception-linked wording is not double-counted as an independent implementation failure.' : 'Evidence supports that an action was implemented and can be tested for adequacy.' }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'No pre-escape action implementation evidence is sufficient.' }
     }
     case 'A_CORRECT': {
       const correct = concept(statements, 'correctAction')
       const incorrect = concept(statements, 'incorrectAction')
+      const perceptionDriven = concept(statements, 'inadequateAssessment')
+      const independentSelectionError = matching(statements, [
+        /\b(selected|selecionou|escolheu|acionou|apertou|programou|inseriu)\b.*\b(wrong|errad[oa]|incorret[oa]|modo|mode|valor|value|comando|control)\b/i,
+        /\bwrong checklist|checklist errado|wrong switch|interruptor errado|wrong control|comando errado\b/i,
+      ])
+      const selectionSubtype = concept(statements, 'selectionSubtype')
+      const timingSubtype = concept(statements, 'timeManagementAction')
+      if (timingSubtype.length > 0) return { answer: 'NÃO', supportingEvidence: timingSubtype, rationale: 'The response was eventually executed, but explicit delay/hesitation makes execution timing independently inadequate.' }
       if (correct.length > 0) return { answer: 'SIM', supportingEvidence: correct, rationale: 'Action evidence supports an adequate response.' }
-      if (incorrect.length > 0) return { answer: 'NÃO', supportingEvidence: incorrect, rationale: 'Action evidence supports an implemented but inadequate action.' }
+      if (perceptionDriven.length > 0 && independentSelectionError.length === 0 && selectionSubtype.length === 0) return { answer: 'SIM', supportingEvidence: perceptionDriven, rationale: 'The action was coherent with the actor incorrect perceived state and no independent action-selection/implementation mechanism is established; A-axis double counting is avoided.' }
+      if (incorrect.length > 0 || independentSelectionError.length > 0 || selectionSubtype.length > 0 || timingSubtype.length > 0) return { answer: 'NÃO', supportingEvidence: unique([...incorrect, ...independentSelectionError, ...selectionSubtype, ...timingSubtype]), rationale: 'Evidence supports an independent implemented but inadequate action, selection, or execution timing.' }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Correctness of action is not established.' }
     }
     case 'A_CAPABILITY': {
@@ -225,7 +252,16 @@ function decideA(nodeId: string, statements: string[]): Decision {
       const capabilityPresent = concept(statements, 'actionCapabilityPresent')
       if (physical.length > 0) return { answer: 'NÃO_INABILIDADE', supportingEvidence: physical, rationale: 'Evidence supports physical/capability limitation.' }
       if (knowledge.length > 0) return { answer: 'NÃO_CONHECIMENTO', supportingEvidence: knowledge, rationale: 'Evidence supports knowledge/skill limitation.' }
-      if (capabilityPresent.length > 0) return { answer: 'SIM', supportingEvidence: capabilityPresent, rationale: 'Evidence supports prerequisite action capability, so traversal tests time-pressure action branches.' }
+      const specificActionMechanism = unique([
+        ...concept(statements, 'selectionSubtype'),
+        ...concept(statements, 'feedbackSubtype'),
+        ...concept(statements, 'timeManagementAction'),
+      ])
+      if (capabilityPresent.length > 0 || specificActionMechanism.length > 0) return {
+        answer: 'SIM',
+        supportingEvidence: unique([...capabilityPresent, ...specificActionMechanism]),
+        rationale: 'A specific executed/omitted action mechanism provides positive evidence to continue subtype discrimination; capability is not inferred merely from absence of limitation.',
+      }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Action capability cannot be assumed without positive evidence.' }
     }
     case 'A_TIME_PRESSURE': {

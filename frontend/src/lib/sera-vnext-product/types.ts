@@ -15,6 +15,11 @@ export type SeraVNextProductContext = Pick<ApiUserContext, 'userId' | 'tenantId'
 
 export type SeraVNextProductSourceType = 'REAL_EVENT' | 'TRAINING' | 'INTERNAL_PILOT' | 'OTHER'
 
+export type SeraVNextClarificationResponse = {
+  questionId: string
+  response: string
+}
+
 export type SeraVNextCreateAnalysisInput = {
   title: string
   narrative: string

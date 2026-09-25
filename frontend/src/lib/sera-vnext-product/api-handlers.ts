@@ -9,6 +9,7 @@ import {
   createSeraVNextAnalysis,
   createSeraVNextReview,
   exportSeraVNextAnalysis,
+  exportSeraVNextAnalysisPdf,
   getSeraVNextAnalysisDetail,
   isSeraVNextProductBetaEnabled,
   listSeraVNextAnalyses,
@@ -16,6 +17,7 @@ import {
   reanalyzeSeraVNextAnalysis,
   restoreSeraVNextAnalysis,
   SeraVNextProductError,
+  validateClarificationResponses,
   validateCreateAnalysisInput,
   validateReviewInput,
   type SeraVNextProductContext,
@@ -165,7 +167,16 @@ export async function handleReanalyzeSeraVNextAnalysisRequest(req: Request, id: 
     const reason = body && typeof body === 'object' && typeof (body as Record<string, unknown>).reason === 'string'
       ? String((body as Record<string, unknown>).reason)
       : undefined
-    const result = await reanalyzeSeraVNextAnalysis({ analysisId: id, reason, context: routed.context, repository: deps.repository })
+    const clarificationResponses = body && typeof body === 'object'
+      ? validateClarificationResponses((body as Record<string, unknown>).clarificationResponses)
+      : []
+    const result = await reanalyzeSeraVNextAnalysis({
+      analysisId: id,
+      reason,
+      clarificationResponses,
+      context: routed.context,
+      repository: deps.repository,
+    })
     routed.logEvent({ event: 'sera_vnext_beta_reanalysis_completed', requestId, tenantId: routed.context.tenantId, analysisId: id, status: result.analysis.status, durationMs: Math.round(nowFn(deps)() - started) })
     return NextResponse.json(result, { status: 200, headers: { ...productBetaNoStoreHeaders, 'x-request-id': requestId } })
   } catch (error) {
@@ -225,6 +236,29 @@ export async function handleExportSeraVNextAnalysisRequest(req: Request, id: str
     const payload = await exportSeraVNextAnalysis({ analysisId: id, context: routed.context, repository: deps.repository })
     routed.logEvent({ event: 'sera_vnext_beta_analysis_exported', requestId, tenantId: routed.context.tenantId, analysisId: id, status: payload.analysis.status })
     return NextResponse.json(payload, { status: 200, headers: { ...productBetaNoStoreHeaders, 'x-request-id': requestId } })
+  } catch (error) {
+    return responseError(error, requestId)
+  }
+}
+
+
+export async function handleExportSeraVNextAnalysisPdfRequest(req: Request, id: string, deps: HandlerDeps = {}) {
+  let requestId = req.headers.get('x-request-id') ?? deps.requestId?.() ?? getOrCreateRequestId(req)
+  try {
+    const routed = await routeContext(req, deps)
+    requestId = routed.requestId
+    if ('disabled' in routed) return routed.disabled
+    const result = await exportSeraVNextAnalysisPdf({ analysisId: id, context: routed.context, repository: deps.repository })
+    routed.logEvent({ event: 'sera_vnext_beta_analysis_exported', requestId, tenantId: routed.context.tenantId, analysisId: id, status: result.analysis.status })
+    return new NextResponse(new Uint8Array(result.buffer), {
+      status: 200,
+      headers: {
+        ...productBetaNoStoreHeaders,
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${result.filename}"`,
+        'x-request-id': requestId,
+      },
+    })
   } catch (error) {
     return responseError(error, requestId)
   }

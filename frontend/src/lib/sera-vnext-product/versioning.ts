@@ -11,7 +11,7 @@ import {
 
 // Provenance model separates DB contract version from actual runtime version:
 //   engineVersion        = DB row contract version (locked at 0.1.0 by DB constraint)
-//   engineRuntimeVersion = actual executable version used (0.2.0 from ENGINE_VERSION.ts)
+//   engineRuntimeVersion = actual executable version used (0.3.0 from ENGINE_VERSION.ts)
 //   sourceFlow           = origin of the analysis record
 //   canonicalTreeVersion = SERA canonical tree version used for traversal
 //
