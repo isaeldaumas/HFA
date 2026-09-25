@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { isAllowedA4R190LegacyMethodologyPath, isAllowedSeraVNextProtectedApiPath } from "./protected-path-contract";
+import { isAllowedA4R190LegacyMethodologyPath, isAllowedPrimarySeraMigrationPath, isAllowedSeraVNextProtectedApiPath } from "./protected-path-contract";
 
 type Candidate = {
   id: string;
@@ -371,7 +371,7 @@ for (const changedPath of changedTracked) {
       `unexpected API path changed: ${changedPath}`,
     );
   }
-  assert.ok(!changedPath.startsWith("supabase/migrations/"), `migration path changed: ${changedPath}`);
+  assert.ok(isAllowedPrimarySeraMigrationPath(root, changedPath) || !changedPath.startsWith("supabase/migrations/"), `migration path changed: ${changedPath}`);
 }
 
 console.log("A4R214 official vNext fixture set trial passed.");

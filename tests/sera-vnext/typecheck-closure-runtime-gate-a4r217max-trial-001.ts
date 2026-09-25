@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import { isAllowedSeraVNextProtectedApiPath } from "./protected-path-contract";
+import { isAllowedPrimarySeraMigrationPath, isAllowedSeraVNextProtectedApiPath } from "./protected-path-contract";
 
 const rootDir = path.resolve(__dirname, "..", "..");
 

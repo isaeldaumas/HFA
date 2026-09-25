@@ -249,6 +249,27 @@ export function isAllowedSeraVNextCanonicalTreePath(rootDir: string, changedPath
   return true;
 }
 
+export function isAllowedPrimarySeraMigrationPath(rootDir: string, changedPath: string): boolean {
+  const actionMigration = "supabase/migrations/20260925163712_corrective_actions_primary_sera_analysis.sql";
+  const deletionMigration = "supabase/migrations/20260925174644_block_current_sera_open_actions_on_event_delete.sql";
+  if (changedPath === actionMigration) {
+    const source = readRel(rootDir, actionMigration);
+    assert.ok(source.includes("sera_vnext_analysis_id"), `${actionMigration}: current SERA FK must exist`);
+    assert.ok(source.includes("alter column analysis_id drop not null"), `${actionMigration}: historical legacy FK must become optional`);
+    assert.ok(source.includes("num_nonnulls(analysis_id, sera_vnext_analysis_id) = 1"), `${actionMigration}: exactly one analysis source must be enforced`);
+    assert.ok(source.includes("references public.sera_vnext_analyses(id) on delete cascade"), `${actionMigration}: current SERA FK must cascade safely`);
+    return true;
+  }
+  if (changedPath === deletionMigration) {
+    const source = readRel(rootDir, deletionMigration);
+    assert.ok(source.includes("sera_vnext_analysis_id"), `${deletionMigration}: deletion guard must inspect current SERA actions`);
+    assert.ok(source.includes("EVENT_DELETE_CORRECTIVE_ACTION_BLOCK"), `${deletionMigration}: deletion guard must preserve existing blocker code`);
+    assert.ok(source.includes("before update of deleted_at"), `${deletionMigration}: guard must run before soft delete`);
+    return true;
+  }
+  return false;
+}
+
 export function isAllowedA4R190LegacyMethodologyPath(rootDir: string, changedPath: string): boolean {
   if (![
     "frontend/src/lib/sera/all-steps.ts",

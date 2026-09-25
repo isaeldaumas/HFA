@@ -11,6 +11,8 @@ const riskProfile = read('frontend/src/lib/risk-profile/server.ts')
 const eventPage = read('frontend/src/app/(dashboard)/events/[id]/page.tsx')
 const actions = read('frontend/src/app/api/actions/route.ts')
 const migration = read('supabase/migrations/20260925163712_corrective_actions_primary_sera_analysis.sql')
+const deletionMigration = read('supabase/migrations/20260925174644_block_current_sera_open_actions_on_event_delete.sql')
+const deletionHelper = read('frontend/src/lib/server/event-deletion.ts')
 const legacyRecalcRoutes = [
   'frontend/src/app/api/recalculate/route.ts',
   'frontend/src/app/api/analyses/[analysisId]/recalculate/route.ts',
@@ -35,6 +37,10 @@ assert.ok(eventPage.includes('Reprocessar com SERA 0.3'), 'historical events mus
 assert.ok(eventPage.includes('Somente leitura — motor anterior'), 'legacy classification must be read-only')
 assert.ok(actions.includes('sera_vnext_analysis_id'), 'corrective actions must support current SERA analyses')
 assert.ok(migration.includes('num_nonnulls(analysis_id, sera_vnext_analysis_id) = 1'), 'corrective action source must be exclusive')
+assert.equal(analyze.includes('.update({ raw_input:'), false, 'reanalysis must not overwrite the original event narrative')
+assert.ok(analyze.includes("narrative: String(ev.raw_input ?? rawInput)"), 'reanalysis must use the stored original narrative')
+assert.ok(deletionHelper.includes(".in('sera_vnext_analysis_id', vnextIds)"), 'deletion impact must include current SERA corrective actions')
+assert.ok(deletionMigration.includes('EVENT_DELETE_CORRECTIVE_ACTION_BLOCK'), 'database soft-delete must block open current-SERA actions')
 for (const route of legacyRecalcRoutes) {
   assert.ok(route.includes('status: 410'), 'legacy recalculation endpoint must be disabled')
   assert.equal(route.includes('@/lib/sera/recalculate'), false, 'legacy recalculation runtime import must be absent')
