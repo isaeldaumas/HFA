@@ -98,6 +98,7 @@ type EventPayload = {
   operation_type?: string | null
   aircraft_type?: string | null
   created_at: string
+  raw_input?: string | null
   occurred_at?: string | null
   deleted_at?: string | null
   recoverable_until?: string | null
@@ -359,6 +360,8 @@ export default function EventDetailPage() {
   const [activeTab, setActiveTab] = useState<FlowTab>('perception')
   const [pdfState, setPdfState]   = useState<PdfState>('idle')
   const [vnextPdfState, setVnextPdfState] = useState<PdfState>('idle')
+  const [vnextReanalyzeState, setVnextReanalyzeState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  const [vnextReanalyzeError, setVnextReanalyzeError] = useState<string | null>(null)
   const [badges, setBadges]       = useState<BadgeMap>({})
   const [actionStates, setActionStates] = useState<Record<number, 'idle' | 'loading' | 'done' | 'error'>>({})
   const [canManageDelete, setCanManageDelete] = useState(false)
@@ -460,6 +463,31 @@ export default function EventDetailPage() {
       setTimeout(() => setPdfState('idle'), 3000)
     }
   }, [event, analysis, token])
+
+  const reanalyzeWithVNext = useCallback(async () => {
+    if (!event || !token) return
+    setVnextReanalyzeState('loading')
+    setVnextReanalyzeError(null)
+    try {
+      const res = await fetch(`/api/events/${event.id}/reanalyze-vnext`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(String(json?.error?.message ?? json?.detail ?? 'Falha ao executar SERA vNext.'))
+      }
+      const scope = searchParams?.get('scope') === 'deleted' ? 'deleted' : 'active'
+      const refreshed = await apiCall(`/events/${event.id}?scope=${scope}`, {}, token) as EventPayload
+      setEvent(refreshed)
+      if (refreshed?.analyses) setAnalysis(refreshed.analyses)
+      setVnextReanalyzeState('done')
+      setTimeout(() => setVnextReanalyzeState('idle'), 3000)
+    } catch (error) {
+      setVnextReanalyzeError(error instanceof Error ? error.message : 'Falha ao executar SERA vNext.')
+      setVnextReanalyzeState('error')
+    }
+  }, [event, token, searchParams])
 
   const downloadVNextPdf = useCallback(async () => {
     if (!event?.vnext_analysis?.id || !token) return
@@ -716,6 +744,11 @@ export default function EventDetailPage() {
           {deletionError}
         </div>
       )}
+      {vnextReanalyzeError && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          {vnextReanalyzeError}
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
@@ -727,6 +760,16 @@ export default function EventDetailPage() {
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
+          {canManageDelete && !event.deleted_at && !event.vnext_analysis && (
+            <button
+              type="button"
+              onClick={() => void reanalyzeWithVNext()}
+              disabled={vnextReanalyzeState === 'loading'}
+              className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-500/20 disabled:cursor-wait disabled:opacity-60"
+            >
+              {vnextReanalyzeState === 'loading' ? 'Reanalisando…' : vnextReanalyzeState === 'done' ? 'vNext criado' : 'Reanalisar com SERA vNext'}
+            </button>
+          )}
           {canManageDelete && !event.deleted_at && (
             <button
               type="button"
