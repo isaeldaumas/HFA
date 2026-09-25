@@ -49,6 +49,22 @@ export function assertEventDetailVNextReadContract(rootDir: string): void {
   assert.equal(source.includes(".from('sera_vnext_analyses').delete"), false, `${routePath}: GET integration must not delete vNext analysis rows`);
 }
 
+export function assertEventVNextReanalyzeContract(rootDir: string): void {
+  const routePath = "frontend/src/app/api/events/[eventId]/reanalyze-vnext/route.ts";
+  const source = readRel(rootDir, routePath);
+
+  assert.ok(source.includes("requireBearerUser(req)"), `${routePath}: must require authenticated bearer user`);
+  assert.ok(source.includes("String(user.role ?? '').toLowerCase() !== 'admin'"), `${routePath}: must remain admin-only`);
+  assert.ok(source.includes("isSeraVNextCanonicalAnalyzeEnabled()"), `${routePath}: must require canonical vNext feature flag`);
+  assert.ok(source.includes(".eq('tenant_id', user.tenantId)"), `${routePath}: event lookup/update must remain tenant-scoped`);
+  assert.ok(source.includes(".is('deleted_at', null)"), `${routePath}: deleted events must not be reanalyzed`);
+  assert.ok(source.includes("userId: user.publicUserId"), `${routePath}: persistence FK must use public.users identity`);
+  assert.ok(source.includes("mode: 'REANALYSIS'"), `${routePath}: must use canonical reanalysis mode`);
+  assert.ok(source.includes("candidate_only: true"), `${routePath}: audit must preserve candidate-only status`);
+  assert.equal(source.includes("completeSeraAnalysisAfterEventCreated"), false, `${routePath}: must not invoke legacy SERA pipeline`);
+  assert.equal(source.includes("debitCreditForEvent"), false, `${routePath}: reanalysis must not consume a new credit`);
+}
+
 export function isAllowedSeraVNextProtectedApiPath(rootDir: string, changedPath: string): boolean {
   if (changedPath === "frontend/src/app/api/analyze/route.ts") {
     assertAnalyzeRouteSanitizationContract(rootDir);
@@ -56,6 +72,10 @@ export function isAllowedSeraVNextProtectedApiPath(rootDir: string, changedPath:
   }
   if (changedPath === "frontend/src/app/api/events/[eventId]/route.ts") {
     assertEventDetailVNextReadContract(rootDir);
+    return true;
+  }
+  if (changedPath === "frontend/src/app/api/events/[eventId]/reanalyze-vnext/route.ts") {
+    assertEventVNextReanalyzeContract(rootDir);
     return true;
   }
   return false;

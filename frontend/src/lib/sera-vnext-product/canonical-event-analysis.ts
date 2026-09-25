@@ -4,6 +4,10 @@ import { createSeraVNextAnalysis } from '@/lib/sera-vnext-product/persistence/cr
 type CanonicalEventMode = 'INITIAL' | 'REANALYSIS'
 
 
+export function isSeraVNextCanonicalAnalyzeEnabled(): boolean {
+  return process.env.SERA_VNEXT_CANONICAL_ANALYZE_ENABLED?.trim().toLowerCase() === 'true'
+}
+
 export function isSeraVNextCanonicalAnalyzeUiEnabled(): boolean {
   return process.env.NEXT_PUBLIC_SERA_VNEXT_CANONICAL_ANALYZE_UI_ENABLED?.trim().toLowerCase() === 'true'
 }
