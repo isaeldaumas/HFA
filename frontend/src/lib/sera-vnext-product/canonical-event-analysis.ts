@@ -3,6 +3,11 @@ import { createSeraVNextAnalysis } from '@/lib/sera-vnext-product/persistence/cr
 
 type CanonicalEventMode = 'INITIAL' | 'REANALYSIS'
 
+
+export function isSeraVNextCanonicalAnalyzeUiEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_SERA_VNEXT_CANONICAL_ANALYZE_UI_ENABLED?.trim().toLowerCase() === 'true'
+}
+
 export function buildCanonicalEventClientRequestId(args: {
   eventId: string
   requestId: string
@@ -70,10 +75,13 @@ export function canonicalAnalyzeResponse(result: SeraVNextCreateAnalysisResult, 
     escapePoint: engineOutput.escapePoint,
     axes: engineOutput.axes,
     preconditions: engineOutput.preconditions,
+    evidenceSufficiency: engineOutput.evidenceSufficiency,
     humanReviewRequired: true,
     candidateOnly: true,
     limitations: result.analysis.limitations,
     seraAnalysis: null,
-    vnextNotice: 'Análise vNext candidate-only criada. A hipótese exige revisão humana e não preenche classificação final, risco ou downstream.',
+    vnextNotice: engineOutput.evidenceSufficiency.status === 'NEEDS_CLARIFICATION'
+      ? 'Análise interrompida por evidência insuficiente. Responda às perguntas de esclarecimento antes de tratar P/O/A como hipótese utilizável.'
+      : 'Análise vNext candidate-only criada. A hipótese exige revisão humana e não preenche classificação final, risco ou downstream.',
   }
 }

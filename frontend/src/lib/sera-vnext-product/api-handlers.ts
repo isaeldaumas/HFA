@@ -17,6 +17,7 @@ import {
   reanalyzeSeraVNextAnalysis,
   restoreSeraVNextAnalysis,
   SeraVNextProductError,
+  validateClarificationResponses,
   validateCreateAnalysisInput,
   validateReviewInput,
   type SeraVNextProductContext,
@@ -166,7 +167,16 @@ export async function handleReanalyzeSeraVNextAnalysisRequest(req: Request, id: 
     const reason = body && typeof body === 'object' && typeof (body as Record<string, unknown>).reason === 'string'
       ? String((body as Record<string, unknown>).reason)
       : undefined
-    const result = await reanalyzeSeraVNextAnalysis({ analysisId: id, reason, context: routed.context, repository: deps.repository })
+    const clarificationResponses = body && typeof body === 'object'
+      ? validateClarificationResponses((body as Record<string, unknown>).clarificationResponses)
+      : []
+    const result = await reanalyzeSeraVNextAnalysis({
+      analysisId: id,
+      reason,
+      clarificationResponses,
+      context: routed.context,
+      repository: deps.repository,
+    })
     routed.logEvent({ event: 'sera_vnext_beta_reanalysis_completed', requestId, tenantId: routed.context.tenantId, analysisId: id, status: result.analysis.status, durationMs: Math.round(nowFn(deps)() - started) })
     return NextResponse.json(result, { status: 200, headers: { ...productBetaNoStoreHeaders, 'x-request-id': requestId } })
   } catch (error) {

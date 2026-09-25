@@ -127,6 +127,23 @@ export type SeraPreconditionCandidate = {
   confidence: SeraConfidence
 }
 
+export type SeraClarificationQuestion = {
+  id: string
+  stage: 'SAFE_OPERATION' | 'ESCAPE_POINT' | 'DIRECT_ACTOR' | 'PERCEPTION' | 'OBJECTIVE' | 'ACTION'
+  blocking: true
+  question: string
+  whyNeeded: string
+  linkedNodeId: string | null
+  requestedEvidence: string[]
+}
+
+export type SeraEvidenceSufficiencyGate = {
+  status: 'SUFFICIENT_FOR_CANDIDATE_ANALYSIS' | 'NEEDS_CLARIFICATION' | 'NO_HUMAN_ESCAPE_POINT'
+  minimumEvidenceSatisfied: boolean
+  blockingReasons: string[]
+  questions: SeraClarificationQuestion[]
+}
+
 export type SeraVNextHumanReviewPackage = {
   inputSummary: string
   escapePointCandidate: SeraVNextEngineOutput['escapePoint']
@@ -139,6 +156,14 @@ export type SeraVNextHumanReviewPackage = {
   reviewerDecisionsRequired: string[]
 }
 
+export type SeraSupplementalEvidenceInput = {
+  evidenceId: string
+  statement: string
+  linkedQuestionId: string
+  stage: SeraClarificationQuestion['stage']
+  temporalRelation: 'PRE_ESCAPE' | 'AT_ESCAPE'
+}
+
 export type SeraVNextEngineInput = {
   inputId: string
   narrative: string
@@ -147,6 +172,7 @@ export type SeraVNextEngineInput = {
   sourceReference?: string
   requestId: string
   mode: SeraVNextEngineMode
+  supplementalEvidence?: SeraSupplementalEvidenceInput[]
   options?: {
     includeDebugTrace?: boolean
     requireHumanReview?: true
@@ -218,6 +244,8 @@ export type SeraVNextEngineOutput = {
     paths: SeraCanonicalPath[]
     unansweredQuestions: string[]
   }
+
+  evidenceSufficiency: SeraEvidenceSufficiencyGate
 
   guardrails: {
     consequenceUsedAsCause: boolean

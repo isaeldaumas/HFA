@@ -459,7 +459,28 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       doc.moveDown(0.22)
     }
 
-    heading(doc, '10. Incertezas, limitações e perguntas em aberto')
+    heading(doc, '10. Gate de suficiência da evidência')
+    meta(doc, 'Status', output.evidenceSufficiency.status)
+    meta(doc, 'Evidência mínima satisfeita', output.evidenceSufficiency.minimumEvidenceSatisfied ? 'SIM' : 'NÃO')
+    subheading(doc, 'Razões de bloqueio')
+    bullets(doc, output.evidenceSufficiency.blockingReasons)
+    if (output.evidenceSufficiency.questions.length) {
+      subheading(doc, 'Perguntas investigativas necessárias antes de concluir')
+      for (const [index, item] of output.evidenceSufficiency.questions.entries()) {
+        keepTogether(doc, 90)
+        doc.font('Helvetica-Bold').fontSize(9).fillColor('#8a5a00')
+          .text(`Pergunta ${index + 1} — ${item.stage}${item.linkedNodeId ? ` — nó ${item.linkedNodeId}` : ''}`)
+        body(doc, item.question, 'justify')
+        meta(doc, 'Por que é necessária', item.whyNeeded)
+        subheading(doc, 'Evidência solicitada')
+        bullets(doc, item.requestedEvidence)
+        doc.moveDown(0.35)
+      }
+    } else {
+      body(doc, 'Nenhuma pergunta adicional é necessária para a análise candidate-only atual.')
+    }
+
+    heading(doc, '11. Incertezas, limitações e perguntas em aberto')
     subheading(doc, 'Incertezas')
     bullets(doc, output.uncertainties.map(translateReportText))
     subheading(doc, 'Limitações')
@@ -467,7 +488,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     subheading(doc, 'Perguntas canônicas ainda não respondidas')
     bullets(doc, output.canonicalTraversal.unansweredQuestions.map(translateReportText))
 
-    heading(doc, '11. Pacote de revisão humana')
+    heading(doc, '12. Pacote de revisão humana')
     subheading(doc, 'Decisões requeridas do revisor')
     bullets(doc, output.humanReviewPackage.reviewerDecisionsRequired.map(translateReportText))
     subheading(doc, 'Avisos críticos')
@@ -489,7 +510,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       }
     }
 
-    heading(doc, '12. Conclusão de uso')
+    heading(doc, '13. Conclusão de uso')
     body(
       doc,
       'Este relatório documenta uma hipótese metodológica candidate-only e a trilha de decisão do motor. Ele não constitui classificação final liberada. O revisor deve confirmar o ponto de fuga, o ator direto, cada eixo P/O/A, as pré-condições e qualquer evidência conflitante antes de uso formal.',

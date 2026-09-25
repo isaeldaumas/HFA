@@ -338,7 +338,8 @@
     "requiredForRegression": true,
     "requiredEnvironment": [],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "runtimeScope": "HISTORICAL_V0_2_0"
   },
   {
     "path": "tests/sera-vnext/engine-determinism-validation-trial-001.ts",
@@ -373,7 +374,8 @@
     "requiredForRegression": true,
     "requiredEnvironment": [],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "runtimeScope": "HISTORICAL_V0_2_0"
   },
   {
     "path": "tests/sera-vnext/engine-v0-adversarial-trial-001.ts",
@@ -381,7 +383,8 @@
     "requiredForRegression": true,
     "requiredEnvironment": [],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "runtimeScope": "HISTORICAL_V0_2_0"
   },
   {
     "path": "tests/sera-vnext/engine-v0-canonical-tree-trial-001.ts",
@@ -437,7 +440,8 @@
     "requiredForRegression": true,
     "requiredEnvironment": [],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "runtimeScope": "HISTORICAL_V0_2_0"
   },
   {
     "path": "tests/sera-vnext/escape-point-adapter-wiring-trial-001.ts",
@@ -1962,7 +1966,8 @@
     "requiredForRegression": true,
     "requiredEnvironment": [],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "runtimeScope": "HISTORICAL_V0_2_0"
   },
   {
     "path": "tests/sera-vnext/engine-validation-v02/run-all.ts",
@@ -1970,7 +1975,8 @@
     "requiredForRegression": true,
     "requiredEnvironment": [],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "runtimeScope": "HISTORICAL_V0_2_0"
   },
   {
     "path": "tests/sera-vnext/engine-v02/reachability/run-reachability.ts",
@@ -1978,7 +1984,8 @@
     "requiredForRegression": true,
     "requiredEnvironment": [],
     "expectedExit": 0,
-    "expectedStatus": "PASS"
+    "expectedStatus": "PASS",
+    "runtimeScope": "HISTORICAL_V0_2_0"
   },
   {
     "path": "tests/sera-vnext/engine-validation-v03-naturalistic/run-all.ts",
@@ -2051,5 +2058,86 @@
     "expectedExit": 0,
     "expectedStatus": "PASS",
     "dataAccess": "MUTATING_SYNTHETIC"
+  },
+  {
+    "path": "tests/sera-vnext/ps-cdq-golden-case-trial-001.ts",
+    "type": "UNIT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT"
+  },
+  {
+    "path": "tests/sera-vnext/ps-cdq-family-generalization-trial-001.ts",
+    "type": "UNIT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT"
+  },
+  {
+    "path": "tests/sera-vnext/report-negation-polarity-trial-001.ts",
+    "type": "UNIT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT"
+  },
+  {
+    "path": "tests/sera-vnext/evidence-sufficiency-clarification-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT"
+  },
+  {
+    "path": "tests/sera-vnext/evidence-clarification-product-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT"
+  },
+  {
+    "path": "tests/sera-vnext/canonical-naturalistic-regression-v1-trial-001.ts",
+    "type": "GATE",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT"
+  },
+  {
+    "path": "tests/sera-vnext/engine-validation-v04-method-aligned-trial-001.ts",
+    "type": "GATE",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT"
+  },
+  {
+    "path": "tests/sera-vnext/engine-validation-v04-holdout-method-aligned-trial-001.ts",
+    "type": "GATE",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT"
+  },
+  {
+    "path": "tests/sera-vnext/historical-runtime-baselines-preserved-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT"
   }
 ]

@@ -7,7 +7,7 @@ function normalize(input: string): string {
 
 function hasConsequenceMarker(text: string): boolean {
   return /\b(crash|impact|impacted|collision|damage|damaged|fatal|injury|injured|ditch|ditched|struck|strike|hit|terrain|runway lights|very low height|acidente|impacto|colis[aã]o|dano|ferid|bateu)\b/i.test(text)
-    || /\b(pousou|realizou o pouso|efetuou o pouso|concluiu o pouso|landed|touchdown)\b.*\b(errad[oa]|equivocad[oa]|erroneamente|por engano|mistakenly|erroneously|nao previst[oa]|não previst[oa]|nao autorizad[oa]|não autorizad[oa]|erro|wrong|confundindo)\b/i.test(text)
+    || /\b(pousou|realizou o pouso|efetuou o pouso|concluiu o pouso|landed|touchdown)\b.*\b(errad[oa]|equivocad[oa]|erroneamente|por engano|mistakenly|erroneously|nao previst[oa]|não previst[oa]|nao autorizad[oa]|não autorizad[oa]|erro|wrong|diferente|distint[ao]|different|confundindo)\b/i.test(text)
     || /\b(ap[oó]s concluir o pouso|depois do pouso|after landing|after touchdown)\b/i.test(text)
 }
 

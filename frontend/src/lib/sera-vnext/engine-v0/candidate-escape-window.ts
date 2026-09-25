@@ -17,7 +17,7 @@ function normalized(sentence: string): string {
 function hasOutcomeSignal(sentence: string): boolean {
   const lower = normalized(sentence)
   if (OUTCOME_KEYWORDS.some((keyword) => lower.includes(normalized(keyword)))) return true
-  return /\b(pousou|realizou o pouso|efetuou o pouso|conclu(?:iu|ir) o pouso|landed|completed the landing)\b.*\b(errad[oa]|erroneamente|equivocad[oa]|nao previst[oa]|nao autorizad[oa]|erro|wrong|different destination|destino diferente)\b/.test(lower)
+  return /\b(pousou|realizou o pouso|efetuou o pouso|conclu(?:iu|ir) o pouso|landed|completed the landing)\b.*\b(errad[oa]|erroneamente|equivocad[oa]|nao previst[oa]|nao autorizad[oa]|erro|wrong|different|diferente|distint[ao]|different destination|destino diferente)\b/.test(lower)
     || /\bapos concluir o pouso|after (?:completing|the) landing\b/.test(lower) || /\b(apos concluir o pouso|after landing|after touchdown)\b/.test(lower)
 }
 

@@ -7,6 +7,7 @@ import {
 import { SeraVNextProductError } from './errors'
 import { isAnalysisStatus, isReviewDecision, isReviewStatus } from './statuses'
 import type {
+  SeraVNextClarificationResponse,
   SeraVNextCreateAnalysisInput,
   SeraVNextListAnalysesQuery,
   SeraVNextProductSourceType,
@@ -140,4 +141,36 @@ export function validateReviewInput(raw: unknown): SeraVNextReviewInput {
     requiresMoreEvidence: Boolean(body.requiresMoreEvidence) || body.decision === 'REQUIRES_MORE_EVIDENCE',
     metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata as Record<string, unknown> : {},
   }
+}
+
+export function validateClarificationResponses(raw: unknown): SeraVNextClarificationResponse[] {
+  if (raw === undefined || raw === null) return []
+  if (!Array.isArray(raw)) {
+    throw new SeraVNextProductError('SERA_VNEXT_CLARIFICATION_RESPONSES_INVALID', 'clarificationResponses deve ser uma lista.', 400)
+  }
+  if (raw.length > 20) {
+    throw new SeraVNextProductError('SERA_VNEXT_CLARIFICATION_RESPONSES_TOO_MANY', 'No máximo 20 respostas de esclarecimento por reanálise.', 400)
+  }
+  const seen = new Set<string>()
+  return raw.map((item, index) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new SeraVNextProductError('SERA_VNEXT_CLARIFICATION_RESPONSE_INVALID', `Resposta de esclarecimento ${index + 1} inválida.`, 400)
+    }
+    const obj = item as Record<string, unknown>
+    const questionId = typeof obj.questionId === 'string'
+      ? obj.questionId.replace(SAFE_CLIENT_REQUEST_ID, '').slice(0, 160)
+      : ''
+    if (!questionId || seen.has(questionId)) {
+      throw new SeraVNextProductError('SERA_VNEXT_CLARIFICATION_QUESTION_ID_INVALID', 'questionId ausente, inválido ou duplicado.', 400)
+    }
+    if (typeof obj.response !== 'string') {
+      throw new SeraVNextProductError('SERA_VNEXT_CLARIFICATION_RESPONSE_REQUIRED', `Resposta para ${questionId} é obrigatória.`, 400)
+    }
+    const sanitized = sanitizeTextForProductBeta(obj.response)
+    if (sanitized.text.length < 2 || sanitized.text.length > 5000) {
+      throw new SeraVNextProductError('SERA_VNEXT_CLARIFICATION_RESPONSE_LENGTH_INVALID', `Resposta para ${questionId} deve ter entre 2 e 5000 caracteres.`, 400)
+    }
+    seen.add(questionId)
+    return { questionId, response: sanitized.text }
+  })
 }

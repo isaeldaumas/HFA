@@ -1,4 +1,4 @@
-export type SeraVNextEngineVersion = 'sera-vnext-v0.2.0'
+export type SeraVNextEngineVersion = 'sera-vnext-v0.2.0' | 'sera-vnext-v0.3.0'
 
 export type SeraVNextSourceType = 'neutral_trial' | 'user_event' | 'report_extract'
 

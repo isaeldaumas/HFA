@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from '@/lib/server/supabase-admin'
 import { getOrCreateRequestId } from '@/lib/observability/request-id'
 import { writeCriticalAuditLog } from '@/lib/observability/audit'
 import { resolvePublicUserId } from '@/lib/server/event-deletion'
-import { isSeraVNextCanonicalAnalyzeUiEnabled } from '@/lib/sera-vnext-runtime/feature-flags'
+import { isSeraVNextCanonicalAnalyzeUiEnabled } from '@/lib/sera-vnext-product/canonical-event-analysis'
 
 function jsonError(requestId: string, code: string, message: string, status: number) {
   return NextResponse.json(

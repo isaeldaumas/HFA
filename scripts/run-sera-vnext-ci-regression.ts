@@ -32,6 +32,7 @@ type ManifestEntry = {
   requiredEnvironment: string[];
   expectedExit: number;
   expectedStatus: "PASS" | "NOT_READY";
+  runtimeScope?: "CURRENT" | "HISTORICAL_V0_2_0";
 };
 
 type CIResult = {
@@ -47,6 +48,7 @@ type CISummary = {
   runner: "sera-vnext-ci-deterministic";
   total_manifest_cases: number;
   deterministic_cases_selected: number;
+  historical_cases_preserved: number;
   ci_exclusions_applied: number;
   executed: number;
   passed: number;
@@ -82,8 +84,13 @@ if (existsSync(exclusionsPath)) {
 }
 
 // Seleciona apenas casos determinísticos: obrigatórios + sem ambiente externo
+const historicalEntries = allEntries.filter((e) => e.runtimeScope === "HISTORICAL_V0_2_0");
 const deterministicEntries = allEntries.filter(
-  (e) => e.requiredForRegression === true && Array.isArray(e.requiredEnvironment) && e.requiredEnvironment.length === 0,
+  (e) =>
+    e.requiredForRegression === true &&
+    Array.isArray(e.requiredEnvironment) &&
+    e.requiredEnvironment.length === 0 &&
+    e.runtimeScope !== "HISTORICAL_V0_2_0",
 );
 
 // Verificação de consistência do manifesto
@@ -191,7 +198,8 @@ function runEntry(entry: ManifestEntry): CIResult {
 async function main() {
   console.log(`SERA vNext CI Deterministic Regression`);
   console.log(`Manifesto total: ${allEntries.length} casos`);
-  console.log(`Selecionados (determinísticos): ${deterministicEntries.length} casos`);
+  console.log(`Selecionados (determinísticos atuais): ${deterministicEntries.length} casos`);
+  console.log(`Baselines históricos 0.2.0 preservados (não executados contra runtime atual): ${historicalEntries.length} casos`);
   console.log(`Timeout por caso: ${DETERMINISTIC_TIMEOUT_MS}ms\n`);
 
   const results: CIResult[] = [];
@@ -239,6 +247,7 @@ async function main() {
     runner: "sera-vnext-ci-deterministic",
     total_manifest_cases: allEntries.length,
     deterministic_cases_selected: deterministicEntries.length,
+    historical_cases_preserved: historicalEntries.length,
     ci_exclusions_applied: appliedExclusions.length,
     executed: results.length,
     passed,

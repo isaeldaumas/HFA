@@ -29,7 +29,11 @@ export function runStep06DirectActor(input: {
   unsafeActOrCondition: SeraVNextEngineOutput['unsafeActOrCondition']
   escapePoint: SeraVNextEngineOutput['escapePoint']
 }): SeraVNextEngineOutput['directActor'] {
-  const text = normalizeText(input.engineInput.narrative)
+  const clarificationActorText = (input.engineInput.supplementalEvidence ?? [])
+    .filter((item) => item.stage === 'DIRECT_ACTOR' || item.stage === 'ESCAPE_POINT')
+    .map((item) => item.statement)
+    .join(' ')
+  const text = normalizeText(`${input.engineInput.narrative} ${clarificationActorText}`)
   const copilotPf = roleAssigned(text, 'copilot', 'pf')
   const captainPf = roleAssigned(text, 'captain', 'pf')
   const captainPm = roleAssigned(text, 'captain', 'pm')
@@ -85,10 +89,12 @@ export function runStep06DirectActor(input: {
       return { actor, status: 'IDENTIFIED', alternatives: ['tripulação'], actorMigrationWarnings: [] }
     }
     if (/\b(copiloto|first officer)\b.{0,120}\b(inseriu|programou|selecionou|ajustou|executou|iniciou|continuou|decidiu|inserted|programmed|selected|set|executed|initiated|continued|decided)\b/.test(text)) {
-      return { actor: 'copiloto', status: 'IDENTIFIED', alternatives: ['tripulação'], actorMigrationWarnings: [] }
+      const actor = copilotPf ? 'copiloto (PF)' : copilotPm ? 'copiloto (PM)' : 'copiloto'
+      return { actor, status: 'IDENTIFIED', alternatives: ['tripulação'], actorMigrationWarnings: [] }
     }
     if (/\b(comandante|captain)\b.{0,120}\b(n[aã]o iniciou|n[aã]o executou|continuou|decidiu|selecionou|executou|iniciou|did not initiate|failed to initiate|continued|decided|selected|executed|initiated)\b/.test(text)) {
-      return { actor: 'comandante', status: 'IDENTIFIED', alternatives: ['tripulação'], actorMigrationWarnings: [] }
+      const actor = captainPf ? 'comandante (PF)' : captainPm ? 'comandante (PM)' : 'comandante'
+      return { actor, status: 'IDENTIFIED', alternatives: ['tripulação'], actorMigrationWarnings: [] }
     }
     if (copilotPf) {
       return {

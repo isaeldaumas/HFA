@@ -83,6 +83,8 @@ const CONCEPT_PATTERNS: Record<SeraEvidenceConcept, RegExp[]> = {
     /\b(interpretou|interpretaram|interpretado)\b.*\b(como|por)\b.*\b(primeiro pouso|destino|unidade|plataforma|pista|helideck|runway|surface|destination|deck)\b/i,
     /\bassociou\b.*\b(unit-[a-z0-9-]+|pcp-?[0-9]+|unidade|plataforma|pista|helideck)\b.*\b(ao|a)\b.*\b(destino|pouso|unidade|plataforma|pista|helideck)\b/i,
     /\breconheceu\b.*\b(como|por)\b.*\b(destino|unidade|plataforma|pista|helideck|runway|surface|destination|deck)\b/i,
+    /\b(acreditava|acreditou|entendia|entendeu|assumia|assumiu|considerava|considerou)\b.*\b(unit-[a-z0-9-]+|pcp-?[0-9]+|unidade|plataforma|pista|destino|helideck|runway|surface|destination|deck)\b.*\b(era|seria|como)\b.*\b(unit-[a-z0-9-]+|pcp-?[0-9]+|unidade|plataforma|pista|destino|helideck|runway|surface|destination|deck)\b/i,
+    /\b(believed|understood|assumed|considered)\b.*\b(unit-[a-z0-9-]+|runway|surface|destination|deck)\b.*\b(was|to be|as)\b.*\b(unit-[a-z0-9-]+|runway|surface|destination|deck)\b/i,
   ],
   sensoryLimitation: [
     /\b(poor visibility|low visibility|reduced visibility|degraded visibility|degraded visual(?: environment| cues?)?|visual cues? (?:were )?(?:lost|missing|degraded|limited|insufficient|poor)|visual environment (?:was )?(?:degraded|poor|limited))\b/i,
@@ -192,6 +194,8 @@ const CONCEPT_PATTERNS: Record<SeraEvidenceConcept, RegExp[]> = {
     /\b(procedimentos? previstos?|checklists? (?:foram )?lidos?|briefing (?:foi )?(?:feito|realizado|conclu[ií]do))\b/i,
     /\b(n[aã]o intencional|sem inten[cç][aã]o|unintentional|without intent)\b/i,
     /\bautoriza[cç][aã]o\b.*\b(somente|apenas|only)\b.*\b(destino|pcp|unidade|plataforma|pista|helideck)\b/i,
+    /\b(objetivo|inten[cç][aã]o|meta)\b.*\b(cumprir|seguir|realizar|executar|completar|atingir)\b.*\b(rota|destino|pouso|procedimento|planejamento)\b.*\b(planejad[ao]|previst[ao]|programad[ao]|autorizad[ao])\b/i,
+    /\b(goal|objective|intent)\b.*\b(follow|complete|perform|execute|reach)\b.*\b(planned|intended|authorized)\b.*\b(route|destination|landing|procedure)\b/i,
   ],
   knownRule: [
     /\b(known rule|briefed procedure|required by sop|procedure required|clearance required|rule required|knew the rule)\b/i,
@@ -277,6 +281,8 @@ const CONCEPT_PATTERNS: Record<SeraEvidenceConcept, RegExp[]> = {
     /\b(realizou|efetuou|procedeu|conduziu|operou|manobrou|comandou|pilotou|acionou|inseriu|programou|digitou)\b/i,
     /\b(fazendo|fez|realizou|iniciou|conduziu)\b.*\b(planejamento|aproxima[cç][aã]o)\b.*\b(pouso|landing)\b/i,
     /\b(proa direta|direct heading)\b.*\b(unidade|plataforma|destino|pista|helideck)\b/i,
+    /\b(foi|foram)\s+(executad[ao]s?|realizad[ao]s?|implementad[ao]s?|conduzid[ao]s?)\b/i,
+    /\b(was|were)\s+(executed|performed|implemented|carried out|conducted)\b/i,
   ],
   feedbackImplementationFailure: [
     /\b(readback failed|failed feedback|feedback was not checked|verification failed|did not cross-check|callout missed)\b/i,
@@ -297,7 +303,8 @@ const CONCEPT_PATTERNS: Record<SeraEvidenceConcept, RegExp[]> = {
     /\b(arremetida|descontinuou|abortou|corre[cç][aã]o imediata|separa[cç][aã]o segura|a[cç][aã]o correta|a[cç][aã]o adequada)\b/i,
     /\b(respondeu|reagiu|atuou|procedeu) (correta|adequada|apropriadamente|conforme|de acordo)\b/i,
     /\b(tomou a decis[aã]o (correta|certa|acertada|apropriada))\b/i,
-    /\bcoerente com (?:a )?(?:percep[cç][aã]o|identifica[cç][aã]o|avalia[cç][aã]o)\b/i,
+    /\b(?:coerente|conforme|de acordo) com (?:a )?(?:percep[cç][aã]o|identifica[cç][aã]o|avalia[cç][aã]o)\b/i,
+    /\bconforme (?:a|o)\s+(?:percep[cç][aã]o|identifica[cç][aã]o|avalia[cç][aã]o)\b/i,
     /\bconsistent with (?:the )?(?:perception|identification|assessment)\b/i,
   ],
   incorrectAction: [

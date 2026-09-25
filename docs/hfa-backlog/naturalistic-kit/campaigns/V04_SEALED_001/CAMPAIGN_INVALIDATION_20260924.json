@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "SERA_V04_CAMPAIGN_INVALIDATION_V1",
+  "campaignId": "V04_SEALED_001",
+  "invalidatedAt": "2026-09-24",
+  "status": "INVALIDATED_BEFORE_EXECUTION",
+  "reasonCode": "ENGINE_RUNTIME_CALIBRATION_AFTER_FREEZE",
+  "reason": "The SERA vNext executable engine/runtime changed after the V04 campaign freeze and before human-reference freeze or holdout execution. V04 remains preserved as a sealed historical cohort but is not eligible to validate the calibrated 0.3.0 runtime.",
+  "frozenRuntimeBaselineCommit": "258bd32d1c0636245e3593fa19f9ed916a774362",
+  "frozenSeraVNextTreeOid": "1ff76740a5f161f57cb5fa043c79b5153b30e65f",
+  "frozenSeraVNextRuntimeTreeOid": "3a04c5a6dfdbbb350adc872834705ea06ad51671",
+  "engineExecutedOnHoldoutAtInvalidation": false,
+  "humanReferenceFrozenAtInvalidation": false,
+  "humanReviewStartedAtInvalidation": false,
+  "productionAuthorization": "NOT_AUTHORIZED",
+  "holdoutExecutionAllowed": false,
+  "humanReferenceFreezeAllowed": false,
+  "newCampaignRequiredForCurrentRuntime": true,
+  "preserveSealedCorpus": true
+}

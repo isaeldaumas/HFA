@@ -4,7 +4,7 @@ import {
   SERA_VNEXT_FIXTURE_SET_ID,
   SERA_VNEXT_METHODOLOGY_VERSION,
 } from '../ENGINE_VERSION'
-import { extractEvidenceItems } from '../evidence'
+import { extractEvidenceItems, extractSupplementalEvidenceItems } from '../evidence'
 import type { SeraVNextEngineInput, SeraVNextEngineOutput } from '../engine-contract'
 import { runStep01FactualExtraction } from './steps/01-factual-extraction'
 import { runStep02SafeOperationModel } from './steps/02-safe-operation-model'
@@ -16,24 +16,31 @@ import { runStep07AxisStatements } from './steps/07-axis-statements'
 import { runStep08CanonicalTraversal } from './steps/08-canonical-traversal'
 import { runStep09Preconditions } from './steps/09-preconditions'
 import { runStep10Assurance } from './steps/10-assurance'
+import { runStep10EvidenceSufficiency } from './steps/10-evidence-sufficiency'
 
 export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngineOutput {
   const factualExtraction = runStep01FactualExtraction(input)
   const safeOperationModel = runStep02SafeOperationModel({ engineInput: input, factualExtraction })
-  const escapePoint = runStep03EscapePoint({ factualExtraction })
+  const escapePoint = runStep03EscapePoint({ factualExtraction, supplementalEvidence: input.supplementalEvidence })
   const unsafeState = runStep04UnsafeState({ engineInput: input, factualExtraction })
   const unsafeActOrCondition = runStep05UnsafeActCondition({ engineInput: input, unsafeState, escapePoint })
   const directActor = runStep06DirectActor({ engineInput: input, unsafeActOrCondition, escapePoint })
   const latestEscapeSentenceIndex =
     factualExtraction.timeline.find((item) => item.statement === escapePoint.latestCandidate)?.sourceSentenceIndex ?? null
+  const narrativeEvidence = extractEvidenceItems({
+    facts: factualExtraction.facts,
+    timeline: factualExtraction.timeline,
+    directActor: directActor.actor,
+    latestEscapeSentenceIndex,
+  })
+  const supplementalEvidence = extractSupplementalEvidenceItems({
+    items: input.supplementalEvidence ?? [],
+    directActor: directActor.actor,
+    sourceSentenceIndex: latestEscapeSentenceIndex ?? 0,
+  })
   const factualExtractionWithEvidence = {
     ...factualExtraction,
-    evidence: extractEvidenceItems({
-      facts: factualExtraction.facts,
-      timeline: factualExtraction.timeline,
-      directActor: directActor.actor,
-      latestEscapeSentenceIndex,
-    }),
+    evidence: [...narrativeEvidence, ...supplementalEvidence],
   }
   const axisStatements = runStep07AxisStatements({
     engineInput: input,
@@ -49,6 +56,13 @@ export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngi
     escapePoint,
   })
   const preconditions = runStep09Preconditions({ factualExtraction: factualExtractionWithEvidence, escapePoint, directActor, axes })
+  const evidenceSufficiency = runStep10EvidenceSufficiency({
+    safeOperationModel,
+    escapePoint,
+    directActor,
+    canonicalTraversal,
+    axes,
+  })
   const assurance = runStep10Assurance({
     factualExtraction: factualExtractionWithEvidence,
     escapePoint,
@@ -76,6 +90,7 @@ export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngi
     axes,
     preconditions,
     canonicalTraversal,
+    evidenceSufficiency,
     guardrails: assurance.guardrails,
     guardrailEvidence: assurance.guardrailEvidence,
     uncertainties: assurance.uncertainties,

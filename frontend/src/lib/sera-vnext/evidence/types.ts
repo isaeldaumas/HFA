@@ -43,5 +43,7 @@ export type SeraEvidenceItem = {
   prohibitedFor: SeraEvidenceUse[]
   relationshipToFailure: SeraEvidenceRelationshipToFailure
   confidence: SeraConfidence
+  collectionSource?: 'SOURCE_NARRATIVE' | 'CLARIFICATION_RESPONSE'
+  linkedQuestionId?: string | null
   rationale: string[]
 }

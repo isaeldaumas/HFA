@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { Archive, Download, Lock, RefreshCw, RotateCcw, ShieldAlert } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { SeraReviewerOutput, SeraReviewerAxisCard, SeraReviewerPreconditionCard } from '@/lib/sera-vnext-product/reviewer-output'
+import type { SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
 import GuardrailPanel from '@/components/sera/GuardrailPanel'
 
 const betaUiEnabled = process.env.NEXT_PUBLIC_SERA_VNEXT_PRODUCT_BETA_UI_ENABLED?.trim().toLowerCase() === 'true'
@@ -25,14 +26,7 @@ type DetailPayload = {
     warnings: string[]
     uncertainties: string[]
     limitations: string[]
-    engine_output: {
-      selectedCode: null
-      releasedCode: null
-      finalConclusion: null
-      classifiedOutput: false
-      readyPromotion: false
-      downstreamAllowed: false
-    }
+    engine_output: SeraVNextEngineOutput
   }
   revisions: Array<{ id: string; revision_number: number; created_at: string; reason: string; engine_output_hash: string }>
   reviews: Array<{ id: string; created_at: string; decision: string; review_notes: string | null }>
@@ -46,6 +40,8 @@ export default function SeraVNextAnalysisDetailPage() {
   const [payload, setPayload] = useState<DetailPayload | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [clarificationResponses, setClarificationResponses] = useState<Record<string, string>>({})
+  const [clarificationSubmitting, setClarificationSubmitting] = useState(false)
 
   async function authFetch(path: string, init: RequestInit = {}) {
     const { data } = await supabase.auth.getSession()
@@ -86,6 +82,33 @@ export default function SeraVNextAnalysisDetailPage() {
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : `Falha em ${action}.`)
+    }
+  }
+
+  async function submitClarifications() {
+    const questions = payload?.analysis.engine_output.evidenceSufficiency.questions ?? []
+    const responses = questions
+      .map((question) => ({ questionId: question.id, response: (clarificationResponses[question.id] ?? '').trim() }))
+      .filter((item) => item.response.length > 0)
+    if (!responses.length) {
+      setError('Preencha pelo menos uma resposta de esclarecimento antes de reanalisar.')
+      return
+    }
+    setClarificationSubmitting(true)
+    setError('')
+    try {
+      const res = await authFetch(`/api/admin/sera-vnext/analyses/${params.id}/reanalyze`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: 'clarification_evidence', clarificationResponses: responses }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(String(json.detail ?? 'Falha ao reanalisar com evidência complementar.'))
+      setClarificationResponses({})
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao reanalisar com evidência complementar.')
+    } finally {
+      setClarificationSubmitting(false)
     }
   }
 
@@ -174,6 +197,44 @@ export default function SeraVNextAnalysisDetailPage() {
 
       {loading && <div className="text-sm text-slate-400">Carregando...</div>}
       {error && <div className="rounded-xl border border-red-900 bg-red-950/40 p-4 text-sm text-red-300">{error}</div>}
+
+      {analysis?.engine_output.evidenceSufficiency.status === 'NEEDS_CLARIFICATION' && (
+        <section className="rounded-2xl border border-amber-700 bg-amber-950/20 p-5 space-y-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">Gate de suficiência da evidência</p>
+            <h2 className="mt-1 text-lg font-semibold text-amber-100">Análise interrompida — informações adicionais necessárias</h2>
+            <p className="mt-2 text-sm leading-relaxed text-amber-100/80">
+              O motor não avançará por inferência. Responda apenas com fatos conhecidos do evento. A nova evidência será registrada em uma revisão separada e toda a análise será executada novamente desde a extração factual.
+            </p>
+          </div>
+          <div className="space-y-4">
+            {analysis.engine_output.evidenceSufficiency.questions.map((question, index) => (
+              <div key={question.id} className="rounded-xl border border-amber-800/60 bg-slate-950/70 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-400">Pergunta {index + 1} · {question.stage}</p>
+                <p className="mt-2 text-sm text-slate-100">{question.question}</p>
+                <p className="mt-2 text-xs leading-relaxed text-slate-400">{question.whyNeeded}</p>
+                {question.linkedNodeId && <p className="mt-1 text-xs text-slate-500">Nó bloqueado: {question.linkedNodeId}</p>}
+                <textarea
+                  value={clarificationResponses[question.id] ?? ''}
+                  onChange={(event) => setClarificationResponses((current) => ({ ...current, [question.id]: event.target.value }))}
+                  rows={4}
+                  placeholder="Registre somente informação factual conhecida ou documentada."
+                  className="mt-3 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                />
+                <p className="mt-2 text-xs text-slate-500">Evidência procurada: {question.requestedEvidence.join('; ')}</p>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => void submitClarifications()}
+            disabled={clarificationSubmitting}
+            className="rounded-xl bg-amber-400 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-amber-300 disabled:cursor-wait disabled:opacity-60"
+          >
+            {clarificationSubmitting ? 'Reanalisando…' : 'Adicionar evidência e reanalisar'}
+          </button>
+        </section>
+      )}
 
       {analysis && (
         <>

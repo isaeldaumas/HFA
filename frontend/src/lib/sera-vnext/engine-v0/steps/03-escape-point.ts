@@ -1,4 +1,4 @@
-import type { SeraVNextEngineOutput } from '../../engine-contract'
+import type { SeraSupplementalEvidenceInput, SeraTimelineItem, SeraVNextEngineOutput } from '../../engine-contract'
 import { buildCandidateEscapeWindow } from '../candidate-escape-window'
 import { confidenceFromCount, excludedPostEscapeEvidence } from '../utils'
 
@@ -24,27 +24,44 @@ function formatEscapeStatement(candidate: string | null): string | null {
 
 export function runStep03EscapePoint(input: {
   factualExtraction: SeraVNextEngineOutput['factualExtraction']
+  supplementalEvidence?: SeraSupplementalEvidenceInput[]
 }): SeraVNextEngineOutput['escapePoint'] {
   const legacyWindow = buildCandidateEscapeWindow(input.factualExtraction.timeline)
+  const clarificationSentences = (input.supplementalEvidence ?? [])
+    .filter((item) => item.stage === 'ESCAPE_POINT')
+    .flatMap((item) => item.statement.split(/(?<=[.!?])\s+/).map((statement) => statement.trim()).filter(Boolean))
+  const clarificationTimeline: SeraTimelineItem[] = clarificationSentences.map((statement, index) => ({
+    id: `SUP-ESCAPE-${index + 1}`,
+    order: index + 1,
+    statement,
+    temporalCue: 'clarification_response',
+    sourceSentenceIndex: -(index + 1),
+    sourceSection: 'FACTUAL',
+    assertionStatus: 'AFFIRMED',
+  }))
+  const clarificationWindow = buildCandidateEscapeWindow(clarificationTimeline)
+  const selectedWindow = legacyWindow.statement ? legacyWindow : clarificationWindow
+  const selectedFromNarrative = Boolean(legacyWindow.statement)
 
-  const latestSentenceIndex =
-    input.factualExtraction.timeline.find((item) => item.statement === legacyWindow.latestCandidate)?.sourceSentenceIndex ?? null
+  const latestSentenceIndex = selectedFromNarrative
+    ? input.factualExtraction.timeline.find((item) => item.statement === selectedWindow.latestCandidate)?.sourceSentenceIndex ?? null
+    : null
 
-  const status = legacyWindow.statement
-    ? legacyWindow.counterEvidence.length > 0
+  const status = selectedWindow.statement
+    ? selectedWindow.counterEvidence.length > 0
       ? 'PROGRESSIVE_ZONE'
       : 'CANDIDATE'
     : 'INSUFFICIENT_EVIDENCE'
 
   return {
     status,
-    statement: formatEscapeStatement(legacyWindow.earliestCandidate),
-    earliestCandidate: legacyWindow.earliestCandidate,
-    latestCandidate: legacyWindow.latestCandidate,
+    statement: formatEscapeStatement(selectedWindow.earliestCandidate),
+    earliestCandidate: selectedWindow.earliestCandidate,
+    latestCandidate: selectedWindow.latestCandidate,
     directActor: null,
-    supportingEvidence: legacyWindow.supportingEvidence,
-    counterEvidence: legacyWindow.counterEvidence,
+    supportingEvidence: selectedWindow.supportingEvidence,
+    counterEvidence: selectedWindow.counterEvidence,
     excludedPostEscapeEvidence: excludedPostEscapeEvidence(input.factualExtraction.timeline, latestSentenceIndex),
-    confidence: confidenceFromCount(legacyWindow.supportingEvidence.length),
+    confidence: confidenceFromCount(selectedWindow.supportingEvidence.length),
   }
 }

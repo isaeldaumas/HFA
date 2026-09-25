@@ -1,4 +1,4 @@
-import type { SeraFact, SeraTimelineItem } from '../engine-contract'
+import type { SeraFact, SeraSupplementalEvidenceInput, SeraTimelineItem } from '../engine-contract'
 import { confidenceFromCount } from '../engine-v0/utils'
 import { hasConcept, type SeraEvidenceConcept } from '../engine-v02/language/concepts'
 import { detectEvidenceActor, classifyActorRelation } from './actor-scope'
@@ -127,5 +127,50 @@ export function extractEvidenceItems(args: {
       ...base,
       relationshipToFailure: classifyRelationship(base),
     }
+  })
+}
+
+export function extractSupplementalEvidenceItems(args: {
+  items: SeraSupplementalEvidenceInput[]
+  directActor?: string | null
+  sourceSentenceIndex: number
+}): SeraEvidenceItem[] {
+  return args.items.map((item, index) => {
+    const category: SeraFact['category'] = 'other'
+    const sourceSection: SeraFact['sourceSection'] = 'FACTUAL'
+    const assertionStatus: SeraEvidenceItem['assertionStatus'] = 'AFFIRMED'
+    const actor = detectEvidenceActor(item.statement)
+    const actorRelation = classifyActorRelation({ statement: item.statement, directActor: args.directActor ?? null })
+    const evidenceType = classifyEvidenceType(item.statement, category, sourceSection)
+    const supports = classifySupportedUses(item.statement, category)
+    const prohibitedFor = classifyProhibitedUses(item.statement, item.temporalRelation, evidenceType, assertionStatus)
+    const base = {
+      evidenceId: item.evidenceId || `SUP-EVID-${index + 1}`,
+      statement: item.statement,
+      category,
+      sourceSentenceIndex: args.sourceSentenceIndex,
+      sourceSection,
+      assertionStatus,
+      temporalRelation: item.temporalRelation,
+      actorRelation,
+      actor,
+      evidenceType,
+      supports,
+      contradicts: [],
+      prohibitedFor,
+      confidence: confidenceFromCount(supports.length),
+      collectionSource: 'CLARIFICATION_RESPONSE' as const,
+      linkedQuestionId: item.linkedQuestionId,
+      rationale: [
+        `temporalRelation=${item.temporalRelation}`,
+        `actorRelation=${actorRelation}`,
+        `evidenceType=${evidenceType}`,
+        'sourceSection=FACTUAL',
+        'assertionStatus=AFFIRMED',
+        'collectionSource=CLARIFICATION_RESPONSE',
+        `linkedQuestionId=${item.linkedQuestionId}`,
+      ],
+    } satisfies Omit<SeraEvidenceItem, 'relationshipToFailure'>
+    return { ...base, relationshipToFailure: classifyRelationship(base) }
   })
 }

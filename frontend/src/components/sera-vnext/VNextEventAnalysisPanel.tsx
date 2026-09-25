@@ -56,6 +56,27 @@ export function VNextEventAnalysisPanel({ output }: { output: SeraVNextEngineOut
         </p>
       </div>
 
+      {output.evidenceSufficiency.status === 'NEEDS_CLARIFICATION' && (
+        <section className="rounded-xl border border-amber-500/50 bg-amber-950/30 p-5">
+          <h2 className="text-base font-semibold text-amber-200">Análise incompleta — dados adicionais necessários</h2>
+          <p className="mt-2 text-sm leading-relaxed text-amber-100/80">
+            O motor interrompeu a análise porque a evidência disponível não permite avançar sem inferência.
+            Responda às perguntas abaixo e reexecute a análise; nenhum código bloqueado deve ser tratado como conclusão.
+          </p>
+          <div className="mt-4 space-y-3">
+            {output.evidenceSufficiency.questions.map((item, index) => (
+              <div key={item.id} className="rounded-lg border border-amber-600/30 bg-slate-950/60 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-400">Pergunta {index + 1} · {item.stage}</p>
+                <p className="mt-2 text-sm text-slate-100">{item.question}</p>
+                <p className="mt-2 text-xs leading-relaxed text-slate-400">Por que é necessária: {item.whyNeeded}</p>
+                {item.linkedNodeId && <p className="mt-1 text-xs text-slate-500">Nó canônico bloqueado: {item.linkedNodeId}</p>}
+                <p className="mt-2 text-xs text-slate-500">Evidência solicitada: {item.requestedEvidence.join('; ')}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="rounded-xl border border-slate-700 bg-slate-900/70 p-5">
         <h2 className="text-base font-semibold text-white">Ponto de fuga da operação segura</h2>
         <p className="mt-3 text-sm leading-relaxed text-slate-200">{output.escapePoint.statement ?? 'Não estabelecido.'}</p>

@@ -34,10 +34,31 @@ export function assertAnalyzeRouteSanitizationContract(rootDir: string): void {
   );
 }
 
+export function assertEventDetailVNextReadContract(rootDir: string): void {
+  const routePath = "frontend/src/app/api/events/[eventId]/route.ts";
+  const source = readRel(rootDir, routePath);
+
+  assert.ok(source.includes("requireBearerUser(req)"), `${routePath}: GET must require authenticated bearer user`);
+  assert.ok(source.includes("String(user.role ?? '').toLowerCase() === 'admin'"), `${routePath}: vNext detail exposure must remain admin-only`);
+  assert.ok(source.includes(".eq('tenant_id', user.tenantId)"), `${routePath}: vNext lookup must be tenant-scoped`);
+  assert.ok(source.includes(".is('deleted_at', null)"), `${routePath}: vNext lookup must exclude archived analyses`);
+  assert.ok(source.includes("from('sera_vnext_analyses')"), `${routePath}: expected explicit vNext read source`);
+  assert.ok(source.includes("isSeraVNextCanonicalAnalyzeUiEnabled()"), `${routePath}: vNext detail read must remain behind UI feature flag`);
+  assert.equal(source.includes(".from('sera_vnext_analyses').insert"), false, `${routePath}: GET integration must not insert vNext analysis rows`);
+  assert.equal(source.includes(".from('sera_vnext_analyses').update"), false, `${routePath}: GET integration must not update vNext analysis rows`);
+  assert.equal(source.includes(".from('sera_vnext_analyses').delete"), false, `${routePath}: GET integration must not delete vNext analysis rows`);
+}
+
 export function isAllowedSeraVNextProtectedApiPath(rootDir: string, changedPath: string): boolean {
-  if (changedPath !== "frontend/src/app/api/analyze/route.ts") return false;
-  assertAnalyzeRouteSanitizationContract(rootDir);
-  return true;
+  if (changedPath === "frontend/src/app/api/analyze/route.ts") {
+    assertAnalyzeRouteSanitizationContract(rootDir);
+    return true;
+  }
+  if (changedPath === "frontend/src/app/api/events/[eventId]/route.ts") {
+    assertEventDetailVNextReadContract(rootDir);
+    return true;
+  }
+  return false;
 }
 
 export function assertCanonicalTreeEngineContract(rootDir: string): void {
@@ -63,6 +84,33 @@ export function assertCanonicalTreeEngineContract(rootDir: string): void {
     existsSync(path.join(rootDir, "tests/sera-vnext/semantic-consistency-released-codes-trial-001.ts")),
     "semantic consistency trial must cover canonical-tree changes",
   );
+}
+
+export function isAllowedSeraVNextEngineV03CalibrationPath(rootDir: string, changedPath: string): boolean {
+  const allowed = new Set([
+    "frontend/src/lib/sera-vnext/engine-v0/run-engine.ts",
+    "frontend/src/lib/sera-vnext/engine-v0/candidate-escape-window.ts",
+    "frontend/src/lib/sera-vnext/engine-v0/steps/03-escape-point.ts",
+    "frontend/src/lib/sera-vnext/engine-v0/steps/06-direct-actor.ts",
+    "frontend/src/lib/sera-vnext/engine-v0/steps/10-evidence-sufficiency.ts",
+  ]);
+  if (!allowed.has(changedPath)) return false;
+
+  const requiredGates = [
+    "tests/sera-vnext/ps-cdq-golden-case-trial-001.ts",
+    "tests/sera-vnext/ps-cdq-family-generalization-trial-001.ts",
+    "tests/sera-vnext/evidence-sufficiency-clarification-trial-001.ts",
+    "tests/sera-vnext/evidence-clarification-product-trial-001.ts",
+    "tests/sera-vnext/engine-validation-v04-method-aligned-trial-001.ts",
+    "tests/sera-vnext/engine-validation-v04-holdout-method-aligned-trial-001.ts",
+    "tests/sera-vnext/historical-runtime-baselines-preserved-trial-001.ts",
+  ];
+  for (const gate of requiredGates) {
+    assert.ok(existsSync(path.join(rootDir, gate)), `0.3.0 calibration requires gate: ${gate}`);
+  }
+  const versionSource = readRel(rootDir, "frontend/src/lib/sera-vnext/ENGINE_VERSION.ts");
+  assert.ok(versionSource.includes("SERA_VNEXT_ENGINE_VERSION = '0.3.0'"), "engine-v0 calibration changes require runtime 0.3.0");
+  return true;
 }
 
 export function isAllowedSeraVNextCanonicalTreePath(rootDir: string, changedPath: string): boolean {

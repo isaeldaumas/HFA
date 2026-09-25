@@ -17,7 +17,7 @@ import { applyUserAiSettingsToEnv } from '@/lib/server/apply-user-ai-settings-to
 import { getOrCreateRequestId } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
 import { isSeraVNextCanonicalAnalyzeEnabled } from '@/lib/sera-vnext-runtime/feature-flags'
-import { canonicalAnalyzeResponse, createCanonicalEventAnalysis } from '@/lib/sera-vnext-runtime/canonical-event-analysis'
+import { canonicalAnalyzeResponse, createCanonicalEventAnalysis } from '@/lib/sera-vnext-product/canonical-event-analysis'
 
 export const maxDuration = 300
 
@@ -170,9 +170,10 @@ export async function POST(req: Request) {
             },
           })
 
+          const needsClarification = vnextResult.analysis.engine_output.evidenceSufficiency.status === 'NEEDS_CLARIFICATION'
           const eventUpdate = await admin
             .from('events')
-            .update({ status: 'completed' })
+            .update({ status: needsClarification ? 'received' : 'completed' })
             .eq('id', body.eventId)
             .eq('tenant_id', user.tenantId)
             .is('deleted_at', null)
@@ -181,7 +182,7 @@ export async function POST(req: Request) {
           await writeAuditLog({
             tenantId: user.tenantId, userId: user.userId, requestId,
             eventType: 'canonical_engine.used', entityType: 'analysis', entityId: vnextResult.analysis.id,
-            route: '/api/analyze', method: 'POST', status: 'success',
+            route: '/api/analyze', method: 'POST', status: needsClarification ? 'partial' : 'success',
             metadata: {
               source: 'reanalysis',
               source_flow: vnextResult.analysis.source_flow,
@@ -189,6 +190,7 @@ export async function POST(req: Request) {
               canonical_tree_version: vnextResult.analysis.canonical_tree_version,
               event_id: body.eventId,
               candidate_only: true,
+              evidence_sufficiency_status: vnextResult.analysis.engine_output.evidenceSufficiency.status,
             },
           })
 
@@ -351,9 +353,10 @@ export async function POST(req: Request) {
         })
         analysisId = vnextResult.analysis.id
 
+        const needsClarification = vnextResult.analysis.engine_output.evidenceSufficiency.status === 'NEEDS_CLARIFICATION'
         const eventUpdate = await admin
           .from('events')
-          .update({ status: 'completed', credits_used: 1 })
+          .update({ status: needsClarification ? 'received' : 'completed', credits_used: 1 })
           .eq('id', eventId)
           .eq('tenant_id', user.tenantId)
           .is('deleted_at', null)
@@ -363,13 +366,14 @@ export async function POST(req: Request) {
         await writeAuditLog({
           tenantId: user.tenantId, userId: user.userId, requestId,
           eventType: 'canonical_engine.used', entityType: 'analysis', entityId: vnextResult.analysis.id,
-          route: '/api/analyze', method: 'POST', status: 'success',
+          route: '/api/analyze', method: 'POST', status: needsClarification ? 'partial' : 'success',
           metadata: {
             source_flow: vnextResult.analysis.source_flow,
             engine_runtime_version: vnextResult.analysis.engine_runtime_version,
             canonical_tree_version: vnextResult.analysis.canonical_tree_version,
             event_id: eventId,
             candidate_only: true,
+            evidence_sufficiency_status: vnextResult.analysis.engine_output.evidenceSufficiency.status,
           },
         })
         return NextResponse.json(

@@ -4,7 +4,7 @@ import {
   buildCanonicalEventClientRequestId,
   canonicalAnalyzeResponse,
   createCanonicalEventAnalysis,
-} from '../../frontend/src/lib/sera-vnext-runtime/canonical-event-analysis'
+} from '../../frontend/src/lib/sera-vnext-product/canonical-event-analysis'
 
 async function main() {
   assert.equal(
