@@ -2139,5 +2139,14 @@
     "expectedExit": 0,
     "expectedStatus": "PASS",
     "runtimeScope": "CURRENT"
+  },
+  {
+    "path": "tests/sera-vnext/primary-engine-unification-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT"
   }
 ]

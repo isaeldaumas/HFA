@@ -69,7 +69,7 @@ export default function NewSeraVNextAnalysisPage() {
         </Link>
         <p className="text-xs uppercase tracking-[0.24em] text-cyan-300">Nova análise</p>
         <h1 className="mt-2 text-3xl font-bold text-white">Executar motor vNext v0.1 e persistir</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-400">Resultado candidate-only não final. Exige revisão humana e não representa classificação SERA liberada.</p>
+        <p className="mt-2 max-w-3xl text-sm text-slate-400">Análise SERA 0.3 ainda não liberada formalmente. Exige revisão humana.</p>
       </div>
 
       <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5 space-y-4">
@@ -88,7 +88,7 @@ export default function NewSeraVNextAnalysisPage() {
         </label>
         {error && <div className="rounded-xl border border-red-900 bg-red-950/40 p-4 text-sm text-red-300">{error}</div>}
         <button type="button" disabled={loading || !confirmed} onClick={() => void submit()} className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400">
-          <ShieldCheck className="size-4" /> {loading ? 'Executando...' : 'Criar análise candidate-only'}
+          <ShieldCheck className="size-4" /> {loading ? 'Executando...' : 'Criar análise SERA 0.3'}
         </button>
       </div>
     </div>

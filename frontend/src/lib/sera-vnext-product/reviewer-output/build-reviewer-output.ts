@@ -75,9 +75,9 @@ export function buildReviewerOutput(engineOutput: SeraVNextEngineOutput): SeraRe
 
   return {
     summary: {
-      headline: `Análise candidate-only — ponto de fuga: ${engineOutput.escapePoint.statement ?? 'não determinado'}`,
+      headline: `Análise SERA 0.3 — ponto de fuga: ${engineOutput.escapePoint.statement ?? 'não determinado'}`,
       nonFinalNotice:
-        'Esta análise é candidate-only e não final. Exige revisão humana. selectedCode, releasedCode, finalConclusion, CLASSIFIED, READY e downstream permanecem bloqueados.',
+        'Esta análise SERA 0.3 é não final até a revisão humana. Os campos finais e downstream permanecem bloqueados até essa revisão.',
       overallUsefulnessWarning,
     },
 

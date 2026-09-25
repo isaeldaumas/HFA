@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     const [tenants, users, analyses] = await Promise.all([
       admin.from('tenants').select('*').order('created_at', { ascending: false }),
       admin.from('users').select('tenant_id, email, role'),
-      admin.from('analyses').select('tenant_id'),
+      admin.from('sera_vnext_analyses').select('tenant_id').is('deleted_at', null),
     ])
 
     const userMap: Record<string, { email: string; role: string }[]> = {}

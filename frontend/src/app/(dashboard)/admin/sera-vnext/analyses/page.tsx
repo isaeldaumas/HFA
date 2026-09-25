@@ -68,7 +68,7 @@ export default function SeraVNextAnalysesPage() {
     return (
       <div className="p-5 md:p-8">
         <div className="rounded-2xl border border-slate-800 bg-slate-950 p-6 text-slate-300">
-          <div className="flex items-center gap-2 font-semibold text-white"><Lock className="size-4" /> SERA vNext Product Beta disabled</div>
+          <div className="flex items-center gap-2 font-semibold text-white"><Lock className="size-4" /> Revisão SERA 0.3 indisponível</div>
           <p className="mt-2 text-sm text-slate-400">Defina NEXT_PUBLIC_SERA_VNEXT_PRODUCT_BETA_UI_ENABLED=true apenas em ambiente interno controlado.</p>
         </div>
       </div>
@@ -80,8 +80,8 @@ export default function SeraVNextAnalysesPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.24em] text-cyan-300">Product Beta interno</p>
-          <h1 className="mt-2 text-3xl font-bold text-white">SERA vNext análises persistidas</h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-400">Candidate-only persistente, auditável e com revisão humana obrigatória. Nenhuma classificação final é liberada.</p>
+          <h1 className="mt-2 text-3xl font-bold text-white">Revisão das análises SERA 0.3</h1>
+          <p className="mt-2 max-w-3xl text-sm text-slate-400">Análises persistidas e auditáveis do motor SERA 0.3. A revisão humana é obrigatória antes da liberação formal.</p>
         </div>
         <Link href="/admin/sera-vnext/analyses/new" className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-300">
           <Plus className="size-4" /> Nova análise

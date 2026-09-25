@@ -56,7 +56,7 @@ console.log('\n3. Product Beta api-handlers')
 const handlers = readFile('frontend/src/lib/sera-vnext-product/api-handlers.ts')
 
 assert(handlers.includes('SeraVNextProductError'), 'Usa SeraVNextProductError tipado')
-assert(handlers.includes("'Erro interno SERA vNext Product Beta'"), 'Mensagem sanitizada no catch genérico')
+assert(handlers.includes("'Erro interno SERA 0.3'"), 'Mensagem sanitizada no catch genérico')
 assert(!handlers.includes('String(error)'), 'Sem String(error) em respostas de API')
 assert(handlers.includes('request_id'), 'Retorna request_id nos erros')
 

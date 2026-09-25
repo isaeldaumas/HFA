@@ -24,8 +24,8 @@ const adminNav = [
   { href: '/admin/ai', label: 'IA', icon: Bot },
   { href: '/admin/payments', label: 'Pagamentos', icon: CreditCard },
   { href: '/admin/settings', label: 'Sistema', icon: Settings },
-  ...(seraVNextProductBetaUiEnabled ? [{ href: '/admin/sera-vnext/analyses', label: 'SERA vNext Beta', icon: Activity }] : []),
-  ...(seraVNextDiagnosticsEnabled ? [{ href: '/admin/sera-vnext', label: 'SERA vNext Runtime', icon: Activity, exact: true }] : []),
+  ...(seraVNextProductBetaUiEnabled ? [{ href: '/admin/sera-vnext/analyses', label: 'Revisão SERA 0.3', icon: Activity }] : []),
+  ...(seraVNextDiagnosticsEnabled ? [{ href: '/admin/sera-vnext', label: 'Diagnóstico SERA 0.3', icon: Activity, exact: true }] : []),
   ...(seraVNextCandidateUiEnabled ? [{ href: '/admin/sera-vnext/candidate', label: 'SERA Candidate', icon: Activity }] : []),
   ...(seraShadowAdminUiEnabled ? [{ href: '/admin/sera-shadow/comparisons', label: 'Shadow comparisons', icon: Activity }] : []),
 ]

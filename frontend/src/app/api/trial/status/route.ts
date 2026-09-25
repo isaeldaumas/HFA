@@ -13,9 +13,10 @@ export async function GET(req: Request) {
     const admin = getSupabaseAdmin()
 
     const { count, error } = await admin
-      .from('analyses')
+      .from('events')
       .select('id', { count: 'exact', head: true })
       .eq('tenant_id', user.tenantId)
+      .gt('credits_used', 0)
 
     if (error) {
       return jsonError(`Falha ao consultar trial: ${error.message}`, 500)

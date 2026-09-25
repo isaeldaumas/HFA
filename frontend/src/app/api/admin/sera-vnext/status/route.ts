@@ -88,7 +88,7 @@ export async function handleSeraVNextStatusRequest(req: Request, deps: SeraVNext
       errorCode: 'SERA_VNEXT_ROUTE_UNEXPECTED_ERROR',
       durationMs: Math.round(now() - started),
     })
-    return jsonError('Erro ao consultar status SERA vNext', 500)
+    return jsonError('Erro ao consultar diagnóstico SERA 0.3', 500)
   }
 }
 

@@ -87,8 +87,8 @@ function responseError(error: unknown, requestId: string): NextResponse | Respon
     process.env.HFA_INTEGRATED_REGRESSION_LEVEL?.trim()
   const detail =
     stagingDiagnostics && error instanceof Error && error.message
-      ? `Erro interno SERA vNext Product Beta: ${error.message}`
-      : 'Erro interno SERA vNext Product Beta'
+      ? `Erro interno SERA 0.3: ${error.message}`
+      : 'Erro interno SERA 0.3'
   return NextResponse.json(
     { detail, request_id: requestId },
     { status: 500, headers: { ...productBetaNoStoreHeaders, 'x-request-id': requestId } },

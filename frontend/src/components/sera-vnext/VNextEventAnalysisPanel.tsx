@@ -50,9 +50,9 @@ export function VNextEventAnalysisPanel({ output }: { output: SeraVNextEngineOut
   return (
     <div className="space-y-5">
       <div className="rounded-xl border border-amber-600/40 bg-amber-950/30 p-4">
-        <p className="text-sm font-semibold text-amber-300">Hipótese metodológica — não é classificação final</p>
+        <p className="text-sm font-semibold text-amber-300">Análise SERA — revisão humana requerida</p>
         <p className="mt-1 text-xs leading-relaxed text-amber-100/80">
-          O motor apresenta candidatos e a trilha de decisão. A liberação final permanece bloqueada até revisão humana.
+          O motor 0.3 apresenta a classificação metodológica e toda a trilha de decisão. A liberação formal permanece condicionada à revisão humana.
         </p>
       </div>
 
@@ -122,7 +122,7 @@ export function VNextEventAnalysisPanel({ output }: { output: SeraVNextEngineOut
             <div key={path.axis}>
               <div className="mb-3 flex items-center gap-2">
                 <span className="rounded bg-cyan-950 px-2 py-1 text-xs font-semibold text-cyan-300">{axisTitle(path.axis)}</span>
-                <span className="text-xs text-slate-500">código candidato: {path.candidateCode ?? 'não resolvido'}</span>
+                <span className="text-xs text-slate-500">código identificado: {path.candidateCode ?? 'não resolvido'}</span>
               </div>
               <div className="space-y-3">
                 {path.answers.map((node, index) => (

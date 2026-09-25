@@ -1,29 +1,23 @@
 import { NextResponse } from 'next/server'
 import { requireBearerUser } from '@/lib/server/api-auth'
 import { getSupabaseAdmin, assertServiceRoleEnv } from '@/lib/server/supabase-admin'
-import { type SourceMeta } from '@/lib/sera/pipeline'
-import { completeSeraAnalysisAfterEventCreated } from '@/lib/server/complete-sera-analysis'
-import {
-  buildSeraAnalysisFromDbRow,
-  fetchEditHistoryForAnalysis,
-  seraAnalysisToJson,
-} from '@/lib/sera/sera-analysis-mapper'
 import { debitCreditForEvent, ensurePublicUserRow, refundCreditForFailedAnalysis } from '@/lib/server/tenant-user'
-import { applyUserAiSettingsToEnv } from '@/lib/server/apply-user-ai-settings-to-env'
 import { getOrCreateRequestId, buildErrorResponse } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
+import { canonicalAnalyzeResponse, createCanonicalEventAnalysis } from '@/lib/sera-vnext-product/canonical-event-analysis'
+import { assertFileSize, detectDocumentKind } from '@/lib/sera/document-extraction'
 
 export const maxDuration = 300
 
+type SourceMeta = {
+  sourceType?: 'text' | 'pdf' | 'docx'
+  sourceFileName?: string
+  sourceWordCount?: number
+}
+
 function logEventsError(error: unknown, stage: string, extra: Record<string, unknown> = {}) {
   const e = error instanceof Error ? error : new Error(String(error))
-  console.error('[/api/events Error]', {
-    stage,
-    message: e.message,
-    stack: e.stack,
-    cause: e.cause,
-    ...extra,
-  })
+  console.error('[/api/events Error]', { stage, message: e.message, stack: e.stack, cause: e.cause, ...extra })
 }
 
 export async function GET(req: Request) {
@@ -38,36 +32,53 @@ export async function GET(req: Request) {
       .select('*, analyses(perception_code, objective_code, action_code)')
       .eq('tenant_id', user.tenantId)
       .order('created_at', { ascending: false })
-    if (scope === 'deleted') {
-      query = query.not('deleted_at', 'is', null).neq('deletion_status', 'PURGED')
-    } else {
-      query = query.is('deleted_at', null).neq('deletion_status', 'PURGED')
-    }
+    if (scope === 'deleted') query = query.not('deleted_at', 'is', null).neq('deletion_status', 'PURGED')
+    else query = query.is('deleted_at', null).neq('deletion_status', 'PURGED')
+
     const { data, error } = await query
     if (error) return jsonError('Não foi possível listar os eventos.', 500)
+
     const eventIds = (data ?? []).map((event) => event.id).filter((id): id is string => typeof id === 'string')
-    const exclusions = eventIds.length === 0
-      ? { data: [], error: null }
-      : await admin
-        .from('risk_profile_exclusions')
-        .select('id, source_id, reason, excluded_at')
-        .eq('tenant_id', user.tenantId)
-        .eq('source_type', 'legacy_event')
-        .in('source_id', eventIds)
-        .is('restored_at', null)
-    if (exclusions.error) return jsonError('Não foi possível listar os eventos.', 500)
-    const exclusionBySourceId = new Map(
-      (exclusions.data ?? []).map((row) => [row.source_id as string, row]),
-    )
+    const [exclusions, vnext] = eventIds.length === 0
+      ? [{ data: [], error: null }, { data: [], error: null }] as const
+      : await Promise.all([
+          admin
+            .from('risk_profile_exclusions')
+            .select('id, source_id, reason, excluded_at')
+            .eq('tenant_id', user.tenantId)
+            .eq('source_type', 'legacy_event')
+            .in('source_id', eventIds)
+            .is('restored_at', null),
+          admin
+            .from('sera_vnext_analyses')
+            .select('id, source_reference, updated_at, perception_candidate_code, objective_candidate_code, action_candidate_code, review_status, status')
+            .eq('tenant_id', user.tenantId)
+            .in('source_reference', eventIds)
+            .is('deleted_at', null)
+            .order('updated_at', { ascending: false }),
+        ])
+    if (exclusions.error || vnext.error) return jsonError('Não foi possível listar os eventos.', 500)
+
+    const exclusionBySourceId = new Map((exclusions.data ?? []).map((row) => [row.source_id as string, row]))
+    const vnextByEvent = new Map<string, Record<string, unknown>>()
+    for (const row of vnext.data ?? []) {
+      const eventId = typeof row.source_reference === 'string' ? row.source_reference : ''
+      if (eventId && !vnextByEvent.has(eventId)) vnextByEvent.set(eventId, row as Record<string, unknown>)
+    }
+
     const rows = (data ?? []).map((ev) => {
-      const analyses = ev.analyses
-      const analysis = Array.isArray(analyses) ? (analyses[0] ?? null) : (analyses ?? null)
+      const legacyAnalyses = ev.analyses
+      const legacy = Array.isArray(legacyAnalyses) ? (legacyAnalyses[0] ?? null) : (legacyAnalyses ?? null)
+      const current = vnextByEvent.get(ev.id as string) ?? null
       const exclusion = exclusionBySourceId.get(ev.id as string)
       return {
         ...ev,
-        perception_code: (analysis as { perception_code?: string | null } | null)?.perception_code ?? null,
-        objective_code:  (analysis as { objective_code?:  string | null } | null)?.objective_code  ?? null,
-        action_code:     (analysis as { action_code?:     string | null } | null)?.action_code     ?? null,
+        perception_code: (current?.perception_candidate_code as string | null | undefined) ?? null,
+        objective_code: (current?.objective_candidate_code as string | null | undefined) ?? null,
+        action_code: (current?.action_candidate_code as string | null | undefined) ?? null,
+        analysis_engine: current ? 'SERA_ENGINE_0_3' : legacy ? 'LEGACY_HISTORICAL' : null,
+        analysis_review_status: current?.review_status ?? null,
+        analysis_status: current?.status ?? null,
         is_excluded_from_risk_profile: !!exclusion,
         risk_profile_exclusion_id: exclusion?.id ?? null,
         risk_profile_exclusion_reason: (exclusion?.reason as string | null | undefined) ?? null,
@@ -101,10 +112,9 @@ export async function POST(req: Request) {
     } catch {
       return jsonError('Serviço temporariamente indisponível.', 503)
     }
-    stage = 'supabase-admin'
+
     const admin = getSupabaseAdmin()
     const ct = req.headers.get('content-type') || ''
-
     let title: string
     let raw_input: string
     let operation_type: string | null = null
@@ -124,10 +134,7 @@ export async function POST(req: Request) {
       const it = form.get('input_type')
       if (it === 'pdf' || it === 'docx' || it === 'text') input_type = it
       const st = form.get('source_type')
-      if (st === 'pdf' || st === 'docx') {
-        sourceMeta.sourceType = st
-        input_type = st
-      }
+      if (st === 'pdf' || st === 'docx') { sourceMeta.sourceType = st; input_type = st }
       const fn = form.get('source_file_name')
       if (fn) sourceMeta.sourceFileName = String(fn)
       const wc = form.get('source_word_count')
@@ -144,26 +151,15 @@ export async function POST(req: Request) {
       const it = body.input_type
       if (it === 'pdf' || it === 'docx' || it === 'text') input_type = it
       const st = body.source_type
-      if (st === 'pdf' || st === 'docx') {
-        sourceMeta.sourceType = st
-        input_type = st
-      }
+      if (st === 'pdf' || st === 'docx') { sourceMeta.sourceType = st; input_type = st }
       if (body.source_file_name) sourceMeta.sourceFileName = String(body.source_file_name)
       if (body.source_word_count != null) sourceMeta.sourceWordCount = Number(body.source_word_count)
     }
 
-    if (!title.trim() || !raw_input.trim()) {
-      return jsonError('Título e relato são obrigatórios', 400)
-    }
+    if (!title.trim() || !raw_input.trim()) return jsonError('Título e relato são obrigatórios', 400)
 
     stage = 'ensure-public-user-row'
-    const submittedById = await ensurePublicUserRow(
-      admin,
-      user.tenantId,
-      user.userId,
-      user.email,
-      user.role
-    )
+    const submittedById = await ensurePublicUserRow(admin, user.tenantId, user.userId, user.email, user.role)
 
     stage = 'fetch-tenant'
     const { data: tenant, error: terr } = await admin
@@ -174,16 +170,7 @@ export async function POST(req: Request) {
     if (terr || !tenant) return jsonError('Tenant não encontrado', 400)
 
     const isEnterprise = tenant.plan === 'enterprise'
-    if (!isEnterprise && (tenant.credits_balance ?? 0) < 1) {
-      return jsonError('Créditos insuficientes', 402)
-    }
-
-    try {
-      stage = 'llm-config'
-      await applyUserAiSettingsToEnv(admin, user.userId)
-    } catch {
-      return jsonError('Serviço temporariamente indisponível.', 503)
-    }
+    if (!isEnterprise && (tenant.credits_balance ?? 0) < 1) return jsonError('Créditos insuficientes', 402)
 
     stage = 'insert-event'
     const { data: eventRow, error: eerr } = await admin
@@ -201,26 +188,19 @@ export async function POST(req: Request) {
       })
       .select('id')
       .single()
-
-    if (eerr || !eventRow) {
-      return jsonError('Não foi possível criar o evento.', 500)
-    }
+    if (eerr || !eventRow) return jsonError('Não foi possível criar o evento.', 500)
 
     const eventId = eventRow.id as string
     context = { ...context, eventId }
-
     await writeAuditLog({
       tenantId: user.tenantId, userId: user.userId, requestId,
       eventType: 'event_created', entityType: 'event', entityId: eventId,
       route: '/api/events', method: 'POST',
-      metadata: { source_type: sourceMeta.sourceType ?? input_type },
+      metadata: { source_type: sourceMeta.sourceType ?? input_type, engine_role: 'PRIMARY' },
     })
 
-    sourceMeta.sourceType = sourceMeta.sourceType ?? (input_type === 'text' ? 'text' : input_type)
-
-    let creditoDebitado = false
-    let respostaSucesso = false
-    let analysisId: string | null = null
+    let creditDebited = false
+    let success = false
     try {
       stage = 'debit-credit'
       await debitCreditForEvent({
@@ -232,46 +212,84 @@ export async function POST(req: Request) {
         isEnterprise,
         currentBalance: tenant.credits_balance ?? 0,
       })
-      creditoDebitado = true
+      creditDebited = true
 
       await writeAuditLog({
         tenantId: user.tenantId, userId: user.userId, requestId,
         eventType: 'analysis_started', entityType: 'event', entityId: eventId,
-        route: '/api/events', method: 'POST',
-        metadata: { source: 'new_event' },
+        route: '/api/events', method: 'POST', metadata: { source: 'new_event', engine_role: 'PRIMARY' },
       })
 
-      stage = 'run-pipeline'
-      const r = await completeSeraAnalysisAfterEventCreated(
-        admin,
-        { userId: user.userId, tenantId: user.tenantId },
+      stage = 'run-primary-sera-engine'
+      const result = await createCanonicalEventAnalysis({
         eventId,
-        raw_input,
-        sourceMeta,
-        sourceFile
+        title,
+        narrative: raw_input,
+        mode: 'INITIAL',
+        context: { tenantId: user.tenantId, userId: submittedById, role: user.role, email: user.email ?? '', requestId },
+      })
+
+      if (sourceFile) {
+        assertFileSize(sourceFile.size)
+        const buf = Buffer.from(await sourceFile.arrayBuffer())
+        const kind = detectDocumentKind(buf)
+        const ext = sourceFile.name.toLowerCase().endsWith('.docx') || kind === 'docx' ? 'docx' : 'pdf'
+        if (!kind || (ext === 'docx' && kind !== 'docx') || (ext === 'pdf' && kind !== 'pdf')) throw new Error('Tipo de arquivo inválido para armazenamento')
+        const safeName = sourceFile.name.replace(/[^\w.\-]/g, '_').slice(0, 180)
+        const path = `${submittedById}/${result.analysis.id}/${safeName}`
+        const { error: uploadError } = await admin.storage.from('analysis-documents').upload(path, buf, {
+          contentType: sourceFile.type || (kind === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+          upsert: true,
+        })
+        if (!uploadError) {
+          await admin
+            .from('sera_vnext_analyses')
+            .update({ metadata: { ...result.analysis.metadata, sourceFileUrl: path, sourceFileName: sourceFile.name, sourceType: sourceMeta.sourceType ?? input_type } })
+            .eq('id', result.analysis.id)
+            .eq('tenant_id', user.tenantId)
+        }
+      }
+
+      const needsClarification = result.analysis.engine_output.evidenceSufficiency.status === 'NEEDS_CLARIFICATION'
+      const eventUpdate = await admin
+        .from('events')
+        .update({ status: needsClarification ? 'received' : 'completed', credits_used: 1 })
+        .eq('id', eventId)
+        .eq('tenant_id', user.tenantId)
+        .is('deleted_at', null)
+      if (eventUpdate.error) throw new Error('PRIMARY_SERA_EVENT_STATUS_UPDATE_FAILED')
+
+      await writeAuditLog({
+        tenantId: user.tenantId, userId: user.userId, requestId,
+        eventType: 'canonical_engine.used', entityType: 'analysis', entityId: result.analysis.id,
+        route: '/api/events', method: 'POST', status: needsClarification ? 'partial' : 'success',
+        metadata: {
+          engine_role: 'PRIMARY',
+          source_flow: result.analysis.source_flow,
+          engine_runtime_version: result.analysis.engine_runtime_version,
+          event_id: eventId,
+          human_review_required: true,
+          evidence_sufficiency_status: result.analysis.engine_output.evidenceSufficiency.status,
+        },
+      })
+      success = true
+      return NextResponse.json(
+        { ...canonicalAnalyzeResponse(result, eventId), status: needsClarification ? 'received' : 'completed' },
+        { headers: { 'x-request-id': requestId } },
       )
-      analysisId = r.analysisId
-      respostaSucesso = true
     } catch (err) {
-      await admin.from('events').update({ status: 'failed' }).eq('id', eventId)
+      await admin.from('events').update({ status: 'failed' }).eq('id', eventId).eq('tenant_id', user.tenantId)
       logEventsError(err, stage, context)
       await writeAuditLog({
         tenantId: user.tenantId, userId: user.userId, requestId,
         eventType: 'analysis_failed', entityType: 'event', entityId: eventId,
-        route: '/api/events', method: 'POST', status: 'failed',
-        metadata: { stage },
+        route: '/api/events', method: 'POST', status: 'failed', metadata: { stage, engine_role: 'PRIMARY' },
       })
       return jsonError('Não foi possível concluir a análise do evento.', 500)
     } finally {
-      // Garante estorno quando o débito ocorreu mas a análise não terminou com sucesso.
-      if (creditoDebitado && !respostaSucesso) {
+      if (creditDebited && !success) {
         try {
-          const { data: tNow } = await admin
-            .from('tenants')
-            .select('credits_balance')
-            .eq('id', user.tenantId)
-            .single()
-
+          const { data: tNow } = await admin.from('tenants').select('credits_balance').eq('id', user.tenantId).single()
           await refundCreditForFailedAnalysis({
             admin,
             tenantId: user.tenantId,
@@ -286,42 +304,6 @@ export async function POST(req: Request) {
         }
       }
     }
-
-    if (!analysisId) return jsonError('Falha interna: analysisId ausente', 500)
-
-    const { data: row } = await admin
-      .from('analyses')
-      .select('*')
-      .eq('id', analysisId)
-      .single()
-
-    const edits = await fetchEditHistoryForAnalysis(admin, analysisId, user.tenantId)
-    const seraAnalysis = row
-      ? seraAnalysisToJson(
-          buildSeraAnalysisFromDbRow(row as Record<string, unknown>, user.userId, raw_input, edits)
-        )
-      : null
-
-    const rowData = row as Record<string, unknown> | null
-    const completeness = rowData?.analysis_completeness as string | null
-    await writeAuditLog({
-      tenantId: user.tenantId, userId: user.userId, requestId,
-      eventType: completeness === 'complete' ? 'analysis_completed' : 'analysis_partial',
-      entityType: 'analysis', entityId: analysisId,
-      route: '/api/events', method: 'POST',
-      status: completeness === 'complete' ? 'success' : 'partial',
-      metadata: {
-        motor_version: rowData?.motor_version,
-        analysis_completeness: completeness,
-        completeness_reason: rowData?.completeness_reason,
-        event_id: eventId,
-      },
-    })
-
-    return NextResponse.json(
-      { event_id: eventId, status: 'completed', analysis_id: analysisId, seraAnalysis },
-      { headers: { 'x-request-id': requestId } }
-    )
   } catch (e) {
     if (e instanceof Response) return e
     logEventsError(e, stage, context)

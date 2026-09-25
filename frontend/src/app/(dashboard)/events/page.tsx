@@ -171,7 +171,7 @@ function DeleteEventModal(props: {
 
         {impact && (
           <div className="mt-4 grid gap-3 rounded-xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-300 sm:grid-cols-2">
-            <p>vNext: <strong>{impact.vnextAnalyses}</strong></p>
+            <p>SERA 0.3: <strong>{impact.vnextAnalyses}</strong></p>
             <p>Revisões: <strong>{impact.revisions}</strong></p>
             <p>Reviews: <strong>{impact.reviews}</strong></p>
             <p>Audit logs: <strong>{impact.auditLogs}</strong></p>

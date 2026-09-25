@@ -136,7 +136,7 @@ export async function handleSeraVNextCandidateRequest(
       errorCode: "SERA_VNEXT_CANDIDATE_ROUTE_UNEXPECTED_ERROR",
       durationMs: Math.round(now() - started),
     });
-    return jsonError("Erro ao executar análise candidate-only SERA vNext", 500);
+    return jsonError("Erro ao executar sandbox SERA 0.3", 500);
   }
 }
 
