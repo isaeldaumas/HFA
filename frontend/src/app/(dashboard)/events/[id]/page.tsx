@@ -5,9 +5,6 @@ import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { apiCall, resolveApiUrl } from '@/lib/api'
 import FlowStep from '@/components/FlowStep'
-import EditableClassification from '@/components/EditableClassification'
-import EditHistoryPanel from '@/components/EditHistoryPanel'
-import { STEP3_CODES, STEP4_CODES, STEP5_CODES } from '@/data/tutorials'
 import { mapToHfacs, type HfacsEntry, type HfacsResult } from '@/lib/sera/hfacs-mapper'
 import { useT } from '@/lib/i18n'
 import {
@@ -19,13 +16,13 @@ import {
 } from '@/lib/risk-profile/erc'
 import { EngineProvenanceBadge, type GeneratedByType, type ValidationStatus } from '@/components/sera/EngineProvenanceBadge'
 import { VNextEventAnalysisPanel } from '@/components/sera-vnext/VNextEventAnalysisPanel'
+import { SeraClarificationForm } from '@/components/sera-vnext/SeraClarificationForm'
 import type { SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
 
 const FlowDiagram = dynamic(() => import('@/components/FlowDiagram'), { ssr: false })
 
 type FlowTab = 'perception' | 'objective' | 'action'
 type PdfState = 'idle' | 'loading' | 'done' | 'error'
-type BadgeMap = Record<string, 'preserved' | 'recalculated' | null>
 type FlowNodeLike = { justificativa: string; resposta: string; [key: string]: unknown }
 type DiscardedFlow = { nos_percorridos?: FlowNodeLike[] }
 type Precondition = { code?: string; etapa?: number | string; name?: string; justification?: string }
@@ -134,10 +131,18 @@ type FlowItem = {
   falhas_descartadas: string
 }
 type FlowMap = Record<FlowTab, FlowItem>
-type RecalculatePayload = {
-  analysis?: AnalysisPayload
-  steps_recalculated?: number[]
-  steps_preserved?: number[]
+
+function HistoricalClassificationCard({ code, name, justification }: { code?: string | null; name?: string | null; justification?: string | null }) {
+  return (
+    <div className="rounded-xl border border-slate-700 bg-slate-900 p-4">
+      <div className="flex items-center gap-2">
+        <span className="rounded bg-slate-700 px-2 py-1 text-xs font-mono text-slate-200">{code || '-'}</span>
+        <span className="text-sm font-semibold text-slate-200">{name || 'Classificação histórica'}</span>
+      </div>
+      {justification && <p className="mt-3 text-xs leading-relaxed text-slate-400">{justification}</p>}
+      <p className="mt-3 text-[11px] font-medium text-amber-400">Somente leitura — motor anterior</p>
+    </div>
+  )
 }
 
 function MetaItem({ label, value }: { label: string; value?: string | null }) {
@@ -362,9 +367,9 @@ export default function EventDetailPage() {
   const [vnextPdfState, setVnextPdfState] = useState<PdfState>('idle')
   const [vnextReanalyzeState, setVnextReanalyzeState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [vnextReanalyzeError, setVnextReanalyzeError] = useState<string | null>(null)
-  const [badges, setBadges]       = useState<BadgeMap>({})
   const [actionStates, setActionStates] = useState<Record<number, 'idle' | 'loading' | 'done' | 'error'>>({})
   const [canManageDelete, setCanManageDelete] = useState(false)
+  const [showLegacyHistorical, setShowLegacyHistorical] = useState(false)
   const [deletionBusy, setDeletionBusy] = useState(false)
   const [deletionError, setDeletionError] = useState<string | null>(null)
   const [deletionImpact, setDeletionImpact] = useState<DeletionImpact | null>(null)
@@ -412,25 +417,6 @@ export default function EventDetailPage() {
     return () => clearInterval(interval)
   }, [event?.status, id, searchParams])
 
-  const handleRecalculated = useCallback((data: RecalculatePayload) => {
-    if (!data?.analysis) return
-    setAnalysis(data.analysis)
-
-    // Apply badges based on recalculate result
-    const stepMap: Record<number, string> = { 3: 'perception', 4: 'objective', 5: 'action' }
-    const newBadges: BadgeMap = {}
-    data.steps_recalculated?.forEach((s: number) => {
-      if (stepMap[s]) newBadges[stepMap[s]] = 'recalculated'
-    })
-    data.steps_preserved?.forEach((s: number) => {
-      if (stepMap[s]) newBadges[stepMap[s]] = 'preserved'
-    })
-    setBadges(newBadges)
-
-    // Clear badges after 8s
-    setTimeout(() => setBadges({}), 8000)
-  }, [])
-
   const downloadPdf = useCallback(async () => {
     if (!analysis || !token || !event) return
     setPdfState('loading')
@@ -475,7 +461,7 @@ export default function EventDetailPage() {
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
-        throw new Error(String(json?.error?.message ?? json?.detail ?? 'Falha ao executar SERA vNext.'))
+        throw new Error(String(json?.error?.message ?? json?.detail ?? 'Falha ao executar a análise SERA.'))
       }
       const scope = searchParams?.get('scope') === 'deleted' ? 'deleted' : 'active'
       const refreshed = await apiCall(`/events/${event.id}?scope=${scope}`, {}, token) as EventPayload
@@ -484,7 +470,7 @@ export default function EventDetailPage() {
       setVnextReanalyzeState('done')
       setTimeout(() => setVnextReanalyzeState('idle'), 3000)
     } catch (error) {
-      setVnextReanalyzeError(error instanceof Error ? error.message : 'Falha ao executar SERA vNext.')
+      setVnextReanalyzeError(error instanceof Error ? error.message : 'Falha ao executar a análise SERA.')
       setVnextReanalyzeState('error')
     }
   }, [event, token, searchParams])
@@ -493,7 +479,7 @@ export default function EventDetailPage() {
     if (!event?.vnext_analysis?.id || !token) return
     setVnextPdfState('loading')
     try {
-      const res = await fetch(`/api/admin/sera-vnext/analyses/${event.vnext_analysis.id}/pdf`, {
+      const res = await fetch(`/api/sera/analyses/${event.vnext_analysis.id}/pdf`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -620,10 +606,6 @@ export default function EventDetailPage() {
 
   const summaryText = analysis?.summary || analysis?.event_summary || null
 
-  // Flow path helpers
-  const perceptionFlow = analysis?.perception_discarded?.nos_percorridos ?? []
-  const objectiveFlow  = analysis?.objective_discarded?.nos_percorridos  ?? []
-  const actionFlow     = analysis?.action_discarded?.nos_percorridos     ?? []
   const preconditions = analysis?.preconditions ?? []
   const recommendations = analysis?.recommendations ?? []
   const causalConsistency = analysis?.raw_llm_output?.causal_consistency ?? null
@@ -678,7 +660,7 @@ export default function EventDetailPage() {
 
             <div className="mt-5 grid gap-3 text-sm sm:grid-cols-3">
               <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 text-slate-300">Legacy: <strong>{deletionImpact?.legacyAnalyses ?? '-'}</strong></div>
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 text-slate-300">vNext: <strong>{deletionImpact?.vnextAnalyses ?? '-'}</strong></div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 text-slate-300">SERA 0.3: <strong>{deletionImpact?.vnextAnalyses ?? '-'}</strong></div>
               <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 text-slate-300">Revisões: <strong>{deletionImpact?.revisions ?? '-'}</strong></div>
               <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 text-slate-300">Reviews: <strong>{deletionImpact?.reviews ?? '-'}</strong></div>
               <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 text-slate-300">Anexos/storage: <strong>{deletionImpact ? `${deletionImpact.attachments}/${deletionImpact.storageObjects.length}` : '-'}</strong></div>
@@ -760,16 +742,6 @@ export default function EventDetailPage() {
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
-          {canManageDelete && !event.deleted_at && !event.vnext_analysis && (
-            <button
-              type="button"
-              onClick={() => void reanalyzeWithVNext()}
-              disabled={vnextReanalyzeState === 'loading'}
-              className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-500/20 disabled:cursor-wait disabled:opacity-60"
-            >
-              {vnextReanalyzeState === 'loading' ? 'Reanalisando…' : vnextReanalyzeState === 'done' ? 'vNext criado' : 'Reanalisar com SERA vNext'}
-            </button>
-          )}
           {canManageDelete && !event.deleted_at && (
             <button
               type="button"
@@ -790,12 +762,14 @@ export default function EventDetailPage() {
               {deletionBusy ? 'Restaurando...' : 'Restaurar evento'}
             </button>
           )}
-          <a
-            href={`/reports/event/${event.id}${event.deleted_at ? '?scope=deleted' : ''}`}
-            className="text-sm px-4 py-2 rounded-lg transition font-medium bg-slate-800 hover:bg-slate-700 text-white"
-          >
-            Relatorio do evento
-          </a>
+          {(!analysis || event.vnext_analysis || showLegacyHistorical) && (
+            <a
+              href={`/reports/event/${event.id}${event.deleted_at ? '?scope=deleted' : ''}`}
+              className="text-sm px-4 py-2 rounded-lg transition font-medium bg-slate-800 hover:bg-slate-700 text-white"
+            >
+              Relatorio do evento
+            </a>
+          )}
           {event.vnext_analysis && (
             <button
               onClick={downloadVNextPdf}
@@ -807,10 +781,10 @@ export default function EventDetailPage() {
                 'bg-cyan-800 hover:bg-cyan-700 text-cyan-50'
               }`}
             >
-              {vnextPdfState === 'idle' ? '⬇ PDF vNext completo' : pdfLabel[vnextPdfState]}
+              {vnextPdfState === 'idle' ? '⬇ Baixar PDF' : pdfLabel[vnextPdfState]}
             </button>
           )}
-          {analysis && (
+          {analysis && !event.vnext_analysis && showLegacyHistorical && (
             <button
               onClick={downloadPdf}
               disabled={pdfState === 'loading'}
@@ -834,19 +808,11 @@ export default function EventDetailPage() {
 
       {event.vnext_analysis && (
         <div className="rounded-xl border border-cyan-700/50 bg-cyan-950/20 p-5 space-y-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-cyan-300">SERA vNext — hipótese candidate-only</p>
-              <p className="mt-1 text-sm text-slate-200">
-                Existe uma análise canônica vNext vinculada a este evento. Ela exige revisão humana e não substitui automaticamente uma análise legado nem libera risco, HFACS, recomendações ou classificação final.
-              </p>
-            </div>
-            <a
-              href={`/admin/sera-vnext/analyses/${event.vnext_analysis.id}`}
-              className="shrink-0 rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-300"
-            >
-              Abrir análise vNext
-            </a>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-cyan-300">Análise SERA — motor 0.3</p>
+            <p className="mt-1 text-sm text-slate-200">
+              Esta é a análise metodológica ativa do evento. A classificação exige revisão humana antes de liberação formal; o motor anterior não participa deste resultado.
+            </p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs">
             <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3"><span className="text-slate-500">Ponto de fuga</span><p className="mt-1 text-slate-200">{event.vnext_analysis.escape_point_status ?? '-'}</p></div>
@@ -856,18 +822,54 @@ export default function EventDetailPage() {
           </div>
           {analysis && (
             <p className="text-xs text-amber-300">
-              O conteúdo legado abaixo permanece disponível para auditoria histórica; não use seus códigos como substitutos da hipótese vNext sem revisão.
+              Existe um registro histórico produzido pelo motor anterior. Ele permanece preservado somente para auditoria e não é usado como fonte da análise SERA atual.
             </p>
           )}
         </div>
       )}
 
       {event.vnext_analysis?.engine_output && (
-        <VNextEventAnalysisPanel output={event.vnext_analysis.engine_output} />
+        <>
+          <VNextEventAnalysisPanel output={event.vnext_analysis.engine_output} />
+          <SeraClarificationForm
+            eventId={event.id}
+            token={token}
+            output={event.vnext_analysis.engine_output}
+            onUpdated={() => window.location.reload()}
+          />
+        </>
+      )}
+
+      {analysis && !event.vnext_analysis && (
+        <div className="rounded-xl border border-amber-700/50 bg-amber-950/20 p-5">
+          <p className="text-xs font-bold uppercase tracking-widest text-amber-300">Registro histórico — motor anterior</p>
+          <p className="mt-2 text-sm leading-relaxed text-slate-200">
+            Este evento ainda não possui análise SERA 0.3. Os códigos produzidos pelo motor anterior não são usados como classificação atual, nem alimentam o Perfil de Risco.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {!event.deleted_at && (
+              <button
+                type="button"
+                onClick={() => void reanalyzeWithVNext()}
+                disabled={vnextReanalyzeState === 'loading'}
+                className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-60"
+              >
+                {vnextReanalyzeState === 'loading' ? 'Reprocessando…' : 'Reprocessar com SERA 0.3'}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowLegacyHistorical((value) => !value)}
+              className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:border-slate-500"
+            >
+              {showLegacyHistorical ? 'Ocultar histórico' : 'Ver histórico para auditoria'}
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Pending / processing state */}
-      {!analysis && event.status !== 'completed' && (
+      {!analysis && !event.vnext_analysis && event.status !== 'completed' && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center">
           <p className="text-slate-400">
             {event.status === 'processing'
@@ -877,7 +879,7 @@ export default function EventDetailPage() {
         </div>
       )}
 
-      {analysis && (
+      {analysis && !event.vnext_analysis && showLegacyHistorical && (
         <>
           {/* Section jump nav */}
           <SectionNav anchors={[
@@ -921,16 +923,6 @@ export default function EventDetailPage() {
               </div>
             ) : null
           })()}
-
-          {/* Edit history banner */}
-          {analysis.id && token && (
-            <EditHistoryPanel
-              analysisId={analysis.id}
-              token={token}
-              editCount={analysis.edit_count || 0}
-              onReverted={(payload) => handleRecalculated(payload as RecalculatePayload)}
-            />
-          )}
 
           {/* ── ETAPA 1 — Resumo do Evento ───────────────────────────── */}
           <div id="etapa-1" className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
@@ -989,52 +981,15 @@ export default function EventDetailPage() {
             </div>
           </div>
 
-          {/* ── ETAPAS 3 / 4 / 5 — Editable failure classifications ──── */}
+          {/* ── ETAPAS 3 / 4 / 5 — histórico somente leitura ──── */}
           <div id="etapas-3-5">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">
-              Etapas 3 · 4 · 5 — Falhas Ativas
-              <span className="ml-2 normal-case text-slate-600 font-normal">(clique &quot;Editar&quot; para recalcular)</span>
+              Etapas 3 · 4 · 5 — registro histórico
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <EditableClassification
-                code={analysis.perception_code ?? ''}
-                name={analysis.perception_name ?? ''}
-                justification={analysis.perception_justification ?? ''}
-                flowPath={perceptionFlow}
-                stepAltered="3"
-                field="perception_code"
-                availableCodes={STEP3_CODES}
-                analysisId={analysis.id}
-                token={token}
-                badge={badges['perception'] ?? null}
-                onUpdated={(payload) => handleRecalculated(payload as RecalculatePayload)}
-              />
-              <EditableClassification
-                code={analysis.objective_code ?? ''}
-                name={analysis.objective_name ?? ''}
-                justification={analysis.objective_justification ?? ''}
-                flowPath={objectiveFlow}
-                stepAltered="4"
-                field="objective_code"
-                availableCodes={STEP4_CODES}
-                analysisId={analysis.id}
-                token={token}
-                badge={badges['objective'] ?? null}
-                onUpdated={(payload) => handleRecalculated(payload as RecalculatePayload)}
-              />
-              <EditableClassification
-                code={analysis.action_code ?? ''}
-                name={analysis.action_name ?? ''}
-                justification={analysis.action_justification ?? ''}
-                flowPath={actionFlow}
-                stepAltered="5"
-                field="action_code"
-                availableCodes={STEP5_CODES}
-                analysisId={analysis.id}
-                token={token}
-                badge={badges['action'] ?? null}
-                onUpdated={(payload) => handleRecalculated(payload as RecalculatePayload)}
-              />
+              <HistoricalClassificationCard code={analysis.perception_code} name={analysis.perception_name} justification={analysis.perception_justification} />
+              <HistoricalClassificationCard code={analysis.objective_code} name={analysis.objective_name} justification={analysis.objective_justification} />
+              <HistoricalClassificationCard code={analysis.action_code} name={analysis.action_name} justification={analysis.action_justification} />
             </div>
           </div>
 

@@ -217,17 +217,17 @@ export default function EventReportPage() {
           {vnextOutput ? (
             <>
               <div className="report-box space-y-1">
-                <p><strong>Ponto de fuga candidato:</strong> {vnextOutput.escapePoint.statement ?? 'Nao estabelecido'}</p>
+                <p><strong>Ponto de fuga:</strong> {vnextOutput.escapePoint.statement ?? 'Nao estabelecido'}</p>
                 <p><strong>Ator direto:</strong> {vnextOutput.directActor.actor ?? 'Nao resolvido'}</p>
                 <p><strong>Percepcao:</strong> {vnextOutput.axes.perception.proposedCode ?? 'Nao resolvida'}</p>
                 <p><strong>Objetivo:</strong> {vnextOutput.axes.objective.proposedCode ?? 'Nao resolvido'}</p>
                 <p><strong>Acao:</strong> {vnextOutput.axes.action.proposedCode ?? 'Nao resolvida'}</p>
               </div>
               <p className="report-note">
-                Hipotese candidate-only. Nenhum codigo e liberado como classificacao final antes da revisao humana.
+                Análise produzida pelo motor SERA 0.3. A liberação formal dos códigos permanece condicionada à revisão humana.
               </p>
               <p className="report-note">
-                <strong>Motor:</strong> SERA vNext {vnextAnalysis?.engine_runtime_version ?? vnextAnalysis?.engine_version ?? ''}
+                <strong>Motor:</strong> SERA 0.3 {vnextAnalysis?.engine_runtime_version ?? vnextAnalysis?.engine_version ?? ''}
                 {' — fluxo '}{vnextAnalysis?.source_flow ?? 'VNEXT_CANONICAL'}
                 {' — revisao '}{vnextAnalysis?.review_status ?? 'NOT_REVIEWED'}
               </p>
@@ -258,7 +258,7 @@ export default function EventReportPage() {
           <h3 className="report-title">3. Avaliacao de risco (apoio a triagem)</h3>
           {vnextOutput ? (
             <div className="report-box">
-              <p><strong>Camada de risco bloqueada.</strong> A saida vNext e candidate-only e nao libera ERC, HFACS ou downstream antes da revisao humana.</p>
+              <p><strong>Camada de risco bloqueada.</strong> A saída do motor atual não libera ERC, HFACS ou downstream antes da revisão humana.</p>
             </div>
           ) : (
             <>
@@ -303,7 +303,7 @@ export default function EventReportPage() {
           <h3 className="report-title">5. Recomendacoes e acoes sugeridas</h3>
           {vnextOutput ? (
             <div className="report-box">
-              <p>Recomendacoes automaticas nao sao liberadas pela hipotese vNext antes da revisao humana. Acoes devem ser definidas apos validacao do ponto de fuga e dos eixos P/O/A.</p>
+              <p>Recomendações automáticas não são liberadas pela análise SERA antes da revisão humana. Acoes devem ser definidas apos validacao do ponto de fuga e dos eixos P/O/A.</p>
             </div>
           ) : recommendations.length > 0 ? (
             <div className="space-y-2">

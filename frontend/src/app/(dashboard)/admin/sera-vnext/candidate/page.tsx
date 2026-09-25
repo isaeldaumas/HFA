@@ -148,11 +148,11 @@ export default function AdminSeraVNextCandidatePage() {
       })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error(String(payload.detail ?? 'Falha ao executar análise candidate-only.'))
+        throw new Error(String(payload.detail ?? 'Falha ao executar o sandbox SERA 0.3.'))
       }
       setResult(payload as CandidateResponse)
     } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : 'Falha ao executar análise candidate-only.')
+      setError(fetchError instanceof Error ? fetchError.message : 'Falha ao executar o sandbox SERA 0.3.')
     } finally {
       setLoading(false)
     }
@@ -164,7 +164,7 @@ export default function AdminSeraVNextCandidatePage() {
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
           <div className="flex items-center gap-2 text-slate-300">
             <Lock className="size-4" />
-            <h1 className="text-xl font-semibold">SERA candidate-only disabled</h1>
+            <h1 className="text-xl font-semibold">Sandbox SERA 0.3 indisponível</h1>
           </div>
           <p className="text-slate-400 text-sm mt-2">
             Defina NEXT_PUBLIC_SERA_VNEXT_CANDIDATE_UI_ENABLED=true em ambiente controlado para exibir esta superfície interna.
@@ -181,9 +181,9 @@ export default function AdminSeraVNextCandidatePage() {
           <FlaskConical className="size-4" />
           <span className="text-xs uppercase tracking-[0.2em]">Product Alpha</span>
         </div>
-        <h1 className="text-2xl font-bold text-white">SERA vNext Candidate-Only</h1>
+        <h1 className="text-2xl font-bold text-white">Sandbox metodológico SERA 0.3</h1>
         <p className="text-slate-300 text-sm max-w-4xl">
-          Análise experimental candidate-only. Não representa classificação SERA final, não salva dados, não altera eventos e não produz saída operacional.
+          Ambiente de teste do mesmo motor SERA 0.3. Não salva dados, não altera eventos e não produz saída operacional.
         </p>
       </div>
 
@@ -196,7 +196,7 @@ export default function AdminSeraVNextCandidatePage() {
           value={eventText}
           onChange={(event) => setEventText(event.target.value)}
           className="w-full min-h-56 rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none focus:border-amber-400"
-          placeholder="Cole aqui um relato factual do evento para análise candidate-only não final."
+          placeholder="Cole aqui um relato factual para testar o motor SERA 0.3 sem persistência operacional."
           maxLength={maxChars}
         />
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

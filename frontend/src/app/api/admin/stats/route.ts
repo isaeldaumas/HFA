@@ -29,15 +29,16 @@ export async function GET(req: Request) {
       admin.from('analyses').select('id, created_at'),
       admin.from('credit_transactions').select('amount'),
       admin.from('events').select('id, deleted_at'),
-      admin.from('sera_vnext_analyses').select('id, deleted_at, status, review_status'),
+      admin.from('sera_vnext_analyses').select('id, created_at, deleted_at, status, review_status'),
       admin.from('risk_profile_exclusions').select('id, restored_at'),
     ])
 
     const t = tenants.data ?? []
-    const a = analyses.data ?? []
+    const legacy = analyses.data ?? []
     const tx = transactions.data ?? []
     const e = events.data ?? []
     const v = vnextAnalyses.data ?? []
+    const activeVNext = v.filter((item) => !item.deleted_at)
     const x = exclusions.data ?? []
 
     const now = new Date()
@@ -47,7 +48,7 @@ export async function GET(req: Request) {
 
     let currentMonthCount = 0
     let previousMonthCount = 0
-    for (const item of a) {
+    for (const item of activeVNext) {
       const created = parseDate(item.created_at as string | undefined)
       if (!created) continue
       if (created >= currentStart && created < currentEnd) {
@@ -60,15 +61,14 @@ export async function GET(req: Request) {
     const creditsConsumed = tx.reduce((s, x) => s + (x.amount < 0 ? Math.abs(x.amount) : 0), 0)
     const totalActiveEvents = e.filter((item) => !item.deleted_at).length
     const softDeletedEvents = e.filter((item) => !!item.deleted_at).length
-    const activeVNext = v.filter((item) => !item.deleted_at)
 
     return NextResponse.json({
       total_tenants: t.length,
-      total_analyses: a.length,
+      total_analyses: activeVNext.length,
       total_active_events: totalActiveEvents,
       soft_deleted_events: softDeletedEvents,
-      analyzed_events: a.length,
-      legacy_analyses: a.length,
+      analyzed_events: activeVNext.length,
+      legacy_analyses: legacy.length,
       vnext_analyses: activeVNext.length,
       risk_profile_included: totalActiveEvents - x.filter((item) => !item.restored_at).length,
       risk_profile_excluded: x.filter((item) => !item.restored_at).length,

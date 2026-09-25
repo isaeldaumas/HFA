@@ -67,7 +67,7 @@ export default function AdminSeraVNextPage() {
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
           <div className="flex items-center gap-2 text-slate-300">
             <Lock className="size-4" />
-            <h1 className="text-xl font-semibold">SERA vNext diagnostics disabled</h1>
+            <h1 className="text-xl font-semibold">Diagnóstico SERA 0.3 indisponível</h1>
           </div>
           <p className="text-slate-400 text-sm mt-2">
             Defina NEXT_PUBLIC_SERA_VNEXT_DIAGNOSTICS_ENABLED=true em ambiente local para exibir esta superfície interna.
@@ -83,7 +83,7 @@ export default function AdminSeraVNextPage() {
   return (
     <div className="p-5 md:p-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">SERA vNext Runtime</h1>
+        <h1 className="text-2xl font-bold text-white">Diagnóstico SERA 0.3</h1>
         <p className="text-slate-400 text-sm mt-1">
           Diagnóstico interno somente leitura. Não integrado à classificação e não produz saída operacional.
         </p>

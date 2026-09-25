@@ -209,7 +209,7 @@ export async function getEventDeletionImpact(
   const legacyAnalysis = normalizeAnalysis(event.analyses)
   const legacyAnalysisId = legacyAnalysis?.id ?? null
 
-  const [vnextBySource, vnextByMetadata, riskExclusions, actions, auditLogs, legacyEdits] = await Promise.all([
+  const [vnextBySource, vnextByMetadata, riskExclusions, auditLogs, legacyEdits] = await Promise.all([
     admin
       .from('sera_vnext_analyses')
       .select('id, engine_input, engine_output, metadata')
@@ -227,9 +227,6 @@ export async function getEventDeletionImpact(
       .eq('source_type', 'legacy_event')
       .eq('source_id', eventId)
       .is('restored_at', null),
-    legacyAnalysisId
-      ? admin.from('corrective_actions').select('id, status').eq('tenant_id', tenantId).eq('analysis_id', legacyAnalysisId)
-      : Promise.resolve({ data: [] as Array<{ id: string; status: string }>, error: null }),
     admin
       .from('audit_log')
       .select('id', { count: 'exact', head: true })
@@ -244,7 +241,6 @@ export async function getEventDeletionImpact(
     vnextBySource.error,
     vnextByMetadata.error,
     riskExclusions.error,
-    actions.error,
     auditLogs.error,
     legacyEdits.error,
   ].filter(Boolean)
@@ -257,19 +253,25 @@ export async function getEventDeletionImpact(
   const vnextRows = [...vnextMap.values()]
   const vnextIds = [...vnextMap.keys()]
 
-  const [revisions, reviews, analysisEvents] = vnextIds.length > 0
-    ? await Promise.all([
-        admin.from('sera_vnext_analysis_revisions').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).in('analysis_id', vnextIds),
-        admin.from('sera_vnext_analysis_reviews').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).in('analysis_id', vnextIds),
-        admin.from('sera_vnext_analysis_events').select('id, event_type').eq('tenant_id', tenantId).in('analysis_id', vnextIds),
-      ])
-    : [
-        { count: 0, error: null },
-        { count: 0, error: null },
-        { data: [] as Array<{ id: string; event_type: string }>, error: null },
-      ]
+  const [legacyActions, currentActions, revisions, reviews, analysisEvents] = await Promise.all([
+    legacyAnalysisId
+      ? admin.from('corrective_actions').select('id, status').eq('tenant_id', tenantId).eq('analysis_id', legacyAnalysisId)
+      : Promise.resolve({ data: [] as Array<{ id: string; status: string }>, error: null }),
+    vnextIds.length > 0
+      ? admin.from('corrective_actions').select('id, status').eq('tenant_id', tenantId).in('sera_vnext_analysis_id', vnextIds)
+      : Promise.resolve({ data: [] as Array<{ id: string; status: string }>, error: null }),
+    vnextIds.length > 0
+      ? admin.from('sera_vnext_analysis_revisions').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).in('analysis_id', vnextIds)
+      : Promise.resolve({ count: 0, error: null }),
+    vnextIds.length > 0
+      ? admin.from('sera_vnext_analysis_reviews').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).in('analysis_id', vnextIds)
+      : Promise.resolve({ count: 0, error: null }),
+    vnextIds.length > 0
+      ? admin.from('sera_vnext_analysis_events').select('id, event_type').eq('tenant_id', tenantId).in('analysis_id', vnextIds)
+      : Promise.resolve({ data: [] as Array<{ id: string; event_type: string }>, error: null }),
+  ])
 
-  if (revisions.error || reviews.error || analysisEvents.error) {
+  if (legacyActions.error || currentActions.error || revisions.error || reviews.error || analysisEvents.error) {
     throw new Error('EVENT_DELETE_IMPACT_LOOKUP_FAILED')
   }
 
@@ -288,7 +290,11 @@ export async function getEventDeletionImpact(
     }
   }
 
-  const actionCounts = countByStatuses((actions.data ?? []) as Array<{ status: string }>)
+  const actionMap = new Map<string, { id: string; status: string }>()
+  for (const action of [...(legacyActions.data ?? []), ...(currentActions.data ?? [])] as Array<{ id: string; status: string }>) {
+    actionMap.set(action.id, action)
+  }
+  const actionCounts = countByStatuses([...actionMap.values()])
   const eventRows = (analysisEvents.data ?? []) as Array<{ id: string; event_type: string }>
   const purgeBlockers = [
     ...unknownDependencies.map((item) => `unknown:${item}`),

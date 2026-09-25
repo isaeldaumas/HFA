@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import { writeJsonReport } from './product-beta-real-helpers'
-import { isAllowedA4R190LegacyMethodologyPath } from './protected-path-contract'
+import { isAllowedA4R190LegacyMethodologyPath, isAllowedPrimarySeraMigrationPath } from './protected-path-contract'
 
 const TRIAL_ID = 'risk-profile-integrity-trial-001'
 
@@ -36,7 +36,7 @@ async function main() {
   const allowedMigration = 'supabase/migrations/20260608190000_risk_profile_exclusions.sql'
   const unexpectedMigration = combined
     .filter((file) => file.startsWith('supabase/migrations/'))
-    .filter((file) => file !== allowedMigration)
+    .filter((file) => file !== allowedMigration && !isAllowedPrimarySeraMigrationPath(process.cwd(), file))
   assert.deepEqual(unexpectedMigration, [], 'only the risk-profile exclusion migration may change in this phase')
 
   const report = {

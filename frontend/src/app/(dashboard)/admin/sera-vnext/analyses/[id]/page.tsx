@@ -175,7 +175,7 @@ export default function SeraVNextAnalysisDetailPage() {
 
       {/* Non-final banner */}
       <div className="rounded-2xl border border-amber-800 bg-amber-950/20 p-4 text-sm text-amber-100">
-        <div className="flex items-center gap-2 font-semibold"><ShieldAlert className="size-4" /> Resultado candidate-only não final.</div>
+        <div className="flex items-center gap-2 font-semibold"><ShieldAlert className="size-4" /> Análise SERA 0.3 — revisão humana pendente.</div>
         <p className="mt-1">Exige revisão humana e não representa classificação SERA liberada. selectedCode, releasedCode, finalConclusion, CLASSIFIED, READY e downstream permanecem bloqueados.</p>
       </div>
 

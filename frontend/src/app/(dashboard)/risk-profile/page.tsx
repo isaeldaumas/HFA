@@ -1528,7 +1528,7 @@ function SafetyIssueCandidatesPanel({ candidates }: { candidates: SafetyIssueCan
 
 const SOURCE_LABEL: Record<RiskProfileSourceEvent['source'], string> = {
   legacy_event: 'Evento',
-  sera_vnext_analysis: 'SERA vNext',
+  sera_vnext_analysis: 'SERA 0.3',
 }
 
 const STATUS_LABEL: Record<RiskProfileSourceEvent['status'], { label: string; tone: string }> = {

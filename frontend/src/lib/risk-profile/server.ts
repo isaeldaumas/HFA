@@ -208,7 +208,7 @@ function coerceLegacyAnalysis(value: LegacyEventRow['analyses']): LegacyAnalysis
   return value ?? null
 }
 
-function toLegacySource(row: LegacyEventRow, exclusionLookup: Map<string, ExclusionRow>): RiskProfileSourceEvent {
+function _toLegacySource(row: LegacyEventRow, exclusionLookup: Map<string, ExclusionRow>): RiskProfileSourceEvent {
   const analysis = coerceLegacyAnalysis(row.analyses)
   const category = computeHfaErcCategoryFromCodes(
     analysis?.perception_code ?? null,
@@ -391,7 +391,6 @@ export async function loadRiskProfileUniverse(
       .from('sera_vnext_analyses')
       .select('id, tenant_id, title, status, review_status, created_at, deleted_at, source_reference, engine_version, engine_runtime_version, methodology_version, canonical_tree_version, source_flow, perception_candidate_code, objective_candidate_code, action_candidate_code, warnings, limitations, uncertainties, engine_output')
       .eq('tenant_id', tenantId)
-      .eq('status', 'HUMAN_REVIEW_COMPLETED_NON_FINAL')
       .is('deleted_at', null)
       .order('created_at', { ascending: false }),
   ])
@@ -402,29 +401,42 @@ export async function loadRiskProfileUniverse(
   if (vnextRes.error) throw new Error(`RISK_PROFILE_VNEXT_QUERY_FAILED: ${vnextRes.error.message}`)
 
   const exclusionLookup = buildExclusionLookup((exclusionsRes.data ?? []) as ExclusionRow[])
-  const legacySources = ((eventsRes.data ?? []) as LegacyEventRow[]).map((row) => toLegacySource(row, exclusionLookup))
+  const legacyHistoricalCount = ((eventsRes.data ?? []) as LegacyEventRow[]).filter((row) => !!coerceLegacyAnalysis(row.analyses)).length
   const allVNextRows = (vnextRes.data ?? []) as VNextAnalysisRow[]
-  const compatibleVNextRows = allVNextRows.filter(isCompatibleVNextRow)
-  const incompatibleVNextCount = allVNextRows.length - compatibleVNextRows.length
+  const reviewedVNextRows = allVNextRows.filter((row) => row.status === 'HUMAN_REVIEW_COMPLETED_NON_FINAL')
+  const pendingHumanReviewCount = allVNextRows.length - reviewedVNextRows.length
+  const incompatibleReviewedCount = reviewedVNextRows.filter((row) => !isCompatibleVNextRow(row)).length
+  const eligibleVNextRows = reviewedVNextRows.filter(isCompatibleVNextRow)
 
-  // Deduplicate vNext analyses by source_reference (event_id) — keep only the most recent per event
+  // Deduplicate reviewed current SERA analyses by source_reference (event_id) — keep only the most recent per event.
   const seenEventIds = new Set<string>()
   const deduped = new Array<VNextAnalysisRow>()
-  const sortedVNext = [...compatibleVNextRows].sort((a, b) => b.created_at.localeCompare(a.created_at))
+  const sortedVNext = [...eligibleVNextRows].sort((a, b) => b.created_at.localeCompare(a.created_at))
   for (const row of sortedVNext) {
     const eventKey = row.source_reference || row.id
     if (!seenEventIds.has(eventKey)) { seenEventIds.add(eventKey); deduped.push(row) }
   }
   const vnextSources = deduped.map((row) => toVNextSource(row, exclusionLookup))
   const limitations: string[] = []
-  if (incompatibleVNextCount > 0) {
+  if (pendingHumanReviewCount > 0) {
     limitations.push(
-      `${incompatibleVNextCount} análise(s) SERA vNext foram ignoradas por ainda não exporem P/O/A ou preconditions compatíveis com o Perfil de Risco.`,
+      `${pendingHumanReviewCount} análise(s) SERA 0.3 aguardam revisão humana e permanecem fora do Perfil de Risco até a conclusão dessa etapa.`,
+    )
+  }
+  if (incompatibleReviewedCount > 0) {
+    limitations.push(
+      `${incompatibleReviewedCount} análise(s) SERA 0.3 revisadas ainda não expõem P/O/A ou pré-condições suficientes e permanecem fora do consolidado.`,
+    )
+  }
+
+  if (legacyHistoricalCount > 0) {
+    limitations.push(
+      `${legacyHistoricalCount} análise(s) histórica(s) do motor anterior foram preservadas para auditoria, mas não entram no Perfil de Risco até serem reprocessadas pelo SERA 0.3.`,
     )
   }
 
   return {
-    sources: sortSourcesNewestFirst([...legacySources, ...vnextSources]),
+    sources: sortSourcesNewestFirst(vnextSources),
     actions: (actionsRes.data ?? []) as ActionRow[],
     limitations,
   }

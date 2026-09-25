@@ -289,8 +289,8 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       size: 'A4',
       bufferPages: true,
       info: {
-        Title: 'HFA SERA vNext - ' + input.analysis.title,
-        Subject: 'Relatório metodológico candidate-only',
+        Title: 'HFA SERA 0.3 - ' + input.analysis.title,
+        Subject: 'Relatório metodológico SERA 0.3',
       },
     })
 
@@ -307,7 +307,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       .text('Relatório Metodológico HFA / SERA', { align: 'center' })
     doc.moveDown(0.2)
     doc.font('Helvetica-Bold').fontSize(10.5).fillColor('#5d6e7c')
-      .text('Análise candidate-only para revisão humana', { align: 'center' })
+      .text('Análise SERA 0.3 — revisão humana requerida', { align: 'center' })
     doc.moveDown(0.55)
     doc.font('Helvetica').fontSize(9).fillColor('#263746')
       .text(analysis.title, { align: 'center' })
@@ -477,7 +477,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
         doc.moveDown(0.35)
       }
     } else {
-      body(doc, 'Nenhuma pergunta adicional é necessária para a análise candidate-only atual.')
+      body(doc, 'Nenhuma pergunta adicional é necessária para a análise SERA atual.')
     }
 
     heading(doc, '11. Incertezas, limitações e perguntas em aberto')
@@ -513,7 +513,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     heading(doc, '13. Conclusão de uso')
     body(
       doc,
-      'Este relatório documenta uma hipótese metodológica candidate-only e a trilha de decisão do motor. Ele não constitui classificação final liberada. O revisor deve confirmar o ponto de fuga, o ator direto, cada eixo P/O/A, as pré-condições e qualquer evidência conflitante antes de uso formal.',
+      'Este relatório documenta a análise metodológica produzida pelo motor SERA 0.3 e sua trilha de decisão. A liberação formal continua condicionada à revisão humana. O revisor deve confirmar o ponto de fuga, o ator direto, cada eixo P/O/A, as pré-condições e qualquer evidência conflitante antes do uso formal.',
       'justify',
     )
 

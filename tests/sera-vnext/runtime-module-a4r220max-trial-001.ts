@@ -3,7 +3,7 @@ import { execSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { getSeraVNextRuntimeReadOnlySummary } from "../../frontend/src/lib/sera-vnext-runtime";
-import { isAllowedA4R190LegacyMethodologyPath, isAllowedSeraVNextProtectedApiPath } from "./protected-path-contract";
+import { isAllowedA4R190LegacyMethodologyPath, isAllowedPrimarySeraMigrationPath, isAllowedSeraVNextProtectedApiPath } from "./protected-path-contract";
 
 const rootDir = path.resolve(__dirname, "..", "..");
 
@@ -199,7 +199,7 @@ for (const file of changed) {
 
   for (const prefix of ["frontend/src/lib/sera/", "supabase/migrations/", "tests/sera/fixtures/"]) {
     assert.equal(
-      isAllowedA4R190LegacyMethodologyPath(rootDir, file) || !file.startsWith(prefix),
+      isAllowedA4R190LegacyMethodologyPath(rootDir, file) || isAllowedPrimarySeraMigrationPath(rootDir, file) || !file.startsWith(prefix),
       true,
       `protected path changed: ${file}`,
     );

@@ -31,14 +31,15 @@ export function buildCanonicalEventAnalysisInput(args: {
   return {
     title: args.title,
     narrative: args.narrative,
-    sourceType: 'INTERNAL_PILOT',
+    sourceType: 'REAL_EVENT',
     sourceReference: args.eventId,
     clientRequestId: buildCanonicalEventClientRequestId(args),
     sourceFlowOverride: 'VNEXT_CANONICAL',
     metadata: {
       eventId: args.eventId,
-      source: args.mode === 'INITIAL' ? 'canonical_route' : 'canonical_reanalysis',
+      source: args.mode === 'INITIAL' ? 'primary_sera_engine' : 'primary_sera_reanalysis',
       canonicalEventMode: args.mode,
+      operationalEngineRole: 'PRIMARY',
       candidateOnly: true,
     },
   }
@@ -86,6 +87,6 @@ export function canonicalAnalyzeResponse(result: SeraVNextCreateAnalysisResult, 
     seraAnalysis: null,
     vnextNotice: engineOutput.evidenceSufficiency.status === 'NEEDS_CLARIFICATION'
       ? 'Análise interrompida por evidência insuficiente. Responda às perguntas de esclarecimento antes de tratar P/O/A como hipótese utilizável.'
-      : 'Análise vNext candidate-only criada. A hipótese exige revisão humana e não preenche classificação final, risco ou downstream.',
+      : 'Análise SERA criada pelo motor operacional 0.3.0. A classificação permanece sujeita à revisão humana antes de liberação formal.',
   }
 }

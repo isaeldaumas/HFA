@@ -3,7 +3,7 @@ import { requireBearerUser } from '@/lib/server/api-auth'
 import { getSupabaseAdmin } from '@/lib/server/supabase-admin'
 import { getOrCreateRequestId } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
-import { canonicalAnalyzeResponse, createCanonicalEventAnalysis, isSeraVNextCanonicalAnalyzeEnabled } from '@/lib/sera-vnext-product/canonical-event-analysis'
+import { canonicalAnalyzeResponse, createCanonicalEventAnalysis } from '@/lib/sera-vnext-product/canonical-event-analysis'
 
 export const maxDuration = 300
 
@@ -18,13 +18,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
   const requestId = getOrCreateRequestId(req)
   try {
     const user = await requireBearerUser(req)
-    if (String(user.role ?? '').toLowerCase() !== 'admin') {
-      return jsonError(requestId, 'VNEXT_REANALYZE_FORBIDDEN', 'Acesso restrito a administradores.', 403)
-    }
-    if (!isSeraVNextCanonicalAnalyzeEnabled()) {
-      return jsonError(requestId, 'VNEXT_REANALYZE_DISABLED', 'Motor SERA vNext não está habilitado.', 409)
-    }
-
     const { eventId } = await ctx.params
     const admin = getSupabaseAdmin()
     const { data: event, error } = await admin
@@ -81,7 +74,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
         source_flow: result.analysis.source_flow,
         engine_runtime_version: result.analysis.engine_runtime_version,
         event_id: eventId,
-        candidate_only: true,
+        engine_role: 'PRIMARY',
+        human_review_required: true,
         evidence_sufficiency_status: result.analysis.engine_output.evidenceSufficiency.status,
       },
     })
