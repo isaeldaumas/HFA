@@ -41,6 +41,10 @@ export function runStep06DirectActor(input: {
   const escapeText = normalizeText(input.escapePoint.earliestCandidate ?? input.escapePoint.statement ?? '')
   const escapeHasCopilot = /\b(copiloto|first officer)\b/.test(escapeText)
   const escapeHasCaptain = /\b(comandante|captain|training captain)\b/.test(escapeText)
+  const escapeHasMaintenance =
+    /\b(maintenance|mechanic|inspector|manutencao|mecanico|mecanicos|inspetor|inspetores)\b/.test(escapeText) ||
+    /\b(inspecao (?:de )?pre[- ]?voo|pre[- ]?voo|preflight inspection)\b/.test(escapeText)
+  const narrativeHasMaintenance = /\b(maintenance|mechanic|inspector|manutencao|mecanico|mecanicos|inspetor|inspetores)\b/.test(text)
   const crewOrPilotMention = hasAny(text, ['crew', 'pilot', 'captain', 'first officer', 'tripulacao', 'tripulação', 'comandante', 'copiloto', 'piloto'])
   const systemDominant =
     (input.unsafeActOrCondition.type === 'UNSAFE_CONDITION' && !crewOrPilotMention) ||
@@ -77,9 +81,34 @@ export function runStep06DirectActor(input: {
     }
   )
 
+  if (input.escapePoint.status === 'INSUFFICIENT_EVIDENCE') {
+    return {
+      actor: null,
+      status: 'AMBIGUOUS',
+      alternatives: [],
+      actorMigrationWarnings: ['Direct actor remains unresolved until the escape point is established; post-escape detection or recovery actors must not be promoted by salience alone.'],
+    }
+  }
+
   if (!systemDominant) {
     // Actor attribution is anchored first to the sentence that defines the escape-point candidate.
     // Whole-report mentions are only fallback context, preventing migration to a different crew member.
+    if (escapeHasMaintenance && narrativeHasMaintenance) {
+      return {
+        actor: 'maintenance team (collective)',
+        status: 'IDENTIFIED',
+        alternatives: ['maintenance inspector', 'maintenance technician'],
+        actorMigrationWarnings: [],
+      }
+    }
+    if (escapeHasMaintenance && !narrativeHasMaintenance) {
+      return {
+        actor: null,
+        status: 'AMBIGUOUS',
+        alternatives: ['maintenance team', 'maintenance inspector', 'maintenance technician'],
+        actorMigrationWarnings: ['The escape point is anchored to preflight/maintenance activity, but the responsible maintenance actor is not identified; do not migrate attribution to post-escape flight-crew detection or recovery.'],
+      }
+    }
     if (escapeHasCopilot && !escapeHasCaptain) {
       const actor = copilotPf ? 'copiloto (PF)' : copilotPm ? 'copiloto (PM)' : 'copiloto'
       return { actor, status: 'IDENTIFIED', alternatives: ['tripulação'], actorMigrationWarnings: [] }
@@ -158,11 +187,11 @@ export function runStep06DirectActor(input: {
         actorMigrationWarnings: [],
       }
     }
-    if (hasAny(text, ['maintenance technician', 'maintenance team', 'mechanic'])) {
+    if (hasAny(text, ['maintenance technician', 'maintenance team', 'mechanic', 'mecanico', 'mecanicos', 'manutencao'])) {
       return {
-        actor: 'maintenance',
+        actor: 'maintenance team (collective)',
         status: 'IDENTIFIED',
-        alternatives: [],
+        alternatives: ['maintenance inspector', 'maintenance technician'],
         actorMigrationWarnings: [],
       }
     }

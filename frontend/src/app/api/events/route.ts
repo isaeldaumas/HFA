@@ -6,6 +6,7 @@ import { getOrCreateRequestId, buildErrorResponse } from '@/lib/observability/re
 import { writeAuditLog } from '@/lib/observability/audit'
 import { canonicalAnalyzeResponse, createCanonicalEventAnalysis } from '@/lib/sera-vnext-product/canonical-event-analysis'
 import { assertFileSize, detectDocumentKind } from '@/lib/sera/document-extraction'
+import { inferOccurrenceDateFromNarrative } from '@/lib/sera-vnext/occurrence-date'
 
 export const maxDuration = 300
 
@@ -183,7 +184,7 @@ export async function POST(req: Request) {
         input_type,
         operation_type,
         aircraft_type,
-        occurred_at: occurred_at || null,
+        occurred_at: occurred_at || inferOccurrenceDateFromNarrative(raw_input) || null,
         status: 'received',
       })
       .select('id')

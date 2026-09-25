@@ -18,6 +18,7 @@ import { EngineProvenanceBadge, type GeneratedByType, type ValidationStatus } fr
 import { VNextEventAnalysisPanel } from '@/components/sera-vnext/VNextEventAnalysisPanel'
 import { SeraClarificationForm } from '@/components/sera-vnext/SeraClarificationForm'
 import type { SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
+import { inferOccurrenceDateFromNarrative } from '@/lib/sera-vnext/occurrence-date'
 
 const FlowDiagram = dynamic(() => import('@/components/FlowDiagram'), { ssr: false })
 
@@ -433,7 +434,7 @@ export default function EventDetailPage() {
       const blob = await res.blob()
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
-      const date = new Date(event.created_at).toISOString().slice(0, 10)
+      const date = new Date(event.occurred_at ?? inferOccurrenceDateFromNarrative(event.raw_input) ?? event.created_at).toISOString().slice(0, 10)
       const name = (event.title ?? 'evento').replace(/\s+/g, '-').slice(0, 40)
       a.href     = url
       a.download = `SERA_${name}_${date}.pdf`
@@ -605,6 +606,8 @@ export default function EventDetailPage() {
   }
 
   const summaryText = analysis?.summary || analysis?.event_summary || null
+  const eventOccurrenceDate = event.occurred_at ?? inferOccurrenceDateFromNarrative(event.raw_input) ?? analysis?.event_date ?? event.created_at
+  const eventOccurrenceDateLabel = new Date(eventOccurrenceDate).toLocaleDateString('pt-BR')
 
   const preconditions = analysis?.preconditions ?? []
   const recommendations = analysis?.recommendations ?? []
@@ -738,7 +741,7 @@ export default function EventDetailPage() {
           <h1 className="text-2xl font-bold text-white mb-1">{event.title}</h1>
           <p className="text-slate-400 text-sm">
             {event.operation_type} • {event.aircraft_type} •{' '}
-            {new Date(event.created_at).toLocaleDateString('pt-BR')}
+            {eventOccurrenceDateLabel}
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -935,9 +938,7 @@ export default function EventDetailPage() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pb-4 border-b border-slate-700">
                 <MetaItem
                   label="Data do evento"
-                  value={analysis.event_date
-                    || (event.occurred_at ? new Date(event.occurred_at).toLocaleDateString('pt-BR') : null)
-                    || new Date(event.created_at).toLocaleDateString('pt-BR')}
+                  value={eventOccurrenceDateLabel}
                 />
                 <MetaItem label="Tipo de operação"    value={analysis.operation_type || event.operation_type} />
                 <MetaItem label="Sistema / tipo"      value={event.aircraft_type} />
