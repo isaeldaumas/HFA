@@ -62,7 +62,7 @@ export function classifyPreconditionCategory(args: {
     ['TIME_PRESSURE', ['time pressure', 'urgency', 'rushed', 'late decision', 'very late', 'pressão de tempo', 'urgência', 'apressado']],
     ['ATTENTION_WORKLOAD_CONTEXT', ['visão de túnel', 'visao de tunel', 'distração', 'distracao', 'muito focados', 'muito focado', 'carga de trabalho', 'fixação', 'fixacao', 'atenção desviada', 'atencao desviada']],
     ['COMMUNICATION_INFORMATION', ['communication', 'readback', 'briefing', 'callout']],
-    ['PROCEDURAL_MONITORING', ['monitoring', 'cross-check', 'procedure', 'verification', 'distração', 'distracao', 'visão de túnel', 'visao de tunel', 'focado', 'focada', 'atenção', 'atencao']],
+    ['PROCEDURAL_MONITORING', ['monitoring', 'cross-check', 'procedure', 'verification', 'reconfirmação', 'reconfirmacao', 'código 9p', 'codigo 9p', 'distração', 'distracao', 'visão de túnel', 'visao de tunel', 'focado', 'focada', 'atenção', 'atencao']],
     ['FEEDBACK_VERIFICATION', ['feedback', 'verify', 'verification']],
     ['INTENT_AWARENESS', ['intent', 'conscious', 'knowingly', 'decided', 'decision', 'start the crank']],
     ['ENVIRONMENTAL_CONTEXT', ['weather', 'wind', 'rain', 'runway condition', 'terrain', 'vento', 'meteorológ', 'meteorolog', 'proximidade', 'próximo', 'proximo', 'distância', 'distancia']],

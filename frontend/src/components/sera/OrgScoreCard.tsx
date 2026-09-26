@@ -5,6 +5,8 @@ interface OrgScoreCardProps {
   level: 'critical' | 'warning' | 'ok'
   label: string
   actions: {
+    total: number
+    open_total: number
     open_overdue: number
     open_no_owner: number
     resolution_rate: number
@@ -17,15 +19,15 @@ const COLORS = {
   ok: '#22C55E',
 }
 
-const COVERAGE_LABEL: Record<'critical' | 'warning' | 'ok', string> = {
-  critical: 'Atenção operacional',
-  warning: 'Em acompanhamento',
-  ok: 'Perfil em formação',
+const ATTENTION_LABEL: Record<'critical' | 'warning' | 'ok', string> = {
+  critical: 'Atenção alta',
+  warning: 'Atenção moderada',
+  ok: 'Baixa atenção',
 }
 
 export function OrgScoreCard({ score, level, actions }: OrgScoreCardProps) {
   const color = COLORS[level]
-  const coverageLabel = COVERAGE_LABEL[level]
+  const attentionLabel = ATTENTION_LABEL[level]
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl px-6 py-4
       flex items-center gap-8">
@@ -33,7 +35,7 @@ export function OrgScoreCard({ score, level, actions }: OrgScoreCardProps) {
       {/* Índice número */}
       <div className="flex-shrink-0 flex flex-col gap-0.5">
         <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">
-          Índice de Cobertura Analítica
+          Índice HFA de Atenção Operacional
         </p>
         <div className="flex items-baseline gap-2">
           <span className="text-5xl font-bold tabular-nums"
@@ -41,7 +43,7 @@ export function OrgScoreCard({ score, level, actions }: OrgScoreCardProps) {
             {score}
           </span>
           <span className="text-sm font-semibold" style={{ color }}>
-            {coverageLabel}
+            {attentionLabel}
           </span>
         </div>
       </div>
@@ -54,17 +56,18 @@ export function OrgScoreCard({ score, level, actions }: OrgScoreCardProps) {
               transition: 'width 0.6s ease' }} />
         </div>
         <p className="text-xs text-slate-600 mt-1.5">
-          Mede cobertura analítica P/O/A e pendências operacionais — não é uma medida direta de risco organizacional.
+          Combina a proporção ponderada de eixos P/O/A com falha ativa e pendências de ações corretivas. É um indicador de priorização, não uma probabilidade de acidente nem ERC/ARMS canônico.
         </p>
       </div>
 
       {/* 3 métricas */}
-      <div className="flex gap-6 flex-shrink-0 pl-6
+      <div className="flex gap-5 flex-shrink-0 pl-6
         border-l border-slate-800">
         {[
+          { value: actions.open_total, label: 'Ações abertas' },
           { value: actions.open_overdue, label: 'Ações vencidas' },
           { value: actions.open_no_owner, label: 'Sem responsável' },
-          { value: `${actions.resolution_rate}%`, label: 'Taxa resolução' },
+          { value: actions.total > 0 ? `${actions.resolution_rate}%` : '—', label: 'Taxa resolução' },
         ].map((m) => (
           <div key={m.label} className="text-center">
             <p className="text-2xl font-bold text-white tabular-nums">

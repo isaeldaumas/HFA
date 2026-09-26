@@ -1534,7 +1534,8 @@ const SOURCE_LABEL: Record<RiskProfileSourceEvent['source'], string> = {
 const STATUS_LABEL: Record<RiskProfileSourceEvent['status'], { label: string; tone: string }> = {
   received: { label: 'Recebido', tone: 'text-yellow-300 bg-yellow-500/10 border-yellow-500/20' },
   processing: { label: 'Processando', tone: 'text-blue-300 bg-blue-500/10 border-blue-500/20' },
-  completed: { label: 'Concluído', tone: 'text-green-300 bg-green-500/10 border-green-500/20' },
+  completed: { label: 'Revisado', tone: 'text-green-300 bg-green-500/10 border-green-500/20' },
+  provisional: { label: 'Provisório', tone: 'text-blue-300 bg-blue-500/10 border-blue-500/20' },
   error: { label: 'Erro', tone: 'text-red-300 bg-red-500/10 border-red-500/20' },
   draft: { label: 'Rascunho', tone: 'text-slate-300 bg-slate-500/10 border-slate-500/20' },
   archived: { label: 'Arquivado', tone: 'text-slate-300 bg-slate-500/10 border-slate-500/20' },
@@ -1546,6 +1547,7 @@ function sourceDate(source: RiskProfileSourceEvent): string {
 
 function sourceDetailHref(source: RiskProfileSourceEvent): string | null {
   if (source.source === 'legacy_event') return `/events/${source.id}`
+  if (source.source === 'sera_vnext_analysis' && source.sourceReference) return `/events/${source.sourceReference}`
   return null
 }
 
@@ -1689,6 +1691,8 @@ export default function RiskProfilePage() {
   const includedEvents = data?.included_events ?? 0
   const excludedEvents = data?.excluded_events ?? 0
   const errorAnalyses = data?.error_analyses ?? 0
+  const reviewedAnalyses = data?.reviewed_analyses ?? 0
+  const provisionalAnalyses = data?.provisional_analyses ?? 0
   const hasAnalyses = totalAnalyses > 0
   const isForming = totalAnalyses > 0 && totalAnalyses < 10
 
@@ -1703,17 +1707,22 @@ export default function RiskProfilePage() {
           </p>
           {totalEvents > 0 && (
             <p className="text-slate-500 text-xs mt-1">
-              Universo auditado: {totalEvents} registro{totalEvents !== 1 ? 's' : ''} canônico{totalEvents !== 1 ? 's' : ''} · {excludedEvents} desconsiderado{excludedEvents !== 1 ? 's' : ''}
+              Universo auditado: {totalEvents} registro{totalEvents !== 1 ? 's' : ''} · {reviewedAnalyses} revisado{reviewedAnalyses !== 1 ? 's' : ''} · {provisionalAnalyses} provisório{provisionalAnalyses !== 1 ? 's' : ''} · {excludedEvents} desconsiderado{excludedEvents !== 1 ? 's' : ''}
             </p>
           )}
         </div>
-        <button
-          className="bg-slate-800 hover:bg-slate-700 disabled:hover:bg-slate-800 disabled:opacity-50 border border-slate-700 text-slate-300 text-sm rounded-lg px-4 py-2 transition-colors"
-          onClick={() => alert('Exportação PDF em desenvolvimento')}
-          disabled={!hasAnalyses}
-        >
-          Exportar Relatório PDF
-        </button>
+        {hasAnalyses ? (
+          <Link
+            href="/reports/executive"
+            className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-sm rounded-lg px-4 py-2 transition-colors"
+          >
+            Ver / exportar relatório PDF
+          </Link>
+        ) : (
+          <span className="bg-slate-800/60 border border-slate-800 text-slate-600 text-sm rounded-lg px-4 py-2">
+            Relatório indisponível
+          </span>
+        )}
       </div>
 
       {/* Zero-state: nenhuma análise ainda */}
@@ -1810,10 +1819,12 @@ export default function RiskProfilePage() {
       )}
 
       {hasAnalyses && (
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
           {[
             { label: 'Eventos no universo', value: totalEvents, tone: 'text-white' },
             { label: 'Considerados', value: includedEvents, tone: 'text-green-300' },
+            { label: 'Revisados', value: reviewedAnalyses, tone: 'text-cyan-300' },
+            { label: 'Provisórios', value: provisionalAnalyses, tone: 'text-blue-300' },
             { label: 'Desconsiderados', value: excludedEvents, tone: 'text-amber-300' },
             { label: 'Erros fora do cálculo', value: errorAnalyses, tone: 'text-red-300' },
           ].map((item) => (
@@ -1830,7 +1841,12 @@ export default function RiskProfilePage() {
         <DataConfidencePanel confidence={data?.data_confidence} />
       )}
 
-      {/* Índice de Cobertura Analítica */}
+      {/* Índice HFA de atenção operacional */}
+      {provisionalAnalyses > 0 && (
+        <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-100">
+          <strong>{provisionalAnalyses} análise{provisionalAnalyses !== 1 ? 's' : ''} provisória{provisionalAnalyses !== 1 ? 's' : ''}</strong> participa{provisionalAnalyses === 1 ? '' : 'm'} deste panorama apenas como sinal de atenção. Revise os eventos para converter candidatos em resultados revisados antes de decisões formais.
+        </div>
+      )}
       {data?.score && hasAnalyses && (
         <OrgScoreCard
           score={data.score.value}

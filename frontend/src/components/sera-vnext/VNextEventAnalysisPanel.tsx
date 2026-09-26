@@ -2,13 +2,9 @@
 
 import type { SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
 import { useI18n } from '@/lib/i18n'
-import { localizeActor, localizeAssuranceText, localizeRationale } from '@/lib/sera-vnext/engine-v0/localization'
-import { SERA_PT_V1_TREE } from '@/lib/sera-vnext/canonical-tree/sera-pt-v1'
-
-function canonicalQuestionLabel(nodeId: string, fallback: string, englishAnchor: string | undefined, pt: boolean): string {
-  if (!pt) return englishAnchor ?? fallback
-  return SERA_PT_V1_TREE.nodes.find((node) => node.nodeId === nodeId)?.question ?? fallback
-}
+import { localizeActor, localizeAssuranceText } from '@/lib/sera-vnext/engine-v0/localization'
+import { CanonicalDecisionJourney } from './CanonicalDecisionJourney'
+import { CandidateRiskCard } from './CandidateRiskCard'
 
 function statusLabel(value: string, pt: boolean): string {
   const ptLabels: Record<string, string> = {
@@ -41,42 +37,6 @@ function axisTitle(axis: string, pt: boolean): string {
   if (axis === 'P') return pt ? 'Percepção' : 'Perception'
   if (axis === 'O') return pt ? 'Objetivo' : 'Objective'
   return pt ? 'Ação' : 'Action'
-}
-
-function answerLabel(value: string, pt: boolean): string {
-  const ptLabels: Record<string, string> = {
-    START: 'Início',
-    SIM: 'Sim',
-    'NÃO': 'Não',
-    'NÃO_SENSORIAL': 'Não — limitação sensorial',
-    'NÃO_CONHECIMENTO': 'Não — conhecimento',
-    SIM_ATENCAO: 'Sim — atenção',
-    SIM_GERENCIAMENTO: 'Sim — gerenciamento',
-    'NÃO_DESLIZE_LAPSO_ERRO': 'Não — deslize/lapso/erro',
-    'NÃO_FEEDBACK': 'Não — feedback/verificação',
-    'NÃO_INABILIDADE': 'Não — inabilidade',
-    'NÃO_SELECAO': 'Não — seleção',
-    SIM_SELECAO: 'Sim — seleção',
-    SIM_FEEDBACK: 'Sim — feedback',
-    INSUFFICIENT_EVIDENCE: 'Evidência insuficiente',
-  }
-  const enLabels: Record<string, string> = {
-    START: 'Start',
-    SIM: 'Yes',
-    'NÃO': 'No',
-    'NÃO_SENSORIAL': 'No — sensory limitation',
-    'NÃO_CONHECIMENTO': 'No — knowledge',
-    SIM_ATENCAO: 'Yes — attention',
-    SIM_GERENCIAMENTO: 'Yes — management',
-    'NÃO_DESLIZE_LAPSO_ERRO': 'No — slip/lapse/error',
-    'NÃO_FEEDBACK': 'No — feedback/verification',
-    'NÃO_INABILIDADE': 'No — capability',
-    'NÃO_SELECAO': 'No — selection',
-    SIM_SELECAO: 'Yes — selection',
-    SIM_FEEDBACK: 'Yes — feedback',
-    INSUFFICIENT_EVIDENCE: 'Insufficient evidence',
-  }
-  return (pt ? ptLabels : enLabels)[value] ?? value
 }
 
 function stageLabel(value: string, pt: boolean): string {
@@ -156,6 +116,15 @@ export function VNextEventAnalysisPanel({ output }: { output: SeraVNextEngineOut
   const pt = locale === 'pt-BR'
   const axes = [output.axes.perception, output.axes.objective, output.axes.action]
   const actor = localizeActor(output.directActor.actor, locale)
+  const operationalObservations = output.factualExtraction.evidence
+    .filter((item) =>
+      item.sourceSection === 'REPORT_ANALYSIS' &&
+      item.assertionStatus === 'AFFIRMED' &&
+      /\b(reconfirma[cç][aã]o|c[oó]digo 9p|cross-check|checklist|barreira|monitoramento|monitoring|verification|coordena[cç][aã]o|coordination)\b/i.test(item.statement),
+    )
+    .map((item) => item.statement)
+    .filter((item, index, all) => all.indexOf(item) === index)
+    .slice(0, 6)
 
   return (
     <div className="space-y-5">
@@ -281,59 +250,13 @@ export function VNextEventAnalysisPanel({ output }: { output: SeraVNextEngineOut
         })}
       </section>
 
-      <section className="rounded-xl border border-slate-700 bg-slate-900/70 p-5">
-        <h2 className="text-base font-semibold text-white">{pt ? 'Fluxo de decisão canônico' : 'Canonical decision flow'}</h2>
-        <p className="mt-1 text-xs text-slate-500">
-          {pt ? 'Perguntas e respostas efetivamente percorridas pelo motor.' : 'Questions and answers actually traversed by the engine.'}
-        </p>
-        <div className="mt-5 space-y-6">
-          {output.canonicalTraversal.paths.map((path) => (
-            <div key={path.axis}>
-              <div className="mb-3 flex items-center gap-2">
-                <span className="rounded bg-cyan-950 px-2 py-1 text-xs font-semibold text-cyan-300">{axisTitle(path.axis, pt)}</span>
-                <span className="text-xs text-slate-500">
-                  {pt ? 'código identificado' : 'identified code'}: {path.candidateCode ?? (pt ? 'não resolvido' : 'unresolved')}
-                </span>
-              </div>
-              <div className="space-y-3">
-                {path.answers.map((node, index) => (
-                  <div key={path.axis + '-' + node.nodeId + '-' + String(index)} className="rounded-lg border border-slate-800 bg-slate-950/70 p-4">
-                    <p className="text-xs font-semibold text-slate-400">
-                      {pt ? 'Nó' : 'Node'} {index + 1} · {node.nodeId}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-200">{canonicalQuestionLabel(node.nodeId, node.question, node.exactQuestionTextENAnchor, pt)}</p>
-                    <p className="mt-2 text-xs text-cyan-300">{pt ? 'Resposta' : 'Answer'}: {answerLabel(node.answer, pt)}</p>
-                    {node.rationale && (
-                      <p className="mt-2 text-xs leading-relaxed text-slate-400">
-                        {pt ? 'Justificativa' : 'Rationale'}: {localizeRationale(node.rationale, locale)}
-                      </p>
-                    )}
-                    {(node.supportingEvidence?.length ?? 0) > 0 && (
-                      <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-slate-500">
-                        {(node.supportingEvidence ?? []).map((item) => <li key={item}>{item}</li>)}
-                      </ul>
-                    )}
-                    <p className="mt-2 text-xs text-slate-600">
-                      {node.terminalCode
-                        ? `${pt ? 'Código terminal' : 'Terminal code'}: ${node.terminalCode}`
-                        : node.nextNodeId
-                          ? `${pt ? 'Próximo nó' : 'Next node'}: ${node.nextNodeId}`
-                          : (pt ? 'Travessia interrompida' : 'Traversal stopped')}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-          {output.canonicalTraversal.paths.length === 0 && (
-            <p className="text-sm text-slate-500">
-              {pt
-                ? 'A travessia P/O/A não foi iniciada porque o ponto de fuga não foi estabelecido com evidência suficiente.'
-                : 'P/O/A traversal was not started because the escape point was not established with sufficient evidence.'}
-            </p>
-          )}
-        </div>
-      </section>
+      <CandidateRiskCard
+        perception={output.axes.perception.proposedCode}
+        objective={output.axes.objective.proposedCode}
+        action={output.axes.action.proposedCode}
+      />
+
+      <CanonicalDecisionJourney paths={output.canonicalTraversal.paths} />
 
       <section className="rounded-xl border border-slate-700 bg-slate-900/70 p-5">
         <h2 className="text-base font-semibold text-white">{pt ? 'Pré-condições' : 'Preconditions'}</h2>
@@ -362,6 +285,20 @@ export function VNextEventAnalysisPanel({ output }: { output: SeraVNextEngineOut
           </div>
         )}
       </section>
+
+      {operationalObservations.length > 0 && (
+        <section className="rounded-xl border border-blue-800/50 bg-blue-950/15 p-5">
+          <h2 className="text-base font-semibold text-white">{pt ? 'Barreiras e observações operacionais do relatório-fonte' : 'Source-report operational barriers and observations'}</h2>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500">
+            {pt
+              ? 'Itens explicitamente registrados pela investigação e úteis para revisão humana. Eles são preservados separadamente das pré-condições para evitar transformar conclusão/recomendação do relatório em causalidade automática.'
+              : 'Items explicitly recorded by the investigation and useful for human review. They are kept separate from preconditions to avoid converting report conclusions/recommendations into automatic causality.'}
+          </p>
+          <ul className="mt-3 list-disc space-y-2 pl-5 text-xs leading-relaxed text-slate-300">
+            {operationalObservations.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </section>
+      )}
 
       {(output.uncertainties.length > 0 || output.limitations.length > 0) && (
         <section className="rounded-xl border border-slate-700 bg-slate-900/70 p-5">
