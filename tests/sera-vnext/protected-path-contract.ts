@@ -220,8 +220,10 @@ export function isAllowedSeraVNextEngineV03CalibrationPath(rootDir: string, chan
   const allowed = new Set([
     "frontend/src/lib/sera-vnext/engine-v0/run-engine.ts",
     "frontend/src/lib/sera-vnext/engine-v0/candidate-escape-window.ts",
+    "frontend/src/lib/sera-vnext/engine-v0/factual-extraction-helpers.ts",
     "frontend/src/lib/sera-vnext/engine-v0/clarification-i18n.ts",
     "frontend/src/lib/sera-vnext/engine-v0/localization.ts",
+    "frontend/src/lib/sera-vnext/engine-v0/steps/02-safe-operation-model.ts",
     "frontend/src/lib/sera-vnext/engine-v0/steps/03-escape-point.ts",
     "frontend/src/lib/sera-vnext/engine-v0/steps/06-direct-actor.ts",
     "frontend/src/lib/sera-vnext/engine-v0/steps/07-axis-statements.ts",
@@ -244,6 +246,7 @@ export function isAllowedSeraVNextEngineV03CalibrationPath(rootDir: string, chan
     "tests/sera-vnext/maintenance-preflight-latch-regression-trial-001.ts",
     "tests/sera-vnext/clarification-evidence-scope-trial-001.ts",
     "tests/sera-vnext/analysis-language-consistency-trial-001.ts",
+    "tests/sera-vnext/voepass-evidence-gating-trial-001.ts",
   ];
   for (const gate of requiredGates) {
     assert.ok(existsSync(path.join(rootDir, gate)), `0.3.0 calibration requires gate: ${gate}`);

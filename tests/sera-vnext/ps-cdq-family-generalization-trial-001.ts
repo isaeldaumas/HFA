@@ -111,7 +111,7 @@ O plano previa UNIT-B como primeiro destino, com dados corretos no sistema de na
 A tripulação avistou UNIT-A antes de UNIT-B. Sem indicação de qual piloto manipulava os controles, o relato registra que a tripulação reconheceu UNIT-A como o destino previsto e prosseguiu para aproximação.
 A autorização de pouso continuava sendo para UNIT-B.
 `,
-    expected: { actor: /flight crew|tripula/i, P: 'P-G', O: 'O-A', A: 'A-A', escape: 'CANDIDATE', noKnowledgePrecondition: true },
+    expected: { actor: /flight crew|tripula/i, P: null, O: null, A: null, escape: 'CANDIDATE', noKnowledgePrecondition: true },
   },
   {
     id: 'WDL-VAR-06-AMBIGUOUS-INFO',

@@ -123,7 +123,10 @@ export function runStep06DirectActor(input: {
       }
     }
     if (escapeHasCollectiveCrew && !escapeHasCopilot && !escapeHasCaptain) {
-      const pfExecution = /\b(iniciou|iniciaram|executou|executaram|conduziu|conduziram|alinhou|alinharam|desceu|desceram|subiu|subiram|aplicou|aplicaram)\b.*\b(aproxima[cç][aã]o|pouso|decolagem|manobra|controle|comando|descida|subida)\b/.test(escapeText)
+      const pfExecution =
+        /\b(iniciou|iniciaram|executou|executaram|conduziu|conduziram|alinhou|alinharam|desceu|desceram|subiu|subiram|aplicou|aplicaram)\b.*\b(aproxima[cç][aã]o|pouso|decolagem|manobra|controle|comando|descida|subida)\b/.test(escapeText) ||
+        /\b(identificou|identificaram|confundiu|confundiram|associou|associaram|tratou|trataram)\b.*\b(destino|unidade|plataforma|pista|helideck|pouso)\b/.test(escapeText) ||
+        /\b(passou|passaram)\s+a\s+(?:conduzir|preparar|aproximar|alinhar|descer)\b.*\b(unidade|plataforma|pista|helideck|destino|unit-[a-z0-9-]+)\b/.test(escapeText)
       if (pfExecution && copilotPf !== captainPf) {
         const actor = copilotPf ? 'copiloto (PF)' : 'comandante (PF)'
         return { actor, status: 'IDENTIFIED', alternatives: ['tripulação', copilotPf ? 'comandante (PM)' : 'copiloto (PM)'], actorMigrationWarnings: [] }

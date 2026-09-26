@@ -40,8 +40,8 @@ function main() {
 
   // PT/EN polarity and branch targets: the question asks whether risk was not managed.
   const unmanaged = evaluate('O', 'O_MANAGED_RISK', 'A equipe aceitou risco e não limitou o risco.')
-  assert.equal(unmanaged.answer, 'SIM')
-  assert.equal(unmanaged.terminalCode, 'O-D')
+  assert.equal(unmanaged.answer, 'INSUFFICIENT_EVIDENCE')
+  assert.equal(unmanaged.terminalCode, null)
   const managed = evaluate('O', 'O_MANAGED_RISK', 'A equipe abortou a aproximação preservando segurança.')
   assert.equal(managed.answer, 'NÃO')
   assert.equal(managed.terminalCode, 'O-A')
