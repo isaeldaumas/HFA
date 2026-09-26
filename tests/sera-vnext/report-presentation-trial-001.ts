@@ -18,6 +18,7 @@ assert.deepEqual(candidate?.activeAxes, ['P'])
 const screenReport = fs.readFileSync(path.join(root, 'frontend/src/app/(dashboard)/reports/event/[id]/page.tsx'), 'utf8')
 const serverPdf = fs.readFileSync(path.join(root, 'frontend/src/lib/sera-vnext-product/pdf-report.ts'), 'utf8')
 const eventPanel = fs.readFileSync(path.join(root, 'frontend/src/components/sera-vnext/VNextEventAnalysisPanel.tsx'), 'utf8')
+const reportsIndex = fs.readFileSync(path.join(root, 'frontend/src/app/(dashboard)/reports/page.tsx'), 'utf8')
 
 assert.equal(screenReport.includes("analysis?.event_summary ?? eventData?.raw_input"), false)
 assert.equal(serverPdf.includes("body(doc, analysis.narrative"), false)
@@ -28,5 +29,6 @@ assert.ok(serverPdf.includes("L('Fatos-chave utilizados na análise', 'Key facts
 assert.ok(serverPdf.includes("L('Apêndice técnico - rastreabilidade e auditoria'"))
 assert.ok(eventPanel.includes('CanonicalDecisionJourney'))
 assert.ok(eventPanel.includes('CandidateRiskCard'))
+assert.ok(reportsIndex.includes("redirect('/reports/executive')"))
 
 console.log('PASS report presentation and didactic flow')
