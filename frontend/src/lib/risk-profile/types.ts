@@ -12,6 +12,7 @@ export type RiskProfileSourceStatus =
   | 'completed'
   | 'error'
   | 'draft'
+  | 'provisional'
   | 'archived'
 
 export type RiskProfileSourceEvent = {
@@ -23,11 +24,14 @@ export type RiskProfileSourceEvent = {
   status: RiskProfileSourceStatus
   source: RiskProfileSourceType
   sourceFlow?: string | null
+  sourceReference?: string | null
   analysisId?: string | null
   engineVersion?: string | null
   engineRuntimeVersion?: string | null
   methodologyVersion?: string | null
   canonicalTreeVersion?: string | null
+  reviewStatus?: string | null
+  isProvisional?: boolean
   erc?: {
     code?: string | null
     severity?: string | null
@@ -74,6 +78,7 @@ export type RiskProfileSummary = {
   top_preconditions: RiskProfilePreconditionBucket[]
   top_combinations: Array<{ pair: string; count: number; pct: number }>
   actions: {
+    total: number
     open_total: number
     open_overdue: number
     open_no_owner: number
@@ -96,6 +101,8 @@ export type RiskProfileSummary = {
   included_events: number
   excluded_events: number
   completed_analyses: number
+  reviewed_analyses: number
+  provisional_analyses: number
   error_analyses: number
   confidence: DataConfidence['level']
   erc_distribution: Array<{ code: string; label: string; count: number }>

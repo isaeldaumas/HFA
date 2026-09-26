@@ -14,6 +14,7 @@ import {
   resolveErcPresentationMode,
   shouldSuppressConsolidatedNumericErc,
 } from './erc-containment'
+import { computeRiskAttentionIndex } from './attention-score'
 import type {
   RiskProfileRecurringPattern,
   RiskProfileSourceEvent,
@@ -44,6 +45,8 @@ const LEGACY_PRECONDITION_NAMES: Record<string, string> = {
   O3: 'Influências Organizacionais - Processos',
   O4: 'Influências Organizacionais - Gestão',
 }
+
+const RISK_PROFILE_ACTION_SELECT = 'id, status, due_date, responsible, analysis_id, sera_vnext_analysis_id, created_at, completed_at'
 
 const VNEXT_PRECONDITION_NAMES: Record<string, string> = {
   PHYSICAL_CAPABILITY: 'Capacidade física',
@@ -83,8 +86,12 @@ type ActionRow = {
   id: string
   status: string
   due_date: string | null
+  responsible: string | null
   analysis_id: string | null
+  sera_vnext_analysis_id: string | null
   created_at: string | null
+  completed_at: string | null
+  source_event_id?: string | null
 }
 
 type ExclusionRow = {
@@ -157,11 +164,12 @@ function normalizeLegacyStatus(status: string, hasAnalysis: boolean): RiskProfil
   }
 }
 
-function normalizeVNextStatus(status: string, deletedAt: string | null): RiskProfileSourceStatus {
+function normalizeVNextStatus(status: string, reviewStatus: string, deletedAt: string | null): RiskProfileSourceStatus {
   if (deletedAt || status === 'ARCHIVED') return 'archived'
-  if (status === 'HUMAN_REVIEW_COMPLETED_NON_FINAL') return 'completed'
-  if (status === 'REQUIRES_MORE_EVIDENCE') return 'error'
+  if (status === 'HUMAN_REVIEW_COMPLETED_NON_FINAL' || reviewStatus === 'REVIEWED' || reviewStatus === 'APPROVED') return 'completed'
+  if (status === 'REQUIRES_MORE_EVIDENCE' || reviewStatus === 'MORE_EVIDENCE_REQUIRED') return 'error'
   if (status === 'UNDER_HUMAN_REVIEW') return 'processing'
+  if (status === 'CANDIDATE_ANALYSIS_CREATED' || reviewStatus === 'NOT_REVIEWED') return 'provisional'
   return 'draft'
 }
 
@@ -278,14 +286,17 @@ function toVNextSource(
     tenantId: row.tenant_id,
     title: row.title,
     createdAt: row.created_at,
-    status: normalizeVNextStatus(row.status, row.deleted_at),
+    status: normalizeVNextStatus(row.status, row.review_status, row.deleted_at),
     source: 'sera_vnext_analysis',
     sourceFlow: row.source_flow ?? 'VNEXT_PRODUCT_BETA',
+    sourceReference: row.source_reference,
     analysisId: row.id,
     engineVersion: row.engine_version,
     engineRuntimeVersion: row.engine_runtime_version,
     methodologyVersion: row.methodology_version,
     canonicalTreeVersion: row.canonical_tree_version,
+    reviewStatus: row.review_status,
+    isProvisional: normalizeVNextStatus(row.status, row.review_status, row.deleted_at) === 'provisional',
     erc: {
       code: null,
       severity: null,
@@ -380,7 +391,7 @@ export async function loadRiskProfileUniverse(
       .order('created_at', { ascending: false }),
     admin
       .from('corrective_actions')
-      .select('id, status, due_date, analysis_id, created_at')
+      .select(RISK_PROFILE_ACTION_SELECT)
       .eq('tenant_id', tenantId),
     admin
       .from('risk_profile_exclusions')
@@ -403,12 +414,15 @@ export async function loadRiskProfileUniverse(
   const exclusionLookup = buildExclusionLookup((exclusionsRes.data ?? []) as ExclusionRow[])
   const legacyHistoricalCount = ((eventsRes.data ?? []) as LegacyEventRow[]).filter((row) => !!coerceLegacyAnalysis(row.analyses)).length
   const allVNextRows = (vnextRes.data ?? []) as VNextAnalysisRow[]
-  const reviewedVNextRows = allVNextRows.filter((row) => row.status === 'HUMAN_REVIEW_COMPLETED_NON_FINAL')
-  const pendingHumanReviewCount = allVNextRows.length - reviewedVNextRows.length
-  const incompatibleReviewedCount = reviewedVNextRows.filter((row) => !isCompatibleVNextRow(row)).length
-  const eligibleVNextRows = reviewedVNextRows.filter(isCompatibleVNextRow)
+  const eligibleVNextRows = allVNextRows.filter(isCompatibleVNextRow)
+  const pendingHumanReviewCount = eligibleVNextRows.filter((row) =>
+    normalizeVNextStatus(row.status, row.review_status, row.deleted_at) === 'provisional'
+  ).length
+  const incompatibleReviewedCount = allVNextRows.filter((row) =>
+    (row.status === 'HUMAN_REVIEW_COMPLETED_NON_FINAL' || row.review_status === 'REVIEWED' || row.review_status === 'APPROVED') && !isCompatibleVNextRow(row)
+  ).length
 
-  // Deduplicate reviewed current SERA analyses by source_reference (event_id) — keep only the most recent per event.
+  // Deduplicate current SERA analyses by source_reference (event_id) — keep only the most recent per event.
   const seenEventIds = new Set<string>()
   const deduped = new Array<VNextAnalysisRow>()
   const sortedVNext = [...eligibleVNextRows].sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -420,7 +434,7 @@ export async function loadRiskProfileUniverse(
   const limitations: string[] = []
   if (pendingHumanReviewCount > 0) {
     limitations.push(
-      `${pendingHumanReviewCount} análise(s) SERA 0.3 aguardam revisão humana e permanecem fora do Perfil de Risco até a conclusão dessa etapa.`,
+      `${pendingHumanReviewCount} análise(s) SERA 0.3 ainda não revisadas entram no Perfil de Risco apenas como sinais provisórios, identificadas separadamente das análises revisadas.`,
     )
   }
   if (incompatibleReviewedCount > 0) {
@@ -435,9 +449,26 @@ export async function loadRiskProfileUniverse(
     )
   }
 
+  const vnextEventByAnalysis = new Map(
+    allVNextRows.map((row) => [row.id, row.source_reference] as const),
+  )
+  const legacyEventByAnalysis = new Map<string, string>()
+  for (const event of (eventsRes.data ?? []) as LegacyEventRow[]) {
+    const analysis = coerceLegacyAnalysis(event.analyses)
+    if (analysis?.id) legacyEventByAnalysis.set(analysis.id, event.id)
+  }
+  const enrichedActions = ((actionsRes.data ?? []) as ActionRow[]).map((action) => ({
+    ...action,
+    source_event_id: action.sera_vnext_analysis_id
+      ? vnextEventByAnalysis.get(action.sera_vnext_analysis_id) ?? null
+      : action.analysis_id
+        ? legacyEventByAnalysis.get(action.analysis_id) ?? null
+        : null,
+  }))
+
   return {
     sources: sortSourcesNewestFirst(vnextSources),
-    actions: (actionsRes.data ?? []) as ActionRow[],
+    actions: enrichedActions,
     limitations,
   }
 }
@@ -451,7 +482,7 @@ export async function getRiskProfileSummaryForTenant(
   const totalEvents = sources.length
   const excludedSources = sortSourcesNewestFirst(sources.filter((source) => source.isExcludedFromRiskProfile))
   const activeSources = sources.filter((source) => !source.isExcludedFromRiskProfile)
-  const includedSources = sortSourcesNewestFirst(activeSources.filter((source) => source.status === 'completed'))
+  const includedSources = sortSourcesNewestFirst(activeSources.filter((source) => source.status === 'completed' || source.status === 'provisional'))
   const errorSources = activeSources.filter((source) => source.status === 'error')
   const draftSources = activeSources.filter((source) => source.status === 'draft' || source.status === 'processing' || source.status === 'received')
   const archivedSources = activeSources.filter((source) => source.status === 'archived')
@@ -532,23 +563,34 @@ export async function getRiskProfileSummaryForTenant(
   const ninetyDaysAgo = new Date(today)
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
 
+  const includedEventIds = new Set(
+    includedSources
+      .map((source) => source.sourceReference ?? (source.source === 'legacy_event' ? source.id : null))
+      .filter((id): id is string => typeof id === 'string' && id.length > 0),
+  )
+  const profileActions = actions.filter((action) =>
+    action.source_event_id ? includedEventIds.has(action.source_event_id) : false,
+  )
+
   const openStatuses = new Set(['pending', 'in_progress'])
-  const openActions = actions.filter((action) => openStatuses.has(action.status))
+  const openActions = profileActions.filter((action) => openStatuses.has(action.status))
   const openOverdue = openActions.filter((action) => action.due_date && new Date(action.due_date) < today).length
   const openTotal = openActions.length
-  const closedLast30d = actions.filter(
-    (action) => action.status === 'completed' && action.created_at && new Date(action.created_at) >= thirtyDaysAgo,
+  const openNoOwner = openActions.filter((action) => !action.responsible || action.responsible.trim().length === 0).length
+  const closedLast30d = profileActions.filter(
+    (action) => action.status === 'completed' && action.completed_at && new Date(action.completed_at) >= thirtyDaysAgo,
   ).length
-  const closedTotal = actions.filter((action) => action.status === 'completed').length
+  const closedTotal = profileActions.filter((action) => action.status === 'completed').length
   const resolutionRate =
     closedTotal + openTotal > 0
       ? Math.round((closedTotal / (closedTotal + openTotal)) * 100)
       : 0
 
   const actionsResult = {
+    total: profileActions.length,
     open_total: openTotal,
     open_overdue: openOverdue,
-    open_no_owner: 0,
+    open_no_owner: openNoOwner,
     closed_last_30d: closedLast30d,
     resolution_rate: resolutionRate,
   }
@@ -562,22 +604,25 @@ export async function getRiskProfileSummaryForTenant(
     .sort((left, right) => left[0].localeCompare(right[0]))
     .map(([month, count]) => ({ month, count }))
 
-  const baseScore =
-    totalAnalyses > 0
-      ? ((pTotal * 1.0 + oTotal * 0.8 + aTotal * 0.6) / totalAnalyses / 3) * 100
-      : 0
-
-  let penalties = 0
-  if (openOverdue > 0) penalties += 15
+  const attentionIndex = computeRiskAttentionIndex(includedSources, {
+    openOverdue,
+    openNoOwner,
+    openTotal,
+    totalActions: profileActions.length,
+  })
+  let penalties = attentionIndex.actionPenalty
 
   const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1)
   const totalEvents90d = activeSources.filter((source) => new Date(source.createdAt) >= ninetyDaysAgo).length
   const eventsThisMonth = activeSources.filter((source) => new Date(source.createdAt) >= thisMonthStart).length
   const monthlyAverage = totalEvents90d / 3
-  if (monthlyAverage > 0 && eventsThisMonth > monthlyAverage * 1.5) penalties += 5
+  if (totalEvents90d >= 6 && monthlyAverage > 0 && eventsThisMonth > monthlyAverage * 1.5) penalties += 5
 
-  const scoreValue = Math.min(Math.round(baseScore + penalties), 100)
+  const scoreValue = Math.min(Math.round(attentionIndex.base + penalties), 100)
   const scoreLevel = scoreValue >= 70 ? 'critical' : scoreValue >= 40 ? 'warning' : 'ok'
+  const reviewedAnalyses = includedSources.filter((source) => source.status === 'completed').length
+  const provisionalAnalyses = includedSources.filter((source) => source.status === 'provisional').length
+
   const score = {
     value: scoreValue,
     level: scoreLevel,
@@ -654,8 +699,8 @@ export async function getRiskProfileSummaryForTenant(
 
   const summaryLimitations = [...universeLimitations]
   summaryLimitations.push(
-    'Índice de risco descritivo interno — não validado como medida de risco operacional. ' +
-    'Pesos heurísticos (P×1.0, O×0.8, A×0.6) não foram calibrados empiricamente.'
+    'Índice HFA de atenção operacional — não validado como probabilidade ou severidade de acidente. ' +
+    'O índice usa a proporção ponderada de eixos com falha ativa (P×1.0, O×0.8, A×0.6), pendências de ações corretivas e, quando há histórico mínimo, um sinal discreto de aumento recente do volume de eventos; serve apenas para priorização e acompanhamento.'
   )
   if (draftSources.length > 0) {
     summaryLimitations.push(`${draftSources.length} registro(s) ainda não concluído(s) ficaram fora do consolidado.`)
@@ -694,7 +739,7 @@ export async function getRiskProfileSummaryForTenant(
   })
 
   const recentEvents = includedSources.slice(0, 5).map((source) => ({
-    id: source.id,
+    id: source.sourceReference ?? source.id,
     title: source.title,
     created_at: source.createdAt,
     perception_code: source.perceptionCode ?? null,
@@ -742,6 +787,8 @@ export async function getRiskProfileSummaryForTenant(
     included_events: includedSources.length,
     excluded_events: excludedSources.length,
     completed_analyses: includedSources.length,
+    reviewed_analyses: reviewedAnalyses,
+    provisional_analyses: provisionalAnalyses,
     error_analyses: errorSources.length,
     confidence: dataConfidence.level,
     erc_distribution: suppressConsolidatedErc

@@ -4,6 +4,7 @@ const PDFDocument = require('pdfkit/js/pdfkit.standalone.js') as typeof import('
 import type { SeraCanonicalPath, SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
 import { localizeActor, localizeAssuranceText, localizeRationale } from '@/lib/sera-vnext/engine-v0/localization'
 import { SERA_PT_V1_TREE } from '@/lib/sera-vnext/canonical-tree/sera-pt-v1'
+import { buildExecutiveSummary, computeCandidateAttention, friendlyAnswerLabel, friendlyNodeLabel } from '@/lib/sera-vnext/presentation'
 import type {
   SeraVNextAnalysisRecord,
   SeraVNextReviewRecord,
@@ -51,8 +52,17 @@ function subheading(doc: Doc, title: string): void {
   doc.moveDown(0.15)
 }
 
+function cleanDisplayText(text: string): string {
+  return text
+    .replace(/^[\s•▪◦ðØ�]+/u, '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+    .replace(/(?:ðØ|ï¿½|�)+/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
 function body(doc: Doc, text: string, align: 'left' | 'justify' = 'left'): void {
-  doc.font('Helvetica').fontSize(9).fillColor('#263746').text(text || '-', {
+  doc.font('Helvetica').fontSize(9).fillColor('#263746').text(cleanDisplayText(text || '-'), {
     align,
     lineGap: 1.6,
   })
@@ -72,32 +82,12 @@ function bullets(doc: Doc, items: string[], empty = '-'): void {
 
   for (const item of items) {
     keepTogether(doc, 34)
-    doc.font('Helvetica').fontSize(8.5).fillColor('#33475a').text('- ' + item, {
+    doc.font('Helvetica').fontSize(8.5).fillColor('#33475a').text('- ' + cleanDisplayText(item), {
       indent: 10,
       lineGap: 1.2,
     })
     doc.moveDown(0.1)
   }
-}
-
-function answerLabel(answer: string, pt: boolean): string {
-  const ptMap: Record<string, string> = {
-    START: 'INÍCIO', SIM: 'SIM', 'NÃO': 'NÃO',
-    'NÃO_SENSORIAL': 'NÃO - limitação sensorial', 'NÃO_CONHECIMENTO': 'NÃO - conhecimento',
-    SIM_ATENCAO: 'SIM - atenção', SIM_GERENCIAMENTO: 'SIM - gerenciamento',
-    'NÃO_DESLIZE_LAPSO_ERRO': 'NÃO - deslize/lapso/erro', 'NÃO_FEEDBACK': 'NÃO - feedback/verificação',
-    'NÃO_INABILIDADE': 'NÃO - inabilidade', 'NÃO_SELECAO': 'NÃO - seleção',
-    SIM_SELECAO: 'SIM - seleção', SIM_FEEDBACK: 'SIM - feedback', INSUFFICIENT_EVIDENCE: 'EVIDÊNCIA INSUFICIENTE',
-  }
-  const enMap: Record<string, string> = {
-    START: 'START', SIM: 'YES', 'NÃO': 'NO',
-    'NÃO_SENSORIAL': 'NO - sensory limitation', 'NÃO_CONHECIMENTO': 'NO - knowledge',
-    SIM_ATENCAO: 'YES - attention', SIM_GERENCIAMENTO: 'YES - management',
-    'NÃO_DESLIZE_LAPSO_ERRO': 'NO - slip/lapse/error', 'NÃO_FEEDBACK': 'NO - feedback/verification',
-    'NÃO_INABILIDADE': 'NO - capability', 'NÃO_SELECAO': 'NO - selection',
-    SIM_SELECAO: 'YES - selection', SIM_FEEDBACK: 'YES - feedback', INSUFFICIENT_EVIDENCE: 'INSUFFICIENT EVIDENCE',
-  }
-  return (pt ? ptMap : enMap)[answer] ?? answer
 }
 
 function didacticReason(nodeId: string, answer: string, fallback: string | undefined, pt: boolean): string {
@@ -128,19 +118,6 @@ function didacticReason(nodeId: string, answer: string, fallback: string | undef
     'A_CORRECT:NÃO': 'A ação implementada era inadequada por mecanismo próprio; a árvore segue para capacidade e seleção da resposta.',
   }
   return map[key] ?? fallback ?? 'A resposta foi determinada pela evidência utilizável disponível neste nó.'
-}
-
-function translateInference(value: string, pt: boolean): string {
-  if (!pt) return value
-  const map: Record<string, string> = {
-    'Do not infer perception failure from consequence alone.': 'Não inferir falha perceptiva apenas a partir da consequência.',
-    'Do not infer perception failure from degraded environment alone.': 'Não inferir falha perceptiva apenas pela presença de ambiente degradado.',
-    'Do not infer objective deviation without intent/rule-awareness evidence.': 'Não inferir desvio de objetivo sem evidência de intenção ou consciência da regra.',
-    'Do not infer goal state from report conclusion text alone.': 'Não inferir o objetivo apenas a partir da conclusão escrita pelo relatório de origem.',
-    'Do not collapse aircraft state into action failure.': 'Não transformar o estado da aeronave, por si só, em falha de ação.',
-    'Do not infer inability without explicit physical or ergonomic evidence.': 'Não inferir inabilidade sem evidência física ou ergonômica explícita.',
-  }
-  return map[value] ?? value
 }
 
 function confidenceLabel(value: string | undefined | null, pt: boolean): string {
@@ -206,6 +183,44 @@ function axisOutput(output: SeraVNextEngineOutput, axis: string) {
   return output.axes.action
 }
 
+function renderPathMap(doc: Doc, path: SeraCanonicalPath, pt: boolean): void {
+  if (!path.answers.length) return
+  const x = doc.page.margins.left
+  const width = doc.page.width - doc.page.margins.left - doc.page.margins.right
+  const cols = 3
+  const gap = 8
+  const boxHeight = 43
+  const rowGap = 14
+  const boxWidth = (width - gap * (cols - 1)) / cols
+  const rows = Math.ceil(path.answers.length / cols)
+  const totalHeight = rows * boxHeight + (rows - 1) * rowGap
+  keepTogether(doc, totalHeight + 16)
+  const y0 = doc.y
+
+  path.answers.forEach((node, index) => {
+    const row = Math.floor(index / cols)
+    const col = index % cols
+    const bx = x + col * (boxWidth + gap)
+    const by = y0 + row * (boxHeight + rowGap)
+    doc.roundedRect(bx, by, boxWidth, boxHeight, 5).fillAndStroke('#eef6fb', '#b9d2e4')
+    doc.font('Helvetica-Bold').fontSize(7.1).fillColor('#1d4f73')
+      .text(String(index + 1) + '. ' + friendlyNodeLabel(node.nodeId, pt), bx + 6, by + 7, { width: boxWidth - 12, lineBreak: false, ellipsis: true })
+    doc.font('Helvetica').fontSize(7).fillColor('#536676')
+      .text((pt ? 'Resposta: ' : 'Answer: ') + friendlyAnswerLabel(node.answer, pt), bx + 6, by + 23, { width: boxWidth - 12, lineBreak: false, ellipsis: true })
+    if (node.terminalCode) {
+      doc.font('Helvetica-Bold').fontSize(7).fillColor('#1d4f73')
+        .text('> ' + node.terminalCode, bx + 6, by + 33, { width: boxWidth - 12, lineBreak: false })
+    }
+
+    const sameRowNext = index < path.answers.length - 1 && (index + 1) % cols !== 0
+    if (sameRowNext) {
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('#6f8fa6')
+        .text('>', bx + boxWidth + 1, by + 15, { width: gap - 2, align: 'center' })
+    }
+  })
+  doc.y = y0 + totalHeight + 7
+}
+
 function renderPath(
   doc: Doc,
   path: SeraCanonicalPath,
@@ -247,23 +262,26 @@ function renderPath(
     doc.moveDown(0.25)
   }
 
-  subheading(doc, L('Fluxo canônico percorrido', 'Canonical path traversed'))
+  subheading(doc, L('Caminho percorrido', 'Path traversed'))
   if (!path.answers.length) {
-    body(doc, L('Nenhum nó percorrido.', 'No node traversed.'))
+    body(doc, L('Nenhuma etapa percorrida.', 'No step traversed.'))
     return
   }
+
+  renderPathMap(doc, path, pt)
+  doc.moveDown(0.2)
 
   path.answers.forEach((node, index) => {
     keepTogether(doc, 128)
     const nodeY = doc.y
     doc.roundedRect(x, nodeY, width, 18, 4).fill('#e7f0f7')
     doc.font('Helvetica-Bold').fontSize(8.7).fillColor('#1d4f73')
-      .text(L('Nó ', 'Node ') + String(index + 1) + ' - ' + node.nodeId, x + 8, nodeY + 5)
+      .text(L('Etapa ', 'Step ') + String(index + 1) + ' - ' + friendlyNodeLabel(node.nodeId, pt), x + 8, nodeY + 5)
     doc.y = nodeY + 24
 
     body(doc, L('Pergunta canônica: ', 'Canonical question: ') + (pt ? (SERA_PT_V1_TREE.nodes.find((item) => item.nodeId === node.nodeId)?.question ?? node.question) : (node.exactQuestionTextENAnchor ?? node.question)))
     doc.moveDown(0.12)
-    body(doc, L('Resposta: ', 'Answer: ') + answerLabel(node.answer, pt))
+    body(doc, L('Resposta: ', 'Answer: ') + friendlyAnswerLabel(node.answer, pt))
 
     if (node.rationale) {
       doc.moveDown(0.12)
@@ -273,7 +291,7 @@ function renderPath(
     const destination = node.terminalCode
       ? L('Código terminal ', 'Terminal code ') + node.terminalCode
       : node.nextNodeId
-        ? L('Próximo nó ', 'Next node ') + node.nextNodeId
+        ? L('Próxima etapa: ', 'Next step: ') + friendlyNodeLabel(node.nextNodeId, pt)
         : L('Travessia interrompida', 'Traversal stopped')
 
     doc.moveDown(0.12)
@@ -283,30 +301,19 @@ function renderPath(
     if (support.length) {
       doc.moveDown(0.25)
       subheading(doc, L('Evidência usada neste nó', 'Evidence used at this node'))
-      bullets(doc, support)
+      bullets(doc, support.slice(0, 2))
     }
 
     const counter = entries(node.counterEvidence)
     if (counter.length) {
       doc.moveDown(0.2)
       subheading(doc, L('Contraevidência / ressalvas', 'Counter-evidence / caveats'))
-      bullets(doc, counter)
-    }
-
-    const prohibited = entries(node.prohibitedInferenceChecks)
-    if (prohibited.length) {
-      doc.moveDown(0.2)
-      subheading(doc, L('Inferências explicitamente proibidas', 'Explicitly prohibited inferences'))
-      bullets(doc, prohibited.map((item) => translateInference(item, pt)))
+      bullets(doc, counter.slice(0, 2))
     }
 
     meta(doc, L('Confiança do nó', 'Node confidence'), confidenceLabel(node.confidence, pt))
     doc.moveDown(0.55)
   })
-
-  subheading(doc, L('Resumo do caminho percorrido (nó:resposta)', 'Traversed path summary (node:answer)'))
-  bullets(doc, axis.alternativesConsidered.filter((item) => !/^[POA]-[A-Z]$/.test(item)))
-  doc.moveDown(0.25)
 
   subheading(doc, L('Evidência posterior ao ponto de fuga excluída', 'Excluded post-escape evidence'))
   bullets(doc, axis.excludedPostEscapeEvidence)
@@ -383,8 +390,8 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     doc.font('Helvetica').fontSize(8.2).fillColor('#6e571f')
       .text(
         L(
-          'O motor produz candidatos metodológicos. selectedCode, releasedCode, finalConclusion, CLASSIFIED, READY e processamento subsequente permanecem bloqueados até revisão humana.',
-          'The engine produces methodological candidates. selectedCode, releasedCode, finalConclusion, CLASSIFIED, READY, and downstream processing remain blocked until human review.',
+          'Este documento apresenta uma análise candidata. O ponto de fuga, o ator, os códigos P/O/A e as pré-condições devem ser confirmados por revisão humana antes do uso formal.',
+          'This document presents a candidate analysis. The escape point, actor, P/O/A codes, and preconditions must be confirmed by human review before formal use.',
         ),
         56,
         bannerY + 25,
@@ -392,26 +399,43 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       )
     doc.y = bannerY + 65
 
-    heading(doc, '1. ' + L('Proveniência e controle metodológico', 'Provenance and methodological control'))
-    meta(doc, L('ID da análise', 'Analysis ID'), analysis.id)
-    meta(doc, L('Motor', 'Engine'), analysis.engine_version)
-    meta(doc, 'Runtime', value(analysis.engine_runtime_version))
-    meta(doc, L('Metodologia', 'Methodology'), analysis.methodology_version)
-    meta(doc, 'Baseline', analysis.baseline_id)
-    meta(doc, 'Fixture set', analysis.fixture_set_id)
-    meta(doc, L('Árvore canônica', 'Canonical tree'), value(analysis.canonical_tree_version))
-    meta(doc, 'Commit', analysis.code_commit)
-    meta(doc, L('Hash do relato', 'Narrative hash'), analysis.narrative_hash)
-    meta(doc, L('Hash da saída', 'Output hash'), analysis.engine_output_hash)
-    meta(doc, 'Status', analysis.status + ' / ' + analysis.review_status)
-    meta(doc, L('Revisão corrente', 'Current revision'), String(analysis.current_revision))
-    meta(doc, L('Motor do produto', 'Product engine'), input.versions.engineVersion)
-    meta(doc, L('Runtime do produto', 'Product runtime'), input.versions.engineRuntimeVersion)
-    meta(doc, L('Schema de entrada', 'Input schema'), input.versions.inputSchemaVersion)
-    meta(doc, L('Schema de saída', 'Output schema'), input.versions.outputSchemaVersion)
+    heading(doc, '1. ' + L('Resumo executivo', 'Executive summary'))
+    body(doc, buildExecutiveSummary({ title: analysis.title, output, pt }), 'justify')
+    doc.moveDown(0.4)
+    meta(doc, L('Ator direto candidato', 'Candidate direct actor'), value(localizeActor(output.directActor.actor, locale), L('Não resolvido', 'Unresolved')))
+    meta(doc, L('Classificação candidata', 'Candidate classification'), [output.axes.perception.proposedCode, output.axes.objective.proposedCode, output.axes.action.proposedCode].map((item) => value(item, '—')).join(' / '))
+    meta(doc, L('Status da revisão', 'Review status'), analysis.review_status)
 
-    heading(doc, '2. ' + L('Relato submetido', 'Submitted narrative'))
-    body(doc, analysis.narrative, 'justify')
+    const candidateAttention = computeCandidateAttention(
+      output.axes.perception.proposedCode,
+      output.axes.objective.proposedCode,
+      output.axes.action.proposedCode,
+    )
+    if (candidateAttention) {
+      keepTogether(doc, 64)
+      const riskY = doc.y + 6
+      doc.roundedRect(doc.page.margins.left, riskY, doc.page.width - doc.page.margins.left - doc.page.margins.right, 48, 5)
+        .fillAndStroke('#eef6ff', '#bfd4ea')
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#174d78')
+        .text(L('Índice HFA de atenção operacional', 'HFA operational-attention index'), doc.page.margins.left + 10, riskY + 8)
+      doc.font('Helvetica-Bold').fontSize(17).fillColor('#174d78')
+        .text(String(candidateAttention.score) + '/100', doc.page.margins.left + 10, riskY + 21, { continued: true })
+      doc.font('Helvetica').fontSize(8.5).fillColor('#536676')
+        .text('  -  ' + (pt ? candidateAttention.labelPt : candidateAttention.labelEn))
+      doc.y = riskY + 58
+      body(doc, L(
+        'Indicador provisório de priorização com base nos candidatos P/O/A. Não é ERC/ARMS canônico, não estima probabilidade de acidente e não substitui a avaliação operacional de risco.',
+        'Provisional prioritization indicator based on P/O/A candidates. It is not canonical ERC/ARMS, does not estimate accident probability, and does not replace operational risk assessment.',
+      ))
+    }
+
+    heading(doc, '2. ' + L('Fatos-chave utilizados na análise', 'Key facts used in the analysis'))
+    subheading(doc, L('Evidências centrais do ponto de fuga', 'Core escape-point evidence'))
+    bullets(doc, output.escapePoint.supportingEvidence.slice(0, 5), L('Nenhuma evidência central registrada.', 'No core evidence recorded.'))
+    if (output.escapePoint.excludedPostEscapeEvidence.length) {
+      subheading(doc, L('Fatos posteriores preservados, mas não usados como causa', 'Later facts retained but not used as causes'))
+      bullets(doc, output.escapePoint.excludedPostEscapeEvidence.slice(0, 4))
+    }
 
     heading(doc, '3. ' + L('Modelo da operação segura', 'Safe-operation model'))
     meta(doc, L('Estado seguro esperado', 'Expected safe state'), value(output.safeOperationModel.expectedSafeState))
@@ -472,12 +496,12 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       doc.moveDown(0.35)
     }
 
-    heading(doc, '6. ' + L('Fluxo de decisão canônico - nós, perguntas e respostas', 'Canonical decision flow - nodes, questions, and answers'))
+    heading(doc, '6. ' + L('Como o sistema chegou à classificação', 'How the system reached the classification'))
     body(
       doc,
       L(
-        'Esta seção reproduz a trilha efetivamente percorrida pelo motor na árvore canônica. Cada nó apresenta a pergunta, a resposta, a evidência usada, a justificativa e o ramo seguinte ou código terminal.',
-        'This section reproduces the path actually traversed by the engine in the canonical tree. Each node presents the question, answer, evidence used, rationale, and next branch or terminal code.',
+        'Esta seção mostra, em linguagem operacional, o caminho efetivamente percorrido. Cada etapa apresenta a pergunta, a resposta, a justificativa e as evidências que sustentaram o ramo seguinte.',
+        'This section shows, in operational language, the path actually traversed. Each step presents the question, answer, rationale, and evidence supporting the next branch.',
       ),
       'justify',
     )
@@ -505,7 +529,57 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       }
     }
 
-    heading(doc, '8. ' + L('Rastreabilidade e polaridade da evidência', 'Evidence traceability and polarity'))
+    const operationalObservations = output.factualExtraction.evidence
+      .filter((item) =>
+        item.sourceSection === 'REPORT_ANALYSIS' &&
+        item.assertionStatus === 'AFFIRMED' &&
+        /\b(reconfirma[cç][aã]o|c[oó]digo 9p|cross-check|checklist|barreira|monitoramento|monitoring|verification|coordena[cç][aã]o|coordination)\b/i.test(item.statement),
+      )
+      .map((item) => item.statement)
+      .filter((item, index, all) => all.indexOf(item) === index)
+      .slice(0, 6)
+
+    if (operationalObservations.length) {
+      heading(doc, '8. ' + L('Barreiras e observações operacionais', 'Operational barriers and observations'))
+      body(doc, L(
+        'Itens explicitamente registrados pela investigação e preservados para revisão humana, sem convertê-los automaticamente em pré-condições causais.',
+        'Items explicitly recorded by the investigation and retained for human review without automatically converting them into causal preconditions.',
+      ), 'justify')
+      bullets(doc, operationalObservations)
+    }
+
+    heading(doc, '9. ' + L('Conclusão e próximos passos', 'Conclusion and next steps'))
+    body(doc, L(
+      'A análise identifica um ponto de fuga, ator direto e candidatos P/O/A com rastreabilidade explícita. Antes do uso formal, a revisão humana deve confirmar essas decisões, revisar as pré-condições e registrar as ações corretivas aplicáveis. O acompanhamento das ações e da recorrência dos padrões deve ser feito no Perfil de Risco.',
+      'The analysis identifies an escape point, direct actor, and P/O/A candidates with explicit traceability. Before formal use, human review should confirm these decisions, review preconditions, and record applicable corrective actions. Corrective-action follow-up and pattern recurrence should be monitored in the Risk Profile.',
+    ), 'justify')
+
+    doc.addPage()
+    heading(doc, L('Apêndice técnico - rastreabilidade e auditoria', 'Technical appendix - traceability and audit'))
+    body(doc, L(
+      'As seções seguintes preservam os dados necessários para auditoria metodológica e reprodutibilidade. Elas não fazem parte da leitura executiva principal.',
+      'The following sections preserve data required for methodological audit and reproducibility. They are not part of the main executive reading.',
+    ), 'justify')
+
+    heading(doc, 'A.1 ' + L('Proveniência e controle metodológico', 'Provenance and methodological control'))
+    meta(doc, L('ID da análise', 'Analysis ID'), analysis.id)
+    meta(doc, L('Motor', 'Engine'), analysis.engine_version)
+    meta(doc, 'Runtime', value(analysis.engine_runtime_version))
+    meta(doc, L('Metodologia', 'Methodology'), analysis.methodology_version)
+    meta(doc, 'Baseline', analysis.baseline_id)
+    meta(doc, 'Fixture set', analysis.fixture_set_id)
+    meta(doc, L('Árvore canônica', 'Canonical tree'), value(analysis.canonical_tree_version))
+    meta(doc, 'Commit', analysis.code_commit)
+    meta(doc, L('Hash do relato', 'Narrative hash'), analysis.narrative_hash)
+    meta(doc, L('Hash da saída', 'Output hash'), analysis.engine_output_hash)
+    meta(doc, 'Status', analysis.status + ' / ' + analysis.review_status)
+    meta(doc, L('Revisão corrente', 'Current revision'), String(analysis.current_revision))
+    meta(doc, L('Motor do produto', 'Product engine'), input.versions.engineVersion)
+    meta(doc, L('Runtime do produto', 'Product runtime'), input.versions.engineRuntimeVersion)
+    meta(doc, L('Schema de entrada', 'Input schema'), input.versions.inputSchemaVersion)
+    meta(doc, L('Schema de saída', 'Output schema'), input.versions.outputSchemaVersion)
+
+    heading(doc, 'A.2 ' + L('Rastreabilidade e polaridade da evidência', 'Evidence traceability and polarity'))
     const evidenceItems = output.factualExtraction.evidence
     const rejected = evidenceItems.filter((item) => item.assertionStatus === 'REJECTED_AS_FACTOR')
     const uncertain = evidenceItems.filter((item) => item.assertionStatus === 'UNCERTAIN')
@@ -523,7 +597,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     subheading(doc, L('Fatos posteriores ao ponto de fuga, mantidos em quarentena causal', 'Post-escape facts kept in causal quarantine'))
     bullets(doc, postEscape.map((item) => item.statement))
 
-    heading(doc, '9. ' + L('Salvaguardas metodológicas - guardrails', 'Methodological safeguards - guardrails'))
+    heading(doc, 'A.3 ' + L('Salvaguardas metodológicas', 'Methodological safeguards'))
     for (const [name, violated] of Object.entries(output.guardrails)) {
       const evidence = output.guardrailEvidence[name] ?? []
       doc.font('Helvetica-Bold').fontSize(8.8)
@@ -533,7 +607,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       doc.moveDown(0.22)
     }
 
-    heading(doc, '10. ' + L('Gate de suficiência da evidência', 'Evidence-sufficiency gate'))
+    heading(doc, 'A.4 ' + L('Suficiência da evidência', 'Evidence sufficiency'))
     meta(doc, 'Status', output.evidenceSufficiency.status)
     meta(doc, L('Evidência mínima satisfeita', 'Minimum evidence satisfied'), output.evidenceSufficiency.minimumEvidenceSatisfied ? L('SIM', 'YES') : L('NÃO', 'NO'))
     subheading(doc, L('Razões de bloqueio', 'Blocking reasons'))
@@ -554,7 +628,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       body(doc, L('Nenhuma pergunta adicional é necessária para a análise SERA atual.', 'No additional question is required for the current SERA analysis.'))
     }
 
-    heading(doc, '11. ' + L('Incertezas, limitações e perguntas em aberto', 'Uncertainties, limitations, and open questions'))
+    heading(doc, 'A.5 ' + L('Incertezas, limitações e perguntas em aberto', 'Uncertainties, limitations, and open questions'))
     subheading(doc, L('Incertezas', 'Uncertainties'))
     bullets(doc, output.uncertainties.map((item) => translateReportText(item, pt)))
     subheading(doc, L('Limitações', 'Limitations'))
@@ -562,7 +636,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     subheading(doc, L('Perguntas canônicas ainda não respondidas', 'Canonical questions not yet answered'))
     bullets(doc, output.canonicalTraversal.unansweredQuestions.map((item) => translateReportText(item, pt)))
 
-    heading(doc, '12. ' + L('Pacote de revisão humana', 'Human review package'))
+    heading(doc, 'A.6 ' + L('Pacote de revisão humana', 'Human review package'))
     subheading(doc, L('Decisões requeridas do revisor', 'Reviewer decisions required'))
     bullets(doc, output.humanReviewPackage.reviewerDecisionsRequired.map((item) => translateReportText(item, pt)))
     subheading(doc, L('Avisos críticos', 'Critical warnings'))
@@ -583,7 +657,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       }
     }
 
-    heading(doc, '13. ' + L('Conclusão de uso', 'Use conclusion'))
+    heading(doc, 'A.7 ' + L('Nota de uso e revisão', 'Use and review note'))
     body(
       doc,
       L(

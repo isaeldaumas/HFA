@@ -12,6 +12,7 @@ import { inferOccurrenceDateFromNarrative } from '@/lib/sera-vnext/occurrence-da
 import { useI18n } from '@/lib/i18n'
 import { localizeActor, localizeRationale } from '@/lib/sera-vnext/engine-v0/localization'
 import { SERA_PT_V1_TREE } from '@/lib/sera-vnext/canonical-tree/sera-pt-v1'
+import { buildExecutiveSummary, computeCandidateAttention, friendlyAnswerLabel, friendlyNodeLabel } from '@/lib/sera-vnext/presentation'
 
 type Recommendation = {
   related_code?: string | null
@@ -141,6 +142,9 @@ export default function EventReportPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [eventData, setEventData] = useState<EventPayload | null>(null)
+  const [token, setToken] = useState('')
+  const [pdfBusy, setPdfBusy] = useState(false)
+  const [pdfError, setPdfError] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -149,6 +153,7 @@ export default function EventReportPage() {
       try {
         const { data } = await supabase.auth.getSession()
         const token = data.session?.access_token
+        setToken(token ?? '')
 
         if (!token || !eventId) {
           setEventData(null)
@@ -192,11 +197,52 @@ export default function EventReportPage() {
 
   const eventType = analysis?.operation_type ?? eventData?.operation_type ?? L('Não informado', 'Not provided')
 
-  const summaryText = analysis?.summary ?? analysis?.event_summary ?? eventData?.raw_input ?? L('Dados indisponíveis', 'Data unavailable')
+  const summaryText = vnextOutput
+    ? buildExecutiveSummary({ title: eventTitle, occurredAt: eventDate, output: vnextOutput, pt })
+    : analysis?.summary ?? analysis?.event_summary ?? L('Resumo não disponível. Consulte o registro original do evento quando necessário.', 'Summary unavailable. Consult the original event record when necessary.')
+  const candidateAttention = vnextOutput
+    ? computeCandidateAttention(vnextOutput.axes.perception.proposedCode, vnextOutput.axes.objective.proposedCode, vnextOutput.axes.action.proposedCode)
+    : null
 
   const preconditions = analysis?.preconditions ?? []
   const vnextPreconditions = vnextOutput?.preconditions ?? []
   const recommendations = analysis?.recommendations ?? []
+  const operationalObservations = (vnextOutput?.factualExtraction.evidence ?? [])
+    .filter((item) =>
+      item.sourceSection === 'REPORT_ANALYSIS' &&
+      item.assertionStatus === 'AFFIRMED' &&
+      /\b(reconfirma[cç][aã]o|c[oó]digo 9p|cross-check|checklist|barreira|monitoramento|monitoring|verification|coordena[cç][aã]o|coordination)\b/i.test(item.statement),
+    )
+    .map((item) => item.statement)
+    .filter((item, index, all) => all.indexOf(item) === index)
+    .slice(0, 6)
+
+  async function downloadMethodologicalPdf() {
+    if (!vnextAnalysis?.id || !token) return
+    setPdfBusy(true)
+    setPdfError(null)
+    try {
+      const response = await fetch(`/api/sera/analyses/${vnextAnalysis.id}/pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const blob = await response.blob()
+      const disposition = response.headers.get('content-disposition') ?? ''
+      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? `HFA_SERA_${eventId}.pdf`
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = filename
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setPdfError(err instanceof Error ? err.message : L('Falha ao gerar PDF', 'Failed to generate PDF'))
+    } finally {
+      setPdfBusy(false)
+    }
+  }
 
   if (loading) {
     return <div className="p-8 text-slate-400">{L('Carregando relatório do evento...', 'Loading event report...')}</div>
@@ -209,8 +255,19 @@ export default function EventReportPage() {
           <h1 className="text-2xl font-bold text-white">{L('Relatório individual de evento', 'Individual event report')}</h1>
           <p className="text-slate-400 mt-1">{L('Resumo para impressão, análise técnica, reuniões e auditorias internas.', 'Print-friendly summary for technical analysis, meetings, and internal audits.')}</p>
         </div>
-        <div className="flex gap-2">
-          <PrintReportButton />
+        <div className="flex flex-wrap gap-2">
+          {vnextAnalysis?.id ? (
+            <button
+              type="button"
+              onClick={() => void downloadMethodologicalPdf()}
+              disabled={pdfBusy || !token}
+              className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            >
+              {pdfBusy ? L('Gerando PDF…', 'Generating PDF…') : L('Baixar PDF formatado', 'Download formatted PDF')}
+            </button>
+          ) : (
+            <PrintReportButton />
+          )}
           <Link
             href={scope === 'deleted' ? '/events/deleted' : `/events/${eventId}`}
             className="inline-flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
@@ -219,6 +276,7 @@ export default function EventReportPage() {
           </Link>
         </div>
       </div>
+      {pdfError && <div className="screen-only rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">{L('Falha ao gerar o PDF', 'Failed to generate PDF')}: {pdfError}</div>}
 
       <article className="report-shell bg-white text-black rounded-lg p-8 shadow">
         <header className="border-b border-slate-300 pb-4 mb-6 space-y-2">
@@ -253,7 +311,18 @@ export default function EventReportPage() {
             <p><strong>{L('Título', 'Title')}:</strong> {eventTitle}</p>
             <p><strong>{L('Data', 'Date')}:</strong> {formatDate(eventDate, locale)}</p>
             <p><strong>{L('Tipo/categoria', 'Type/category')}:</strong> {eventType}</p>
-            <p><strong>{L('Relato', 'Narrative')}:</strong> {summaryText}</p>
+            <div>
+              <p><strong>{L('Resumo técnico', 'Technical summary')}:</strong></p>
+              <p className="mt-1 leading-relaxed">{summaryText}</p>
+            </div>
+            {vnextOutput && vnextOutput.escapePoint.supportingEvidence.length > 0 && (
+              <div className="mt-3">
+                <p><strong>{L('Fatos-chave considerados', 'Key facts considered')}:</strong></p>
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
+                  {vnextOutput.escapePoint.supportingEvidence.slice(0, 3).map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+            )}
           </div>
         </section>
 
@@ -315,9 +384,17 @@ export default function EventReportPage() {
         <section className="report-section">
           <h3 className="report-title">3. {L('Avaliação de risco (apoio à triagem)', 'Risk assessment (triage support)')}</h3>
           {vnextOutput ? (
-            <div className="report-box">
-              <p><strong>{L('Camada de risco bloqueada.', 'Risk layer blocked.')}</strong> {L('A saída do motor atual não libera ERC, HFACS ou processamento subsequente antes da revisão humana.', 'The current engine output does not release ERC, HFACS, or downstream processing before human review.')}</p>
-            </div>
+            <>
+              <div className="report-box space-y-2">
+                {candidateAttention ? (
+                  <>
+                    <p><strong>{L('Índice HFA de atenção operacional', 'HFA operational-attention index')}:</strong> {candidateAttention.score}/100 — {pt ? candidateAttention.labelPt : candidateAttention.labelEn}</p>
+                    <p className="text-sm text-slate-700">{L('Eixos com falha ativa identificada', 'Axes with identified active failure')}: {candidateAttention.activeAxes.length ? candidateAttention.activeAxes.join(', ') : L('nenhum', 'none')}.</p>
+                  </>
+                ) : <p>{L('Dados insuficientes para o índice preliminar.', 'Insufficient data for the preliminary index.')}</p>}
+              </div>
+              <p className="report-note">{L('Indicador provisório de priorização baseado nos candidatos P/O/A. Não é ERC/ARMS canônico, não estima probabilidade de acidente e não substitui a avaliação operacional de risco. O valor deve ser lido junto com as ações corretivas e a revisão humana.', 'Provisional prioritization indicator based on P/O/A candidates. It is not canonical ERC/ARMS, does not estimate accident probability, and does not replace operational risk assessment. Read it together with corrective actions and human review.')}</p>
+            </>
           ) : (
             <>
               <div className="report-box space-y-1">
@@ -357,8 +434,20 @@ export default function EventReportPage() {
           )}
         </section>
 
+        {vnextOutput && operationalObservations.length > 0 && (
+          <section className="report-section">
+            <h3 className="report-title">5. {L('Barreiras e observações operacionais', 'Operational barriers and observations')}</h3>
+            <div className="report-box">
+              <p className="text-sm text-slate-700">{L('Itens explicitamente registrados pela investigação e preservados para revisão humana, sem transformá-los automaticamente em pré-condições causais.', 'Items explicitly recorded by the investigation and retained for human review without automatically converting them into causal preconditions.')}</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                {operationalObservations.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </div>
+          </section>
+        )}
+
         <section className="report-section">
-          <h3 className="report-title">5. {L('Recomendações e ações sugeridas', 'Recommendations and suggested actions')}</h3>
+          <h3 className="report-title">{vnextOutput ? '6' : '5'}. {L('Recomendações e ações sugeridas', 'Recommendations and suggested actions')}</h3>
           {vnextOutput ? (
             <div className="report-box">
               <p>{L('Recomendações automáticas não são liberadas pela análise SERA antes da revisão humana. Ações devem ser definidas após validação do ponto de fuga e dos eixos P/O/A.', 'Automatic recommendations are not released by SERA analysis before human review. Actions should be defined after validation of the escape point and P/O/A axes.')}</p>
@@ -382,18 +471,34 @@ export default function EventReportPage() {
 
         {vnextOutput && (
           <section className="report-section">
-            <h3 className="report-title">6. {L('Fluxo de decisão canônico', 'Canonical decision flow')}</h3>
-            <div className="space-y-3">
+            <h3 className="report-title">7. {L('Como o sistema chegou à classificação', 'How the system reached the classification')}</h3>
+            <p className="report-note mb-3">{L('O mapa mostra o caminho percorrido; abaixo de cada caminho ficam a pergunta, a resposta e a justificativa em linguagem operacional.', 'The map shows the traversed path; each path is followed by the question, answer, and rationale in operational language.')}</p>
+            <div className="space-y-4">
               {vnextOutput.canonicalTraversal.paths.map((path) => (
                 <div key={path.axis} className="report-box">
-                  <p><strong>{path.axis} — {L('candidato', 'candidate')} {path.candidateCode ?? L('não resolvido', 'unresolved')}</strong></p>
-                  {path.answers.map((node, index) => (
-                    <div key={path.axis + node.nodeId + String(index)} className="mt-2 border-t border-slate-200 pt-2 text-sm">
-                      <p><strong>{L('Nó', 'Node')} {index + 1} · {node.nodeId}:</strong> {canonicalQuestionLabel(node.nodeId, node.question, node.exactQuestionTextENAnchor, pt)}</p>
-                      <p>{L('Resposta', 'Answer')}: {node.answer}</p>
-                      {node.rationale ? <p>{L('Justificativa', 'Rationale')}: {localizeRationale(node.rationale, locale)}</p> : null}
-                    </div>
-                  ))}
+                  <p><strong>{path.axis === 'P' ? L('Percepção', 'Perception') : path.axis === 'O' ? L('Objetivo', 'Objective') : L('Ação', 'Action')} — {L('resultado', 'result')} {path.candidateCode ?? L('não resolvido', 'unresolved')}</strong></p>
+                  <div className="report-flow mt-3">
+                    {path.answers.map((node, index) => (
+                      <div key={`${path.axis}-${node.nodeId}-flow`} className="report-flow-item">
+                        <div className="report-flow-node">
+                          <span className="report-step">{index + 1}</span>
+                          <span className="report-flow-label">{friendlyNodeLabel(node.nodeId, pt)}</span>
+                          <span className="report-flow-answer">{friendlyAnswerLabel(node.answer, pt)}</span>
+                        </div>
+                        {index < path.answers.length - 1 && <span className="report-arrow">→</span>}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {path.answers.map((node, index) => (
+                      <div key={`${path.axis}-${node.nodeId}-detail`} className={index > 0 ? 'border-t border-slate-200 pt-3' : ''}>
+                        <p><strong>{L('Etapa', 'Step')} {index + 1} — {friendlyNodeLabel(node.nodeId, pt)}</strong></p>
+                        <p className="mt-1 text-sm">{canonicalQuestionLabel(node.nodeId, node.question, node.exactQuestionTextENAnchor, pt)}</p>
+                        <p className="mt-1 text-sm"><strong>{L('Resposta', 'Answer')}:</strong> {friendlyAnswerLabel(node.answer, pt)}</p>
+                        {node.rationale ? <p className="mt-1 text-sm text-slate-700"><strong>{L('Por que', 'Why')}:</strong> {localizeRationale(node.rationale, locale)}</p> : null}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -401,7 +506,7 @@ export default function EventReportPage() {
         )}
 
         <section className="report-section">
-          <h3 className="report-title">{vnextOutput ? '7' : '6'}. {L('Limitações da análise', 'Analysis limitations')}</h3>
+          <h3 className="report-title">{vnextOutput ? '8' : '6'}. {L('Limitações da análise', 'Analysis limitations')}</h3>
           <ul className="report-list">
             <li>{L('A análise depende da qualidade e completude da evidência registrada.', 'The analysis depends on the quality and completeness of the recorded evidence.')}</li>
             <li>{L('Ausência de informação pode reduzir a precisão classificatória.', 'Missing information may reduce classification precision.')}</li>
@@ -411,7 +516,7 @@ export default function EventReportPage() {
         </section>
 
         <section className="report-section">
-          <h3 className="report-title">{vnextOutput ? '8' : '7'}. {L('Próximos passos sugeridos', 'Suggested next steps')}</h3>
+          <h3 className="report-title">{vnextOutput ? '9' : '7'}. {L('Próximos passos sugeridos', 'Suggested next steps')}</h3>
           <ul className="report-list">
             <li>{L('Revisar evidências e complementar informações faltantes.', 'Review evidence and complete missing information.')}</li>
             <li>{L('Transformar recomendações em ações corretivas rastreáveis.', 'Convert recommendations into traceable corrective actions.')}</li>
@@ -487,6 +592,32 @@ export default function EventReportPage() {
           font-size: 0.75rem;
           color: #475569;
         }
+        .report-flow {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.4rem;
+        }
+        .report-flow-item {
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+        }
+        .report-flow-node {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          gap: 0.15rem 0.4rem;
+          align-items: center;
+          min-width: 8.8rem;
+          border: 1px solid #bfdbfe;
+          background: #eff6ff;
+          border-radius: 0.5rem;
+          padding: 0.45rem 0.55rem;
+        }
+        .report-step { grid-row: 1 / 3; font-weight: 700; color: #1d4ed8; }
+        .report-flow-label { font-size: 0.72rem; font-weight: 700; color: #1e3a5f; }
+        .report-flow-answer { font-size: 0.68rem; color: #475569; }
+        .report-arrow { color: #64748b; font-weight: 700; }
       `}</style>
     </div>
   )

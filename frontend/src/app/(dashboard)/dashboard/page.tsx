@@ -99,10 +99,10 @@ const PRECONDITION_DEFS: Record<string, string> = {
 
 function buildScoreModal(score: Intelligence['score']): ModalState {
   return {
-    title: 'Score de Risco Operacional',
+    title: 'Índice HFA de Atenção Operacional',
     sections: [
-      { label: 'O que é', content: 'Índice calculado com base nos padrões de falha identificados nas análises SERA do seu tenant.' },
-      { label: 'Como é calculado', content: 'Combina falhas de Percepção (peso 1.0), Objetivo (peso 0.8) e Ação (peso 0.6) pelo total de análises, acrescido de penalidades por ações vencidas e picos de eventos.' },
+      { label: 'O que é', content: 'Indicador descritivo para priorizar acompanhamento, baseado nos padrões P/O/A e nas pendências de ações corretivas. Não é probabilidade de acidente nem ERC/ARMS canônico.' },
+      { label: 'Como é calculado', content: 'Calcula a proporção ponderada dos eixos com falha ativa — Percepção (1,0), Objetivo (0,8) e Ação (0,6) —, acrescenta pendências de ações corretivas e, quando existe histórico mínimo, um pequeno sinal por aumento recente do volume de eventos. Análises ainda não revisadas são identificadas como provisórias.' },
       { label: 'Faixas', content: '0–39 → Normal\n40–69 → Atenção (monitoramento recomendado)\n70–100 → Crítico (intervenção imediata)' },
       { label: 'Score atual', content: `${score.value} — ${score.label}` },
     ],
@@ -336,6 +336,11 @@ export default function DashboardPage() {
             <span className="text-slate-400 text-xs uppercase tracking-wide font-semibold">{t('dashboard.riskScore')}</span>
             <HelpButton onClick={() => setModal(buildScoreModal(data.score))} />
           </div>
+          {(data.provisional_analyses ?? 0) > 0 && (
+            <div className="mb-3 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-xs text-blue-100">
+              {data.provisional_analyses} análise{data.provisional_analyses !== 1 ? 's' : ''} provisória{data.provisional_analyses !== 1 ? 's' : ''} incluída{data.provisional_analyses !== 1 ? 's' : ''} somente como sinal de atenção até revisão humana.
+            </div>
+          )}
           <OrgScoreCard
             score={data.score.value}
             level={data.score.level}
@@ -361,10 +366,12 @@ export default function DashboardPage() {
       )}
 
       {hasAnalyses && data && (
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
           {[
             { label: 'Universo canônico', value: data.total_events, tone: 'text-white' },
             { label: 'Considerados no perfil', value: data.included_events, tone: 'text-green-300' },
+            { label: 'Revisados', value: data.reviewed_analyses ?? 0, tone: 'text-cyan-300' },
+            { label: 'Provisórios', value: data.provisional_analyses ?? 0, tone: 'text-blue-300' },
             { label: 'Desconsiderados', value: data.excluded_events, tone: 'text-amber-300' },
             { label: 'ERC predominante', value: data.modal_erc_level ? `ERC ${data.modal_erc_level}` : (data.erc_presentation_mode === 'SUPPRESSED_D3B_MIXED' || data.erc_presentation_mode === 'SUPPRESSED_D3B_VNEXT_ONLY' ? 'omitido (D3-b)' : 'n/d'), tone: 'text-blue-300' },
           ].map((item) => (

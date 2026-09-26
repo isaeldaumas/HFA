@@ -852,6 +852,25 @@ export default function EventDetailPage() {
                 : 'A historical record produced by the previous engine is preserved for audit purposes only and is not used as a source for the current SERA analysis.'}
             </p>
           )}
+          {!event.deleted_at && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => void reanalyzeWithVNext()}
+                disabled={vnextReanalyzeState === 'loading'}
+                className="rounded-lg border border-cyan-600/50 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-60"
+              >
+                {vnextReanalyzeState === 'loading'
+                  ? (locale === 'pt-BR' ? 'Reanalisando…' : 'Reanalyzing…')
+                  : (locale === 'pt-BR' ? 'Reanalisar com a versão atual' : 'Reanalyze with current version')}
+              </button>
+              <span className="self-center text-[11px] text-slate-500">
+                {locale === 'pt-BR'
+                  ? 'Use após atualização metodológica para recalcular pré-condições e apresentação com o motor vigente.'
+                  : 'Use after a methodological update to recalculate preconditions and presentation with the current engine.'}
+              </span>
+            </div>
+          )}
         </div>
       )}
 

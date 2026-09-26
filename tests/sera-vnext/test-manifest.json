@@ -2175,5 +2175,23 @@
     "expectedExit": 0,
     "expectedStatus": "PASS",
     "runtimeScope": "CURRENT"
+  },
+  {
+    "path": "tests/sera-vnext/report-presentation-trial-001.ts",
+    "type": "STATIC",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT"
+  },
+  {
+    "path": "tests/sera-vnext/risk-profile-provisional-actions-trial-001.ts",
+    "type": "UNIT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT"
   }
 ]

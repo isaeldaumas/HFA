@@ -71,20 +71,36 @@ export function runStep09Preconditions(input: {
   locale: 'pt-BR' | 'en'
 }): SeraPreconditionCandidate[] {
   if (input.escapePoint.status === 'INSUFFICIENT_EVIDENCE' || input.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT') return []
-  const categoryEvidence: Record<string, { texts: string[]; sourceEvidence: SeraEvidenceItem[]; investigationOnly: boolean }> = {}
+  const categoryEvidence: Record<string, { texts: string[]; sourceEvidence: SeraEvidenceItem[]; investigationOnly: boolean; explicitInvestigationSupport: boolean; rejectedByInvestigation: boolean }> = {}
   const contextualEvidence = input.factualExtraction.evidence.filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
+  const explicitContributorEvidence = input.factualExtraction.evidence.filter((item) =>
+    item.sourceSection === 'REPORT_ANALYSIS' &&
+    item.assertionStatus === 'AFFIRMED' &&
+    item.supports.includes('PRECONDITION') &&
+    /\b(contribuiu|contribuinte|contributed|contributory|falha na barreira|aus[eê]ncia da reconfirma[cç][aã]o|n[aã]o havendo a reconfirma[cç][aã]o)\b/i.test(item.statement),
+  )
   const investigationIndicatedEvidence = input.factualExtraction.evidence.filter((item) =>
     item.sourceSection === 'REPORT_ANALYSIS' &&
     item.assertionStatus === 'AFFIRMED' &&
     item.supports.includes('PRECONDITION') &&
-    /\b(supervis[aã]o|supervision|coordena[cç][aã]o|coordination|organizacional|organizational)\b/i.test(item.statement),
+    /\b(supervis[aã]o|supervision|coordena[cç][aã]o|coordination|organizacional|organizational|reconfirma[cç][aã]o|c[oó]digo 9p|cross-check|monitoramento)\b/i.test(item.statement),
   )
+  const rejectedEvidence = input.factualExtraction.evidence.filter((item) => item.assertionStatus === 'REJECTED_AS_FACTOR')
 
   for (const item of contextualEvidence) {
     const category = classifyPreconditionCategory({ text: item.statement, proposedCode: null })
     if (!category) continue
-    categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true }
+    categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true, explicitInvestigationSupport: false, rejectedByInvestigation: false }
     categoryEvidence[category].investigationOnly = false
+    pushUnique(categoryEvidence[category].texts, item.statement)
+    pushEvidence(categoryEvidence[category].sourceEvidence, item)
+  }
+
+  for (const item of explicitContributorEvidence) {
+    const category = classifyPreconditionCategory({ text: item.statement, proposedCode: null })
+    if (!category) continue
+    categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true, explicitInvestigationSupport: false, rejectedByInvestigation: false }
+    categoryEvidence[category].explicitInvestigationSupport = true
     pushUnique(categoryEvidence[category].texts, item.statement)
     pushEvidence(categoryEvidence[category].sourceEvidence, item)
   }
@@ -92,30 +108,51 @@ export function runStep09Preconditions(input: {
   for (const item of investigationIndicatedEvidence) {
     const category = classifyPreconditionCategory({ text: item.statement, proposedCode: null })
     if (!category) continue
-    categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true }
+    categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true, explicitInvestigationSupport: false, rejectedByInvestigation: false }
     pushUnique(categoryEvidence[category].texts, item.statement)
     pushEvidence(categoryEvidence[category].sourceEvidence, item)
+  }
+
+  for (const item of rejectedEvidence) {
+    const category = classifyPreconditionCategory({ text: item.statement, proposedCode: null })
+    if (category && categoryEvidence[category]) categoryEvidence[category].rejectedByInvestigation = true
+  }
+
+  const confidenceFor = (category: string, evidenceSet: (typeof categoryEvidence)[string]) => {
+    if (evidenceSet.rejectedByInvestigation && !evidenceSet.explicitInvestigationSupport) return 'LOW' as const
+    if (evidenceSet.explicitInvestigationSupport) return evidenceSet.sourceEvidence.length >= 2 ? 'HIGH' as const : 'MEDIUM' as const
+    if (evidenceSet.investigationOnly) return 'LOW' as const
+    const base = confidenceFromCount(evidenceSet.texts.length)
+    return category === 'ATTENTION_WORKLOAD_CONTEXT' && base === 'HIGH' ? 'MEDIUM' as const : base
   }
 
   return Object.entries(categoryEvidence).map(([category, evidenceSet]) => ({
     id: `PC-EVIDENCE-${category}`,
     label: category,
-    description: evidenceSet.investigationOnly
+    description: evidenceSet.rejectedByInvestigation && !evidenceSet.explicitInvestigationSupport
       ? (input.locale === 'pt-BR'
-          ? 'Fator indicado pela investigação, preservado como hipótese contextual e não confirmado como pré-condição causal.'
-          : 'Factor indicated by the investigation, retained as a contextual hypothesis and not confirmed as a causal precondition.')
-      : (input.locale === 'pt-BR'
-          ? (CATEGORY_DESCRIPTION[category] ?? 'Pré-condição candidata sustentada por evidência factual e mantida separada do ponto de fuga e da falha ativa.')
-          : (CATEGORY_DESCRIPTION_EN[category] ?? 'Candidate precondition supported by factual evidence and kept separate from the escape point and active failure.')),
+          ? 'Há evidência contextual nesta categoria, mas a investigação de origem também registra fator equivalente como não contribuinte; mantido apenas como hipótese, sem confirmação causal.'
+          : 'There is contextual evidence in this category, but the source investigation also records an equivalent factor as non-contributory; retained only as a hypothesis, without causal confirmation.')
+      : evidenceSet.investigationOnly && !evidenceSet.explicitInvestigationSupport
+        ? (input.locale === 'pt-BR'
+            ? 'Fator indicado pela investigação, preservado como hipótese contextual e não confirmado como pré-condição causal.'
+            : 'Factor indicated by the investigation, retained as a contextual hypothesis and not confirmed as a causal precondition.')
+        : (input.locale === 'pt-BR'
+            ? (CATEGORY_DESCRIPTION[category] ?? 'Pré-condição candidata sustentada por evidência e mantida separada do ponto de fuga e da falha ativa.')
+            : (CATEGORY_DESCRIPTION_EN[category] ?? 'Candidate precondition supported by evidence and kept separate from the escape point and active failure.')),
     category: category as SeraPreconditionCandidate['category'],
     evidence: evidenceSet.texts,
-    relationship: evidenceSet.investigationOnly ? 'UNRELATED_OR_UNSUPPORTED' : relationshipForEvidence(evidenceSet.sourceEvidence),
+    relationship: evidenceSet.rejectedByInvestigation && !evidenceSet.explicitInvestigationSupport
+      ? 'UNRELATED_OR_UNSUPPORTED'
+      : evidenceSet.explicitInvestigationSupport
+        ? 'CONTEXTUAL_PRECONDITION'
+        : evidenceSet.investigationOnly ? 'UNRELATED_OR_UNSUPPORTED' : relationshipForEvidence(evidenceSet.sourceEvidence),
     sourceEvidence: evidenceSet.sourceEvidence,
     sourceRuleIds: [CATEGORY_RULE_ID[category]],
     linkedActor: input.directActor.actor,
     explicitlyNotEscapePoint: true,
     basedOnCandidateCode: false,
     nonFinal: true,
-    confidence: evidenceSet.investigationOnly ? 'LOW' : confidenceFromCount(evidenceSet.texts.length),
+    confidence: confidenceFor(category, evidenceSet),
   }))
 }

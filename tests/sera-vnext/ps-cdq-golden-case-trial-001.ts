@@ -98,6 +98,13 @@ assert.equal(aPath?.candidateCode, 'A-A')
 assert.equal(output.preconditions.some((p) => p.category === 'KNOWLEDGE_TRAINING'), false)
 assert.equal(output.preconditions.some((p) => p.category === 'ATTENTION_WORKLOAD_CONTEXT'), true)
 assert.equal(output.preconditions.some((p) => p.category === 'ENVIRONMENTAL_CONTEXT'), true)
+const environmentPc = output.preconditions.find((p) => p.category === 'ENVIRONMENTAL_CONTEXT')
+const attentionPc = output.preconditions.find((p) => p.category === 'ATTENTION_WORKLOAD_CONTEXT')
+assert.equal(environmentPc?.relationship, 'CONTEXTUAL_PRECONDITION')
+assert.equal(environmentPc?.confidence, 'HIGH')
+assert.equal(attentionPc?.relationship, 'UNRELATED_OR_UNSUPPORTED')
+assert.equal(attentionPc?.confidence, 'LOW')
+assert.match(attentionPc?.description ?? '', /não contribuinte|non-contributory/i)
 
 const rejectedFamiliarity = output.factualExtraction.evidence.find((e) =>
   /falta de familiaridade/i.test(e.statement)
