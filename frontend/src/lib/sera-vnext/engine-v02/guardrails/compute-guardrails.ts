@@ -15,7 +15,10 @@ export type SeraComputedGuardrails = Record<
   | 'actorMigrationDetected'
   | 'preconditionUsedAsEscapePoint'
   | 'codeFirstPathDetected'
-  | 'awarenessMissingForViolation',
+  | 'awarenessMissingForViolation'
+  | 'nonCausalEvidenceUsed'
+  | 'escapePointReferenceContamination'
+  | 'candidateEvidenceMinimumMissing',
   SeraComputedGuardrail
 >
 
@@ -73,6 +76,17 @@ export function computeSeraVNextGuardrails(input: {
       hasConceptWithoutNegation(objectiveEvidence, 'explicitAwareness') &&
       hasConceptWithoutNegation(objectiveEvidence, 'consciousDeviation')
     )
+  const forbiddenTypes = new Set(['NON_CAUSAL_DOCUMENT', 'REFERENCE_PROCEDURE', 'SYSTEM_DESCRIPTION'])
+  const nonCausalUsed = input.factualExtraction.evidence
+    .filter((item) => forbiddenTypes.has(item.evidenceType) && usedAxisEvidence.includes(item.statement))
+    .map((item) => item.statement)
+  const escapeReferenceContamination = input.factualExtraction.evidence
+    .filter((item) => forbiddenTypes.has(item.evidenceType) && input.escapePoint.supportingEvidence.includes(item.statement))
+    .map((item) => item.statement)
+  const candidateMinimumEvidence: string[] = []
+  if (input.axes.perception.proposedCode === 'P-E' && !hasConcept(input.axes.perception.supportingEvidence, 'timeManagementPressure')) candidateMinimumEvidence.push('P-E lacks explicit temporal-perception evidence.')
+  if (input.axes.objective.proposedCode === 'O-D' && !hasConcept(input.axes.objective.supportingEvidence, 'efficiencyObjective')) candidateMinimumEvidence.push('O-D lacks an explicit efficiency/economy/time/productivity objective.')
+  if (input.axes.action.proposedCode === 'A-H' && !hasConcept(input.axes.action.supportingEvidence, 'timeManagementAction')) candidateMinimumEvidence.push('A-H lacks explicit action-timing evidence.')
 
   return {
     consequenceUsedAsCause: {
@@ -96,7 +110,7 @@ export function computeSeraVNextGuardrails(input: {
       evidence: inventedQuestionEvidence,
     },
     actorMigrationDetected: {
-      violated: input.directActor.status === 'NOT_APPLICABLE' && [
+      violated: input.directActor.status !== 'IDENTIFIED' && [
         input.axes.perception.proposedCode,
         input.axes.objective.proposedCode,
         input.axes.action.proposedCode,
@@ -114,6 +128,18 @@ export function computeSeraVNextGuardrails(input: {
     awarenessMissingForViolation: {
       violated: awarenessMissingForViolation,
       evidence: awarenessMissingForViolation ? objectiveEvidence : [],
+    },
+    nonCausalEvidenceUsed: {
+      violated: nonCausalUsed.length > 0,
+      evidence: nonCausalUsed,
+    },
+    escapePointReferenceContamination: {
+      violated: escapeReferenceContamination.length > 0,
+      evidence: escapeReferenceContamination,
+    },
+    candidateEvidenceMinimumMissing: {
+      violated: candidateMinimumEvidence.length > 0,
+      evidence: candidateMinimumEvidence,
     },
   }
 }

@@ -257,6 +257,9 @@ export type SeraVNextEngineOutput = {
     preconditionUsedAsEscapePoint: boolean
     codeFirstPathDetected: boolean
     awarenessMissingForViolation: boolean
+    nonCausalEvidenceUsed: boolean
+    escapePointReferenceContamination: boolean
+    candidateEvidenceMinimumMissing: boolean
   }
 
   guardrailEvidence: Record<string, string[]>

@@ -1,6 +1,7 @@
 import type { SeraSupplementalEvidenceInput, SeraTimelineItem, SeraVNextEngineInput, SeraVNextEngineOutput } from '../../engine-contract'
 import { buildCandidateEscapeWindow } from '../candidate-escape-window'
-import { confidenceFromCount, excludedPostEscapeEvidence } from '../utils'
+import { isOperationalEventStatement } from '../factual-extraction-helpers'
+import { excludedPostEscapeEvidence } from '../utils'
 
 function formatEscapeStatement(candidate: string | null, locale: SeraVNextEngineInput['locale']): string | null {
   if (!candidate) return null
@@ -30,11 +31,13 @@ function formatEscapeStatement(candidate: string | null, locale: SeraVNextEngine
       : `When the operation began treating ${target[1].toUpperCase()} as the planned first-landing destination and committed the planning/approach to that target.`
   }
 
+  const temporalLead = /^(?:during|durante|after|ap[oó]s|depois de)\b/i.test(clean)
   const neutral = clean
     .replace(/\s+(?:devido a|devido ao|por ser|porque)\b.*$/i, '')
     .replace(/[.;,\s]+$/g, '')
     .trim()
-  return `${locale === 'pt-BR' ? 'Quando' : 'When'} ${neutral.replace(/^[A-ZÁÉÍÓÚÃÕÇ]/, (m: string) => m.toLowerCase())}`
+  const prefix = locale === 'pt-BR' ? 'Quando' : 'When'
+  return `${prefix}${temporalLead ? ',' : ''} ${neutral.replace(/^[A-ZÁÉÍÓÚÃÕÇ]/, (m: string) => m.toLowerCase())}`
 }
 
 function usableDirectEscapeClarification(statement: string): boolean {
@@ -43,6 +46,18 @@ function usableDirectEscapeClarification(statement: string): boolean {
   if (/^(n[aã]o sei|desconhecido|n[aã]o informado|n[aã]o foi poss[ií]vel|indeterminado|unknown|not known|not determined)\b/i.test(text)) return false
   return /^\s*(?:(?:ponto de fuga|escape point)\s*[:\-–—]?\s*)?(?:quando|when)\b/i.test(text)
     || /\b(decidiu|iniciou|concluiu|liberou|considerou|executou|omitiu|deixou de|prosseguiu|selecionou|acionou|inspe[cç][aã]o|pre[- ]?voo|decided|initiated|completed|released|considered|executed|omitted|failed to|continued|selected|preflight)\b/i.test(text)
+}
+
+function escapeConfidence(args: {
+  candidate: string | null
+  supportCount: number
+  counterCount: number
+  fromDirectClarification: boolean
+}): 'LOW' | 'MEDIUM' | 'HIGH' {
+  if (!args.candidate || !isOperationalEventStatement(args.candidate)) return 'LOW'
+  if (args.fromDirectClarification && args.counterCount === 0) return 'HIGH'
+  if (args.counterCount > 0) return 'MEDIUM'
+  return args.supportCount >= 2 ? 'HIGH' : 'MEDIUM'
 }
 
 export function runStep03EscapePoint(input: {
@@ -100,6 +115,11 @@ export function runStep03EscapePoint(input: {
     supportingEvidence: selectedWindow.supportingEvidence,
     counterEvidence: selectedWindow.counterEvidence,
     excludedPostEscapeEvidence: excludedPostEscapeEvidence(input.factualExtraction.timeline, latestSentenceIndex),
-    confidence: confidenceFromCount(selectedWindow.supportingEvidence.length),
+    confidence: escapeConfidence({
+      candidate: selectedWindow.earliestCandidate,
+      supportCount: selectedWindow.supportingEvidence.length,
+      counterCount: selectedWindow.counterEvidence.length,
+      fromDirectClarification: selectedWindow === directClarificationWindow || selectedWindow === clarificationWindow,
+    }),
   }
 }

@@ -70,7 +70,11 @@ export function runStep09Preconditions(input: {
   axes: SeraVNextEngineOutput['axes']
   locale: 'pt-BR' | 'en'
 }): SeraPreconditionCandidate[] {
-  if (input.escapePoint.status === 'INSUFFICIENT_EVIDENCE' || input.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT') return []
+  const causalBoundaryResolved =
+    input.escapePoint.status !== 'INSUFFICIENT_EVIDENCE' &&
+    input.escapePoint.status !== 'NO_HUMAN_ESCAPE_POINT' &&
+    input.escapePoint.confidence !== 'LOW' &&
+    input.directActor.status === 'IDENTIFIED'
   const categoryEvidence: Record<string, { texts: string[]; sourceEvidence: SeraEvidenceItem[]; investigationOnly: boolean; explicitInvestigationSupport: boolean; rejectedByInvestigation: boolean }> = {}
   const contextualEvidence = input.factualExtraction.evidence.filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
   const explicitContributorEvidence = input.factualExtraction.evidence.filter((item) =>
@@ -119,6 +123,7 @@ export function runStep09Preconditions(input: {
   }
 
   const confidenceFor = (category: string, evidenceSet: (typeof categoryEvidence)[string]) => {
+    if (!causalBoundaryResolved) return 'LOW' as const
     if (evidenceSet.rejectedByInvestigation && !evidenceSet.explicitInvestigationSupport) return 'LOW' as const
     if (evidenceSet.explicitInvestigationSupport) return evidenceSet.sourceEvidence.length >= 2 ? 'HIGH' as const : 'MEDIUM' as const
     if (evidenceSet.investigationOnly) return 'LOW' as const
@@ -129,7 +134,11 @@ export function runStep09Preconditions(input: {
   return Object.entries(categoryEvidence).map(([category, evidenceSet]) => ({
     id: `PC-EVIDENCE-${category}`,
     label: category,
-    description: evidenceSet.rejectedByInvestigation && !evidenceSet.explicitInvestigationSupport
+    description: !causalBoundaryResolved
+      ? (input.locale === 'pt-BR'
+          ? 'Contexto preservado como hipótese não causal porque o ponto de fuga ou o ator direto ainda não está resolvido com evidência suficiente.'
+          : 'Context retained as a non-causal hypothesis because the escape point or direct actor is not yet resolved with sufficient evidence.')
+      : evidenceSet.rejectedByInvestigation && !evidenceSet.explicitInvestigationSupport
       ? (input.locale === 'pt-BR'
           ? 'Há evidência contextual nesta categoria, mas a investigação de origem também registra fator equivalente como não contribuinte; mantido apenas como hipótese, sem confirmação causal.'
           : 'There is contextual evidence in this category, but the source investigation also records an equivalent factor as non-contributory; retained only as a hypothesis, without causal confirmation.')
@@ -142,14 +151,16 @@ export function runStep09Preconditions(input: {
             : (CATEGORY_DESCRIPTION_EN[category] ?? 'Candidate precondition supported by evidence and kept separate from the escape point and active failure.')),
     category: category as SeraPreconditionCandidate['category'],
     evidence: evidenceSet.texts,
-    relationship: evidenceSet.rejectedByInvestigation && !evidenceSet.explicitInvestigationSupport
+    relationship: !causalBoundaryResolved
       ? 'UNRELATED_OR_UNSUPPORTED'
-      : evidenceSet.explicitInvestigationSupport
-        ? 'CONTEXTUAL_PRECONDITION'
-        : evidenceSet.investigationOnly ? 'UNRELATED_OR_UNSUPPORTED' : relationshipForEvidence(evidenceSet.sourceEvidence),
+      : evidenceSet.rejectedByInvestigation && !evidenceSet.explicitInvestigationSupport
+        ? 'UNRELATED_OR_UNSUPPORTED'
+        : evidenceSet.explicitInvestigationSupport
+          ? 'CONTEXTUAL_PRECONDITION'
+          : evidenceSet.investigationOnly ? 'UNRELATED_OR_UNSUPPORTED' : relationshipForEvidence(evidenceSet.sourceEvidence),
     sourceEvidence: evidenceSet.sourceEvidence,
     sourceRuleIds: [CATEGORY_RULE_ID[category]],
-    linkedActor: input.directActor.actor,
+    linkedActor: causalBoundaryResolved ? input.directActor.actor : null,
     explicitlyNotEscapePoint: true,
     basedOnCandidateCode: false,
     nonFinal: true,

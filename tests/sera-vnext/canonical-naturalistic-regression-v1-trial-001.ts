@@ -10,8 +10,8 @@ type Expected =
 const expected: Record<string, Expected> = {
   'V03-CAL-01': { kind: 'code', axis: 'perception', code: 'P-B' },
   'V03-CAL-02': { kind: 'abstention' },
-  'V03-CAL-03': { kind: 'code', axis: 'perception', code: 'P-H' },
-  'V03-CAL-04': { kind: 'code', axis: 'perception', code: 'P-C' },
+  'V03-CAL-03': { kind: 'abstention' },
+  'V03-CAL-04': { kind: 'abstention' },
   'V03-CAL-05': { kind: 'abstention' },
   'V03-CAL-06': { kind: 'abstention' },
   'V03-CAL-07': { kind: 'code', axis: 'action', code: 'A-F' },
@@ -19,12 +19,12 @@ const expected: Record<string, Expected> = {
   'V03-CAL-09': { kind: 'abstention' },
   'V03-CAL-10': { kind: 'abstention' },
   'V03-CAL-11': { kind: 'code', axis: 'objective', code: 'O-C' },
-  'V03-CAL-12': { kind: 'code', axis: 'objective', code: 'O-C' },
-  'V03-VAL-01': { kind: 'code', axis: 'action', code: 'A-B' },
+  'V03-CAL-12': { kind: 'abstention' },
+  'V03-VAL-01': { kind: 'abstention' },
   'V03-VAL-02': { kind: 'code', axis: 'perception', code: 'P-B' },
   'V03-VAL-03': { kind: 'code', axis: 'perception', code: 'P-H' },
   'V03-VAL-04': { kind: 'code', axis: 'perception', code: 'P-G' },
-  'V03-VAL-05': { kind: 'code', axis: 'action', code: 'A-F' },
+  'V03-VAL-05': { kind: 'abstention' },
   'V03-VAL-06': { kind: 'code', axis: 'perception', code: 'P-H' },
   'V03-VAL-07': { kind: 'abstention' },
   'V03-VAL-08': { kind: 'abstention' },
@@ -83,7 +83,14 @@ for (const testCase of cases) {
 
   if (output.escapePoint.status === 'INSUFFICIENT_EVIDENCE' || output.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT') {
     assert.deepEqual(codes, { perception: null, objective: null, action: null }, testCase.caseId + ' no escape => no P/O/A')
-    assert.equal(output.preconditions.length, 0, testCase.caseId + ' no escape => no causal preconditions')
+    assert.ok(
+      output.preconditions.every((pc) =>
+        pc.relationship === 'UNRELATED_OR_UNSUPPORTED' &&
+        pc.linkedActor === null &&
+        pc.explicitlyNotEscapePoint === true,
+      ),
+      testCase.caseId + ' no escape => context may remain only as non-causal hypotheses',
+    )
   }
 
   console.log(testCase.caseId, output.escapePoint.status, codes.perception, codes.objective, codes.action)

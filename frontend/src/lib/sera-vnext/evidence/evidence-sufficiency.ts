@@ -11,6 +11,7 @@ export function isEvidenceUsableFor(item: SeraEvidenceItem, use: SeraEvidenceUse
   if (item.temporalRelation === 'POST_ESCAPE') return false
   if (item.assertionStatus !== 'AFFIRMED') return false
   if (item.sourceSection === 'REPORT_ANALYSIS' || item.sourceSection === 'RECOMMENDATION' || item.sourceSection === 'ADMINISTRATIVE') return false
+  if (['NON_CAUSAL_DOCUMENT', 'REFERENCE_PROCEDURE', 'SYSTEM_DESCRIPTION'].includes(item.evidenceType)) return false
   if (item.prohibitedFor.includes(use)) return false
   if (!item.supports.includes(use)) return false
 

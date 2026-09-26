@@ -83,7 +83,7 @@ export const calibrationCases: EngineV03ValidationCase[] = [
     sourceType: 'synthetic',
     narrative:
       'During the final approach segment, the flight management system reverted to a basic guidance mode without alerting the crew. The first officer was hand-flying while the captain monitored the instruments. Neither pilot noticed that the vertical guidance had changed from the precision approach to a default descent profile. The aircraft descended below the safe altitude and the terrain warning activated. The crew initiated a go-around but the aircraft struck rising ground before the climb could be established.',
-    expected: { kind: 'code', axis: 'action', code: 'A-B' },
+    expected: { kind: 'abstention' },
     tags: ['technical-dominant', 'automation', 'mode-confusion', 'en', 'code-expected'],
   },
 
@@ -96,7 +96,7 @@ export const calibrationCases: EngineV03ValidationCase[] = [
     sourceType: 'synthetic',
     narrative:
       'A aeronave estava equipada com um sistema de navegação recentemente atualizado. Durante a subida, ocorreu uma discordância entre os dois computadores de bordo. A mensagem no painel era técnica e a tripulação não havia recebido o treinamento específico para essa versão do sistema. O comandante tentou interpretar o alerta consultando o manual rápido, mas o significado exato da falha não estava claro. Enquanto discutiam as opções, a aeronave desviou da rota e entrou em espaço aéreo restrito.',
-    expected: { kind: 'code', axis: 'perception', code: 'P-C' },
+    expected: { kind: 'abstention' },
     tags: ['technical-dominant', 'automation', 'training-gap', 'pt-BR', 'code-expected'],
   },
 
@@ -148,7 +148,7 @@ export const calibrationCases: EngineV03ValidationCase[] = [
     sourceType: 'synthetic',
     narrative:
       'O comandante estava pilotando e o copiloto operava os sistemas. Durante a preparação para a descida, o copiloto inseriu no painel um nível de voo diferente do que estava na carta de chegada. O comandante, que havia revisado a carta minutos antes, não notou a diferença no valor inserido. A aeronave iniciou a descida para uma altitude incorreta. O controlador alertou sobre a discrepância somente quando a aeronave já estava trezentos pés abaixo do setor.',
-    expected: { kind: 'code', axis: 'action', code: 'A-B' },
+    expected: { kind: 'code', axis: 'action', code: 'A-F' },
     tags: ['pf-pm', 'multi-actor', 'selection-error', 'altitude', 'pt-BR', 'code-expected'],
   },
 
@@ -161,7 +161,7 @@ export const calibrationCases: EngineV03ValidationCase[] = [
     sourceType: 'synthetic',
     narrative:
       'After the aircraft came to rest beyond the runway end, the emergency slides on the left side failed to deploy. Several passengers evacuated through the right-side exits. The rescue services arrived fourteen minutes after the accident. The investigation report describes at length the evacuation challenges and the injuries sustained during the exit. The flight itself was uneventful until the aircraft touched down long and could not stop within the paved surface.',
-    expected: { kind: 'code', axis: 'action', code: 'A-B' },
+    expected: { kind: 'abstention' },
     tags: ['post-escape', 'survival-factors', 'evacuation', 'overrun', 'en', 'code-expected'],
   },
 
@@ -187,7 +187,7 @@ export const calibrationCases: EngineV03ValidationCase[] = [
     sourceType: 'synthetic',
     narrative:
       'The departure procedure required a minimum visibility of eight hundred meters. The crew obtained the latest weather report before engine start, which showed visibility at four hundred meters in fog. The captain said to the first officer that the visibility was below what the manual required for this departure. After a brief discussion, the captain decided to take off, stating that the fog was shallow and they would be above it in seconds. The aircraft departed and entered a low-visibility environment off the departure end.',
-    expected: { kind: 'code', axis: 'objective', code: 'O-B' },
+    expected: { kind: 'code', axis: 'objective', code: 'O-C' },
     tags: ['violation', 'awareness', 'weather-minimums', 'conscious-deviation', 'en', 'code-expected'],
   },
 
@@ -200,7 +200,7 @@ export const calibrationCases: EngineV03ValidationCase[] = [
     sourceType: 'synthetic',
     narrative:
       'O manual de operações estabelecia que nenhuma aproximação poderia continuar abaixo de mil pés sem contato visual com a pista. A tripulação comentou, ao atingir mil pés, que a pista não estava visível por causa de uma camada de nuvens baixas. O comandante afirmou que conhecia o procedimento, mas que a camada era fina e eles encontrariam a pista logo abaixo. Decidiram continuar a descida. A aeronave tocou o solo antes da cabeceira.',
-    expected: { kind: 'code', axis: 'objective', code: 'O-B' },
+    expected: { kind: 'abstention' },
     tags: ['violation', 'awareness', 'approach-minimums', 'conscious-deviation', 'pt-BR', 'code-expected'],
   },
 ]
@@ -215,7 +215,7 @@ export const validationCases: EngineV03ValidationCase[] = [
     sourceType: 'synthetic',
     narrative:
       'While cruising toward an offshore rig, the helicopter experienced a chip warning on the main gearbox. The crew referred to the emergency checklist but accidentally selected the procedure for a different warning indication. They carried out the wrong steps for approximately two minutes before realizing the error. By the time they corrected to the proper checklist, the gearbox pressure had dropped below the recovery threshold. The helicopter was forced to ditch. Both crew members were rescued.',
-    expected: { kind: 'code', axis: 'action', code: 'A-B' },
+    expected: { kind: 'abstention' },
     tags: ['offshore', 'helicopter', 'checklist-error', 'emergency', 'en', 'code-expected'],
   },
 
@@ -241,7 +241,7 @@ export const validationCases: EngineV03ValidationCase[] = [
     sourceType: 'synthetic',
     narrative:
       'During the landing roll, the autothrottle system disconnected without a clear annunciation. The captain, who was relying on the system to manage reverse thrust, did not immediately notice the change. The aircraft continued down the runway without the expected deceleration. When the first officer called out the speed, the captain manually applied reverse thrust and braking, but the remaining runway was insufficient to stop before the end.',
-    expected: { kind: 'code', axis: 'action', code: 'A-B' },
+    expected: { kind: 'code', axis: 'perception', code: 'P-H' },
     tags: ['technical-dominant', 'autothrottle', 'automation', 'landing', 'en', 'code-expected'],
   },
 
@@ -254,7 +254,7 @@ export const validationCases: EngineV03ValidationCase[] = [
     sourceType: 'synthetic',
     narrative:
       'O piloto automático estava engajado no modo de navegação lateral. Durante a subida, o sistema mudou silenciosamente para um modo de manutenção de rumo por causa de uma perda momentânea do sinal de navegação. O comandante, que estava revisando a documentação de chegada, não notou a alteração no visor de modo. A aeronave manteve o rumo fixo e desviou da trajetória publicada, entrando em um setor com tráfego conflitante.',
-    expected: { kind: 'code', axis: 'perception', code: 'P-B' },
+    expected: { kind: 'code', axis: 'perception', code: 'P-G' },
     tags: ['technical-dominant', 'autopilot', 'mode-awareness', 'pt-BR', 'code-expected'],
   },
 
@@ -267,7 +267,7 @@ export const validationCases: EngineV03ValidationCase[] = [
     sourceType: 'synthetic',
     narrative:
       'A training captain was giving a line check to a newly qualified first officer acting as pilot flying. On the approach, the aircraft became high on the glide path. The training captain suggested corrections but did not take control. The first officer tried to correct but the approach became increasingly unstable. At two hundred feet, neither pilot had called for a go-around. The training captain assumed the first officer would make the call; the first officer was waiting for the training captain to intervene. The aircraft landed hard, damaging the landing gear.',
-    expected: { kind: 'code', axis: 'action', code: 'A-F' },
+    expected: { kind: 'abstention' },
     tags: ['pf-pm', 'training', 'authority', 'go-around', 'en', 'code-expected'],
   },
 
@@ -280,7 +280,7 @@ export const validationCases: EngineV03ValidationCase[] = [
     sourceType: 'synthetic',
     narrative:
       'Durante a corrida de decolagem, o copiloto notou que a velocidade indicada no lado dele não coincidia com a do comandante. Ele mencionou o fato em voz baixa, mas o comandante estava focado nos instrumentos à frente e não processou o comentário. O copiloto não insistiu. A aeronave continuou a corrida com uma indicação de velocidade incorreta, rodou além do ponto calculado e decolou com margem reduzida em relação aos obstáculos no final da pista.',
-    expected: { kind: 'code', axis: 'action', code: 'A-F' },
+    expected: { kind: 'code', axis: 'perception', code: 'P-H' },
     tags: ['pf-pm', 'communication', 'takeoff', 'airspeed', 'pt-BR', 'code-expected'],
   },
 

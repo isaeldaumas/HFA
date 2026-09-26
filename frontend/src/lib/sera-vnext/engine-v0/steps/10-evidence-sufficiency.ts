@@ -123,6 +123,7 @@ export function runStep10EvidenceSufficiency(input: {
   directActor: SeraVNextEngineOutput['directActor']
   canonicalTraversal: SeraVNextEngineOutput['canonicalTraversal']
   axes: SeraVNextEngineOutput['axes']
+  guardrails?: SeraVNextEngineOutput['guardrails']
   locale: 'pt-BR' | 'en'
 }): SeraEvidenceSufficiencyGate {
   if (input.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT') {
@@ -165,6 +166,19 @@ export function runStep10EvidenceSufficiency(input: {
       question: input.locale === 'pt-BR' ? 'Qual foi a primeira ação, decisão ou omissão humana observável que desviou a operação do estado seguro? Descreva o que aconteceu imediatamente antes e imediatamente depois desse momento.' : 'What was the first observable human action, decision, or omission that moved the operation away from the safe state? Describe what happened immediately before and after that moment.',
       whyNeeded: input.locale === 'pt-BR' ? 'P/O/A só podem ser analisados depois que o ponto de fuga da operação segura estiver sustentado por fatos anteriores ao resultado.' : 'P/O/A can only be analyzed after the safe-operation escape point is supported by facts that precede the outcome.',
       requestedEvidence: input.locale === 'pt-BR' ? ['sequência temporal imediatamente anterior ao desvio', 'ação/decisão/omissão humana controlável', 'estado operacional logo após o desvio'] : ['temporal sequence immediately before the deviation', 'controllable human action/decision/omission', 'operational state immediately after the deviation'],
+    })
+  }
+
+  if (input.escapePoint.status !== 'INSUFFICIENT_EVIDENCE' && input.escapePoint.confidence === 'LOW') {
+    blockingReasons.push('ESCAPE_POINT_LOW_CONFIDENCE')
+    questions.push({
+      id: 'CLARIFY-ESCAPE-POINT-CONFIDENCE',
+      stage: 'ESCAPE_POINT',
+      blocking: true,
+      linkedNodeId: null,
+      question: input.locale === 'pt-BR' ? 'Qual evidência factual confirma que este candidato é realmente a primeira saída controlável da operação segura?' : 'What factual evidence confirms that this candidate is truly the first controllable departure from safe operation?',
+      whyNeeded: input.locale === 'pt-BR' ? 'Um ponto de fuga de baixa confiança não pode sustentar classificações P/O/A de confiança superior.' : 'A low-confidence escape point cannot support higher-confidence P/O/A classifications.',
+      requestedEvidence: input.locale === 'pt-BR' ? ['ação/decisão/omissão observável', 'sequência imediatamente anterior', 'vínculo temporal com o início do estado inseguro'] : ['observable action/decision/omission', 'immediately preceding sequence', 'temporal link to the onset of the unsafe state'],
     })
   }
 
@@ -214,6 +228,10 @@ export function runStep10EvidenceSufficiency(input: {
     if (candidate.status === 'INSUFFICIENT_EVIDENCE' && !input.canonicalTraversal.paths.some((path) => path.axis === axis[0])) {
       blockingReasons.push(`${axis.toUpperCase()}_EVIDENCE_INSUFFICIENT`)
     }
+  }
+
+  for (const [name, violated] of Object.entries(input.guardrails ?? {})) {
+    if (violated) blockingReasons.push(`METHODOLOGICAL_GUARDRAIL_VIOLATION:${name}`)
   }
 
   const deduped = uniqueQuestions(questions)
