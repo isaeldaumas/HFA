@@ -13,6 +13,7 @@ import { useI18n } from '@/lib/i18n'
 import { localizeActor, localizeRationale } from '@/lib/sera-vnext/engine-v0/localization'
 import { SERA_PT_V1_TREE } from '@/lib/sera-vnext/canonical-tree/sera-pt-v1'
 import { buildExecutiveSummary, computeCandidateAttention, friendlyAnswerLabel, friendlyNodeLabel } from '@/lib/sera-vnext/presentation'
+import { CanonicalTreeDiagram } from '@/components/sera-vnext/CanonicalTreeDiagram'
 
 type Recommendation = {
   related_code?: string | null
@@ -496,22 +497,13 @@ export default function EventReportPage() {
         {vnextOutput && (
           <section className="report-section">
             <h3 className="report-title">7. {L('Como o sistema chegou à classificação', 'How the system reached the classification')}</h3>
-            <p className="report-note mb-3">{L('O mapa mostra o caminho percorrido; abaixo de cada caminho ficam a pergunta, a resposta e a justificativa em linguagem operacional.', 'The map shows the traversed path; each path is followed by the question, answer, and rationale in operational language.')}</p>
+            <p className="report-note mb-3">{L('A árvore mostra todos os caminhos possíveis do SERA. O percurso usado nesta análise aparece destacado e os ramos não seguidos permanecem visíveis; abaixo ficam pergunta, resposta e justificativa.', 'The tree shows every possible SERA path. The route used in this analysis is highlighted while paths not taken remain visible; question, answer, and rationale follow below.')}</p>
             <div className="space-y-4">
               {vnextOutput.canonicalTraversal.paths.map((path) => (
                 <div key={path.axis} className="report-box">
                   <p><strong>{path.axis === 'P' ? L('Percepção', 'Perception') : path.axis === 'O' ? L('Objetivo', 'Objective') : L('Ação', 'Action')} — {L('resultado', 'result')} {path.candidateCode ?? L('não resolvido', 'unresolved')}</strong></p>
-                  <div className="report-flow mt-3">
-                    {path.answers.map((node, index) => (
-                      <div key={`${path.axis}-${node.nodeId}-flow`} className="report-flow-item">
-                        <div className="report-flow-node">
-                          <span className="report-step">{index + 1}</span>
-                          <span className="report-flow-label">{friendlyNodeLabel(node.nodeId, pt)}</span>
-                          <span className="report-flow-answer">{friendlyAnswerLabel(node.answer, pt)}</span>
-                        </div>
-                        {index < path.answers.length - 1 && <span className="report-arrow">→</span>}
-                      </div>
-                    ))}
+                  <div className="mt-3 rounded-xl bg-slate-950 p-3">
+                    <CanonicalTreeDiagram path={path} pt={pt} />
                   </div>
                   <div className="mt-4 space-y-3">
                     {path.answers.map((node, index) => (
