@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { apiCall, resolveApiUrl } from '@/lib/api'
 import FlowStep from '@/components/FlowStep'
 import { mapToHfacs, type HfacsEntry, type HfacsResult } from '@/lib/sera/hfacs-mapper'
-import { useT } from '@/lib/i18n'
+import { useT, useI18n } from '@/lib/i18n'
 import {
   computeHfaErcCategoryFromCodes,
   getArmsSeverityRow,
@@ -19,6 +19,7 @@ import { VNextEventAnalysisPanel } from '@/components/sera-vnext/VNextEventAnaly
 import { SeraClarificationForm } from '@/components/sera-vnext/SeraClarificationForm'
 import type { SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
 import { inferOccurrenceDateFromNarrative } from '@/lib/sera-vnext/occurrence-date'
+import { localizeActor } from '@/lib/sera-vnext/engine-v0/localization'
 
 const FlowDiagram = dynamic(() => import('@/components/FlowDiagram'), { ssr: false })
 
@@ -356,6 +357,7 @@ function HfacsSection({ hfacs }: { hfacs: HfacsResult }) {
 }
 
 export default function EventDetailPage() {
+  const { locale } = useI18n()
   const { id } = useParams()
   const searchParams = useSearchParams()
   const [event, setEvent]         = useState<EventPayload | null>(null)
@@ -458,7 +460,8 @@ export default function EventDetailPage() {
     try {
       const res = await fetch(`/api/events/${event.id}/reanalyze-vnext`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locale }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -474,7 +477,7 @@ export default function EventDetailPage() {
       setVnextReanalyzeError(error instanceof Error ? error.message : 'Falha ao executar a análise SERA.')
       setVnextReanalyzeState('error')
     }
-  }, [event, token, searchParams])
+  }, [event, token, searchParams, locale])
 
   const downloadVNextPdf = useCallback(async () => {
     if (!event?.vnext_analysis?.id || !token) return
@@ -812,20 +815,41 @@ export default function EventDetailPage() {
       {event.vnext_analysis && (
         <div className="rounded-xl border border-cyan-700/50 bg-cyan-950/20 p-5 space-y-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-cyan-300">Análise SERA — motor 0.3</p>
+            <p className="text-xs font-bold uppercase tracking-widest text-cyan-300">
+              {locale === 'pt-BR' ? 'Análise SERA — motor 0.3' : 'SERA analysis — engine 0.3'}
+            </p>
             <p className="mt-1 text-sm text-slate-200">
-              Esta é a análise metodológica ativa do evento. A classificação exige revisão humana antes de liberação formal; o motor anterior não participa deste resultado.
+              {locale === 'pt-BR'
+                ? 'Esta é a análise metodológica ativa do evento. A classificação exige revisão humana antes de liberação formal; o motor anterior não participa deste resultado.'
+                : 'This is the active methodological analysis of the event. Classification requires human review before formal release; the previous engine does not participate in this result.'}
             </p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs">
-            <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3"><span className="text-slate-500">Ponto de fuga</span><p className="mt-1 text-slate-200">{event.vnext_analysis.escape_point_status ?? '-'}</p></div>
-            <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3"><span className="text-slate-500">Ator</span><p className="mt-1 text-slate-200">{event.vnext_analysis.direct_actor ?? '-'}</p></div>
+            <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3">
+              <span className="text-slate-500">{locale === 'pt-BR' ? 'Ponto de fuga' : 'Escape point'}</span>
+              <p className="mt-1 text-slate-200">{event.vnext_analysis.escape_point_status === 'CANDIDATE' ? (locale === 'pt-BR' ? 'Candidato' : 'Candidate') : event.vnext_analysis.escape_point_status ?? '-'}</p>
+            </div>
+            <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3">
+              <span className="text-slate-500">{locale === 'pt-BR' ? 'Ator' : 'Actor'}</span>
+              <p className="mt-1 text-slate-200">{localizeActor(event.vnext_analysis.direct_actor ?? null, locale) ?? '-'}</p>
+            </div>
             <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3"><span className="text-slate-500">P / O / A</span><p className="mt-1 text-slate-200">{event.vnext_analysis.perception_candidate_code ?? '-'} / {event.vnext_analysis.objective_candidate_code ?? '-'} / {event.vnext_analysis.action_candidate_code ?? '-'}</p></div>
-            <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3"><span className="text-slate-500">Revisão</span><p className="mt-1 text-slate-200">{event.vnext_analysis.review_status ?? 'NOT_REVIEWED'}</p></div>
+            <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3">
+              <span className="text-slate-500">{locale === 'pt-BR' ? 'Revisão' : 'Review'}</span>
+              <p className="mt-1 text-slate-200">
+                {event.vnext_analysis.review_status === 'MORE_EVIDENCE_REQUIRED'
+                  ? (locale === 'pt-BR' ? 'Mais evidências necessárias' : 'More evidence required')
+                  : event.vnext_analysis.review_status === 'NOT_REVIEWED'
+                    ? (locale === 'pt-BR' ? 'Não revisado' : 'Not reviewed')
+                    : event.vnext_analysis.review_status ?? (locale === 'pt-BR' ? 'Não revisado' : 'Not reviewed')}
+              </p>
+            </div>
           </div>
           {analysis && (
             <p className="text-xs text-amber-300">
-              Existe um registro histórico produzido pelo motor anterior. Ele permanece preservado somente para auditoria e não é usado como fonte da análise SERA atual.
+              {locale === 'pt-BR'
+                ? 'Existe um registro histórico produzido pelo motor anterior. Ele permanece preservado somente para auditoria e não é usado como fonte da análise SERA atual.'
+                : 'A historical record produced by the previous engine is preserved for audit purposes only and is not used as a source for the current SERA analysis.'}
             </p>
           )}
         </div>

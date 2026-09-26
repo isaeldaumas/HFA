@@ -36,6 +36,22 @@ const CATEGORY_DESCRIPTION: Record<string, string> = {
   ORGANIZATIONAL_CONTEXT: 'Condição organizacional, de supervisão, recursos ou processo potencialmente contributiva.',
 }
 
+const CATEGORY_DESCRIPTION_EN: Record<string, string> = {
+  PHYSICAL_CAPABILITY: 'Physical or ergonomic condition potentially relevant to task execution.',
+  SENSORY_LIMITATION: 'Sensory condition potentially relevant to situation perception.',
+  KNOWLEDGE_TRAINING: 'Knowledge, training, qualification, or familiarity context supported by positive evidence.',
+  TIME_PRESSURE: 'Time pressure or operational urgency that may have increased the likelihood of the active failure.',
+  ATTENTION_WORKLOAD_CONTEXT: 'Attention capture, competing focus, or workload that may have increased the likelihood of the active failure.',
+  COMMUNICATION_INFORMATION: 'Communication or information availability/quality condition relevant to the event.',
+  PROCEDURAL_MONITORING: 'Monitoring or procedural-application condition that may have contributed to the active failure.',
+  FEEDBACK_VERIFICATION: 'Condition related to feedback, cross-check, or verification of an action/information.',
+  INTENT_AWARENESS: 'Awareness, intent, or relevant rule-knowledge context related to the actor objective.',
+  TEAM_COORDINATION: 'Coordination condition among team members that may have influenced the event chain.',
+  ENVIRONMENTAL_CONTEXT: 'Operational-environment condition that increased complexity or exposure without itself constituting the active failure.',
+  TECHNICAL_CONTEXT: 'Technical system/equipment condition relevant to the causal context.',
+  ORGANIZATIONAL_CONTEXT: 'Organizational, supervision, resource, or process condition potentially contributory.',
+}
+
 function relationshipForEvidence(items: SeraEvidenceItem[]): SeraEvidenceRelationshipToFailure {
   if (items.some((item) => item.relationshipToFailure === 'CONTEXTUAL_PRECONDITION')) return 'CONTEXTUAL_PRECONDITION'
   if (items.some((item) => item.relationshipToFailure === 'ENABLING_PRECONDITION')) return 'ENABLING_PRECONDITION'
@@ -52,15 +68,31 @@ export function runStep09Preconditions(input: {
   escapePoint: SeraVNextEngineOutput['escapePoint']
   directActor: SeraVNextEngineOutput['directActor']
   axes: SeraVNextEngineOutput['axes']
+  locale: 'pt-BR' | 'en'
 }): SeraPreconditionCandidate[] {
   if (input.escapePoint.status === 'INSUFFICIENT_EVIDENCE' || input.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT') return []
-  const categoryEvidence: Record<string, { texts: string[]; sourceEvidence: SeraEvidenceItem[] }> = {}
+  const categoryEvidence: Record<string, { texts: string[]; sourceEvidence: SeraEvidenceItem[]; investigationOnly: boolean }> = {}
   const contextualEvidence = input.factualExtraction.evidence.filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
+  const investigationIndicatedEvidence = input.factualExtraction.evidence.filter((item) =>
+    item.sourceSection === 'REPORT_ANALYSIS' &&
+    item.assertionStatus === 'AFFIRMED' &&
+    item.supports.includes('PRECONDITION') &&
+    /\b(supervis[aã]o|supervision|coordena[cç][aã]o|coordination|organizacional|organizational)\b/i.test(item.statement),
+  )
 
   for (const item of contextualEvidence) {
     const category = classifyPreconditionCategory({ text: item.statement, proposedCode: null })
     if (!category) continue
-    categoryEvidence[category] ||= { texts: [], sourceEvidence: [] }
+    categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true }
+    categoryEvidence[category].investigationOnly = false
+    pushUnique(categoryEvidence[category].texts, item.statement)
+    pushEvidence(categoryEvidence[category].sourceEvidence, item)
+  }
+
+  for (const item of investigationIndicatedEvidence) {
+    const category = classifyPreconditionCategory({ text: item.statement, proposedCode: null })
+    if (!category) continue
+    categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true }
     pushUnique(categoryEvidence[category].texts, item.statement)
     pushEvidence(categoryEvidence[category].sourceEvidence, item)
   }
@@ -68,16 +100,22 @@ export function runStep09Preconditions(input: {
   return Object.entries(categoryEvidence).map(([category, evidenceSet]) => ({
     id: `PC-EVIDENCE-${category}`,
     label: category,
-    description: CATEGORY_DESCRIPTION[category] ?? 'Pré-condição candidata sustentada por evidência factual e mantida separada do ponto de fuga e da falha ativa.',
+    description: evidenceSet.investigationOnly
+      ? (input.locale === 'pt-BR'
+          ? 'Fator indicado pela investigação, preservado como hipótese contextual e não confirmado como pré-condição causal.'
+          : 'Factor indicated by the investigation, retained as a contextual hypothesis and not confirmed as a causal precondition.')
+      : (input.locale === 'pt-BR'
+          ? (CATEGORY_DESCRIPTION[category] ?? 'Pré-condição candidata sustentada por evidência factual e mantida separada do ponto de fuga e da falha ativa.')
+          : (CATEGORY_DESCRIPTION_EN[category] ?? 'Candidate precondition supported by factual evidence and kept separate from the escape point and active failure.')),
     category: category as SeraPreconditionCandidate['category'],
     evidence: evidenceSet.texts,
-    relationship: relationshipForEvidence(evidenceSet.sourceEvidence),
+    relationship: evidenceSet.investigationOnly ? 'UNRELATED_OR_UNSUPPORTED' : relationshipForEvidence(evidenceSet.sourceEvidence),
     sourceEvidence: evidenceSet.sourceEvidence,
     sourceRuleIds: [CATEGORY_RULE_ID[category]],
     linkedActor: input.directActor.actor,
     explicitlyNotEscapePoint: true,
     basedOnCandidateCode: false,
     nonFinal: true,
-    confidence: confidenceFromCount(evidenceSet.texts.length),
+    confidence: evidenceSet.investigationOnly ? 'LOW' : confidenceFromCount(evidenceSet.texts.length),
   }))
 }

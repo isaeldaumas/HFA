@@ -1,6 +1,7 @@
 import type { SeraVNextEngineOutput } from '../../engine-contract'
 import { computeSeraVNextGuardrails } from '../../engine-v02/guardrails/compute-guardrails'
 import { buildEvidenceTrace, pushUnique } from '../utils'
+import { localizeAssuranceText } from '../localization'
 
 export function runStep10Assurance(input: {
   factualExtraction: SeraVNextEngineOutput['factualExtraction']
@@ -9,6 +10,7 @@ export function runStep10Assurance(input: {
   axes: SeraVNextEngineOutput['axes']
   preconditions: SeraVNextEngineOutput['preconditions']
   canonicalTraversal: SeraVNextEngineOutput['canonicalTraversal']
+  locale: 'pt-BR' | 'en'
 }): Pick<
   SeraVNextEngineOutput,
   'guardrails' | 'guardrailEvidence' | 'uncertainties' | 'limitations' | 'decisionTrace' | 'evidenceTrace' | 'humanReviewPackage'
@@ -18,28 +20,31 @@ export function runStep10Assurance(input: {
   const decisionTrace: SeraVNextEngineOutput['decisionTrace'] = []
 
   if (input.directActor.status !== 'IDENTIFIED') {
-    pushUnique(uncertainties, 'Direct actor remains ambiguous or not applicable.')
+    pushUnique(uncertainties, localizeAssuranceText('Direct actor remains ambiguous or not applicable.', input.locale))
   }
   if (input.canonicalTraversal.unansweredQuestions.length > 0) {
-    pushUnique(uncertainties, 'Canonical traversal remains partial for at least one axis.')
+    pushUnique(uncertainties, localizeAssuranceText('Canonical traversal remains partial for at least one axis.', input.locale))
   }
   if (input.escapePoint.status === 'PROGRESSIVE_ZONE') {
-    pushUnique(uncertainties, 'Escape point is a progressive zone and its exact boundary remains non-final.')
+    pushUnique(uncertainties, localizeAssuranceText('Escape point is a progressive zone and its exact boundary remains non-final.', input.locale))
   }
   if (input.escapePoint.excludedPostEscapeEvidence.length > 0) {
-    pushUnique(uncertainties, 'Post-escape evidence was quarantined from causal traversal.')
+    pushUnique(uncertainties, localizeAssuranceText('Post-escape evidence was quarantined from causal traversal.', input.locale))
   }
-  if (input.preconditions.length === 0) {
-    pushUnique(limitations, 'No candidate-only precondition could be supported from available evidence.')
+  const causallySupportedPreconditions = input.preconditions.filter((item) => item.relationship !== 'UNRELATED_OR_UNSUPPORTED')
+  if (causallySupportedPreconditions.length === 0) {
+    pushUnique(limitations, localizeAssuranceText('No candidate-only precondition could be supported from available evidence.', input.locale))
   }
   if (input.escapePoint.status === 'PROGRESSIVE_ZONE') {
-    pushUnique(limitations, 'Escape point remains a progressive zone and requires human boundary confirmation.')
+    pushUnique(limitations, localizeAssuranceText('Escape point remains a progressive zone and requires human boundary confirmation.', input.locale))
   }
 
   for (const [axisName, axis] of Object.entries(input.axes)) {
     decisionTrace.push({
       step: `axis:${axisName}`,
-      decision: axis.proposedCode ? `candidate code ${axis.proposedCode}` : 'candidate code unresolved',
+      decision: input.locale === 'pt-BR'
+        ? (axis.proposedCode ? `código candidato ${axis.proposedCode}` : 'código candidato não resolvido')
+        : (axis.proposedCode ? `candidate code ${axis.proposedCode}` : 'candidate code unresolved'),
       evidence: axis.supportingEvidence.slice(0, 2),
     })
   }
@@ -75,7 +80,7 @@ export function runStep10Assurance(input: {
   }
   const guardrailWarnings = Object.entries(guardrails)
     .filter(([, violated]) => violated)
-    .map(([name]) => `Guardrail violation detected: ${name}.`)
+    .map(([name]) => input.locale === 'pt-BR' ? `Violação de salvaguarda detectada: ${name}.` : `Guardrail violation detected: ${name}.`)
 
   const reviewWarnings = [
     ...input.canonicalTraversal.unansweredQuestions,
@@ -100,12 +105,19 @@ export function runStep10Assurance(input: {
       uncertainties,
       unansweredQuestions: input.canonicalTraversal.unansweredQuestions,
       criticalWarnings: reviewWarnings,
-      reviewerDecisionsRequired: [
-        'Confirm or reject the candidate escape point boundary.',
-        'Confirm or reject the direct actor attribution.',
-        'Review P/O/A candidate code alternatives and retained uncertainties.',
-        'Confirm whether each precondition is distinct from the active failure.',
-      ],
+      reviewerDecisionsRequired: input.locale === 'pt-BR'
+        ? [
+            'Confirmar ou rejeitar a fronteira candidata do ponto de fuga.',
+            'Confirmar ou rejeitar a atribuição do ator direto.',
+            'Revisar os códigos candidatos P/O/A, as alternativas consideradas e as incertezas mantidas.',
+            'Confirmar se cada pré-condição é distinta da falha ativa.',
+          ]
+        : [
+            'Confirm or reject the candidate escape point boundary.',
+            'Confirm or reject the direct actor attribution.',
+            'Review P/O/A candidate code alternatives and retained uncertainties.',
+            'Confirm whether each precondition is distinct from the active failure.',
+          ],
     },
   }
 }

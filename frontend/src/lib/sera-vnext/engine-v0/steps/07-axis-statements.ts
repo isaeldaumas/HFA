@@ -1,5 +1,6 @@
 import type { SeraVNextEngineInput, SeraVNextEngineOutput } from '../../engine-contract'
 import { isEvidenceUsableFor } from '../../evidence'
+import { isPt, localizeActor } from '../localization'
 
 export type SeraAxisStatementBundle = {
   perception: {
@@ -20,10 +21,6 @@ export type SeraAxisStatementBundle = {
     counterEvidence: string[]
     alternativesConsidered: string[]
   }
-}
-
-function normalize(value: string): string {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
 function unique(values: string[]): string[] {
@@ -64,18 +61,8 @@ function counterEvidenceFor(
   ).slice(0, 6)
 }
 
-function wrongTargetContext(input: {
-  engineInput: SeraVNextEngineInput
-  escapePoint: SeraVNextEngineOutput['escapePoint']
-}): boolean {
-  const text = normalize(`${input.escapePoint.statement ?? ''} ${input.engineInput.narrative}`)
-  return /\b(wrong deck|wrong destination|wrong runway|wrong surface|pouso (?:em )?(?:unidade|plataforma|pista) (?:errada|nao prevista)|unidade nao prevista|plataforma nao prevista|destino diferente)\b/.test(text)
-    || /\b(identificou|reconheceu|interpretou|interpretaram|confundiu|associou|entendeu|acreditou|tratou|trat[aá]-?la|trat[aá]-?lo|passou a tratar|tomou)\b.{0,180}\b(como|seria|por|pela|pelo)\b.{0,120}\b(primeiro pouso|destino|unidade|plataforma|pista|helideck)\b/.test(text)
-    || /\bassociou\b.{0,120}\b(unit-[a-z0-9-]+|pcp-?[0-9]+|unidade|plataforma|pista|helideck)\b.{0,120}\b(ao|a|com o|com a)\b.{0,80}\b(destino|pouso|unidade|plataforma|pista|helideck)\b/.test(text)
-}
-
-function actorLabel(actor: string | null): string {
-  return actor?.trim() || 'ator direto'
+function actorLabel(actor: string | null, locale: SeraVNextEngineInput['locale']): string {
+  return localizeActor(actor, locale)?.trim() || (isPt(locale) ? 'ator direto' : 'direct actor')
 }
 
 function genericStatement(label: string, evidence: string[]): string | null {
@@ -98,20 +85,21 @@ export function runStep07AxisStatements(input: {
   const objectiveCounter = counterEvidenceFor(input.factualExtraction, 'OBJECTIVE')
   const actionCounter = counterEvidenceFor(input.factualExtraction, 'ACTION')
 
-  const isWrongTarget = wrongTargetContext(input)
-  const actor = actorLabel(input.directActor.actor)
+  const locale = input.engineInput.locale
+  const actor = actorLabel(input.directActor.actor, locale)
 
-  const perceptionStatement = isWrongTarget
-    ? `No ponto de fuga, ${actor} mantinha uma identificação equivocada do alvo operacional, tratando a unidade, pista ou destino observado como correspondente ao destino previsto.`
-    : genericStatement(`Estado perceptivo de ${actor} no ponto de fuga`, perceptionEvidence)
-
-  const objectiveStatement = isWrongTarget
-    ? `No ponto de fuga, ${actor} pretendia cumprir o pouso ou destino previsto no planejamento operacional; não há evidência factual de intenção consciente de escolher um destino diferente.`
-    : genericStatement(`Objetivo operacional de ${actor} no ponto de fuga`, objectiveEvidence)
-
-  const actionStatement = isWrongTarget
-    ? `No ponto de fuga, ${actor} conduzia a aproximação de forma coerente com a identificação equivocada que mantinha do destino; não há evidência de falha independente de implementação ou seleção da ação antes desse ponto.`
-    : genericStatement(`Ação de ${actor} no ponto de fuga`, actionEvidence)
+  const perceptionStatement = genericStatement(
+    isPt(locale) ? `Estado perceptivo de ${actor} no ponto de fuga` : `Perceptual state of ${actor} at the escape point`,
+    perceptionEvidence,
+  )
+  const objectiveStatement = genericStatement(
+    isPt(locale) ? `Objetivo operacional de ${actor} no ponto de fuga` : `Operational objective of ${actor} at the escape point`,
+    objectiveEvidence,
+  )
+  const actionStatement = genericStatement(
+    isPt(locale) ? `Ação de ${actor} no ponto de fuga` : `Action of ${actor} at the escape point`,
+    actionEvidence,
+  )
 
   return {
     perception: {

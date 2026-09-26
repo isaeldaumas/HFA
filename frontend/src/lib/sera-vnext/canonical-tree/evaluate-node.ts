@@ -139,8 +139,19 @@ function decideO(nodeId: string, statements: string[]): Decision {
         ...matchingConceptStatementsWithoutNegation(statements, 'consciousDeviation'),
       ])
       const unmanagedRisk = concept(statements, 'unmanagedRisk')
+      const mistakenTarget = concept(statements, 'inadequateAssessment').filter((statement) =>
+        /\b(unit-[a-z0-9-]+|pcp-?[0-9]+|unidade|plataforma|pista|destino|helideck|runway|surface|destination|deck)\b/i.test(statement),
+      )
+      const plannedTargetEvidence = concept(statements, 'informationAvailableCorrect')
 
       if (safeGoal.length > 0) return { answer: 'SIM', supportingEvidence: safeGoal, rationale: 'Objective evidence supports a safe or rule-consistent goal.' }
+      if (mistakenTarget.length > 0 && plannedTargetEvidence.length > 0 && violationPrerequisites.length === 0 && unmanagedRisk.length === 0) {
+        return {
+          answer: 'SIM',
+          supportingEvidence: unique([...mistakenTarget, ...plannedTargetEvidence]),
+          rationale: 'Evidence supports a planned/authorized target together with mistaken target identification; this supports a rule-consistent objective without treating the perception error as a conscious objective deviation.',
+        }
+      }
 
       // Conservative known-rule anchor retained: a rule mention alone never
       // opens O-C or converts a documented violation into O-D.
@@ -199,11 +210,20 @@ function decideO(nodeId: string, statements: string[]): Decision {
       const managed = concept(statements, 'managedRisk')
       const safeGoal = concept(statements, 'safeGoal')
       const unmanaged = concept(statements, 'unmanagedRisk')
+      const mistakenTarget = concept(statements, 'inadequateAssessment').filter((statement) =>
+        /\b(unit-[a-z0-9-]+|pcp-?[0-9]+|unidade|plataforma|pista|destino|helideck|runway|surface|destination|deck)\b/i.test(statement),
+      )
+      const plannedTargetEvidence = concept(statements, 'informationAvailableCorrect')
       // The exact PT question is negative: it asks whether the goal did not
       // manage or limit risk. Keep its answer polarity identical in EN, the
       // evaluator, and the canonical branch map.
       if (unmanaged.length > 0) return { answer: 'SIM', supportingEvidence: unmanaged, rationale: 'Evidence supports a rule-compatible but non-conservative or unmanaged-risk objective.' }
       if (managed.length > 0 || safeGoal.length > 0) return { answer: 'NÃO', supportingEvidence: unique([...managed, ...safeGoal]), rationale: 'Positive evidence supports a nominal rule-consistent operational goal; no independent unsafe objective is established.' }
+      if (mistakenTarget.length > 0 && plannedTargetEvidence.length > 0) return {
+        answer: 'NÃO',
+        supportingEvidence: unique([...mistakenTarget, ...plannedTargetEvidence]),
+        rationale: 'Planned or authorized target evidence plus mistaken target identification supports no independent unsafe objective or unmanaged-risk goal at the escape point.',
+      }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Managed-risk status is not established.' }
     }
     default:

@@ -67,7 +67,7 @@ export function classifyPreconditionCategory(args: {
     ['INTENT_AWARENESS', ['intent', 'conscious', 'knowingly', 'decided', 'decision', 'start the crank']],
     ['ENVIRONMENTAL_CONTEXT', ['weather', 'wind', 'rain', 'runway condition', 'terrain', 'vento', 'meteorológ', 'meteorolog', 'proximidade', 'próximo', 'proximo', 'distância', 'distancia']],
     ['TEAM_COORDINATION', ['crew coordination', 'team coordination', 'coordenação da tripulação', 'coordenacao da tripulacao', 'crm', 'falha de coordenação', 'falha de coordenacao']],
-    ['ORGANIZATIONAL_CONTEXT', ['schedule', 'organizational', 'dispatch', 'operator pressure', 'reduced staffing', 'degraded supervision', 'staffing', 'supervision']],
+    ['ORGANIZATIONAL_CONTEXT', ['schedule', 'organizational', 'dispatch', 'operator pressure', 'reduced staffing', 'degraded supervision', 'staffing', 'supervision', 'supervisão', 'supervisao', 'supervisão inadequada', 'supervisao inadequada']],
     ['TECHNICAL_CONTEXT', ['warning', 'system', 'automation', 'fmc', 'equipment', 'control law', 'autothrottle', 'dafcs', 'trim fail', 'rudder', 'technical', 'malfunction', 'failure', 'fault']],
     ['PHYSICAL_CAPABILITY', ['physical', 'fatigue', 'ergonomic', 'motor', 'reach']],
   ]

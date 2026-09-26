@@ -3,11 +3,12 @@ import type {
   SeraEvidenceSufficiencyGate,
   SeraVNextEngineOutput,
 } from '../../engine-contract'
+import { clarificationWhyNeeded, englishClarificationForNode } from '../clarification-i18n'
 
-function questionForNode(nodeId: string, canonicalQuestion: string): Omit<SeraClarificationQuestion, 'id' | 'blocking'> {
+function questionForNode(nodeId: string, canonicalQuestion: string, locale: 'pt-BR' | 'en'): Omit<SeraClarificationQuestion, 'id' | 'blocking'> {
   const common = {
     linkedNodeId: nodeId,
-    whyNeeded: `A evidência disponível não permite responder o nó canônico ${nodeId} sem inferência.`,
+    whyNeeded: clarificationWhyNeeded(nodeId, locale),
   }
   const map: Record<string, { stage: SeraClarificationQuestion['stage']; question: string; requestedEvidence: string[] }> = {
     P_ROOT: {
@@ -86,6 +87,16 @@ function questionForNode(nodeId: string, canonicalQuestion: string): Omit<SeraCl
       requestedEvidence: ['restrição temporal', 'momento da ação', 'efeito concreto da urgência'],
     },
   }
+  if (locale === 'en') {
+    const english = englishClarificationForNode(nodeId)
+    if (english) return { ...common, ...english }
+    return {
+      ...common,
+      stage: nodeId.startsWith('P_') ? 'PERCEPTION' : nodeId.startsWith('O_') ? 'OBJECTIVE' : 'ACTION',
+      question: `What factual event evidence is available to answer the canonical node “${canonicalQuestion}”?`,
+      requestedEvidence: ['observable fact before or at the escape point that directly answers the node'],
+    }
+  }
   const found = map[nodeId]
   if (found) return { ...common, ...found }
   return {
@@ -112,6 +123,7 @@ export function runStep10EvidenceSufficiency(input: {
   directActor: SeraVNextEngineOutput['directActor']
   canonicalTraversal: SeraVNextEngineOutput['canonicalTraversal']
   axes: SeraVNextEngineOutput['axes']
+  locale: 'pt-BR' | 'en'
 }): SeraEvidenceSufficiencyGate {
   if (input.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT') {
     return {
@@ -137,9 +149,9 @@ export function runStep10EvidenceSufficiency(input: {
       stage: 'SAFE_OPERATION',
       blocking: true,
       linkedNodeId: null,
-      question: 'Qual era o estado ou a ação operacional segura esperada naquele momento do evento?',
-      whyNeeded: 'Sem uma referência de operação segura não é possível estabelecer de forma defensável quando ocorreu a primeira saída desse estado.',
-      requestedEvidence: ['procedimento/planejamento aplicável', 'estado ou ação esperada antes do desvio'],
+      question: input.locale === 'pt-BR' ? 'Qual era o estado ou a ação operacional segura esperada naquele momento do evento?' : 'What safe operational state or action was expected at that moment of the event?',
+      whyNeeded: input.locale === 'pt-BR' ? 'Sem uma referência de operação segura não é possível estabelecer de forma defensável quando ocorreu a primeira saída desse estado.' : 'Without a safe-operation reference, the first departure from the safe state cannot be established defensibly.',
+      requestedEvidence: input.locale === 'pt-BR' ? ['procedimento/planejamento aplicável', 'estado ou ação esperada antes do desvio'] : ['applicable procedure/plan', 'expected state or action before the deviation'],
     })
   }
 
@@ -150,9 +162,9 @@ export function runStep10EvidenceSufficiency(input: {
       stage: 'ESCAPE_POINT',
       blocking: true,
       linkedNodeId: null,
-      question: 'Qual foi a primeira ação, decisão ou omissão humana observável que desviou a operação do estado seguro? Descreva o que aconteceu imediatamente antes e imediatamente depois desse momento.',
-      whyNeeded: 'P/O/A só podem ser analisados depois que o ponto de fuga da operação segura estiver sustentado por fatos anteriores ao resultado.',
-      requestedEvidence: ['sequência temporal imediatamente anterior ao desvio', 'ação/decisão/omissão humana controlável', 'estado operacional logo após o desvio'],
+      question: input.locale === 'pt-BR' ? 'Qual foi a primeira ação, decisão ou omissão humana observável que desviou a operação do estado seguro? Descreva o que aconteceu imediatamente antes e imediatamente depois desse momento.' : 'What was the first observable human action, decision, or omission that moved the operation away from the safe state? Describe what happened immediately before and after that moment.',
+      whyNeeded: input.locale === 'pt-BR' ? 'P/O/A só podem ser analisados depois que o ponto de fuga da operação segura estiver sustentado por fatos anteriores ao resultado.' : 'P/O/A can only be analyzed after the safe-operation escape point is supported by facts that precede the outcome.',
+      requestedEvidence: input.locale === 'pt-BR' ? ['sequência temporal imediatamente anterior ao desvio', 'ação/decisão/omissão humana controlável', 'estado operacional logo após o desvio'] : ['temporal sequence immediately before the deviation', 'controllable human action/decision/omission', 'operational state immediately after the deviation'],
     })
   }
 
@@ -163,9 +175,9 @@ export function runStep10EvidenceSufficiency(input: {
       stage: 'DIRECT_ACTOR',
       blocking: true,
       linkedNodeId: null,
-      question: 'Quem executou ou comandou a ação no ponto de fuga? Se havia dois pilotos, informe quem era PF, quem era PM e quem realizou a ação ou tomou a decisão relevante.',
-      whyNeeded: 'A análise P/O/A deve permanecer ancorada no ator diretamente ligado ao ponto de fuga; não é permitido migrar a causalidade para outro membro da equipe por inferência.',
-      requestedEvidence: ['papéis PF/PM', 'ator que executou a ação', 'ator que tomou a decisão, quando diferente'],
+      question: input.locale === 'pt-BR' ? 'Quem executou ou comandou a ação no ponto de fuga? Se havia dois pilotos, informe quem era PF, quem era PM e quem realizou a ação ou tomou a decisão relevante.' : 'Who executed or directed the action at the escape point? If two pilots were involved, identify PF, PM, and who performed the relevant action or decision.',
+      whyNeeded: input.locale === 'pt-BR' ? 'A análise P/O/A deve permanecer ancorada no ator diretamente ligado ao ponto de fuga; não é permitido migrar a causalidade para outro membro da equipe por inferência.' : 'P/O/A analysis must remain anchored to the actor directly connected to the escape point; causality cannot migrate to another team member by inference.',
+      requestedEvidence: input.locale === 'pt-BR' ? ['papéis PF/PM', 'ator que executou a ação', 'ator que tomou a decisão, quando diferente'] : ['PF/PM roles', 'actor who performed the action', 'actor who made the decision, when different'],
     })
   }
 
@@ -173,14 +185,22 @@ export function runStep10EvidenceSufficiency(input: {
     if (path.status === 'COMPLETED_CANDIDATE_ONLY') continue
     const last = [...path.answers].reverse().find((answer) => answer.answer === 'INSUFFICIENT_EVIDENCE') ?? path.answers[path.answers.length - 1]
     if (!last) continue
-    const q = questionForNode(last.nodeId, last.question)
+    const q = questionForNode(last.nodeId, last.question, input.locale)
     if (maintenancePreflightContext && last.nodeId === 'P_ASSESSMENT') {
-      q.question = 'Na inspeção pré-voo, o executor acreditava que a condição de fechamento/travamento estava correta? A confirmação foi apenas visual ou incluiu uma verificação física/tátil do dispositivo?'
-      q.requestedEvidence = ['relato do executor sobre o que acreditava ter verificado', 'método de inspeção visual versus física/tátil', 'condição observada do fechamento/travamento naquele momento']
+      q.question = input.locale === 'pt-BR'
+        ? 'Na inspeção pré-voo, o executor acreditava que a condição de fechamento/travamento estava correta? A confirmação foi apenas visual ou incluiu uma verificação física/tátil do dispositivo?'
+        : 'During the preflight inspection, did the person performing the check believe the closure/locking condition was correct? Was confirmation visual only, or did it include a physical/tactile check of the device?'
+      q.requestedEvidence = input.locale === 'pt-BR'
+        ? ['relato do executor sobre o que acreditava ter verificado', 'método de inspeção visual versus física/tátil', 'condição observada do fechamento/travamento naquele momento']
+        : ['account of what the person believed had been verified', 'visual versus physical/tactile inspection method', 'observed closure/locking condition at that moment']
     }
     if (maintenancePreflightContext && last.nodeId === 'A_IMPLEMENTED') {
-      q.question = 'Quem executou a inspeção daquela portinhola e qual passo de inspeção, fechamento ou verificação estava previsto e foi efetivamente executado? Houve omissão de uma etapa, falta de confirmação da própria ação ou uma segunda checagem atribuída a outra pessoa?'
-      q.requestedEvidence = ['responsável pela inspeção/ação', 'procedimento de pré-voo aplicável', 'passo efetivamente executado', 'evidência de confirmação do resultado ou segunda verificação']
+      q.question = input.locale === 'pt-BR'
+        ? 'Quem executou a inspeção daquela portinhola e qual passo de inspeção, fechamento ou verificação estava previsto e foi efetivamente executado? Houve omissão de uma etapa, falta de confirmação da própria ação ou uma segunda checagem atribuída a outra pessoa?'
+        : 'Who inspected that access panel, and what inspection, closing, or verification step was required and actually performed? Was a step omitted, was the actor own action left unverified, or was a second check assigned to someone else?'
+      q.requestedEvidence = input.locale === 'pt-BR'
+        ? ['responsável pela inspeção/ação', 'procedimento de pré-voo aplicável', 'passo efetivamente executado', 'evidência de confirmação do resultado ou segunda verificação']
+        : ['person responsible for the inspection/action', 'applicable preflight procedure', 'step actually performed', 'evidence of result confirmation or second verification']
     }
     blockingReasons.push(`${path.axis}_CANONICAL_NODE_UNANSWERED:${last.nodeId}`)
     questions.push({

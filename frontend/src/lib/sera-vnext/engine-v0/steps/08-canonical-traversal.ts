@@ -7,6 +7,7 @@ import type { SeraAxisCandidate, SeraCanonicalPath, SeraVNextEngineOutput } from
 import type { SeraEvidenceItem } from '../../evidence'
 import { axisToEvidenceUse, isEvidenceUsableFor } from '../../evidence'
 import type { CanonicalSeraAxis } from '../../types'
+import { localizeRationale } from '../localization'
 import { confidenceFromCount } from '../utils'
 
 validateCanonicalTree(SERA_PT_V1_TREE)
@@ -31,6 +32,7 @@ function buildAxisCandidate(input: {
   axis: CanonicalSeraAxis
   statement: string | null
   actor: string | null
+  locale: 'pt-BR' | 'en'
   supportingEvidence: string[]
   counterEvidence: string[]
   excludedPostEscapeEvidence: string[]
@@ -41,9 +43,31 @@ function buildAxisCandidate(input: {
     statementAtEscapePoint: input.statement,
     evidence: input.evidence,
   })
+  const nodes = new Map(SERA_PT_V1_TREE.nodes.map((node) => [node.nodeId, node]))
+  const answers = traversal.path.answers.map((answer) => {
+    const node = nodes.get(answer.nodeId)
+    const question = input.locale === 'pt-BR'
+      ? (node?.question ?? answer.question)
+      : (node?.exactQuestionTextENAnchor ?? answer.exactQuestionTextENAnchor ?? answer.question)
+    return {
+      ...answer,
+      question,
+      rationale: answer.rationale ? localizeRationale(answer.rationale, input.locale) : answer.rationale,
+    }
+  })
+  const path: SeraCanonicalPath = {
+    ...traversal.path,
+    questionPath: answers.map((answer) => answer.question),
+    answers,
+  }
+  const unansweredQuestions = traversal.candidateCode
+    ? []
+    : answers.length
+      ? [`${answers[answers.length - 1].nodeId}: ${answers[answers.length - 1].question}`]
+      : [input.locale === 'pt-BR' ? `${input.axis}: o nó raiz canônico não foi avaliado` : `${input.axis}: canonical root was not evaluated`]
 
-  const traversalSupport = unique(traversal.path.answers.flatMap((answer) => answer.supportingEvidence ?? []))
-  const traversalCounter = unique(traversal.path.answers.flatMap((answer) => answer.counterEvidence ?? []))
+  const traversalSupport = unique(path.answers.flatMap((answer) => answer.supportingEvidence ?? []))
+  const traversalCounter = unique(path.answers.flatMap((answer) => answer.counterEvidence ?? []))
   const supportingEvidence = axisEvidence({
     axis: input.axis,
     evidence: input.evidence,
@@ -61,12 +85,12 @@ function buildAxisCandidate(input: {
       supportingEvidence,
       counterEvidence,
       excludedPostEscapeEvidence: input.excludedPostEscapeEvidence,
-      alternativesConsidered: traversal.path.answers.map((answer) => `${answer.nodeId}:${answer.answer}`),
-      canonicalPath: traversal.path.nodeIds,
+      alternativesConsidered: path.answers.map((answer) => `${answer.nodeId}:${answer.answer}`),
+      canonicalPath: path.nodeIds,
       confidence: confidenceFromCount(supportingEvidence.length),
     },
-    path: traversal.path,
-    unansweredQuestions: traversal.unansweredQuestions,
+    path,
+    unansweredQuestions,
   }
 }
 
@@ -102,6 +126,7 @@ export function runStep08CanonicalTraversal(input: {
   }
   directActor: SeraVNextEngineOutput['directActor']
   escapePoint: SeraVNextEngineOutput['escapePoint']
+  locale: 'pt-BR' | 'en'
 }): {
   axes: SeraVNextEngineOutput['axes']
   canonicalTraversal: SeraVNextEngineOutput['canonicalTraversal']
@@ -115,7 +140,9 @@ export function runStep08CanonicalTraversal(input: {
       canonicalTraversal: {
         status: 'INSUFFICIENT_EVIDENCE',
         paths: [],
-        unansweredQuestions: ['P/O/A não percorridos: ponto de fuga da operação segura não estabelecido com evidência suficiente.'],
+        unansweredQuestions: [input.locale === 'pt-BR'
+          ? 'P/O/A não percorridos: ponto de fuga da operação segura não estabelecido com evidência suficiente.'
+          : 'P/O/A not traversed: the safe-operation escape point was not established with sufficient evidence.'],
       },
     }
   }
@@ -123,6 +150,7 @@ export function runStep08CanonicalTraversal(input: {
     axis: 'P',
     statement: input.axisStatements.perception.statement,
     actor: input.directActor.actor,
+    locale: input.locale,
     supportingEvidence: input.axisStatements.perception.supportingEvidence,
     counterEvidence: input.axisStatements.perception.counterEvidence,
     excludedPostEscapeEvidence: input.escapePoint.excludedPostEscapeEvidence,
@@ -132,6 +160,7 @@ export function runStep08CanonicalTraversal(input: {
     axis: 'O',
     statement: input.axisStatements.objective.statement,
     actor: input.directActor.actor,
+    locale: input.locale,
     supportingEvidence: input.axisStatements.objective.supportingEvidence,
     counterEvidence: input.axisStatements.objective.counterEvidence,
     excludedPostEscapeEvidence: input.escapePoint.excludedPostEscapeEvidence,
@@ -141,11 +170,22 @@ export function runStep08CanonicalTraversal(input: {
     axis: 'A',
     statement: input.axisStatements.action.statement,
     actor: input.directActor.actor,
+    locale: input.locale,
     supportingEvidence: input.axisStatements.action.supportingEvidence,
     counterEvidence: input.axisStatements.action.counterEvidence,
     excludedPostEscapeEvidence: input.escapePoint.excludedPostEscapeEvidence,
     evidence: input.factualExtraction.evidence,
   })
+
+  const maintenancePreflightContext =
+    /\bmaintenance|manuten[cç][aã]o\b/i.test(input.directActor.actor ?? '') &&
+    /\b(pre[- ]?flight|pr[eé][ -]?voo|inspe[cç][aã]o)\b/i.test(`${input.escapePoint.statement ?? ''} ${input.escapePoint.earliestCandidate ?? ''}`)
+  if (maintenancePreflightContext && !perception.axisCandidate.proposedCode) {
+    perception.axisCandidate.alternativesConsidered = [...new Set([...perception.axisCandidate.alternativesConsidered, 'P-F', 'P-G'])]
+  }
+  if (maintenancePreflightContext && !action.axisCandidate.proposedCode) {
+    action.axisCandidate.alternativesConsidered = [...new Set([...action.axisCandidate.alternativesConsidered, 'A-B', 'A-C', 'A-G'])]
+  }
 
   const paths = [perception.path, objective.path, action.path]
   const unansweredQuestions = [

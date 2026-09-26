@@ -27,6 +27,7 @@ export function buildCanonicalEventAnalysisInput(args: {
   narrative: string
   requestId: string
   mode: CanonicalEventMode
+  locale?: 'pt-BR' | 'en'
 }): SeraVNextCreateAnalysisInput & { sourceFlowOverride: 'VNEXT_CANONICAL'; metadata: Record<string, unknown> } {
   return {
     title: args.title,
@@ -34,6 +35,7 @@ export function buildCanonicalEventAnalysisInput(args: {
     sourceType: 'REAL_EVENT',
     sourceReference: args.eventId,
     clientRequestId: buildCanonicalEventClientRequestId(args),
+    locale: args.locale ?? 'pt-BR',
     sourceFlowOverride: 'VNEXT_CANONICAL',
     metadata: {
       eventId: args.eventId,
@@ -50,6 +52,7 @@ export async function createCanonicalEventAnalysis(args: {
   title: string
   narrative: string
   mode: CanonicalEventMode
+  locale?: 'pt-BR' | 'en'
   context: SeraVNextProductContext
   create?: typeof createSeraVNextAnalysis
 }): Promise<SeraVNextCreateAnalysisResult> {
@@ -61,6 +64,7 @@ export async function createCanonicalEventAnalysis(args: {
       narrative: args.narrative,
       requestId: args.context.requestId,
       mode: args.mode,
+      locale: args.locale,
     }),
     context: args.context,
   })
@@ -68,6 +72,7 @@ export async function createCanonicalEventAnalysis(args: {
 
 export function canonicalAnalyzeResponse(result: SeraVNextCreateAnalysisResult, eventId: string) {
   const engineOutput = result.analysis.engine_output
+  const pt = (result.analysis.engine_input.locale ?? 'pt-BR') === 'pt-BR'
   return {
     event_id: eventId,
     analysis_id: result.analysis.id,
@@ -86,7 +91,11 @@ export function canonicalAnalyzeResponse(result: SeraVNextCreateAnalysisResult, 
     limitations: result.analysis.limitations,
     seraAnalysis: null,
     vnextNotice: engineOutput.evidenceSufficiency.status === 'NEEDS_CLARIFICATION'
-      ? 'Análise interrompida por evidência insuficiente. Responda às perguntas de esclarecimento antes de tratar P/O/A como hipótese utilizável.'
-      : 'Análise SERA criada pelo motor operacional 0.3.0. A classificação permanece sujeita à revisão humana antes de liberação formal.',
+      ? (pt
+          ? 'Análise interrompida por evidência insuficiente. Responda às perguntas de esclarecimento antes de tratar P/O/A como hipótese utilizável.'
+          : 'Analysis stopped because the evidence is insufficient. Answer the clarification questions before treating P/O/A as usable hypotheses.')
+      : (pt
+          ? 'Análise SERA criada pelo motor operacional 0.3.0. A classificação permanece sujeita à revisão humana antes de liberação formal.'
+          : 'SERA analysis created by operational engine 0.3.0. Classification remains subject to human review before formal release.'),
   }
 }

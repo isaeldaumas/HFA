@@ -12,7 +12,22 @@ export function isEvidenceUsableFor(item: SeraEvidenceItem, use: SeraEvidenceUse
   if (item.assertionStatus !== 'AFFIRMED') return false
   if (item.sourceSection === 'REPORT_ANALYSIS' || item.sourceSection === 'RECOMMENDATION' || item.sourceSection === 'ADMINISTRATIVE') return false
   if (item.prohibitedFor.includes(use)) return false
-  return item.supports.includes(use)
+  if (!item.supports.includes(use)) return false
+
+  // P/O/A evidence must remain anchored to the direct actor at the escape point.
+  // Context actors (for example a commander who only detects/recovers a maintenance
+  // condition later) cannot answer another actor's canonical branch.
+  if (use === 'PERCEPTION' || use === 'OBJECTIVE' || use === 'ACTION') {
+    if (item.actorRelation === 'CONTEXT_ACTOR') return false
+    if (item.actorRelation === 'SYSTEM_ENVIRONMENT' && use !== 'PERCEPTION') return false
+
+    // A clarification answer is evidence for the stage/question that requested it.
+    // Do not let wording in a Perception answer, for example, silently classify
+    // Objective or Action (or vice versa).
+    if (item.collectionSource === 'CLARIFICATION_RESPONSE' && item.clarificationStage && item.clarificationStage !== use) return false
+  }
+
+  return true
 }
 
 export function usableEvidenceForAxis(evidence: SeraEvidenceItem[], axis: CanonicalSeraAxis): SeraEvidenceItem[] {

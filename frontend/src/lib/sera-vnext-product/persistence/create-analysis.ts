@@ -24,7 +24,7 @@ function buildEngineInput(input: SeraVNextCreateAnalysisInput, context: SeraVNex
   return {
     inputId: input.clientRequestId,
     narrative: input.narrative,
-    locale: 'pt-BR',
+    locale: input.locale ?? 'pt-BR',
     sourceType: input.sourceType === 'TRAINING' ? 'neutral_trial' : 'real_event',
     sourceReference: input.sourceReference ?? undefined,
     requestId: context.requestId,

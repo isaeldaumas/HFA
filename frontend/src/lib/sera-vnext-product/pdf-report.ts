@@ -2,6 +2,8 @@
 const PDFDocument = require('pdfkit/js/pdfkit.standalone.js') as typeof import('pdfkit')
 
 import type { SeraCanonicalPath, SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
+import { localizeActor, localizeAssuranceText, localizeRationale } from '@/lib/sera-vnext/engine-v0/localization'
+import { SERA_PT_V1_TREE } from '@/lib/sera-vnext/canonical-tree/sera-pt-v1'
 import type {
   SeraVNextAnalysisRecord,
   SeraVNextReviewRecord,
@@ -62,7 +64,7 @@ function meta(doc: Doc, label: string, data: string): void {
   doc.font('Helvetica').fillColor('#263746').text(data || '-')
 }
 
-function bullets(doc: Doc, items: string[], empty = 'Nenhum item registrado.'): void {
+function bullets(doc: Doc, items: string[], empty = '-'): void {
   if (!items.length) {
     doc.font('Helvetica-Oblique').fontSize(8.5).fillColor('#748390').text(empty)
     return
@@ -78,27 +80,28 @@ function bullets(doc: Doc, items: string[], empty = 'Nenhum item registrado.'): 
   }
 }
 
-function answerLabel(answer: string): string {
-  const map: Record<string, string> = {
-    START: 'INÍCIO',
-    SIM: 'SIM',
-    'NÃO': 'NÃO',
-    'NÃO_SENSORIAL': 'NÃO - limitação sensorial',
-    'NÃO_CONHECIMENTO': 'NÃO - conhecimento',
-    SIM_ATENCAO: 'SIM - atenção',
-    SIM_GERENCIAMENTO: 'SIM - gerenciamento',
-    'NÃO_DESLIZE_LAPSO_ERRO': 'NÃO - deslize/lapso/erro',
-    'NÃO_FEEDBACK': 'NÃO - feedback/verificação',
-    'NÃO_INABILIDADE': 'NÃO - inabilidade',
-    'NÃO_SELECAO': 'NÃO - seleção',
-    SIM_SELECAO: 'SIM - seleção',
-    SIM_FEEDBACK: 'SIM - feedback',
-    INSUFFICIENT_EVIDENCE: 'EVIDÊNCIA INSUFICIENTE',
+function answerLabel(answer: string, pt: boolean): string {
+  const ptMap: Record<string, string> = {
+    START: 'INÍCIO', SIM: 'SIM', 'NÃO': 'NÃO',
+    'NÃO_SENSORIAL': 'NÃO - limitação sensorial', 'NÃO_CONHECIMENTO': 'NÃO - conhecimento',
+    SIM_ATENCAO: 'SIM - atenção', SIM_GERENCIAMENTO: 'SIM - gerenciamento',
+    'NÃO_DESLIZE_LAPSO_ERRO': 'NÃO - deslize/lapso/erro', 'NÃO_FEEDBACK': 'NÃO - feedback/verificação',
+    'NÃO_INABILIDADE': 'NÃO - inabilidade', 'NÃO_SELECAO': 'NÃO - seleção',
+    SIM_SELECAO: 'SIM - seleção', SIM_FEEDBACK: 'SIM - feedback', INSUFFICIENT_EVIDENCE: 'EVIDÊNCIA INSUFICIENTE',
   }
-  return map[answer] ?? answer
+  const enMap: Record<string, string> = {
+    START: 'START', SIM: 'YES', 'NÃO': 'NO',
+    'NÃO_SENSORIAL': 'NO - sensory limitation', 'NÃO_CONHECIMENTO': 'NO - knowledge',
+    SIM_ATENCAO: 'YES - attention', SIM_GERENCIAMENTO: 'YES - management',
+    'NÃO_DESLIZE_LAPSO_ERRO': 'NO - slip/lapse/error', 'NÃO_FEEDBACK': 'NO - feedback/verification',
+    'NÃO_INABILIDADE': 'NO - capability', 'NÃO_SELECAO': 'NO - selection',
+    SIM_SELECAO: 'YES - selection', SIM_FEEDBACK: 'YES - feedback', INSUFFICIENT_EVIDENCE: 'INSUFFICIENT EVIDENCE',
+  }
+  return (pt ? ptMap : enMap)[answer] ?? answer
 }
 
-function didacticReason(nodeId: string, answer: string, fallback: string | undefined): string {
+function didacticReason(nodeId: string, answer: string, fallback: string | undefined, pt: boolean): string {
+  if (!pt) return fallback ?? 'The answer was determined by the usable evidence available at this node.'
   const key = nodeId + ':' + answer
   const map: Record<string, string> = {
     'P_ROOT:START': 'Início da árvore de Percepção: primeiro se estabelece o estado que o operador acreditava existir no ponto de fuga.',
@@ -127,7 +130,8 @@ function didacticReason(nodeId: string, answer: string, fallback: string | undef
   return map[key] ?? fallback ?? 'A resposta foi determinada pela evidência utilizável disponível neste nó.'
 }
 
-function translateInference(value: string): string {
+function translateInference(value: string, pt: boolean): string {
+  if (!pt) return value
   const map: Record<string, string> = {
     'Do not infer perception failure from consequence alone.': 'Não inferir falha perceptiva apenas a partir da consequência.',
     'Do not infer perception failure from degraded environment alone.': 'Não inferir falha perceptiva apenas pela presença de ambiente degradado.',
@@ -139,55 +143,61 @@ function translateInference(value: string): string {
   return map[value] ?? value
 }
 
-function confidenceLabelPt(value: string | undefined | null): string {
-  if (value === 'HIGH') return 'ALTA'
-  if (value === 'MEDIUM') return 'MÉDIA'
-  if (value === 'LOW') return 'BAIXA'
+function confidenceLabel(value: string | undefined | null, pt: boolean): string {
+  if (value === 'HIGH') return pt ? 'ALTA' : 'HIGH'
+  if (value === 'MEDIUM') return pt ? 'MÉDIA' : 'MEDIUM'
+  if (value === 'LOW') return pt ? 'BAIXA' : 'LOW'
   return value ?? '-'
 }
 
-function candidateStatusLabelPt(value: string): string {
-  const map: Record<string, string> = {
-    CANDIDATE: 'CANDIDATO',
-    NO_FAILURE: 'SEM FALHA INDEPENDENTE',
-    INSUFFICIENT_EVIDENCE: 'EVIDÊNCIA INSUFICIENTE',
-    UNRESOLVED: 'NÃO RESOLVIDO',
-    PROGRESSIVE_ZONE: 'ZONA PROGRESSIVA',
-    NO_HUMAN_ESCAPE_POINT: 'SEM PONTO DE FUGA HUMANO',
+function candidateStatusLabel(value: string, pt: boolean): string {
+  const ptMap: Record<string, string> = {
+    CANDIDATE: 'CANDIDATO', NO_FAILURE: 'SEM FALHA INDEPENDENTE', INSUFFICIENT_EVIDENCE: 'EVIDÊNCIA INSUFICIENTE',
+    UNRESOLVED: 'NÃO RESOLVIDO', PROGRESSIVE_ZONE: 'ZONA PROGRESSIVA', NO_HUMAN_ESCAPE_POINT: 'SEM PONTO DE FUGA HUMANO',
   }
-  return map[value] ?? value
+  const enMap: Record<string, string> = {
+    CANDIDATE: 'CANDIDATE', NO_FAILURE: 'NO INDEPENDENT FAILURE', INSUFFICIENT_EVIDENCE: 'INSUFFICIENT EVIDENCE',
+    UNRESOLVED: 'UNRESOLVED', PROGRESSIVE_ZONE: 'PROGRESSIVE ZONE', NO_HUMAN_ESCAPE_POINT: 'NO HUMAN ESCAPE POINT',
+  }
+  return (pt ? ptMap : enMap)[value] ?? value
 }
 
-function translateReportText(value: string): string {
-  const map: Record<string, string> = {
-    'Post-escape evidence was quarantined from causal traversal.': 'Evidência posterior ao ponto de fuga foi mantida em quarentena e não entrou na travessia causal.',
+function translateReportText(value: string, pt: boolean): string {
+  const locale = pt ? 'pt-BR' : 'en'
+  const localized = localizeAssuranceText(value, locale)
+  const ptMap: Record<string, string> = {
     'Confirm or reject the candidate escape point boundary.': 'Confirmar ou rejeitar o limite candidato do ponto de fuga.',
     'Confirm or reject the direct actor attribution.': 'Confirmar ou rejeitar a atribuição do ator direto.',
     'Review P/O/A candidate code alternatives and retained uncertainties.': 'Revisar os códigos candidatos P/O/A, as alternativas consideradas e as incertezas mantidas.',
     'Confirm whether each precondition is distinct from the active failure.': 'Confirmar se cada pré-condição é distinta da falha ativa.',
   }
-  return map[value] ?? value
+  if (pt) return ptMap[localized] ?? ptMap[value] ?? localized
+  const reverse = new Map(Object.entries(ptMap).map(([en, ptText]) => [ptText, en]))
+  return reverse.get(localized) ?? localized
 }
 
-function guardrailLabel(name: string): string {
-  const map: Record<string, string> = {
-    consequenceUsedAsCause: 'Consequência utilizada indevidamente como causa',
-    postEscapeHuntingDetected: 'Busca causal após o ponto de fuga',
-    postEscapeEvidenceUsed: 'Evidência pós-ponto de fuga usada na causalidade',
-    oeUsed: 'Código O-E inexistente utilizado',
-    inventedQuestionDetected: 'Pergunta canônica inventada ou reconstruída',
-    actorMigrationDetected: 'Migração indevida do ator causal',
-    preconditionUsedAsEscapePoint: 'Pré-condição utilizada como ponto de fuga',
-    codeFirstPathDetected: 'Código definido antes da travessia metodológica',
+function guardrailLabel(name: string, pt: boolean): string {
+  const ptMap: Record<string, string> = {
+    consequenceUsedAsCause: 'Consequência utilizada indevidamente como causa', postEscapeHuntingDetected: 'Busca causal após o ponto de fuga',
+    postEscapeEvidenceUsed: 'Evidência pós-ponto de fuga usada na causalidade', oeUsed: 'Código O-E inexistente utilizado',
+    inventedQuestionDetected: 'Pergunta canônica inventada ou reconstruída', actorMigrationDetected: 'Migração indevida do ator causal',
+    preconditionUsedAsEscapePoint: 'Pré-condição utilizada como ponto de fuga', codeFirstPathDetected: 'Código definido antes da travessia metodológica',
     awarenessMissingForViolation: 'Violação atribuída sem evidência de consciência da regra',
   }
-  return map[name] ?? name
+  const enMap: Record<string, string> = {
+    consequenceUsedAsCause: 'Consequence improperly used as cause', postEscapeHuntingDetected: 'Post-escape causal hunting',
+    postEscapeEvidenceUsed: 'Post-escape evidence used causally', oeUsed: 'Nonexistent O-E code used',
+    inventedQuestionDetected: 'Canonical question invented or reconstructed', actorMigrationDetected: 'Improper causal actor migration',
+    preconditionUsedAsEscapePoint: 'Precondition used as escape point', codeFirstPathDetected: 'Code selected before methodological traversal',
+    awarenessMissingForViolation: 'Violation attributed without rule-awareness evidence',
+  }
+  return (pt ? ptMap : enMap)[name] ?? name
 }
 
-function axisLabel(axis: string): string {
-  if (axis === 'P') return 'Percepção (P)'
-  if (axis === 'O') return 'Objetivo (O)'
-  return 'Ação (A)'
+function axisLabel(axis: string, pt: boolean): string {
+  if (axis === 'P') return pt ? 'Percepção (P)' : 'Perception (P)'
+  if (axis === 'O') return pt ? 'Objetivo (O)' : 'Objective (O)'
+  return pt ? 'Ação (A)' : 'Action (A)'
 }
 
 function axisOutput(output: SeraVNextEngineOutput, axis: string) {
@@ -196,8 +206,15 @@ function axisOutput(output: SeraVNextEngineOutput, axis: string) {
   return output.axes.action
 }
 
-function renderPath(doc: Doc, path: SeraCanonicalPath, output: SeraVNextEngineOutput): void {
+function renderPath(
+  doc: Doc,
+  path: SeraCanonicalPath,
+  output: SeraVNextEngineOutput,
+  pt: boolean,
+): void {
   const axis = axisOutput(output, path.axis)
+  const locale = pt ? 'pt-BR' : 'en'
+  const L = (ptText: string, enText: string) => pt ? ptText : enText
   const x = doc.page.margins.left
   const width = doc.page.width - doc.page.margins.left - doc.page.margins.right
 
@@ -205,20 +222,34 @@ function renderPath(doc: Doc, path: SeraCanonicalPath, output: SeraVNextEngineOu
   const y = doc.y
   doc.roundedRect(x, y, width, 42, 5).fillAndStroke('#f2f7fb', '#cad8e5')
   doc.font('Helvetica-Bold').fontSize(10).fillColor('#1b4c72')
-    .text(axisLabel(path.axis) + ' - código candidato: ' + value(axis.proposedCode, 'não resolvido'), x + 9, y + 8)
+    .text(axisLabel(path.axis, pt) + ' - ' + L('código candidato: ', 'candidate code: ') + value(axis.proposedCode, L('não resolvido', 'unresolved')), x + 9, y + 8)
   doc.font('Helvetica').fontSize(8.1).fillColor('#536676')
-    .text('Status: ' + candidateStatusLabelPt(axis.status) + ' | Confiança: ' + confidenceLabelPt(axis.confidence) + ' | Ator: ' + value(axis.actor), x + 9, y + 24)
+    .text(
+      'Status: ' + candidateStatusLabel(axis.status, pt) +
+      ' | ' + L('Confiança: ', 'Confidence: ') + (axis.proposedCode ? confidenceLabel(axis.confidence, pt) : L('NÃO APLICÁVEL', 'NOT APPLICABLE')) +
+      ' | ' + L('Ator: ', 'Actor: ') + value(localizeActor(axis.actor, locale)),
+      x + 9,
+      y + 24,
+    )
   doc.y = y + 51
 
   if (axis.statementAtEscapePoint) {
-    subheading(doc, 'Enunciado no ponto de fuga')
+    subheading(doc, L('Enunciado no ponto de fuga', 'Statement at the escape point'))
     body(doc, axis.statementAtEscapePoint)
     doc.moveDown(0.25)
   }
 
-  subheading(doc, 'Fluxo canônico percorrido')
+  const conditionalAlternatives = axis.alternativesConsidered.filter((item) => /^[POA]-[A-Z]$/.test(item))
+  if (!axis.proposedCode && conditionalAlternatives.length) {
+    subheading(doc, L('Hipóteses ainda compatíveis — dependem das respostas', 'Still-compatible hypotheses — dependent on clarification'))
+    bullets(doc, conditionalAlternatives)
+    body(doc, L('Não são códigos concluídos nem liberados.', 'These are not concluded or released codes.'))
+    doc.moveDown(0.25)
+  }
+
+  subheading(doc, L('Fluxo canônico percorrido', 'Canonical path traversed'))
   if (!path.answers.length) {
-    body(doc, 'Nenhum nó percorrido.')
+    body(doc, L('Nenhum nó percorrido.', 'No node traversed.'))
     return
   }
 
@@ -227,70 +258,107 @@ function renderPath(doc: Doc, path: SeraCanonicalPath, output: SeraVNextEngineOu
     const nodeY = doc.y
     doc.roundedRect(x, nodeY, width, 18, 4).fill('#e7f0f7')
     doc.font('Helvetica-Bold').fontSize(8.7).fillColor('#1d4f73')
-      .text('Nó ' + String(index + 1) + ' - ' + node.nodeId, x + 8, nodeY + 5)
+      .text(L('Nó ', 'Node ') + String(index + 1) + ' - ' + node.nodeId, x + 8, nodeY + 5)
     doc.y = nodeY + 24
 
-    body(doc, 'Pergunta canônica: ' + node.question)
+    body(doc, L('Pergunta canônica: ', 'Canonical question: ') + (pt ? (SERA_PT_V1_TREE.nodes.find((item) => item.nodeId === node.nodeId)?.question ?? node.question) : (node.exactQuestionTextENAnchor ?? node.question)))
     doc.moveDown(0.12)
-    body(doc, 'Resposta: ' + answerLabel(node.answer))
+    body(doc, L('Resposta: ', 'Answer: ') + answerLabel(node.answer, pt))
 
     if (node.rationale) {
       doc.moveDown(0.12)
-      body(doc, 'Por que este ramo foi seguido: ' + didacticReason(node.nodeId, node.answer, node.rationale))
+      body(doc, L('Por que este ramo foi seguido: ', 'Why this branch was followed: ') + didacticReason(node.nodeId, node.answer, localizeRationale(node.rationale, locale), pt))
     }
 
     const destination = node.terminalCode
-      ? 'Código terminal ' + node.terminalCode
+      ? L('Código terminal ', 'Terminal code ') + node.terminalCode
       : node.nextNodeId
-        ? 'Próximo nó ' + node.nextNodeId
-        : 'Travessia interrompida'
+        ? L('Próximo nó ', 'Next node ') + node.nextNodeId
+        : L('Travessia interrompida', 'Traversal stopped')
 
     doc.moveDown(0.12)
-    body(doc, 'Resultado do nó: ' + destination)
+    body(doc, L('Resultado do nó: ', 'Node result: ') + destination)
 
     const support = entries(node.supportingEvidence)
     if (support.length) {
       doc.moveDown(0.25)
-      subheading(doc, 'Evidência usada neste nó')
+      subheading(doc, L('Evidência usada neste nó', 'Evidence used at this node'))
       bullets(doc, support)
     }
 
     const counter = entries(node.counterEvidence)
     if (counter.length) {
       doc.moveDown(0.2)
-      subheading(doc, 'Contraevidência / ressalvas')
+      subheading(doc, L('Contraevidência / ressalvas', 'Counter-evidence / caveats'))
       bullets(doc, counter)
     }
 
     const prohibited = entries(node.prohibitedInferenceChecks)
     if (prohibited.length) {
       doc.moveDown(0.2)
-      subheading(doc, 'Inferências explicitamente proibidas')
-      bullets(doc, prohibited.map(translateInference))
+      subheading(doc, L('Inferências explicitamente proibidas', 'Explicitly prohibited inferences'))
+      bullets(doc, prohibited.map((item) => translateInference(item, pt)))
     }
 
-    meta(doc, 'Confiança do nó', confidenceLabelPt(node.confidence))
+    meta(doc, L('Confiança do nó', 'Node confidence'), confidenceLabel(node.confidence, pt))
     doc.moveDown(0.55)
   })
 
-  subheading(doc, 'Resumo do caminho percorrido (nó:resposta)')
-  bullets(doc, axis.alternativesConsidered)
+  subheading(doc, L('Resumo do caminho percorrido (nó:resposta)', 'Traversed path summary (node:answer)'))
+  bullets(doc, axis.alternativesConsidered.filter((item) => !/^[POA]-[A-Z]$/.test(item)))
   doc.moveDown(0.25)
 
-  subheading(doc, 'Evidência posterior ao ponto de fuga excluída')
+  subheading(doc, L('Evidência posterior ao ponto de fuga excluída', 'Excluded post-escape evidence'))
   bullets(doc, axis.excludedPostEscapeEvidence)
   doc.moveDown(0.35)
 }
 
 export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Promise<Buffer> {
   return new Promise((resolve, reject) => {
+    const analysis = input.analysis
+    const output = analysis.engine_output
+    const reviewerOutput = input.reviewerOutput
+    const locale: 'pt-BR' | 'en' = analysis.engine_input.locale === 'en' ? 'en' : 'pt-BR'
+    const pt = locale === 'pt-BR'
+    const L = (ptText: string, enText: string) => pt ? ptText : enText
+    const categoryLabel = (category: string): string => {
+      const map: Record<string, [string, string]> = {
+        PHYSICAL_CAPABILITY: ['Capacidade física / ergonomia', 'Physical capability / ergonomics'],
+        SENSORY_LIMITATION: ['Limitação sensorial', 'Sensory limitation'],
+        KNOWLEDGE_TRAINING: ['Conhecimento / treinamento', 'Knowledge / training'],
+        TIME_PRESSURE: ['Pressão de tempo', 'Time pressure'],
+        ATTENTION_WORKLOAD_CONTEXT: ['Atenção / carga de trabalho', 'Attention / workload'],
+        COMMUNICATION_INFORMATION: ['Comunicação / informação', 'Communication / information'],
+        PROCEDURAL_MONITORING: ['Monitoramento / procedimento', 'Monitoring / procedure'],
+        FEEDBACK_VERIFICATION: ['Feedback / verificação', 'Feedback / verification'],
+        INTENT_AWARENESS: ['Intenção / consciência', 'Intent / awareness'],
+        TEAM_COORDINATION: ['Coordenação de equipe', 'Team coordination'],
+        ENVIRONMENTAL_CONTEXT: ['Contexto ambiental', 'Environmental context'],
+        TECHNICAL_CONTEXT: ['Contexto técnico', 'Technical context'],
+        ORGANIZATIONAL_CONTEXT: ['Contexto organizacional / supervisão', 'Organizational / supervision context'],
+      }
+      const item = map[category]
+      return item ? item[pt ? 0 : 1] : category
+    }
+    const relationshipLabel = (relationship: string): string => {
+      const map: Record<string, [string, string]> = {
+        CONTEXTUAL_PRECONDITION: ['pré-condição contextual', 'contextual precondition'],
+        ENABLING_PRECONDITION: ['pré-condição facilitadora', 'enabling precondition'],
+        DIRECT_ESCAPE_POINT: ['ponto de fuga direto', 'direct escape point'],
+        POST_ESCAPE_CONSEQUENCE: ['consequência pós-ponto de fuga', 'post-escape consequence'],
+        UNRELATED_OR_UNSUPPORTED: ['hipótese indicada, não confirmada causalmente', 'indicated hypothesis, not causally confirmed'],
+      }
+      const item = map[relationship]
+      return item ? item[pt ? 0 : 1] : relationship
+    }
+
     const doc = new PDFDocument({
       margin: 46,
       size: 'A4',
       bufferPages: true,
       info: {
-        Title: 'HFA SERA 0.3 - ' + input.analysis.title,
-        Subject: 'Relatório metodológico SERA 0.3',
+        Title: 'HFA SERA 0.3 - ' + analysis.title,
+        Subject: L('Relatório metodológico SERA 0.3', 'SERA 0.3 methodological report'),
       },
     })
 
@@ -299,101 +367,104 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     doc.on('end', () => resolve(Buffer.concat(chunks)))
     doc.on('error', reject)
 
-    const analysis = input.analysis
-    const output = analysis.engine_output
-    const reviewerOutput = input.reviewerOutput
-
     doc.font('Helvetica-Bold').fontSize(18).fillColor('#173f67')
-      .text('Relatório Metodológico HFA / SERA', { align: 'center' })
+      .text(L('Relatório Metodológico HFA / SERA', 'HFA / SERA Methodological Report'), { align: 'center' })
     doc.moveDown(0.2)
     doc.font('Helvetica-Bold').fontSize(10.5).fillColor('#5d6e7c')
-      .text('Análise SERA 0.3 — revisão humana requerida', { align: 'center' })
+      .text(L('Análise SERA 0.3 — revisão humana requerida', 'SERA 0.3 analysis — human review required'), { align: 'center' })
     doc.moveDown(0.55)
-    doc.font('Helvetica').fontSize(9).fillColor('#263746')
-      .text(analysis.title, { align: 'center' })
+    doc.font('Helvetica').fontSize(9).fillColor('#263746').text(analysis.title, { align: 'center' })
     doc.moveDown(0.65)
 
     const bannerY = doc.y
-    doc.roundedRect(46, bannerY, doc.page.width - 92, 54, 5)
-      .fillAndStroke('#fff8e7', '#d5b96f')
+    doc.roundedRect(46, bannerY, doc.page.width - 92, 54, 5).fillAndStroke('#fff8e7', '#d5b96f')
     doc.font('Helvetica-Bold').fontSize(9).fillColor('#775015')
-      .text('ATENÇÃO - RESULTADO NÃO FINAL', 56, bannerY + 10)
+      .text(L('ATENÇÃO - RESULTADO NÃO FINAL', 'NOTICE - NON-FINAL RESULT'), 56, bannerY + 10)
     doc.font('Helvetica').fontSize(8.2).fillColor('#6e571f')
       .text(
-        'O motor produz candidatos metodológicos. selectedCode, releasedCode, finalConclusion, CLASSIFIED, READY e downstream permanecem bloqueados até revisão humana.',
+        L(
+          'O motor produz candidatos metodológicos. selectedCode, releasedCode, finalConclusion, CLASSIFIED, READY e processamento subsequente permanecem bloqueados até revisão humana.',
+          'The engine produces methodological candidates. selectedCode, releasedCode, finalConclusion, CLASSIFIED, READY, and downstream processing remain blocked until human review.',
+        ),
         56,
         bannerY + 25,
         { width: doc.page.width - 112, lineGap: 1.4 },
       )
     doc.y = bannerY + 65
 
-    heading(doc, '1. Proveniência e controle metodológico')
-    meta(doc, 'ID da análise', analysis.id)
-    meta(doc, 'Engine', analysis.engine_version)
+    heading(doc, '1. ' + L('Proveniência e controle metodológico', 'Provenance and methodological control'))
+    meta(doc, L('ID da análise', 'Analysis ID'), analysis.id)
+    meta(doc, L('Motor', 'Engine'), analysis.engine_version)
     meta(doc, 'Runtime', value(analysis.engine_runtime_version))
-    meta(doc, 'Metodologia', analysis.methodology_version)
+    meta(doc, L('Metodologia', 'Methodology'), analysis.methodology_version)
     meta(doc, 'Baseline', analysis.baseline_id)
     meta(doc, 'Fixture set', analysis.fixture_set_id)
-    meta(doc, 'Árvore canônica', value(analysis.canonical_tree_version))
+    meta(doc, L('Árvore canônica', 'Canonical tree'), value(analysis.canonical_tree_version))
     meta(doc, 'Commit', analysis.code_commit)
-    meta(doc, 'Hash do relato', analysis.narrative_hash)
-    meta(doc, 'Hash da saída', analysis.engine_output_hash)
+    meta(doc, L('Hash do relato', 'Narrative hash'), analysis.narrative_hash)
+    meta(doc, L('Hash da saída', 'Output hash'), analysis.engine_output_hash)
     meta(doc, 'Status', analysis.status + ' / ' + analysis.review_status)
-    meta(doc, 'Revisão corrente', String(analysis.current_revision))
-    meta(doc, 'Engine do produto', input.versions.engineVersion)
-    meta(doc, 'Runtime do produto', input.versions.engineRuntimeVersion)
-    meta(doc, 'Schema de entrada', input.versions.inputSchemaVersion)
-    meta(doc, 'Schema de saída', input.versions.outputSchemaVersion)
+    meta(doc, L('Revisão corrente', 'Current revision'), String(analysis.current_revision))
+    meta(doc, L('Motor do produto', 'Product engine'), input.versions.engineVersion)
+    meta(doc, L('Runtime do produto', 'Product runtime'), input.versions.engineRuntimeVersion)
+    meta(doc, L('Schema de entrada', 'Input schema'), input.versions.inputSchemaVersion)
+    meta(doc, L('Schema de saída', 'Output schema'), input.versions.outputSchemaVersion)
 
-    heading(doc, '2. Relato submetido')
+    heading(doc, '2. ' + L('Relato submetido', 'Submitted narrative'))
     body(doc, analysis.narrative, 'justify')
 
-    heading(doc, '3. Modelo da operação segura')
-    meta(doc, 'Estado seguro esperado', value(output.safeOperationModel.expectedSafeState))
-    meta(doc, 'Ação segura esperada', value(output.safeOperationModel.expectedSafeAction))
-    meta(doc, 'Confiança', output.safeOperationModel.confidence)
-    subheading(doc, 'Evidência considerada')
-    bullets(doc, output.safeOperationModel.evidence)
+    heading(doc, '3. ' + L('Modelo da operação segura', 'Safe-operation model'))
+    meta(doc, L('Estado seguro esperado', 'Expected safe state'), value(output.safeOperationModel.expectedSafeState))
+    meta(doc, L('Ação segura esperada', 'Expected safe action'), value(output.safeOperationModel.expectedSafeAction))
+    meta(doc, L('Confiança', 'Confidence'), confidenceLabel(output.safeOperationModel.confidence, pt))
+    subheading(doc, L('Evidência considerada', 'Evidence considered'))
+    bullets(doc, output.safeOperationModel.evidence, L('Nenhum item registrado.', 'No item recorded.'))
 
-    heading(doc, '4. Ponto de fuga da operação segura')
+    heading(doc, '4. ' + L('Ponto de fuga da operação segura', 'Safe-operation escape point'))
     body(doc, value(output.escapePoint.statement), 'justify')
     doc.moveDown(0.3)
-    meta(doc, 'Status', candidateStatusLabelPt(output.escapePoint.status))
-    meta(doc, 'Confiança', confidenceLabelPt(output.escapePoint.confidence))
-    meta(doc, 'Ator direto', value(output.directActor.actor))
-    meta(doc, 'Status do ator', output.directActor.status)
+    meta(doc, 'Status', candidateStatusLabel(output.escapePoint.status, pt))
+    meta(doc, L('Confiança', 'Confidence'), confidenceLabel(output.escapePoint.confidence, pt))
+    meta(doc, L('Ator direto', 'Direct actor'), value(localizeActor(output.directActor.actor, locale), L('Não resolvido', 'Unresolved')))
+    meta(doc, L('Status do ator', 'Actor status'), output.directActor.status)
     if (output.directActor.alternatives.length) {
-      subheading(doc, 'Atores alternativos / contributivos')
-      bullets(doc, output.directActor.alternatives)
+      subheading(doc, L('Atores alternativos / contributivos', 'Alternative / contributory actors'))
+      bullets(doc, output.directActor.alternatives.map((actor) => localizeActor(actor, locale) ?? actor))
     }
     if (output.directActor.actorMigrationWarnings.length) {
-      subheading(doc, 'Avisos de fronteira de ator')
+      subheading(doc, L('Avisos de fronteira de ator', 'Actor-boundary warnings'))
       bullets(doc, output.directActor.actorMigrationWarnings)
     }
-    subheading(doc, 'Evidência de suporte ao ponto de fuga')
-    bullets(doc, output.escapePoint.supportingEvidence)
-    subheading(doc, 'Contraevidência / incertezas do limite')
-    bullets(doc, output.escapePoint.counterEvidence)
-    subheading(doc, 'Evidência posterior excluída da cadeia causal')
-    bullets(doc, output.escapePoint.excludedPostEscapeEvidence)
+    subheading(doc, L('Evidência de suporte ao ponto de fuga', 'Escape-point supporting evidence'))
+    bullets(doc, output.escapePoint.supportingEvidence, L('Nenhuma evidência registrada.', 'No evidence recorded.'))
+    subheading(doc, L('Contraevidência / incertezas do limite', 'Counter-evidence / boundary uncertainty'))
+    bullets(doc, output.escapePoint.counterEvidence, L('Nenhuma contraevidência registrada.', 'No counter-evidence recorded.'))
+    subheading(doc, L('Evidência posterior excluída da cadeia causal', 'Post-escape evidence excluded from the causal chain'))
+    bullets(doc, output.escapePoint.excludedPostEscapeEvidence, L('Nenhum item registrado.', 'No item recorded.'))
 
-    heading(doc, '5. Resultado P / O / A - visão sintética')
+    heading(doc, '5. ' + L('Resultado P / O / A - visão sintética', 'P / O / A result - summary view'))
     const axes = [
-      ['Percepção', output.axes.perception],
-      ['Objetivo', output.axes.objective],
-      ['Ação', output.axes.action],
+      ['P', output.axes.perception],
+      ['O', output.axes.objective],
+      ['A', output.axes.action],
     ] as const
 
-    for (const [label, axis] of axes) {
-      keepTogether(doc, 82)
+    for (const [axisId, axis] of axes) {
+      keepTogether(doc, 95)
       doc.font('Helvetica-Bold').fontSize(9.7).fillColor('#1d4f73')
-        .text(label + ': ' + value(axis.proposedCode, 'não resolvido') + ' - ' + candidateStatusLabelPt(axis.status))
-      body(doc, value(axis.statementAtEscapePoint))
-      meta(doc, 'Confiança', confidenceLabelPt(axis.confidence))
-      if (axis.proposedCode) {
-        const card = label === 'Percepção'
+        .text(axisLabel(axisId, pt) + ': ' + value(axis.proposedCode, L('não resolvido', 'unresolved')) + ' - ' + candidateStatusLabel(axis.status, pt))
+      body(doc, value(axis.statementAtEscapePoint, L('Eixo não resolvido pela evidência disponível.', 'Axis unresolved by the available evidence.')))
+      meta(doc, L('Confiança da classificação', 'Classification confidence'), axis.proposedCode ? confidenceLabel(axis.confidence, pt) : L('NÃO APLICÁVEL', 'NOT APPLICABLE'))
+      const conditional = axis.alternativesConsidered.filter((item) => /^[POA]-[A-Z]$/.test(item))
+      if (!axis.proposedCode && conditional.length) {
+        subheading(doc, L('Hipóteses ainda compatíveis — dependem das respostas', 'Still-compatible hypotheses — dependent on clarification'))
+        bullets(doc, conditional)
+        body(doc, L('Não são códigos concluídos nem liberados.', 'These are not concluded or released codes.'))
+      }
+      if (pt && axis.proposedCode) {
+        const card = axisId === 'P'
           ? reviewerOutput.axisReviews.perception
-          : label === 'Objetivo'
+          : axisId === 'O'
             ? reviewerOutput.axisReviews.objective
             : reviewerOutput.axisReviews.action
         if (card.candidateMeaning) meta(doc, 'Significado metodológico', card.candidateMeaning)
@@ -401,119 +472,124 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       doc.moveDown(0.35)
     }
 
-    heading(doc, '6. Fluxo de decisão canônico - nós, perguntas e respostas')
+    heading(doc, '6. ' + L('Fluxo de decisão canônico - nós, perguntas e respostas', 'Canonical decision flow - nodes, questions, and answers'))
     body(
       doc,
-      'Esta seção reproduz a trilha efetivamente percorrida pelo motor na árvore canônica. Cada nó apresenta a pergunta, a resposta, a evidência usada, a justificativa e o ramo seguinte ou código terminal.',
+      L(
+        'Esta seção reproduz a trilha efetivamente percorrida pelo motor na árvore canônica. Cada nó apresenta a pergunta, a resposta, a evidência usada, a justificativa e o ramo seguinte ou código terminal.',
+        'This section reproduces the path actually traversed by the engine in the canonical tree. Each node presents the question, answer, evidence used, rationale, and next branch or terminal code.',
+      ),
       'justify',
     )
     doc.moveDown(0.45)
-    for (const path of output.canonicalTraversal.paths) renderPath(doc, path, output)
+    for (const path of output.canonicalTraversal.paths) renderPath(doc, path, output, pt)
 
-    heading(doc, '7. Pré-condições')
+    heading(doc, '7. ' + L('Pré-condições', 'Preconditions'))
     if (!output.preconditions.length) {
-      body(doc, 'Nenhuma pré-condição candidata foi sustentada pela evidência disponível.')
+      body(doc, L('Nenhuma pré-condição candidata foi sustentada pela evidência disponível.', 'No candidate precondition was supported by the available evidence.'))
     } else {
       for (const pc of output.preconditions) {
         keepTogether(doc, 110)
         const reviewCard = reviewerOutput.preconditionReview.cards.find((card) => card.category === pc.category)
         doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#1d4f73')
-          .text((reviewCard?.plainLanguageLabel ?? pc.category) + ' - ' + confidenceLabelPt(pc.confidence))
+          .text(categoryLabel(pc.category) + ' - ' + confidenceLabel(pc.confidence, pt))
         body(doc, pc.description)
-        meta(doc, 'Relação com a falha', reviewCard?.relationship ?? pc.relationship)
-        meta(doc, 'Ator associado', value(pc.linkedActor))
-        meta(doc, 'Regra(s) de origem', pc.sourceRuleIds.join(', '))
-        meta(doc, 'É ponto de fuga?', 'NÃO - mantida separadamente como pré-condição')
-        if (reviewCard?.reviewerQuestion) meta(doc, 'Pergunta ao revisor', reviewCard.reviewerQuestion)
-        subheading(doc, 'Evidência')
+        meta(doc, L('Relação com a falha', 'Relationship to the failure'), relationshipLabel(pc.relationship))
+        meta(doc, L('Ator associado', 'Associated actor'), value(localizeActor(pc.linkedActor, locale)))
+        meta(doc, L('Regra(s) de origem', 'Source rule(s)'), pc.sourceRuleIds.join(', '))
+        meta(doc, L('É ponto de fuga?', 'Is it the escape point?'), L('NÃO - mantida separadamente como pré-condição/hipótese', 'NO - kept separate as a precondition/hypothesis'))
+        if (pt && reviewCard?.reviewerQuestion) meta(doc, 'Pergunta ao revisor', reviewCard.reviewerQuestion)
+        subheading(doc, L('Evidência', 'Evidence'))
         bullets(doc, pc.evidence)
         doc.moveDown(0.55)
       }
     }
 
-    heading(doc, '8. Rastreabilidade e polaridade da evidência')
+    heading(doc, '8. ' + L('Rastreabilidade e polaridade da evidência', 'Evidence traceability and polarity'))
     const evidenceItems = output.factualExtraction.evidence
     const rejected = evidenceItems.filter((item) => item.assertionStatus === 'REJECTED_AS_FACTOR')
     const uncertain = evidenceItems.filter((item) => item.assertionStatus === 'UNCERTAIN')
     const postEscape = evidenceItems.filter((item) => item.temporalRelation === 'POST_ESCAPE')
     const analysisOnly = evidenceItems.filter((item) => item.sourceSection === 'REPORT_ANALYSIS' || item.sourceSection === 'RECOMMENDATION')
-    meta(doc, 'Itens factuais indexados', String(evidenceItems.length))
-    meta(doc, 'Fatores explicitamente rejeitados no relatório-fonte', String(rejected.length))
-    meta(doc, 'Afirmações incertas/hipotéticas', String(uncertain.length))
-    meta(doc, 'Itens pós-ponto de fuga', String(postEscape.length))
-    meta(doc, 'Itens de análise/recomendação não usados como fato causal', String(analysisOnly.length))
-    subheading(doc, 'Fatores que o próprio relatório-fonte declarou como não contribuintes')
+    meta(doc, L('Itens factuais indexados', 'Indexed factual items'), String(evidenceItems.length))
+    meta(doc, L('Fatores explicitamente rejeitados no relatório-fonte', 'Factors explicitly rejected by the source report'), String(rejected.length))
+    meta(doc, L('Afirmações incertas/hipotéticas', 'Uncertain/hypothetical statements'), String(uncertain.length))
+    meta(doc, L('Itens pós-ponto de fuga', 'Post-escape items'), String(postEscape.length))
+    meta(doc, L('Itens de análise/recomendação não usados como fato causal', 'Analysis/recommendation items not used as causal facts'), String(analysisOnly.length))
+    subheading(doc, L('Fatores que o relatório-fonte declarou como não contribuintes', 'Factors the source report declared non-contributory'))
     bullets(doc, rejected.map((item) => item.statement))
-    subheading(doc, 'Hipóteses ou formulações incertas preservadas como incerteza')
+    subheading(doc, L('Hipóteses ou formulações incertas preservadas como incerteza', 'Hypotheses or uncertain formulations retained as uncertainty'))
     bullets(doc, uncertain.map((item) => item.statement))
-    subheading(doc, 'Fatos posteriores ao ponto de fuga, mantidos em quarentena causal')
+    subheading(doc, L('Fatos posteriores ao ponto de fuga, mantidos em quarentena causal', 'Post-escape facts kept in causal quarantine'))
     bullets(doc, postEscape.map((item) => item.statement))
 
-    heading(doc, '9. Salvaguardas metodológicas - guardrails')
+    heading(doc, '9. ' + L('Salvaguardas metodológicas - guardrails', 'Methodological safeguards - guardrails'))
     for (const [name, violated] of Object.entries(output.guardrails)) {
       const evidence = output.guardrailEvidence[name] ?? []
       doc.font('Helvetica-Bold').fontSize(8.8)
         .fillColor(violated ? '#9b2c2c' : '#2f6f4e')
-        .text((violated ? 'VIOLAÇÃO' : 'OK') + ' - ' + guardrailLabel(name))
+        .text((violated ? L('VIOLAÇÃO', 'VIOLATION') : 'OK') + ' - ' + guardrailLabel(name, pt))
       if (evidence.length) bullets(doc, evidence)
       doc.moveDown(0.22)
     }
 
-    heading(doc, '10. Gate de suficiência da evidência')
+    heading(doc, '10. ' + L('Gate de suficiência da evidência', 'Evidence-sufficiency gate'))
     meta(doc, 'Status', output.evidenceSufficiency.status)
-    meta(doc, 'Evidência mínima satisfeita', output.evidenceSufficiency.minimumEvidenceSatisfied ? 'SIM' : 'NÃO')
-    subheading(doc, 'Razões de bloqueio')
+    meta(doc, L('Evidência mínima satisfeita', 'Minimum evidence satisfied'), output.evidenceSufficiency.minimumEvidenceSatisfied ? L('SIM', 'YES') : L('NÃO', 'NO'))
+    subheading(doc, L('Razões de bloqueio', 'Blocking reasons'))
     bullets(doc, output.evidenceSufficiency.blockingReasons)
     if (output.evidenceSufficiency.questions.length) {
-      subheading(doc, 'Perguntas investigativas necessárias antes de concluir')
+      subheading(doc, L('Perguntas investigativas necessárias antes de concluir', 'Investigative questions required before conclusion'))
       for (const [index, item] of output.evidenceSufficiency.questions.entries()) {
         keepTogether(doc, 90)
         doc.font('Helvetica-Bold').fontSize(9).fillColor('#8a5a00')
-          .text(`Pergunta ${index + 1} — ${item.stage}${item.linkedNodeId ? ` — nó ${item.linkedNodeId}` : ''}`)
+          .text(`${L('Pergunta', 'Question')} ${index + 1} — ${item.stage}${item.linkedNodeId ? ` — ${L('nó', 'node')} ${item.linkedNodeId}` : ''}`)
         body(doc, item.question, 'justify')
-        meta(doc, 'Por que é necessária', item.whyNeeded)
-        subheading(doc, 'Evidência solicitada')
+        meta(doc, L('Por que é necessária', 'Why it is needed'), item.whyNeeded)
+        subheading(doc, L('Evidência solicitada', 'Requested evidence'))
         bullets(doc, item.requestedEvidence)
         doc.moveDown(0.35)
       }
     } else {
-      body(doc, 'Nenhuma pergunta adicional é necessária para a análise SERA atual.')
+      body(doc, L('Nenhuma pergunta adicional é necessária para a análise SERA atual.', 'No additional question is required for the current SERA analysis.'))
     }
 
-    heading(doc, '11. Incertezas, limitações e perguntas em aberto')
-    subheading(doc, 'Incertezas')
-    bullets(doc, output.uncertainties.map(translateReportText))
-    subheading(doc, 'Limitações')
-    bullets(doc, output.limitations.map(translateReportText))
-    subheading(doc, 'Perguntas canônicas ainda não respondidas')
-    bullets(doc, output.canonicalTraversal.unansweredQuestions.map(translateReportText))
+    heading(doc, '11. ' + L('Incertezas, limitações e perguntas em aberto', 'Uncertainties, limitations, and open questions'))
+    subheading(doc, L('Incertezas', 'Uncertainties'))
+    bullets(doc, output.uncertainties.map((item) => translateReportText(item, pt)))
+    subheading(doc, L('Limitações', 'Limitations'))
+    bullets(doc, output.limitations.map((item) => translateReportText(item, pt)))
+    subheading(doc, L('Perguntas canônicas ainda não respondidas', 'Canonical questions not yet answered'))
+    bullets(doc, output.canonicalTraversal.unansweredQuestions.map((item) => translateReportText(item, pt)))
 
-    heading(doc, '12. Pacote de revisão humana')
-    subheading(doc, 'Decisões requeridas do revisor')
-    bullets(doc, output.humanReviewPackage.reviewerDecisionsRequired.map(translateReportText))
-    subheading(doc, 'Avisos críticos')
-    bullets(doc, output.humanReviewPackage.criticalWarnings.map(translateReportText))
+    heading(doc, '12. ' + L('Pacote de revisão humana', 'Human review package'))
+    subheading(doc, L('Decisões requeridas do revisor', 'Reviewer decisions required'))
+    bullets(doc, output.humanReviewPackage.reviewerDecisionsRequired.map((item) => translateReportText(item, pt)))
+    subheading(doc, L('Avisos críticos', 'Critical warnings'))
+    bullets(doc, output.humanReviewPackage.criticalWarnings.map((item) => translateReportText(item, pt)))
 
+    subheading(doc, L('Revisões registradas', 'Recorded reviews'))
     if (!input.reviews.length) {
-      subheading(doc, 'Revisões registradas')
-      body(doc, 'Nenhuma revisão humana registrada até o momento.')
+      body(doc, L('Nenhuma revisão humana registrada até o momento.', 'No human review has been recorded yet.'))
     } else {
-      subheading(doc, 'Revisões registradas')
       for (const review of input.reviews) {
         keepTogether(doc, 90)
-        meta(doc, 'Decisão', review.decision)
-        meta(doc, 'Evidência suficiente', review.evidence_sufficiency)
-        meta(doc, 'Requer mais evidência', review.requires_more_evidence ? 'SIM' : 'NÃO')
-        meta(doc, 'Data', review.created_at)
-        if (review.review_notes) body(doc, 'Notas: ' + review.review_notes)
+        meta(doc, L('Decisão', 'Decision'), review.decision)
+        meta(doc, L('Evidência suficiente', 'Evidence sufficient'), review.evidence_sufficiency)
+        meta(doc, L('Requer mais evidência', 'Requires more evidence'), review.requires_more_evidence ? L('SIM', 'YES') : L('NÃO', 'NO'))
+        meta(doc, L('Data', 'Date'), review.created_at)
+        if (review.review_notes) body(doc, L('Notas: ', 'Notes: ') + review.review_notes)
         doc.moveDown(0.4)
       }
     }
 
-    heading(doc, '13. Conclusão de uso')
+    heading(doc, '13. ' + L('Conclusão de uso', 'Use conclusion'))
     body(
       doc,
-      'Este relatório documenta a análise metodológica produzida pelo motor SERA 0.3 e sua trilha de decisão. A liberação formal continua condicionada à revisão humana. O revisor deve confirmar o ponto de fuga, o ator direto, cada eixo P/O/A, as pré-condições e qualquer evidência conflitante antes do uso formal.',
+      L(
+        'Este relatório documenta a análise metodológica produzida pelo motor SERA 0.3 e sua trilha de decisão. A liberação formal continua condicionada à revisão humana. O revisor deve confirmar o ponto de fuga, o ator direto, cada eixo P/O/A, as pré-condições e qualquer evidência conflitante antes do uso formal.',
+        'This report documents the methodological analysis produced by SERA engine 0.3 and its decision trace. Formal release remains subject to human review. The reviewer must confirm the escape point, direct actor, each P/O/A axis, preconditions, and any conflicting evidence before formal use.',
+      ),
       'justify',
     )
 

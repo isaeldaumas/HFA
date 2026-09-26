@@ -11,6 +11,7 @@ export async function reanalyzeSeraVNextAnalysis(args: {
   analysisId: string
   reason?: string
   clarificationResponses?: SeraVNextClarificationResponse[]
+  locale?: 'pt-BR' | 'en'
   context: SeraVNextProductContext
   repository?: SeraVNextProductRepository
 }) {
@@ -66,6 +67,7 @@ export async function reanalyzeSeraVNextAnalysis(args: {
   const engineInput = {
     ...analysis.engine_input,
     narrative: analysis.narrative,
+    locale: args.locale ?? analysis.engine_input.locale ?? 'pt-BR',
     supplementalEvidence: [...(analysis.engine_input.supplementalEvidence ?? []), ...newSupplementalEvidence],
     requestId: args.context.requestId,
     inputId: `${analysis.client_request_id}:rev:${nextRevision}`,

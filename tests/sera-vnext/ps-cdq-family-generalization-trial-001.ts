@@ -8,6 +8,7 @@ type Expected = {
   A?: string | null
   escape?: 'CANDIDATE' | 'PROGRESSIVE_ZONE' | 'INSUFFICIENT_EVIDENCE'
   noKnowledgePrecondition?: boolean
+  postEscapePattern?: RegExp
 }
 
 function run(id: string, narrative: string) {
@@ -32,6 +33,14 @@ function check(id: string, narrative: string, expected: Expected) {
   if ('A' in expected) assert.equal(out.axes.action.proposedCode, expected.A, id + ' A')
   if (expected.noKnowledgePrecondition) {
     assert.equal(out.preconditions.some((p) => p.category === 'KNOWLEDGE_TRAINING'), false, id + ' knowledge precondition')
+  }
+  if (expected.postEscapePattern) {
+    const postEscape = out.factualExtraction.evidence.find((item) => expected.postEscapePattern?.test(item.statement))
+    assert.ok(postEscape, id + ' post-escape evidence must be present')
+    assert.equal(postEscape?.temporalRelation, 'POST_ESCAPE', id + ' consequence must remain post-escape')
+    for (const axis of [out.axes.perception, out.axes.objective, out.axes.action]) {
+      assert.equal(axis.supportingEvidence.includes(postEscape?.statement ?? ''), false, id + ' post-escape evidence must not support P/O/A')
+    }
   }
   for (const [guard, violated] of Object.entries(out.guardrails)) {
     assert.equal(violated, false, id + ' guardrail ' + guard)
@@ -81,7 +90,7 @@ UNIT-A estava à frente durante a aproximação à área e deveria ser ultrapass
 Antes do pouso, a tripulação identificou UNIT-A como se fosse UNIT-B e passou a preparar a aproximação para aquela unidade.
 Após o pouso, o rádio informou que a aeronave estava na unidade errada.
 `,
-    expected: { actor: /copiloto.*PF/i, P: 'P-G', O: 'O-A', A: 'A-A', escape: 'CANDIDATE', noKnowledgePrecondition: true },
+    expected: { actor: /copiloto.*PF/i, P: 'P-G', O: 'O-A', A: 'A-A', escape: 'CANDIDATE', noKnowledgePrecondition: true, postEscapePattern: /pousou na UNIT-A/i },
   },
   {
     id: 'WDL-VAR-04',

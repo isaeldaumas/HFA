@@ -21,7 +21,7 @@ import { runStep10EvidenceSufficiency } from './steps/10-evidence-sufficiency'
 export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngineOutput {
   const factualExtraction = runStep01FactualExtraction(input)
   const safeOperationModel = runStep02SafeOperationModel({ engineInput: input, factualExtraction })
-  const escapePoint = runStep03EscapePoint({ factualExtraction, supplementalEvidence: input.supplementalEvidence })
+  const escapePoint = runStep03EscapePoint({ factualExtraction, supplementalEvidence: input.supplementalEvidence, locale: input.locale })
   const unsafeState = runStep04UnsafeState({ engineInput: input, factualExtraction })
   const unsafeActOrCondition = runStep05UnsafeActCondition({ engineInput: input, unsafeState, escapePoint })
   const directActor = runStep06DirectActor({ engineInput: input, unsafeActOrCondition, escapePoint })
@@ -54,14 +54,16 @@ export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngi
     axisStatements,
     directActor,
     escapePoint,
+    locale: input.locale,
   })
-  const preconditions = runStep09Preconditions({ factualExtraction: factualExtractionWithEvidence, escapePoint, directActor, axes })
+  const preconditions = runStep09Preconditions({ factualExtraction: factualExtractionWithEvidence, escapePoint, directActor, axes, locale: input.locale })
   const evidenceSufficiency = runStep10EvidenceSufficiency({
     safeOperationModel,
     escapePoint,
     directActor,
     canonicalTraversal,
     axes,
+    locale: input.locale,
   })
   const assurance = runStep10Assurance({
     factualExtraction: factualExtractionWithEvidence,
@@ -70,6 +72,7 @@ export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngi
     axes,
     preconditions,
     canonicalTraversal,
+    locale: input.locale,
   })
 
   return {
