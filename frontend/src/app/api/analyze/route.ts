@@ -60,12 +60,14 @@ async function persistCanonicalResult(args: {
   requestId: string
   creditsUsed?: number
   auditSource: string
+  locale?: 'pt-BR' | 'en'
 }) {
   const result = await createCanonicalEventAnalysis({
     eventId: args.eventId,
     title: args.title,
     narrative: args.narrative,
     mode: args.mode,
+    locale: args.locale ?? 'pt-BR',
     context: {
       tenantId: args.tenantId,
       userId: args.publicUserId,
@@ -141,6 +143,7 @@ export async function POST(req: Request) {
       sourceFileName?: string
       sourceWordCount?: number
       sourceFileUrl?: string | null
+      locale?: 'pt-BR' | 'en'
     }
     try {
       body = (await req.json()) as typeof body
@@ -192,6 +195,7 @@ export async function POST(req: Request) {
           email: user.email ?? null,
           requestId,
           auditSource: 'reanalysis',
+          locale: body.locale === 'en' ? 'en' : 'pt-BR',
         })
         return NextResponse.json(canonicalAnalyzeResponse(result, body.eventId), { headers: { 'x-request-id': requestId } })
       } catch (err) {
@@ -272,6 +276,7 @@ export async function POST(req: Request) {
         requestId,
         creditsUsed: 1,
         auditSource: 'new_analysis',
+        locale: body.locale === 'en' ? 'en' : 'pt-BR',
       })
       success = true
       return NextResponse.json(canonicalAnalyzeResponse(result, eventId), { headers: { 'x-request-id': requestId } })

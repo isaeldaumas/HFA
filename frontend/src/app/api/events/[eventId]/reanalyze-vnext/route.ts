@@ -31,6 +31,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
     if (error || !event) {
       return jsonError(requestId, 'VNEXT_REANALYZE_EVENT_NOT_FOUND', 'Evento não encontrado.', 404)
     }
+    const raw = await req.json().catch(() => ({})) as Record<string, unknown>
+    const locale: 'pt-BR' | 'en' = raw.locale === 'en' ? 'en' : 'pt-BR'
     const narrative = String(event.raw_input ?? '').trim()
     if (!narrative) {
       return jsonError(requestId, 'VNEXT_REANALYZE_NO_EVIDENCE', 'O evento não possui relato original disponível.', 422)
@@ -41,6 +43,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
       title: String(event.title ?? `SERA ${eventId}`),
       narrative,
       mode: 'REANALYSIS',
+      locale,
       context: {
         tenantId: user.tenantId,
         userId: user.publicUserId,

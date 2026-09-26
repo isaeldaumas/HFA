@@ -2114,6 +2114,24 @@
     "runtimeScope": "CURRENT"
   },
   {
+    "path": "tests/sera-vnext/clarification-evidence-scope-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT"
+  },
+  {
+    "path": "tests/sera-vnext/analysis-language-consistency-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT"
+  },
+  {
     "path": "tests/sera-vnext/canonical-naturalistic-regression-v1-trial-001.ts",
     "type": "GATE",
     "requiredForRegression": true,

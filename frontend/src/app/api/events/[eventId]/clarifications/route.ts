@@ -37,11 +37,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
 
     const raw = await req.json().catch(() => ({})) as Record<string, unknown>
     const clarificationResponses = validateClarificationResponses(raw.clarificationResponses)
+    const locale: 'pt-BR' | 'en' = raw.locale === 'en' ? 'en' : 'pt-BR'
     const publicUserId = await ensurePublicUserRow(admin, user.tenantId, user.userId, user.email, user.role)
     const result = await reanalyzeSeraVNextAnalysis({
       analysisId: analysis.id,
       reason: 'event_clarification_evidence',
       clarificationResponses,
+      locale,
       context: {
         tenantId: user.tenantId,
         userId: publicUserId,

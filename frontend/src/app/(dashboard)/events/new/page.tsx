@@ -6,6 +6,7 @@ import { resolveApiUrl } from '@/lib/api'
 import { TrialUsageCard } from '@/components/product/TrialUsageCard'
 import DocumentUpload from '@/components/sera/DocumentUpload'
 import { useMe } from '@/hooks/useMe'
+import { useI18n } from '@/lib/i18n'
 
 type Tab = 'text' | 'upload'
 
@@ -20,6 +21,7 @@ const PROGRESS_STEPS = [
 
 export default function NewEventPage() {
   const router = useRouter()
+  const { locale } = useI18n()
   const me = useMe()
   const noCredits = !me.loading && !me.isUnlimited && me.credits === 0
   const [tab, setTab] = useState<Tab>('text')
@@ -108,6 +110,7 @@ export default function NewEventPage() {
         fd.set('operation_type', form.operation_type)
         fd.set('aircraft_type', form.aircraft_type)
         fd.set('occurred_at', form.occurred_at)
+        fd.set('locale', locale)
         const kind = sourceFile.name.toLowerCase().endsWith('.docx') ? 'docx' : 'pdf'
         fd.set('input_type', kind)
         fd.set('source_type', kind)
@@ -143,6 +146,7 @@ export default function NewEventPage() {
           occurred_at: form.occurred_at || null,
           input_type: 'text',
           source_type: 'text',
+          locale,
         }),
       })
       const data = await res.json().catch(() => ({}))

@@ -121,6 +121,7 @@ export async function POST(req: Request) {
     let operation_type: string | null = null
     let aircraft_type: string | null = null
     let occurred_at: string | null = null
+    let locale: 'pt-BR' | 'en' = 'pt-BR'
     let input_type: 'text' | 'pdf' | 'docx' = 'text'
     const sourceMeta: SourceMeta = { sourceType: 'text' }
     let sourceFile: File | null = null
@@ -132,6 +133,7 @@ export async function POST(req: Request) {
       operation_type = form.get('operation_type') ? String(form.get('operation_type')) : null
       aircraft_type = form.get('aircraft_type') ? String(form.get('aircraft_type')) : null
       occurred_at = form.get('occurred_at') ? String(form.get('occurred_at')) : null
+      locale = form.get('locale') === 'en' ? 'en' : 'pt-BR'
       const it = form.get('input_type')
       if (it === 'pdf' || it === 'docx' || it === 'text') input_type = it
       const st = form.get('source_type')
@@ -149,6 +151,7 @@ export async function POST(req: Request) {
       operation_type = body.operation_type != null ? String(body.operation_type) : null
       aircraft_type = body.aircraft_type != null ? String(body.aircraft_type) : null
       occurred_at = body.occurred_at != null ? String(body.occurred_at) : null
+      locale = body.locale === 'en' ? 'en' : 'pt-BR'
       const it = body.input_type
       if (it === 'pdf' || it === 'docx' || it === 'text') input_type = it
       const st = body.source_type
@@ -227,6 +230,7 @@ export async function POST(req: Request) {
         title,
         narrative: raw_input,
         mode: 'INITIAL',
+        locale,
         context: { tenantId: user.tenantId, userId: submittedById, role: user.role, email: user.email ?? '', requestId },
       })
 

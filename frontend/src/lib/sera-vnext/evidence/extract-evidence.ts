@@ -1,7 +1,7 @@
 import type { SeraFact, SeraSupplementalEvidenceInput, SeraTimelineItem } from '../engine-contract'
 import { confidenceFromCount } from '../engine-v0/utils'
 import { hasConcept, type SeraEvidenceConcept } from '../engine-v02/language/concepts'
-import { detectEvidenceActor, classifyActorRelation } from './actor-scope'
+import { detectEvidenceActor, classifyActorRelation, classifyActorRelationForActor } from './actor-scope'
 import { classifyTemporalRelation } from './temporal-scope'
 import type { SeraEvidenceItem, SeraEvidenceUse } from './types'
 
@@ -32,12 +32,21 @@ function classifySupportedUses(statement: string, category: SeraFact['category']
   if (/\b(surface|superf[ií]cie)\b.*\b(dark|darkened|escura|escuro)\b/i.test(statement)) pushUnique(supports, 'PERCEPTION')
   if (/\b(n[aã]o havia recebido|nunca havia recebido|n[aã]o recebeu|n[aã]o sabia|n[aã]o conhecia|desconhecia|n[aã]o familiar|falta de conhecimento|falta de treinamento|treinamento insuficiente|not trained|lack of knowledge|lack of training|unfamiliar)\b/i.test(statement)) pushUnique(supports, 'PERCEPTION')
   if (/\b(objective|goal|intent|decided|continued|chose|planned|approach|takeoff|go-around|discontinued|aborted|despite warning|wrong runway|wrong surface|known rule|conscious|deliberate|violation|deviation|objetivo|meta|inten[cç][aã]o|decidiu|continuou|escolheu|planejou|planejamento|rota prevista|destino previsto|autoriza[cç][aã]o|procedimentos previstos|aproxima[cç][aã]o|decolagem|arremetida|descontinuou|abortou|apesar do alerta|pista errada|superf[ií]cie errada|regra conhecida|sabia da regra|consciente|deliberad[ao]|viola[cç][aã]o|violar|desviar)\b/i.test(statement)) pushUnique(supports, 'OBJECTIVE')
+  if (/\b(rota|plano|planejamento)\b.*\b(indicava|indicavam|previa|previam|definia|definiam|estabelecia|estabeleciam)\b.*\b(unit-[a-z0-9-]+|pcp-?[0-9]+|destino|unidade|plataforma|pista|helideck)\b/i.test(statement)) pushUnique(supports, 'OBJECTIVE')
+  if (/\bdestino\s+inicial\s+(?:previst[ao]|planejad[ao]|programad[ao])(?:\s+e\s+autorizad[ao])?\s+(?:era|foi)\b/i.test(statement)) pushUnique(supports, 'OBJECTIVE')
   if (/\b(action|input|control|executed|turned|descended|climbed|moved|pulled|pushed|lever|line(?:d)? up|selected|configured|go-around|correction|continued below|below profile|readback|feedback|hesitated|delayed|waited|a[cç][aã]o|comando|controle|executou|virou|desceu|subiu|moveu|puxou|empurrou|manete|alinhou|selecionou|configurou|inseriu|programou|ajustou|acionou|digitou|arremetida|corre[cç][aã]o|continuou abaixo|abaixo do perfil|colacionamento|retorno|hesitou|demorou|esperou)\b/i.test(statement)) pushUnique(supports, 'ACTION')
+  if (statementHasAnyConcept(statement, ['inadequateAssessment']) && (/\b(iniciou|iniciaram|conduziu|conduziram|prosseguiu|prosseguiram|come[cç]ou|come[cç]aram|aproximou|aproximaram)\b.*\b(planejamento|aproxima[cç][aã]o)\b/i.test(statement) || /\b(passou a preparar|passou a conduzir|passou a aproximar)\b/i.test(statement))) pushUnique(supports, 'ACTION')
   if (statementHasAnyConcept(statement, ['adequateAssessment', 'inadequateAssessment', 'sensoryLimitation', 'knowledgeLimitation', 'perceptionCapabilityPresent', 'attentionPressure', 'timeManagementPressure', 'informationAmbiguous', 'informationAvailableCorrect', 'informationUnavailable'])) pushUnique(supports, 'PERCEPTION')
   if (statementHasAnyConcept(statement, ['safeGoal', 'knownRule', 'explicitAwareness', 'consciousDeviation', 'routineDeviation', 'exceptionalDeviation', 'managedRisk', 'unmanagedRisk'])) pushUnique(supports, 'OBJECTIVE')
   if (statementHasAnyConcept(statement, ['safeAction', 'implementedAction', 'feedbackImplementationFailure', 'slipLapse', 'correctAction', 'incorrectAction', 'physicalActionLimitation', 'actionKnowledgeLimitation', 'actionCapabilityPresent', 'selectionUnderPressureFailed', 'feedbackUnderPressureFailed', 'selectionSubtype', 'feedbackSubtype', 'timeManagementAction'])) pushUnique(supports, 'ACTION')
   if (!normalState && /\b(visibility|fog|cloud|weather|wind|night|system|automation|warning|failure|fault|rudder|technical|training|knowledge|time pressure|rushed|dispatch|organizational|staffing|supervision|maintenance|coordination|intent|decided|decision|conscious|physical|fatigue|ergonomic|fmc|autothrottle|dafcs|trim|control law|visibilidade|nevoeiro|nuvem|tempo|vento|meteorolog|noite|sistema|automa[cç][aã]o|alerta|falha|leme|t[eé]cnic[ao]|treinamento|conhecimento|press[aã]o de tempo|apressad[ao]|despacho|organizacional|equipe|supervis[aã]o|manuten[cç][aã]o|coordena[cç][aã]o|inten[cç][aã]o|decis[aã]o|consciente|f[ií]sic[ao]|fadiga|ergon[oô]mic[ao]|distra[cç][aã]o|vis[aã]o de t[uú]nel|focad[oa]s?|proximidade|pr[oó]xim[oa]s?)\b/i.test(statement)) pushUnique(supports, 'PRECONDITION')
   if (category === 'outcome') pushUnique(supports, 'LIMITATION')
+  if (normalState) {
+    return supports.filter((use) => !['PERCEPTION', 'OBJECTIVE', 'ACTION', 'PRECONDITION'].includes(use))
+  }
+  if (/^\s*\d+(?:\.\d+)*\s+(?:informa[cç][oõ]es sobre o evento|event information)\b/i.test(statement)) {
+    return supports.filter((use) => !['PERCEPTION', 'OBJECTIVE', 'ACTION'].includes(use))
+  }
   return supports
 }
 
@@ -83,6 +92,20 @@ export function extractEvidenceItems(args: {
   latestEscapeSentenceIndex?: number | null
 }): SeraEvidenceItem[] {
   const timelineByStatement = new Map(args.timeline.map((item) => [item.statement, item]))
+  const inferredActorFor = (statement: string, sourceSentenceIndex: number): string | null => {
+    const explicit = detectEvidenceActor(statement)
+    if (explicit) return explicit
+    if (!/^\s*(em seguida|na sequ[eê]ncia|logo ap[oó]s|depois|then|subsequently|afterward)\b/i.test(statement)) return null
+    const prior = args.timeline
+      .filter((item) => item.sourceSentenceIndex < sourceSentenceIndex)
+      .sort((a, b) => b.sourceSentenceIndex - a.sourceSentenceIndex)
+      .slice(0, 3)
+    for (const item of prior) {
+      const actor = detectEvidenceActor(item.statement)
+      if (actor) return actor
+    }
+    return null
+  }
   return args.facts.map((fact, index) => {
     const timelineItem = timelineByStatement.get(fact.statement)
     const sourceSentenceIndex = timelineItem?.sourceSentenceIndex ?? fact.sourceSentenceIndex
@@ -93,8 +116,10 @@ export function extractEvidenceItems(args: {
       latestEscapeSentenceIndex: args.latestEscapeSentenceIndex,
       sourceSection,
     })
-    const actor = detectEvidenceActor(fact.statement)
-    const actorRelation = classifyActorRelation({ statement: fact.statement, directActor: args.directActor ?? null })
+    const actor = inferredActorFor(fact.statement, sourceSentenceIndex)
+    const actorRelation = actor
+      ? classifyActorRelationForActor(actor, args.directActor ?? null)
+      : classifyActorRelation({ statement: fact.statement, directActor: args.directActor ?? null })
     const assertionStatus = fact.assertionStatus ?? timelineItem?.assertionStatus ?? 'AFFIRMED'
     const evidenceType = classifyEvidenceType(fact.statement, fact.category, sourceSection)
     const supports = classifySupportedUses(fact.statement, fact.category)
@@ -143,7 +168,15 @@ export function extractSupplementalEvidenceItems(args: {
     const actorRelation = classifyActorRelation({ statement: item.statement, directActor: args.directActor ?? null })
     const evidenceType = classifyEvidenceType(item.statement, category, sourceSection)
     const supports = classifySupportedUses(item.statement, category)
-    const prohibitedFor = classifyProhibitedUses(item.statement, item.temporalRelation, evidenceType, assertionStatus)
+    const inferredTemporalRelation = classifyTemporalRelation({
+      statement: item.statement,
+      sourceSentenceIndex: args.sourceSentenceIndex,
+      sourceSection,
+    })
+    const temporalRelation = inferredTemporalRelation === 'POST_ESCAPE' || inferredTemporalRelation === 'PRE_ESCAPE'
+      ? inferredTemporalRelation
+      : item.temporalRelation
+    const prohibitedFor = classifyProhibitedUses(item.statement, temporalRelation, evidenceType, assertionStatus)
     const base = {
       evidenceId: item.evidenceId || `SUP-EVID-${index + 1}`,
       statement: item.statement,
@@ -151,7 +184,7 @@ export function extractSupplementalEvidenceItems(args: {
       sourceSentenceIndex: args.sourceSentenceIndex,
       sourceSection,
       assertionStatus,
-      temporalRelation: item.temporalRelation,
+      temporalRelation,
       actorRelation,
       actor,
       evidenceType,
@@ -161,14 +194,16 @@ export function extractSupplementalEvidenceItems(args: {
       confidence: confidenceFromCount(supports.length),
       collectionSource: 'CLARIFICATION_RESPONSE' as const,
       linkedQuestionId: item.linkedQuestionId,
+      clarificationStage: item.stage,
       rationale: [
-        `temporalRelation=${item.temporalRelation}`,
+        `temporalRelation=${temporalRelation}`,
         `actorRelation=${actorRelation}`,
         `evidenceType=${evidenceType}`,
         'sourceSection=FACTUAL',
         'assertionStatus=AFFIRMED',
         'collectionSource=CLARIFICATION_RESPONSE',
         `linkedQuestionId=${item.linkedQuestionId}`,
+        `clarificationStage=${item.stage}`,
       ],
     } satisfies Omit<SeraEvidenceItem, 'relationshipToFailure'>
     return { ...base, relationshipToFailure: classifyRelationship(base) }

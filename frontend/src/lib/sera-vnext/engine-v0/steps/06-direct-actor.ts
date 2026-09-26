@@ -86,7 +86,9 @@ export function runStep06DirectActor(input: {
       actor: null,
       status: 'AMBIGUOUS',
       alternatives: [],
-      actorMigrationWarnings: ['Direct actor remains unresolved until the escape point is established; post-escape detection or recovery actors must not be promoted by salience alone.'],
+      actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
+        ? 'O ator direto permanece não resolvido até que o ponto de fuga seja estabelecido; atores de detecção ou recuperação pós-ponto de fuga não podem ser promovidos apenas por saliência narrativa.'
+        : 'Direct actor remains unresolved until the escape point is established; post-escape detection or recovery actors must not be promoted by salience alone.'],
     }
   }
 
@@ -106,7 +108,9 @@ export function runStep06DirectActor(input: {
         actor: null,
         status: 'AMBIGUOUS',
         alternatives: ['maintenance team', 'maintenance inspector', 'maintenance technician'],
-        actorMigrationWarnings: ['The escape point is anchored to preflight/maintenance activity, but the responsible maintenance actor is not identified; do not migrate attribution to post-escape flight-crew detection or recovery.'],
+        actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
+          ? 'O ponto de fuga está ancorado na atividade de pré-voo/manutenção, mas o responsável individual não foi identificado; não migre a atribuição para a tripulação de voo que detectou ou recuperou a condição posteriormente.'
+          : 'The escape point is anchored to preflight/maintenance activity, but the responsible maintenance actor is not identified; do not migrate attribution to post-escape flight-crew detection or recovery.'],
       }
     }
     if (escapeHasCopilot && !escapeHasCaptain) {
