@@ -6,10 +6,20 @@ export function runStep02SafeOperationModel(input: {
   factualExtraction: SeraVNextEngineOutput['factualExtraction']
 }): SeraVNextEngineOutput['safeOperationModel'] {
   const text = normalizeText(input.engineInput.narrative)
-  const evidence = input.factualExtraction.facts
-    .filter((fact) => ['decision', 'warning', 'cue', 'condition', 'action'].includes(fact.category))
-    .slice(0, 4)
-    .map((fact) => fact.statement)
+  const evidence = [...new Set(
+    input.factualExtraction.evidence
+      .filter((item) =>
+        ['decision', 'warning', 'cue', 'condition', 'action'].includes(item.category) &&
+        item.assertionStatus === 'AFFIRMED' &&
+        item.temporalRelation !== 'POST_ESCAPE' &&
+        item.relationshipToFailure !== 'POST_ESCAPE_CONSEQUENCE' &&
+        item.sourceSection !== 'RECOMMENDATION' &&
+        item.sourceSection !== 'ADMINISTRATIVE' &&
+        item.evidenceType !== 'OUTCOME' &&
+        item.evidenceType !== 'UNSUPPORTED_REPORT_ANALYSIS',
+      )
+      .map((item) => item.statement),
+  )].slice(0, 4)
 
   let expectedSafeState: string | null = null
   let expectedSafeAction: string | null = null

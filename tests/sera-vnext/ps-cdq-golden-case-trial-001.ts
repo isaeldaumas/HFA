@@ -134,6 +134,8 @@ const wrongLandingOutcome = output.factualExtraction.evidence.find((e) =>
 assert.ok(wrongLandingOutcome)
 assert.equal(wrongLandingOutcome?.temporalRelation, 'POST_ESCAPE')
 assert.equal(output.axes.action.supportingEvidence.includes(wrongLandingOutcome?.statement ?? ''), false)
+assert.equal(output.safeOperationModel.evidence.includes(postLanding?.statement ?? ''), false)
+assert.equal(output.safeOperationModel.evidence.includes(wrongLandingOutcome?.statement ?? ''), false)
 
 for (const [name, violated] of Object.entries(output.guardrails)) {
   assert.equal(violated, false, `guardrail ${name} should remain clean`)

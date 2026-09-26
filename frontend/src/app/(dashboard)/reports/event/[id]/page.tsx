@@ -206,6 +206,12 @@ export default function EventReportPage() {
 
   const preconditions = analysis?.preconditions ?? []
   const vnextPreconditions = vnextOutput?.preconditions ?? []
+  const supportedVnextPreconditions = vnextPreconditions.filter((item) =>
+    item.relationship === 'CONTEXTUAL_PRECONDITION' || item.relationship === 'ENABLING_PRECONDITION',
+  )
+  const hypothesisVnextPreconditions = vnextPreconditions.filter((item) =>
+    item.relationship !== 'CONTEXTUAL_PRECONDITION' && item.relationship !== 'ENABLING_PRECONDITION',
+  )
   const recommendations = analysis?.recommendations ?? []
   const operationalObservations = (vnextOutput?.factualExtraction.evidence ?? [])
     .filter((item) =>
@@ -407,16 +413,34 @@ export default function EventReportPage() {
         </section>
 
         <section className="report-section">
-          <h3 className="report-title">4. {L('Principais fatores humanos observados', 'Main human-factors observations')}</h3>
+          <h3 className="report-title">4. {L('Pré-condições e hipóteses contextuais', 'Preconditions and contextual hypotheses')}</h3>
           {vnextOutput && vnextPreconditions.length > 0 ? (
-            <div className="space-y-2">
-              {vnextPreconditions.map((item) => (
-                <div key={item.id} className="report-box">
-                  <p><strong>{preconditionCategoryLabel(item.category, pt)}:</strong> {item.description}</p>
-                  <p className="text-sm text-slate-700 mt-1">{L('Relação', 'Relationship')}: {preconditionRelationshipLabel(item.relationship, pt)}</p>
-                  {item.evidence.length > 0 ? <p className="text-sm text-slate-700 mt-1">{L('Evidência', 'Evidence')}: {item.evidence.join(' | ')}</p> : null}
+            <div className="space-y-4">
+              {supportedVnextPreconditions.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-slate-800">{L('Pré-condições sustentadas pela evidência', 'Preconditions supported by the evidence')}</p>
+                  {supportedVnextPreconditions.map((item) => (
+                    <div key={item.id} className="report-box">
+                      <p><strong>{preconditionCategoryLabel(item.category, pt)}:</strong> {item.description}</p>
+                      <p className="text-sm text-slate-700 mt-1">{L('Relação', 'Relationship')}: {preconditionRelationshipLabel(item.relationship, pt)}</p>
+                      {item.evidence.length > 0 ? <p className="text-sm text-slate-700 mt-1">{L('Evidência', 'Evidence')}: {item.evidence.join(' | ')}</p> : null}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
+              {hypothesisVnextPreconditions.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-amber-800">{L('Hipóteses preservadas — não confirmadas causalmente', 'Retained hypotheses — not causally confirmed')}</p>
+                  <p className="text-xs text-slate-600">{L('Estes itens aparecem porque foram mencionados ou sugeridos no material-fonte, mas não entram como pré-condições confirmadas nem no Perfil de Risco.', 'These items appear because they were mentioned or suggested in the source material, but they do not count as confirmed preconditions or enter the Risk Profile.')}</p>
+                  {hypothesisVnextPreconditions.map((item) => (
+                    <div key={item.id} className="report-box bg-amber-50">
+                      <p><strong>{preconditionCategoryLabel(item.category, pt)}:</strong> {item.description}</p>
+                      <p className="text-sm text-slate-700 mt-1">{L('Relação', 'Relationship')}: {preconditionRelationshipLabel(item.relationship, pt)}</p>
+                      {item.evidence.length > 0 ? <p className="text-sm text-slate-700 mt-1">{L('Evidência contextual', 'Contextual evidence')}: {item.evidence.join(' | ')}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ) : preconditions.length > 0 ? (
             <div className="space-y-2">
