@@ -15,6 +15,8 @@ import {
   shouldSuppressConsolidatedNumericErc,
 } from './erc-containment'
 import { computeRiskAttentionIndex } from './attention-score'
+import { normalizeRiskProfileVNextPreconditions } from './precondition-normalization'
+import { normalizeRiskProfileVNextStatus } from './source-status'
 import type {
   RiskProfileRecurringPattern,
   RiskProfileSourceEvent,
@@ -53,6 +55,7 @@ const VNEXT_PRECONDITION_NAMES: Record<string, string> = {
   SENSORY_LIMITATION: 'Limitação sensorial',
   KNOWLEDGE_TRAINING: 'Conhecimento e treinamento',
   TIME_PRESSURE: 'Pressão de tempo',
+  ATTENTION_WORKLOAD_CONTEXT: 'Atenção e carga de trabalho',
   COMMUNICATION_INFORMATION: 'Comunicação e informação',
   PROCEDURAL_MONITORING: 'Procedimento e monitoramento',
   FEEDBACK_VERIFICATION: 'Feedback e verificação',
@@ -164,14 +167,7 @@ function normalizeLegacyStatus(status: string, hasAnalysis: boolean): RiskProfil
   }
 }
 
-function normalizeVNextStatus(status: string, reviewStatus: string, deletedAt: string | null): RiskProfileSourceStatus {
-  if (deletedAt || status === 'ARCHIVED') return 'archived'
-  if (status === 'HUMAN_REVIEW_COMPLETED_NON_FINAL' || reviewStatus === 'REVIEWED' || reviewStatus === 'APPROVED') return 'completed'
-  if (status === 'REQUIRES_MORE_EVIDENCE' || reviewStatus === 'MORE_EVIDENCE_REQUIRED') return 'error'
-  if (status === 'UNDER_HUMAN_REVIEW') return 'processing'
-  if (status === 'CANDIDATE_ANALYSIS_CREATED' || reviewStatus === 'NOT_REVIEWED') return 'provisional'
-  return 'draft'
-}
+const normalizeVNextStatus = normalizeRiskProfileVNextStatus
 
 function ensureStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return []
@@ -187,17 +183,7 @@ function normalizeLegacyPreconditions(value: unknown): string[] {
     .filter((code): code is string => !!code)
 }
 
-function normalizeVNextPreconditions(engineOutput: Record<string, unknown> | null): string[] {
-  const value = engineOutput?.preconditions
-  if (!Array.isArray(value)) return []
-  return value
-    .map((item) => {
-      if (!item || typeof item !== 'object') return null
-      const category = (item as { category?: unknown }).category
-      return typeof category === 'string' && category.trim().length > 0 ? category : null
-    })
-    .filter((category): category is string => !!category)
-}
+const normalizeVNextPreconditions = normalizeRiskProfileVNextPreconditions
 
 function preconditionName(code: string): string {
   return LEGACY_PRECONDITION_NAMES[code] ?? VNEXT_PRECONDITION_NAMES[code] ?? code
@@ -789,6 +775,7 @@ export async function getRiskProfileSummaryForTenant(
     completed_analyses: includedSources.length,
     reviewed_analyses: reviewedAnalyses,
     provisional_analyses: provisionalAnalyses,
+    pending_analyses: draftSources.length,
     error_analyses: errorSources.length,
     confidence: dataConfidence.level,
     erc_distribution: suppressConsolidatedErc
@@ -809,6 +796,7 @@ export async function getRiskProfileSummaryForTenant(
     })),
     recurring_patterns: buildRecurringPatterns(combinationCounts, combinationEvidenceIds),
     source_events_included: includedSources,
+    source_events_pending: sortSourcesNewestFirst(draftSources),
     source_events_excluded: excludedSources,
     recent_events: recentEvents,
     limitations: summaryLimitations,

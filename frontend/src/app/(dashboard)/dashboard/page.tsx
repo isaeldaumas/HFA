@@ -366,12 +366,13 @@ export default function DashboardPage() {
       )}
 
       {hasAnalyses && data && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
           {[
             { label: 'Universo canônico', value: data.total_events, tone: 'text-white' },
             { label: 'Considerados no perfil', value: data.included_events, tone: 'text-green-300' },
             { label: 'Revisados', value: data.reviewed_analyses ?? 0, tone: 'text-cyan-300' },
             { label: 'Provisórios', value: data.provisional_analyses ?? 0, tone: 'text-blue-300' },
+            { label: 'Aguardando esclarecimentos', value: data.pending_analyses ?? 0, tone: 'text-violet-300' },
             { label: 'Desconsiderados', value: data.excluded_events, tone: 'text-amber-300' },
             { label: 'ERC predominante', value: data.modal_erc_level ? `ERC ${data.modal_erc_level}` : (data.erc_presentation_mode === 'SUPPRESSED_D3B_MIXED' || data.erc_presentation_mode === 'SUPPRESSED_D3B_VNEXT_ONLY' ? 'omitido (D3-b)' : 'n/d'), tone: 'text-blue-300' },
           ].map((item) => (
