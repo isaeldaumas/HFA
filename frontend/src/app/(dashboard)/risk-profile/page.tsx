@@ -1693,7 +1693,9 @@ export default function RiskProfilePage() {
   const errorAnalyses = data?.error_analyses ?? 0
   const reviewedAnalyses = data?.reviewed_analyses ?? 0
   const provisionalAnalyses = data?.provisional_analyses ?? 0
+  const pendingAnalyses = data?.pending_analyses ?? 0
   const hasAnalyses = totalAnalyses > 0
+  const hasUniverse = totalEvents > 0
   const isForming = totalAnalyses > 0 && totalAnalyses < 10
 
   return (
@@ -1726,7 +1728,7 @@ export default function RiskProfilePage() {
       </div>
 
       {/* Zero-state: nenhuma análise ainda */}
-      {!hasAnalyses && (
+      {!hasUniverse && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-8">
           <div className="max-w-lg">
             <h2 className="text-white font-semibold text-lg mb-2">Seu panorama descritivo está em formação</h2>
@@ -1766,6 +1768,15 @@ export default function RiskProfilePage() {
               <p className="text-slate-500 text-xs">10 análises gratuitas por empresa</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {!hasAnalyses && hasUniverse && (
+        <div className="bg-violet-500/10 border border-violet-500/25 rounded-xl p-5">
+          <p className="text-violet-200 font-medium text-sm">Nenhum evento está pronto para o consolidado ainda</p>
+          <p className="text-slate-400 text-xs leading-relaxed mt-1">
+            O sistema encontrou {totalEvents} evento{totalEvents !== 1 ? 's' : ''} no universo. {pendingAnalyses} aguarda{pendingAnalyses === 1 ? '' : 'm'} esclarecimentos antes de entrar no cálculo; {errorAnalyses} está{errorAnalyses === 1 ? '' : 'ão'} com erro e {excludedEvents} foi{excludedEvents === 1 ? '' : 'ram'} desconsiderado{excludedEvents === 1 ? '' : 's'}.
+          </p>
         </div>
       )}
 
@@ -1818,13 +1829,14 @@ export default function RiskProfilePage() {
         </div>
       )}
 
-      {hasAnalyses && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+      {hasUniverse && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
           {[
             { label: 'Eventos no universo', value: totalEvents, tone: 'text-white' },
             { label: 'Considerados', value: includedEvents, tone: 'text-green-300' },
             { label: 'Revisados', value: reviewedAnalyses, tone: 'text-cyan-300' },
             { label: 'Provisórios', value: provisionalAnalyses, tone: 'text-blue-300' },
+            { label: 'Aguardando esclarecimentos', value: pendingAnalyses, tone: 'text-violet-300' },
             { label: 'Desconsiderados', value: excludedEvents, tone: 'text-amber-300' },
             { label: 'Erros fora do cálculo', value: errorAnalyses, tone: 'text-red-300' },
           ].map((item) => (
@@ -2051,8 +2063,8 @@ export default function RiskProfilePage() {
         </div>
       )}
 
-      {hasAnalyses && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      {hasUniverse && (
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
@@ -2118,6 +2130,29 @@ export default function RiskProfilePage() {
               {(data?.source_events_included ?? []).length === 0 && (
                 <p className="text-slate-500 text-sm">Nenhum evento concluído está entrando no consolidado neste momento.</p>
               )}
+            </div>
+          </div>
+
+          <div className="bg-slate-900 border border-violet-500/20 rounded-xl p-6">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-white font-semibold">Eventos aguardando esclarecimentos</h3>
+                <p className="text-slate-500 text-xs mt-1">Permanecem visíveis, mas não entram no cálculo até haver evidência suficiente.</p>
+              </div>
+              <span className="text-xs text-violet-300">{pendingAnalyses}</span>
+            </div>
+            <div className="space-y-3">
+              {(data?.source_events_pending ?? []).map((source) => {
+                const detailHref = sourceDetailHref(source)
+                return (
+                  <div key={`pending:${source.source}:${source.id}`} className="border border-violet-500/20 rounded-xl p-4">
+                    {detailHref ? <Link href={detailHref} className="text-white font-medium hover:text-violet-300 transition-colors">{source.title}</Link> : <span className="text-white font-medium">{source.title}</span>}
+                    <p className="text-slate-500 text-xs mt-1">{SOURCE_LABEL[source.source]} · {sourceDate(source)}</p>
+                    <p className="text-violet-200 text-xs mt-2">Aguardando esclarecimentos — fora do cálculo por enquanto.</p>
+                  </div>
+                )
+              })}
+              {(data?.source_events_pending ?? []).length === 0 && <p className="text-slate-500 text-sm">Nenhum evento aguardando esclarecimentos.</p>}
             </div>
           </div>
 

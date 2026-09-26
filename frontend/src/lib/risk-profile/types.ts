@@ -103,6 +103,7 @@ export type RiskProfileSummary = {
   completed_analyses: number
   reviewed_analyses: number
   provisional_analyses: number
+  pending_analyses: number
   error_analyses: number
   confidence: DataConfidence['level']
   erc_distribution: Array<{ code: string; label: string; count: number }>
@@ -112,6 +113,7 @@ export type RiskProfileSummary = {
   precondition_distribution: Array<{ category: string; count: number }>
   recurring_patterns: RiskProfileRecurringPattern[]
   source_events_included: RiskProfileSourceEvent[]
+  source_events_pending: RiskProfileSourceEvent[]
   source_events_excluded: RiskProfileSourceEvent[]
   recent_events: Array<{
     id: string

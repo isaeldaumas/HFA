@@ -110,10 +110,11 @@ export default function ExecutiveReportPage() {
           <>
             <section className={styles.reportSection}>
               <h3 className={styles.reportTitle}>1. Resumo executivo</h3>
-              <div className="grid sm:grid-cols-4 gap-3 mb-3">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-3">
                 <div className={styles.reportBox}><p className="text-xs text-slate-500">Índice HFA</p><p className="text-2xl font-bold">{profile.score.value}/100</p><p className="text-xs text-slate-600">{profile.score.label}</p></div>
                 <div className={styles.reportBox}><p className="text-xs text-slate-500">Eventos considerados</p><p className="text-2xl font-bold">{profile.included_events}</p><p className="text-xs text-slate-600">de {profile.total_events} no universo</p></div>
                 <div className={styles.reportBox}><p className="text-xs text-slate-500">Revisados</p><p className="text-2xl font-bold">{profile.reviewed_analyses}</p><p className="text-xs text-slate-600">{profile.provisional_analyses} provisório(s)</p></div>
+                <div className={styles.reportBox}><p className="text-xs text-slate-500">Aguardando esclarecimentos</p><p className="text-2xl font-bold">{profile.pending_analyses}</p><p className="text-xs text-slate-600">fora do cálculo até completar evidências</p></div>
                 <div className={styles.reportBox}><p className="text-xs text-slate-500">Ações corretivas</p><p className="text-2xl font-bold">{profile.actions.open_total}</p><p className="text-xs text-slate-600">{profile.actions.open_overdue} vencida(s)</p></div>
               </div>
               <p className={styles.reportText}>
@@ -164,11 +165,25 @@ export default function ExecutiveReportPage() {
                   </div>
                 )) : <div className={styles.reportBox}>Nenhum evento considerado.</div>}
               </div>
+              {profile.source_events_pending.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="font-semibold text-sm">Eventos aguardando esclarecimentos</h4>
+                  <p className="text-xs text-slate-600 mt-1 mb-2">Estão no universo do Perfil de Risco, mas permanecem fora do cálculo até haver evidência suficiente.</p>
+                  <div className="space-y-2">
+                    {profile.source_events_pending.slice(0, 12).map((source) => (
+                      <div key={`pending:${source.id}`} className={styles.reportBox}>
+                        <p className="font-semibold">{source.title}</p>
+                        <p className="text-xs text-slate-600">{formatDate(source.occurredAt ?? source.createdAt)} · Aguardando esclarecimentos</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </section>
 
             <section className={styles.reportSection}>
               <h3 className={styles.reportTitle}>4. Ações corretivas vinculadas aos eventos considerados</h3>
-              <div className="grid sm:grid-cols-4 gap-3 mb-3">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
                 <div className={styles.reportBox}><p className="text-xs text-slate-500">Total vinculadas</p><p className="text-xl font-bold">{profile.actions.total}</p></div>
                 <div className={styles.reportBox}><p className="text-xs text-slate-500">Abertas</p><p className="text-xl font-bold">{profile.actions.open_total}</p></div>
                 <div className={styles.reportBox}><p className="text-xs text-slate-500">Vencidas</p><p className="text-xl font-bold">{profile.actions.open_overdue}</p></div>
