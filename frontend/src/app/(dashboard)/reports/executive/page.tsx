@@ -117,7 +117,7 @@ export default function ExecutiveReportPage() {
                 <div className={styles.reportBox}><p className="text-xs text-slate-500">Ações corretivas</p><p className="text-2xl font-bold">{profile.actions.open_total}</p><p className="text-xs text-slate-600">{profile.actions.open_overdue} vencida(s)</p></div>
               </div>
               <p className={styles.reportText}>
-                O panorama atual combina os padrões P/O/A dos eventos considerados com a situação das ações corretivas vinculadas a esses mesmos eventos. Análises ainda não revisadas entram apenas como sinal provisório e permanecem identificadas separadamente.
+                O panorama atual combina os padrões P/O/A dos eventos considerados com a situação das ações corretivas vinculadas a esses mesmos eventos e, quando há histórico suficiente, um sinal discreto de aumento recente do volume de eventos. Análises ainda não revisadas entram apenas como sinal provisório e permanecem identificadas separadamente.
               </p>
             </section>
 

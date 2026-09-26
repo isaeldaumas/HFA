@@ -102,7 +102,7 @@ function buildScoreModal(score: Intelligence['score']): ModalState {
     title: 'Índice HFA de Atenção Operacional',
     sections: [
       { label: 'O que é', content: 'Indicador descritivo para priorizar acompanhamento, baseado nos padrões P/O/A e nas pendências de ações corretivas. Não é probabilidade de acidente nem ERC/ARMS canônico.' },
-      { label: 'Como é calculado', content: 'Calcula a proporção ponderada dos eixos com falha ativa — Percepção (1,0), Objetivo (0,8) e Ação (0,6) — e acrescenta pendências de ações corretivas. Análises ainda não revisadas são identificadas como provisórias.' },
+      { label: 'Como é calculado', content: 'Calcula a proporção ponderada dos eixos com falha ativa — Percepção (1,0), Objetivo (0,8) e Ação (0,6) —, acrescenta pendências de ações corretivas e, quando existe histórico mínimo, um pequeno sinal por aumento recente do volume de eventos. Análises ainda não revisadas são identificadas como provisórias.' },
       { label: 'Faixas', content: '0–39 → Normal\n40–69 → Atenção (monitoramento recomendado)\n70–100 → Crítico (intervenção imediata)' },
       { label: 'Score atual', content: `${score.value} — ${score.label}` },
     ],

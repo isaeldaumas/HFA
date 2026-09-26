@@ -56,7 +56,7 @@ export function OrgScoreCard({ score, level, actions }: OrgScoreCardProps) {
               transition: 'width 0.6s ease' }} />
         </div>
         <p className="text-xs text-slate-600 mt-1.5">
-          Combina a proporção ponderada de eixos P/O/A com falha ativa e pendências de ações corretivas. É um indicador de priorização, não uma probabilidade de acidente nem ERC/ARMS canônico.
+          Combina a proporção ponderada de eixos P/O/A com falha ativa, pendências de ações corretivas e, quando há histórico suficiente, aumento recente do volume de eventos. É um indicador de priorização, não uma probabilidade de acidente nem ERC/ARMS canônico.
         </p>
       </div>
 

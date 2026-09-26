@@ -698,7 +698,7 @@ export async function getRiskProfileSummaryForTenant(
   const summaryLimitations = [...universeLimitations]
   summaryLimitations.push(
     'Índice HFA de atenção operacional — não validado como probabilidade ou severidade de acidente. ' +
-    'O índice usa a proporção ponderada de eixos com falha ativa (P×1.0, O×0.8, A×0.6) e pendências de ações corretivas; serve apenas para priorização e acompanhamento.'
+    'O índice usa a proporção ponderada de eixos com falha ativa (P×1.0, O×0.8, A×0.6), pendências de ações corretivas e, quando há histórico mínimo, um sinal discreto de aumento recente do volume de eventos; serve apenas para priorização e acompanhamento.'
   )
   if (draftSources.length > 0) {
     summaryLimitations.push(`${draftSources.length} registro(s) ainda não concluído(s) ficaram fora do consolidado.`)
