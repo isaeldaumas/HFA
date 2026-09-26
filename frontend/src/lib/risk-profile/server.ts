@@ -46,6 +46,8 @@ const LEGACY_PRECONDITION_NAMES: Record<string, string> = {
   O4: 'Influências Organizacionais - Gestão',
 }
 
+const RISK_PROFILE_ACTION_SELECT = 'id, status, due_date, responsible, analysis_id, sera_vnext_analysis_id, created_at, completed_at'
+
 const VNEXT_PRECONDITION_NAMES: Record<string, string> = {
   PHYSICAL_CAPABILITY: 'Capacidade física',
   SENSORY_LIMITATION: 'Limitação sensorial',
@@ -389,7 +391,7 @@ export async function loadRiskProfileUniverse(
       .order('created_at', { ascending: false }),
     admin
       .from('corrective_actions')
-      .select('id, status, due_date, responsible, analysis_id, sera_vnext_analysis_id, created_at, completed_at')
+      .select(RISK_PROFILE_ACTION_SELECT)
       .eq('tenant_id', tenantId),
     admin
       .from('risk_profile_exclusions')
