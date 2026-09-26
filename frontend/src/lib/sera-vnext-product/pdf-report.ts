@@ -358,6 +358,12 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       const item = map[relationship]
       return item ? item[pt ? 0 : 1] : relationship
     }
+    const postEscapeStatements = new Set(
+      output.factualExtraction.evidence
+        .filter((item) => item.temporalRelation === 'POST_ESCAPE' || item.relationshipToFailure === 'POST_ESCAPE_CONSEQUENCE')
+        .map((item) => item.statement.trim()),
+    )
+    const safeOperationEvidence = output.safeOperationModel.evidence.filter((item) => !postEscapeStatements.has(item.trim()))
 
     const doc = new PDFDocument({
       margin: 46,
@@ -442,7 +448,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     meta(doc, L('Ação segura esperada', 'Expected safe action'), value(output.safeOperationModel.expectedSafeAction))
     meta(doc, L('Confiança', 'Confidence'), confidenceLabel(output.safeOperationModel.confidence, pt))
     subheading(doc, L('Evidência considerada', 'Evidence considered'))
-    bullets(doc, output.safeOperationModel.evidence, L('Nenhum item registrado.', 'No item recorded.'))
+    bullets(doc, safeOperationEvidence, L('Nenhum item pré-ponto de fuga registrado.', 'No pre-escape item recorded.'))
 
     heading(doc, '4. ' + L('Ponto de fuga da operação segura', 'Safe-operation escape point'))
     body(doc, value(output.escapePoint.statement), 'justify')
@@ -508,24 +514,44 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     doc.moveDown(0.45)
     for (const path of output.canonicalTraversal.paths) renderPath(doc, path, output, pt)
 
-    heading(doc, '7. ' + L('Pré-condições', 'Preconditions'))
-    if (!output.preconditions.length) {
+    heading(doc, '7. ' + L('Pré-condições e hipóteses contextuais', 'Preconditions and contextual hypotheses'))
+    const supportedPreconditions = output.preconditions.filter((pc) =>
+      pc.relationship === 'CONTEXTUAL_PRECONDITION' || pc.relationship === 'ENABLING_PRECONDITION',
+    )
+    const hypothesisPreconditions = output.preconditions.filter((pc) =>
+      pc.relationship !== 'CONTEXTUAL_PRECONDITION' && pc.relationship !== 'ENABLING_PRECONDITION',
+    )
+    const renderPrecondition = (pc: typeof output.preconditions[number], hypothesis: boolean) => {
+      keepTogether(doc, 110)
+      const reviewCard = reviewerOutput.preconditionReview.cards.find((card) => card.category === pc.category)
+      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(hypothesis ? '#8a5a00' : '#1d4f73')
+        .text(categoryLabel(pc.category) + ' - ' + confidenceLabel(pc.confidence, pt))
+      body(doc, pc.description)
+      meta(doc, L('Relação com a falha', 'Relationship to the failure'), relationshipLabel(pc.relationship))
+      meta(doc, L('Ator associado', 'Associated actor'), value(localizeActor(pc.linkedActor, locale)))
+      meta(doc, L('Regra(s) de origem', 'Source rule(s)'), pc.sourceRuleIds.join(', '))
+      meta(doc, L('É ponto de fuga?', 'Is it the escape point?'), L('NÃO - mantida separadamente da falha ativa', 'NO - kept separate from the active failure'))
+      if (pt && reviewCard?.reviewerQuestion) meta(doc, 'Pergunta ao revisor', reviewCard.reviewerQuestion)
+      subheading(doc, hypothesis ? L('Evidência contextual', 'Contextual evidence') : L('Evidência', 'Evidence'))
+      bullets(doc, pc.evidence)
+      doc.moveDown(0.55)
+    }
+
+    if (!supportedPreconditions.length && !hypothesisPreconditions.length) {
       body(doc, L('Nenhuma pré-condição candidata foi sustentada pela evidência disponível.', 'No candidate precondition was supported by the available evidence.'))
     } else {
-      for (const pc of output.preconditions) {
-        keepTogether(doc, 110)
-        const reviewCard = reviewerOutput.preconditionReview.cards.find((card) => card.category === pc.category)
-        doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#1d4f73')
-          .text(categoryLabel(pc.category) + ' - ' + confidenceLabel(pc.confidence, pt))
-        body(doc, pc.description)
-        meta(doc, L('Relação com a falha', 'Relationship to the failure'), relationshipLabel(pc.relationship))
-        meta(doc, L('Ator associado', 'Associated actor'), value(localizeActor(pc.linkedActor, locale)))
-        meta(doc, L('Regra(s) de origem', 'Source rule(s)'), pc.sourceRuleIds.join(', '))
-        meta(doc, L('É ponto de fuga?', 'Is it the escape point?'), L('NÃO - mantida separadamente como pré-condição/hipótese', 'NO - kept separate as a precondition/hypothesis'))
-        if (pt && reviewCard?.reviewerQuestion) meta(doc, 'Pergunta ao revisor', reviewCard.reviewerQuestion)
-        subheading(doc, L('Evidência', 'Evidence'))
-        bullets(doc, pc.evidence)
-        doc.moveDown(0.55)
+      if (supportedPreconditions.length) {
+        subheading(doc, L('Pré-condições sustentadas pela evidência', 'Preconditions supported by the evidence'))
+        for (const pc of supportedPreconditions) renderPrecondition(pc, false)
+      }
+      if (hypothesisPreconditions.length) {
+        subheading(doc, L('Hipóteses preservadas - não confirmadas causalmente', 'Retained hypotheses - not causally confirmed'))
+        body(doc, L(
+          'Estes itens foram mencionados ou sugeridos no material-fonte, mas não entram como pré-condições confirmadas nem no Perfil de Risco enquanto permanecerem sem suporte causal suficiente.',
+          'These items were mentioned or suggested in the source material, but they do not count as confirmed preconditions or enter the Risk Profile while causal support remains insufficient.',
+        ), 'justify')
+        doc.moveDown(0.25)
+        for (const pc of hypothesisPreconditions) renderPrecondition(pc, true)
       }
     }
 
