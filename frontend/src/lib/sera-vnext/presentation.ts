@@ -83,16 +83,20 @@ export function buildExecutiveSummary(args: {
     args.output.axes.action.proposedCode,
   ].map((value) => value ?? '—').join(' / ')
   const safeState = args.output.safeOperationModel.expectedSafeState ? sentence(args.output.safeOperationModel.expectedSafeState) : null
+  const ready = args.output.evidenceSufficiency.status === 'SUFFICIENT_FOR_CANDIDATE_ANALYSIS'
+    && args.output.directActor.status === 'IDENTIFIED'
+    && args.output.escapePoint.confidence !== 'LOW'
+    && !Object.values(args.output.guardrails).some(Boolean)
   if (pt) {
     const subject = args.title?.trim() ? `No evento ${args.title.trim()}, ` : 'No evento analisado, '
     const safe = safeState ? `O estado seguro esperado era: ${safeState}. ` : ''
-    return `${subject}o ponto de fuga foi identificado quando ${escape.replace(/^Quando\s+/i, '')}. ` +
-      `O ator direto candidato é ${actor}. ${safe}A classificação candidata é ${codes}.`
+    if (!ready) return `${subject}a análise permanece não resolvida para fechamento metodológico. ${safe}Ponto de fuga: ${escape}. Ator: ${actor}. P/O/A: ${codes}. As razões de bloqueio devem ser resolvidas antes do uso formal.`
+    return `${subject}o ponto de fuga candidato é ${escape}. O ator direto candidato é ${actor}. ${safe}A classificação candidata é ${codes}.`
   }
   const subject = args.title?.trim() ? `In event ${args.title.trim()}, ` : 'In the analyzed event, '
   const safe = safeState ? `The expected safe state was: ${safeState}. ` : ''
-  return `${subject}the escape point was identified when ${escape.replace(/^When\s+/i, '')}. ` +
-    `The candidate direct actor is ${actor}. ${safe}The candidate classification is ${codes}.`
+  if (!ready) return `${subject}the analysis remains unresolved for methodological closure. ${safe}Escape point: ${escape}. Actor: ${actor}. P/O/A: ${codes}. Blocking reasons must be resolved before formal use.`
+  return `${subject}the candidate escape point is ${escape}. The candidate direct actor is ${actor}. ${safe}The candidate classification is ${codes}.`
 }
 export function friendlyAnswerLabel(value: string, pt = true): string {
   const yes = new Set(['SIM', 'SIM_ATENCAO', 'SIM_GERENCIAMENTO', 'SIM_SELECAO', 'SIM_FEEDBACK'])
@@ -122,7 +126,7 @@ export function didacticNodeReason(nodeId: string, answer: string, fallback: str
     'O_RULES:SIM': 'O objetivo era compatível com regras e procedimentos; o fluxo verifica se ainda havia um problema independente de gerenciamento do risco.',
     'O_RULES:NÃO': 'Há evidência de objetivo incompatível com regras ou procedimentos; o fluxo passa a distinguir o tipo de violação.',
     'O_MANAGED_RISK:NÃO': 'Não foi demonstrado um objetivo inseguro independente; mantém-se O-A, sem falha de objetivo.',
-    'O_MANAGED_RISK:SIM': 'O objetivo, embora compatível com regras gerais, não gerenciava adequadamente o risco operacional.',
+    'O_MANAGED_RISK:SIM': 'Há evidência positiva de um objetivo de eficiência, economia, tempo, produtividade ou equivalente; isso sustenta o ramo O-D.',
     'A_ROOT:START': 'Primeiro se identifica como o operador tentou executar o objetivo no ponto de fuga.',
     'A_IMPLEMENTED:SIM': 'A ação foi executada de forma coerente com o estado percebido; o fluxo verifica se existia outra falha independente de ação.',
     'A_IMPLEMENTED:NÃO_DESLIZE_LAPSO_ERRO': 'Há evidência de deslize, lapso ou erro específico na implementação da ação.',

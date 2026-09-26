@@ -3,10 +3,6 @@ import { calibrationCases, validationCases, type EngineV03Expected } from './eng
 import { runSeraVNextEngineV0 } from '../../frontend/src/lib/sera-vnext/engine-v0/run-engine'
 
 const corrections: Record<string, { expected: EngineV03Expected; rationale: string }> = {
-  'V03-CAL-03': {
-    expected: { kind: 'code', axis: 'perception', code: 'P-H' },
-    rationale: 'System reverted without alerting the crew; information/communication availability failure is causal before any independent action error.',
-  },
   'V03-CAL-08': {
     expected: { kind: 'code', axis: 'action', code: 'A-F' },
     rationale: 'Copilot inserted a flight level different from the chart: wrong selection among available alternatives, not a generic procedural omission.',
@@ -18,10 +14,6 @@ const corrections: Record<string, { expected: EngineV03Expected; rationale: stri
   'V03-CAL-11': {
     expected: { kind: 'code', axis: 'objective', code: 'O-C' },
     rationale: 'Known minimum + explicit awareness + conscious one-off decision to depart below the minimum = exceptional/non-routine conscious violation.',
-  },
-  'V03-CAL-12': {
-    expected: { kind: 'code', axis: 'objective', code: 'O-C' },
-    rationale: 'Known approach rule + explicit awareness + conscious continuation = exceptional/non-routine conscious violation.',
   },
   'V03-VAL-03': {
     expected: { kind: 'code', axis: 'perception', code: 'P-H' },

@@ -41,8 +41,9 @@ export function runStep06DirectActor(input: {
   const escapeText = normalizeText(input.escapePoint.earliestCandidate ?? input.escapePoint.statement ?? '')
   const escapeHasCopilot = /\b(copiloto|first officer)\b/.test(escapeText)
   const escapeHasCaptain = /\b(comandante|captain|training captain)\b/.test(escapeText)
+  const escapeHasCollectiveCrew = /\b(tripulacao|tripulação|flight crew|crew|ambos os pilotos|dois pilotos|nenhum piloto|nenhum dos pilotos|both pilots|neither pilot)\b/.test(escapeText)
   const escapeHasMaintenance =
-    /\b(maintenance|mechanic|inspector|manutencao|mecanico|mecanicos|inspetor|inspetores)\b/.test(escapeText) ||
+    /\bmaintenance (?:team|technician|inspector|mechanic)s?\b|\bmechanics?\b|\binspectors?\b|\bequipe de manutencao\b|\btecnic[oa]s? de manutencao\b|\bmecanicos?\b|\binspetores?\b/.test(escapeText) ||
     /\b(inspecao (?:de )?pre[- ]?voo|pre[- ]?voo|preflight inspection)\b/.test(escapeText)
   const narrativeHasMaintenance = /\b(maintenance|mechanic|inspector|manutencao|mecanico|mecanicos|inspetor|inspetores)\b/.test(text)
   const crewOrPilotMention = hasAny(text, ['crew', 'pilot', 'captain', 'first officer', 'tripulacao', 'tripulação', 'comandante', 'copiloto', 'piloto'])
@@ -113,6 +114,30 @@ export function runStep06DirectActor(input: {
           : 'The escape point is anchored to preflight/maintenance activity, but the responsible maintenance actor is not identified; do not migrate attribution to post-escape flight-crew detection or recovery.'],
       }
     }
+    if (escapeHasCopilot && escapeHasCaptain) {
+      return {
+        actor: 'flight crew (collective)',
+        status: 'AMBIGUOUS',
+        alternatives: ['comandante', 'copiloto'],
+        actorMigrationWarnings: ['O ponto de fuga menciona mais de um tripulante; a travessia P/O/A permanece bloqueada até identificar quem executou ou decidiu a ação relevante.'],
+      }
+    }
+    if (escapeHasCollectiveCrew && !escapeHasCopilot && !escapeHasCaptain) {
+      const pfExecution =
+        /\b(iniciou|iniciaram|executou|executaram|conduziu|conduziram|alinhou|alinharam|desceu|desceram|subiu|subiram|aplicou|aplicaram)\b.*\b(aproxima[cç][aã]o|pouso|decolagem|manobra|controle|comando|descida|subida)\b/.test(escapeText) ||
+        /\b(identificou|identificaram|confundiu|confundiram|associou|associaram|tratou|trataram)\b.*\b(destino|unidade|plataforma|pista|helideck|pouso)\b/.test(escapeText) ||
+        /\b(passou|passaram)\s+a\s+(?:conduzir|preparar|aproximar|alinhar|descer)\b.*\b(unidade|plataforma|pista|helideck|destino|unit-[a-z0-9-]+)\b/.test(escapeText)
+      if (pfExecution && copilotPf !== captainPf) {
+        const actor = copilotPf ? 'copiloto (PF)' : 'comandante (PF)'
+        return { actor, status: 'IDENTIFIED', alternatives: ['tripulação', copilotPf ? 'comandante (PM)' : 'copiloto (PM)'], actorMigrationWarnings: [] }
+      }
+      return {
+        actor: 'flight crew (collective)',
+        status: 'AMBIGUOUS',
+        alternatives: ['comandante', 'copiloto', 'PF', 'PM'],
+        actorMigrationWarnings: ['Atribuição coletiva de tripulação não é suficiente para fechar P/O/A; é necessária decomposição por ator direto.'],
+      }
+    }
     if (escapeHasCopilot && !escapeHasCaptain) {
       const actor = copilotPf ? 'copiloto (PF)' : copilotPm ? 'copiloto (PM)' : 'copiloto'
       return { actor, status: 'IDENTIFIED', alternatives: ['tripulação'], actorMigrationWarnings: [] }
@@ -178,12 +203,12 @@ export function runStep06DirectActor(input: {
     ) {
       return {
         actor: 'flight crew (collective)',
-        status: 'IDENTIFIED',
-        alternatives: ['captain', 'first officer', 'crew collective'],
-        actorMigrationWarnings: [],
+        status: 'AMBIGUOUS',
+        alternatives: ['captain', 'first officer', 'PF', 'PM'],
+        actorMigrationWarnings: ['Collective crew attribution is not sufficient to close P/O/A; identify the direct actor at the escape point.'],
       }
     }
-    if (hasAny(text, ['the pilot', 'pilot decided', 'pilot moved', 'pilot continued'])) {
+    if (hasAny(text, ['the pilot', 'pilot decided', 'pilot moved', 'pilot continued', 'o piloto', 'piloto decidiu', 'piloto moveu', 'piloto continuou', 'piloto perdeu', 'piloto iniciou'])) {
       return {
         actor: 'pilot',
         status: 'IDENTIFIED',
@@ -220,9 +245,11 @@ export function runStep06DirectActor(input: {
 
   return {
     actor: legacy.actor,
-    status: legacy.actor ? 'IDENTIFIED' : 'AMBIGUOUS',
-    alternatives: legacy.actorKind === 'crew_collective' ? ['captain', 'first officer', 'crew collective'] : [],
+    status: legacy.actorKind === 'crew_collective' ? 'AMBIGUOUS' : legacy.actor ? 'IDENTIFIED' : 'AMBIGUOUS',
+    alternatives: legacy.actorKind === 'crew_collective' ? ['captain', 'first officer', 'PF', 'PM'] : [],
     actorMigrationWarnings:
-      legacy.actorKind === 'unknown' ? ['Direct actor remains unresolved; avoid actor migration beyond available evidence.'] : [],
+      legacy.actorKind === 'crew_collective'
+        ? ['Collective crew attribution is not sufficient to close P/O/A; identify the direct actor at the escape point.']
+        : legacy.actorKind === 'unknown' ? ['Direct actor remains unresolved; avoid actor migration beyond available evidence.'] : [],
   }
 }

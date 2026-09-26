@@ -27,7 +27,7 @@ async function main() {
   assert.deepEqual(directRepeat, direct, "direct candidate service must be deterministic for equal input and requestId");
   assert.equal(direct.mode, "CANDIDATE_ONLY");
   assert.equal(direct.analysisStatus, "CANDIDATE_ONLY");
-  assert.equal(direct.canonicalTreeStatus, "PARTIAL");
+  assert.equal(direct.canonicalTreeStatus, "INSUFFICIENT_EVIDENCE");
   assert.equal(direct.selectedCode, null);
   assert.equal(direct.releasedCode, null);
   assert.equal(direct.finalConclusion, null);
@@ -37,10 +37,10 @@ async function main() {
   assert.equal(direct.persisted, false);
   assert.ok(direct.factualExtraction.facts.length >= 3, "factual extraction expected");
   assert.ok(direct.factualExtraction.timeline.length >= 3, "timeline expected");
-  assert.notEqual(direct.axes.perception.status, "INSUFFICIENT_EVIDENCE", "perception axis expected");
-  assert.notEqual(direct.axes.objective.status, "INSUFFICIENT_EVIDENCE", "objective axis expected");
-  assert.notEqual(direct.axes.action.status, "INSUFFICIENT_EVIDENCE", "action axis expected");
-  assert.ok(direct.canonicalTraversal.paths.every((path) => path.nodeIds.length >= 1), "canonical paths expected");
+  assert.equal(direct.axes.perception.status, "INSUFFICIENT_EVIDENCE", "perception must remain blocked while actor is unresolved");
+  assert.equal(direct.axes.objective.status, "INSUFFICIENT_EVIDENCE", "objective must remain blocked while actor is unresolved");
+  assert.equal(direct.axes.action.status, "INSUFFICIENT_EVIDENCE", "action must remain blocked while actor is unresolved");
+  assert.equal(direct.canonicalTraversal.paths.length, 0, "canonical traversal must not start with unresolved direct actor");
   assert.ok(direct.escapePoint.supportingEvidence.length >= 1, "escape window evidence expected");
   assert.equal(
     direct.escapePoint.latestCandidate?.includes("struck runway lights") ?? false,
@@ -48,7 +48,7 @@ async function main() {
     "escape window must not use consequence as causal window boundary",
   );
   assert.ok(direct.preconditions.length >= 1, "candidate-only preconditions expected");
-  assert.equal(direct.canonicalTraversal.paths.length, 3, "three canonical axis paths expected");
+  assert.ok(direct.evidenceSufficiency.blockingReasons.includes("DIRECT_ACTOR_UNRESOLVED"), "direct actor must block P/O/A");
 
   const events: Array<Record<string, unknown>> = [];
   const request = new Request("http://localhost/api/admin/sera-vnext/candidate", {
@@ -83,7 +83,7 @@ async function main() {
   const payload = (await response.json()) as Awaited<ReturnType<typeof analyzeSeraVNextCandidateOnly>>;
   assert.equal(payload.requestId, "candidate-route-ok");
   assert.equal(payload.analysisStatus, "CANDIDATE_ONLY");
-  assert.equal(payload.canonicalTreeStatus, "PARTIAL");
+  assert.equal(payload.canonicalTreeStatus, "INSUFFICIENT_EVIDENCE");
   assert.equal(payload.persisted, false);
   assert.equal(payload.readyPromotion, false);
   assert.equal(payload.downstreamAllowed, false);
@@ -92,11 +92,12 @@ async function main() {
   assert.equal(payload.finalConclusion, null);
   assert.ok(payload.warnings.includes("NON_FINAL_OUTPUT_ONLY"));
   assert.ok(payload.warnings.includes("HUMAN_REVIEW_REQUIRED"));
-  assert.equal(payload.canonicalTraversal.status, "PARTIAL");
+  assert.equal(payload.canonicalTraversal.status, "INSUFFICIENT_EVIDENCE");
   assert.ok(
-    payload.canonicalTraversal.unansweredQuestions.some((question) => question.startsWith("O_RULES:")),
-    "objective rule-awareness path should remain unanswered without explicit violation evidence",
+    payload.canonicalTraversal.unansweredQuestions.some((question) => /direct actor|ator direto/i.test(question)),
+    "direct-actor ambiguity should be the blocking question before P/O/A traversal",
   );
+  assert.ok(payload.warnings.includes("DIRECT_ACTOR_REVIEW_REQUIRED"));
   assert.ok(payload.humanReviewPackage.reviewerDecisionsRequired.length >= 1);
 
   const eventsText = JSON.stringify(events);

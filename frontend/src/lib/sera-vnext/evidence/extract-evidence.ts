@@ -1,5 +1,6 @@
 import type { SeraFact, SeraSupplementalEvidenceInput, SeraTimelineItem } from '../engine-contract'
 import { confidenceFromCount } from '../engine-v0/utils'
+import { isNonCausalDocumentStatement, isProcedureReferenceStatement, isSystemDescriptionStatement } from '../engine-v0/factual-extraction-helpers'
 import { hasConcept, type SeraEvidenceConcept } from '../engine-v02/language/concepts'
 import { detectEvidenceActor, classifyActorRelation, classifyActorRelationForActor } from './actor-scope'
 import { classifyTemporalRelation } from './temporal-scope'
@@ -10,8 +11,11 @@ function pushUnique<T>(target: T[], value: T): void {
 }
 
 function classifyEvidenceType(statement: string, category: SeraFact['category'], sourceSection?: SeraFact['sourceSection']): SeraEvidenceItem['evidenceType'] {
+  if (isNonCausalDocumentStatement(statement) || sourceSection === 'ADMINISTRATIVE') return 'NON_CAUSAL_DOCUMENT'
   if (sourceSection === 'REPORT_ANALYSIS' || sourceSection === 'RECOMMENDATION') return 'UNSUPPORTED_REPORT_ANALYSIS'
   if (/\b(probable cause|conclusion|recommendation|hfacs|risk\/erc|arms\/erc|causa provável|recomendação|report focuses|report does not describe|report only mentions|relat[oó]rio foca|relat[oó]rio (?:n[aã]o )?descreve|par[aá]grafo .* menciona apenas|n[aã]o h[aá] descri[cç][aã]o|n[aã]o ficou registrado)\b/i.test(statement)) return 'UNSUPPORTED_REPORT_ANALYSIS'
+  if (isProcedureReferenceStatement(statement)) return 'REFERENCE_PROCEDURE'
+  if (isSystemDescriptionStatement(statement)) return 'SYSTEM_DESCRIPTION'
   if (category === 'outcome') return 'OUTCOME'
   if (['decision', 'control_input', 'action'].includes(category)) return 'ACTION_OR_DECISION'
   if (['cue', 'warning'].includes(category)) return 'REPORTED_CUE'
@@ -23,7 +27,8 @@ function statementHasAnyConcept(statement: string, concepts: SeraEvidenceConcept
   return concepts.some((concept) => hasConcept([statement], concept))
 }
 
-function classifySupportedUses(statement: string, category: SeraFact['category']): SeraEvidenceUse[] {
+function classifySupportedUses(statement: string, category: SeraFact['category'], evidenceType: SeraEvidenceItem['evidenceType']): SeraEvidenceUse[] {
+  if (['NON_CAUSAL_DOCUMENT', 'REFERENCE_PROCEDURE', 'SYSTEM_DESCRIPTION'].includes(evidenceType)) return []
   const supports: SeraEvidenceUse[] = []
   const normalState = /\b(treinamentos?|habilita[cç][oõ]es?|certificados?|cma|cht)\b.*\b(em dia|v[aá]lid[oa]s?|current|valid)\b|\b(situa[cç][aã]o t[eé]cnica normal|coordenadas? (?:foram )?inseridas? normalmente|checklists? (?:foram )?lidos?)\b/i.test(statement)
   if (['action', 'decision', 'control_input'].includes(category)) pushUnique(supports, 'ACTION')
@@ -32,6 +37,7 @@ function classifySupportedUses(statement: string, category: SeraFact['category']
   if (/\b(surface|superf[ií]cie)\b.*\b(dark|darkened|escura|escuro)\b/i.test(statement)) pushUnique(supports, 'PERCEPTION')
   if (/\b(n[aã]o havia recebido|nunca havia recebido|n[aã]o recebeu|n[aã]o sabia|n[aã]o conhecia|desconhecia|n[aã]o familiar|falta de conhecimento|falta de treinamento|treinamento insuficiente|not trained|lack of knowledge|lack of training|unfamiliar)\b/i.test(statement)) pushUnique(supports, 'PERCEPTION')
   if (/\b(objective|goal|intent|decided|continued|chose|planned|approach|takeoff|go-around|discontinued|aborted|despite warning|wrong runway|wrong surface|known rule|conscious|deliberate|violation|deviation|objetivo|meta|inten[cç][aã]o|decidiu|continuou|escolheu|planejou|planejamento|rota prevista|destino previsto|autoriza[cç][aã]o|procedimentos previstos|aproxima[cç][aã]o|decolagem|arremetida|descontinuou|abortou|apesar do alerta|pista errada|superf[ií]cie errada|regra conhecida|sabia da regra|consciente|deliberad[ao]|viola[cç][aã]o|violar|desviar)\b/i.test(statement)) pushUnique(supports, 'OBJECTIVE')
+  if (statementHasAnyConcept(statement, ['safeGoal', 'knownRule', 'explicitAwareness', 'consciousDeviation', 'routineDeviation', 'exceptionalDeviation', 'managedRisk', 'unmanagedRisk', 'efficiencyObjective'])) pushUnique(supports, 'OBJECTIVE')
   if (/\b(rota|plano|planejamento)\b.*\b(indicava|indicavam|previa|previam|definia|definiam|estabelecia|estabeleciam)\b.*\b(unit-[a-z0-9-]+|pcp-?[0-9]+|destino|unidade|plataforma|pista|helideck)\b/i.test(statement)) pushUnique(supports, 'OBJECTIVE')
   if (/\bdestino\s+inicial\s+(?:previst[ao]|planejad[ao]|programad[ao])(?:\s+e\s+autorizad[ao])?\s+(?:era|foi)\b/i.test(statement)) pushUnique(supports, 'OBJECTIVE')
   if (/\b(action|input|control|executed|turned|descended|climbed|moved|pulled|pushed|lever|line(?:d)? up|selected|configured|go-around|correction|continued below|below profile|readback|feedback|hesitated|delayed|waited|a[cç][aã]o|comando|controle|executou|virou|desceu|subiu|moveu|puxou|empurrou|manete|alinhou|selecionou|configurou|inseriu|programou|ajustou|acionou|digitou|arremetida|corre[cç][aã]o|continuou abaixo|abaixo do perfil|colacionamento|retorno|hesitou|demorou|esperou)\b/i.test(statement)) pushUnique(supports, 'ACTION')
@@ -64,6 +70,13 @@ function classifyProhibitedUses(statement: string, temporalRelation: SeraEvidenc
     pushUnique(prohibited, 'OBJECTIVE')
     pushUnique(prohibited, 'ACTION')
     if (evidenceType === 'UNSUPPORTED_REPORT_ANALYSIS' || assertionStatus !== 'AFFIRMED') pushUnique(prohibited, 'PRECONDITION')
+  }
+  if (['NON_CAUSAL_DOCUMENT', 'REFERENCE_PROCEDURE', 'SYSTEM_DESCRIPTION'].includes(evidenceType)) {
+    pushUnique(prohibited, 'ESCAPE_POINT')
+    pushUnique(prohibited, 'PERCEPTION')
+    pushUnique(prohibited, 'OBJECTIVE')
+    pushUnique(prohibited, 'ACTION')
+    pushUnique(prohibited, 'PRECONDITION')
   }
   if (/\b(hfacs|risk\/erc|arms\/erc|probable cause|recommendation)\b/i.test(statement)) {
     pushUnique(prohibited, 'PERCEPTION')
@@ -122,7 +135,7 @@ export function extractEvidenceItems(args: {
       : classifyActorRelation({ statement: fact.statement, directActor: args.directActor ?? null })
     const assertionStatus = fact.assertionStatus ?? timelineItem?.assertionStatus ?? 'AFFIRMED'
     const evidenceType = classifyEvidenceType(fact.statement, fact.category, sourceSection)
-    const supports = classifySupportedUses(fact.statement, fact.category)
+    const supports = classifySupportedUses(fact.statement, fact.category, evidenceType)
     const prohibitedFor = classifyProhibitedUses(fact.statement, temporalRelation, evidenceType, assertionStatus)
     const base = {
       evidenceId: `EVID-${index + 1}`,
@@ -167,7 +180,7 @@ export function extractSupplementalEvidenceItems(args: {
     const actor = detectEvidenceActor(item.statement)
     const actorRelation = classifyActorRelation({ statement: item.statement, directActor: args.directActor ?? null })
     const evidenceType = classifyEvidenceType(item.statement, category, sourceSection)
-    const supports = classifySupportedUses(item.statement, category)
+    const supports = classifySupportedUses(item.statement, category, evidenceType)
     const inferredTemporalRelation = classifyTemporalRelation({
       statement: item.statement,
       sourceSentenceIndex: args.sourceSentenceIndex,

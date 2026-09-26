@@ -61,7 +61,7 @@ export function runStep10Assurance(input: {
   }
 
   const actorMigrationDetected =
-    input.directActor.status === 'NOT_APPLICABLE' &&
+    input.directActor.status !== 'IDENTIFIED' &&
     [input.axes.perception.proposedCode, input.axes.objective.proposedCode, input.axes.action.proposedCode].some(Boolean)
   const computedGuardrails = computeSeraVNextGuardrails(input)
   const guardrailEvidence = Object.fromEntries(
@@ -77,6 +77,9 @@ export function runStep10Assurance(input: {
     preconditionUsedAsEscapePoint: computedGuardrails.preconditionUsedAsEscapePoint.violated,
     codeFirstPathDetected: computedGuardrails.codeFirstPathDetected.violated,
     awarenessMissingForViolation: computedGuardrails.awarenessMissingForViolation.violated,
+    nonCausalEvidenceUsed: computedGuardrails.nonCausalEvidenceUsed.violated,
+    escapePointReferenceContamination: computedGuardrails.escapePointReferenceContamination.violated,
+    candidateEvidenceMinimumMissing: computedGuardrails.candidateEvidenceMinimumMissing.violated,
   }
   const guardrailWarnings = Object.entries(guardrails)
     .filter(([, violated]) => violated)

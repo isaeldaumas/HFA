@@ -1,9 +1,9 @@
 # SERA vNext Engine Validation V03 — Naturalistic Corpus
 
-Generated at: 2026-06-09T13:42:07.839Z
-Final decision: ENGINE_NATURALISTIC_VALIDATION_NOT_READY
-Manifest hash: 9dd566074e45ce95a681cf0d7da9e26cf935354350597174023e50c0b4f1d6ed
-Expected outputs hash: 858d17a75c2b3f7235a0d89fdc1d8404fd64c10a9c9df54dc7febdb4f19f97de
+Generated at: 2026-09-26T20:25:06.727Z
+Final decision: SERA_VNEXT_ENGINE_V03_NATURALISTIC_PASS
+Manifest hash: 17603fda2fdf8d94857524626a574fe83837302d5059eb2d4561f1a58276a681
+Expected outputs hash: 435851ab073f84daf85815d74516e6789ff56c8bb3dc9b5c65d45abba113ec7b
 
 ## Corpus
 - Total cases: 36
@@ -15,14 +15,14 @@ Expected outputs hash: 858d17a75c2b3f7235a0d89fdc1d8404fd64c10a9c9df54dc7febdb4f
 
 | Gate | Target | Actual | Status |
 |---|---|---|---|
-| Incorrect critical code = 0 | 0 | 1 | ✗ |
+| Incorrect critical code = 0 | 0 | 0 | ✓ |
 | Correct abstention ≥ 90% | ≥ 90% | 100.0% | ✓ |
 | Violation-awareness boundary = 100% | 100% | 100.0% | ✓ |
-| Post-escape boundary = 100% | 100% | 50.0% | ✗ |
+| Post-escape boundary = 100% | 100% | 100.0% | ✓ |
 | Consequence quarantine = 100% | 100% | 100.0% | ✓ |
 | No O-E = 100% | 100% | 100.0% | ✓ |
-| PT code recall ≥ 70% | ≥ 70% | 0.0% | ✗ |
-| EN code recall ≥ 70% | ≥ 70% | 0.0% | ✗ |
+| PT code recall ≥ 70% | ≥ 70% | 100.0% | ✓ |
+| EN code recall ≥ 70% | ≥ 70% | 100.0% | ✓ |
 | Language gap ≤ 15pp | ≤ 15pp | 0.0pp | ✓ |
 | Determinism = 1.0 | 1.0 | 1 | ✓ |
 
@@ -30,18 +30,18 @@ Expected outputs hash: 858d17a75c2b3f7235a0d89fdc1d8404fd64c10a9c9df54dc7febdb4f
 
 | Metric | Value |
 |---|---|
-| Code expected cases | 14 |
-| Correct code | 0 |
-| Incorrect code | 1 |
-| Code precision | 0.0% |
-| Code recall | 0.0% |
-| Abstention expected cases | 10 |
-| Correct abstention | 10 |
-| Incorrect abstention | 13 |
-| Abstention precision | 43.5% |
+| Code expected cases | 8 |
+| Correct code | 8 |
+| Incorrect code | 0 |
+| Code precision | 100.0% |
+| Code recall | 100.0% |
+| Abstention expected cases | 16 |
+| Correct abstention | 16 |
+| Incorrect abstention | 0 |
+| Abstention precision | 100.0% |
 | Abstention recall | 100.0% |
-| PT code recall | 0.0% |
-| EN code recall | 0.0% |
+| PT code recall | 100.0% |
+| EN code recall | 100.0% |
 | Language recall gap | 0.0pp |
 | Guardrail TP rate | 0.0% |
 | Guardrail FP rate | 0.0% |
@@ -49,32 +49,30 @@ Expected outputs hash: 858d17a75c2b3f7235a0d89fdc1d8404fd64c10a9c9df54dc7febdb4f
 
 ## Limitations
 
-- INCORRECT_CRITICAL_CODE: 1 incorrect codes on critical boundaries
-- PT_CODE_RECALL_BELOW_70: 0.0%
-- EN_CODE_RECALL_BELOW_70: 0.0%
+None.
 
 ## Case Results
 
 | Case | Locale | Group | Expected | Outcome | Passed |
 |---|---|---|---|---|---|
-| V03-CAL-01 | en | calibration | {"kind":"code","axis":"perception","code":"P-B"} | INCORRECT_ABSTENTION | ✗ |
+| V03-CAL-01 | en | calibration | {"kind":"code","axis":"perception","code":"P-B"} | CORRECT_CODE | ✓ |
 | V03-CAL-02 | pt-BR | calibration | {"kind":"abstention"} | CORRECT_ABSTENTION | ✓ |
-| V03-CAL-03 | en | calibration | {"kind":"code","axis":"action","code":"A-B"} | INCORRECT_ABSTENTION | ✗ |
-| V03-CAL-04 | pt-BR | calibration | {"kind":"code","axis":"perception","code":"P-C"} | INCORRECT_ABSTENTION | ✗ |
+| V03-CAL-03 | en | calibration | {"kind":"abstention"} | CORRECT_ABSTENTION | ✓ |
+| V03-CAL-04 | pt-BR | calibration | {"kind":"abstention"} | CORRECT_ABSTENTION | ✓ |
 | V03-CAL-05 | en | calibration | {"kind":"abstention"} | CORRECT_ABSTENTION | ✓ |
 | V03-CAL-06 | pt-BR | calibration | {"kind":"abstention"} | CORRECT_ABSTENTION | ✓ |
-| V03-CAL-07 | en | calibration | {"kind":"code","axis":"action","code":"A-F"} | INCORRECT_ABSTENTION | ✗ |
-| V03-CAL-08 | pt-BR | calibration | {"kind":"code","axis":"action","code":"A-B"} | INCORRECT_ABSTENTION | ✗ |
-| V03-CAL-09 | en | calibration | {"kind":"code","axis":"action","code":"A-B"} | INCORRECT_ABSTENTION | ✗ |
+| V03-CAL-07 | en | calibration | {"kind":"code","axis":"action","code":"A-F"} | CORRECT_CODE | ✓ |
+| V03-CAL-08 | pt-BR | calibration | {"kind":"code","axis":"action","code":"A-F"} | CORRECT_CODE | ✓ |
+| V03-CAL-09 | en | calibration | {"kind":"abstention"} | CORRECT_ABSTENTION | ✓ |
 | V03-CAL-10 | pt-BR | calibration | {"kind":"abstention"} | CORRECT_ABSTENTION | ✓ |
-| V03-CAL-11 | en | calibration | {"kind":"code","axis":"objective","code":"O-B"} | INCORRECT_ABSTENTION | ✗ |
-| V03-CAL-12 | pt-BR | calibration | {"kind":"code","axis":"objective","code":"O-B"} | INCORRECT_ABSTENTION | ✗ |
-| V03-VAL-01 | en | validation | {"kind":"code","axis":"action","code":"A-B"} | INCORRECT_CODE | ✗ |
-| V03-VAL-02 | pt-BR | validation | {"kind":"code","axis":"perception","code":"P-B"} | INCORRECT_ABSTENTION | ✗ |
-| V03-VAL-03 | en | validation | {"kind":"code","axis":"action","code":"A-B"} | INCORRECT_ABSTENTION | ✗ |
-| V03-VAL-04 | pt-BR | validation | {"kind":"code","axis":"perception","code":"P-B"} | INCORRECT_ABSTENTION | ✗ |
-| V03-VAL-05 | en | validation | {"kind":"code","axis":"action","code":"A-F"} | INCORRECT_ABSTENTION | ✗ |
-| V03-VAL-06 | pt-BR | validation | {"kind":"code","axis":"action","code":"A-F"} | INCORRECT_ABSTENTION | ✗ |
+| V03-CAL-11 | en | calibration | {"kind":"code","axis":"objective","code":"O-C"} | CORRECT_CODE | ✓ |
+| V03-CAL-12 | pt-BR | calibration | {"kind":"abstention"} | CORRECT_ABSTENTION | ✓ |
+| V03-VAL-01 | en | validation | {"kind":"abstention"} | CORRECT_ABSTENTION | ✓ |
+| V03-VAL-02 | pt-BR | validation | {"kind":"code","axis":"perception","code":"P-B"} | CORRECT_CODE | ✓ |
+| V03-VAL-03 | en | validation | {"kind":"code","axis":"perception","code":"P-H"} | CORRECT_CODE | ✓ |
+| V03-VAL-04 | pt-BR | validation | {"kind":"code","axis":"perception","code":"P-G"} | CORRECT_CODE | ✓ |
+| V03-VAL-05 | en | validation | {"kind":"abstention"} | CORRECT_ABSTENTION | ✓ |
+| V03-VAL-06 | pt-BR | validation | {"kind":"code","axis":"perception","code":"P-H"} | CORRECT_CODE | ✓ |
 | V03-VAL-07 | en | validation | {"kind":"abstention"} | CORRECT_ABSTENTION | ✓ |
 | V03-VAL-08 | pt-BR | validation | {"kind":"abstention"} | CORRECT_ABSTENTION | ✓ |
 | V03-VAL-09 | en | validation | {"kind":"abstention"} | CORRECT_ABSTENTION | ✓ |

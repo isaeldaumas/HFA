@@ -161,6 +161,9 @@ function guardrailLabel(name: string, pt: boolean): string {
     inventedQuestionDetected: 'Pergunta canônica inventada ou reconstruída', actorMigrationDetected: 'Migração indevida do ator causal',
     preconditionUsedAsEscapePoint: 'Pré-condição utilizada como ponto de fuga', codeFirstPathDetected: 'Código definido antes da travessia metodológica',
     awarenessMissingForViolation: 'Violação atribuída sem evidência de consciência da regra',
+    nonCausalEvidenceUsed: 'Evidência documental não causal utilizada na classificação',
+    escapePointReferenceContamination: 'Material de referência utilizado como ponto de fuga',
+    candidateEvidenceMinimumMissing: 'Código candidato sem evidência mínima específica',
   }
   const enMap: Record<string, string> = {
     consequenceUsedAsCause: 'Consequence improperly used as cause', postEscapeHuntingDetected: 'Post-escape causal hunting',
@@ -168,6 +171,9 @@ function guardrailLabel(name: string, pt: boolean): string {
     inventedQuestionDetected: 'Canonical question invented or reconstructed', actorMigrationDetected: 'Improper causal actor migration',
     preconditionUsedAsEscapePoint: 'Precondition used as escape point', codeFirstPathDetected: 'Code selected before methodological traversal',
     awarenessMissingForViolation: 'Violation attributed without rule-awareness evidence',
+    nonCausalEvidenceUsed: 'Non-causal document evidence used in classification',
+    escapePointReferenceContamination: 'Reference material used as the escape point',
+    candidateEvidenceMinimumMissing: 'Candidate code lacks code-specific minimum evidence',
   }
   return (pt ? ptMap : enMap)[name] ?? name
 }
@@ -423,7 +429,7 @@ function renderPath(
   })
 
   subheading(doc, L('Evidência posterior ao ponto de fuga excluída', 'Excluded post-escape evidence'))
-  bullets(doc, axis.excludedPostEscapeEvidence)
+  bullets(doc, axis.excludedPostEscapeEvidence.slice(0, 5))
   doc.moveDown(0.35)
 }
 
@@ -519,11 +525,18 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     meta(doc, L('Classificação candidata', 'Candidate classification'), [output.axes.perception.proposedCode, output.axes.objective.proposedCode, output.axes.action.proposedCode].map((item) => value(item, '—')).join(' / '))
     meta(doc, L('Status da revisão', 'Review status'), analysis.review_status)
 
-    const candidateAttention = computeCandidateAttention(
-      output.axes.perception.proposedCode,
-      output.axes.objective.proposedCode,
-      output.axes.action.proposedCode,
-    )
+    const candidateAttentionEligible =
+      output.evidenceSufficiency.status === 'SUFFICIENT_FOR_CANDIDATE_ANALYSIS' &&
+      output.directActor.status === 'IDENTIFIED' &&
+      output.escapePoint.confidence !== 'LOW' &&
+      !Object.values(output.guardrails).some(Boolean)
+    const candidateAttention = candidateAttentionEligible
+      ? computeCandidateAttention(
+          output.axes.perception.proposedCode,
+          output.axes.objective.proposedCode,
+          output.axes.action.proposedCode,
+        )
+      : null
     if (candidateAttention) {
       keepTogether(doc, 64)
       const riskY = doc.y + 6
@@ -573,11 +586,11 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       bullets(doc, output.directActor.actorMigrationWarnings)
     }
     subheading(doc, L('Evidência de suporte ao ponto de fuga', 'Escape-point supporting evidence'))
-    bullets(doc, output.escapePoint.supportingEvidence, L('Nenhuma evidência registrada.', 'No evidence recorded.'))
+    bullets(doc, output.escapePoint.supportingEvidence.slice(0, 6), L('Nenhuma evidência registrada.', 'No evidence recorded.'))
     subheading(doc, L('Contraevidência / incertezas do limite', 'Counter-evidence / boundary uncertainty'))
-    bullets(doc, output.escapePoint.counterEvidence, L('Nenhuma contraevidência registrada.', 'No counter-evidence recorded.'))
+    bullets(doc, output.escapePoint.counterEvidence.slice(0, 6), L('Nenhuma contraevidência registrada.', 'No counter-evidence recorded.'))
     subheading(doc, L('Evidência posterior excluída da cadeia causal', 'Post-escape evidence excluded from the causal chain'))
-    bullets(doc, output.escapePoint.excludedPostEscapeEvidence, L('Nenhum item registrado.', 'No item recorded.'))
+    bullets(doc, output.escapePoint.excludedPostEscapeEvidence.slice(0, 6), L('Nenhum item registrado.', 'No item recorded.'))
 
     heading(doc, '5. ' + L('Resultado P / O / A - visão sintética', 'P / O / A result - summary view'))
     const axes = [
@@ -645,7 +658,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       meta(doc, L('É ponto de fuga?', 'Is it the escape point?'), L('NÃO - mantida separadamente da falha ativa', 'NO - kept separate from the active failure'))
       if (pt && reviewCard?.reviewerQuestion) meta(doc, 'Pergunta ao revisor', reviewCard.reviewerQuestion)
       subheading(doc, hypothesis ? L('Evidência contextual', 'Contextual evidence') : L('Evidência', 'Evidence'))
-      bullets(doc, pc.evidence)
+      bullets(doc, pc.evidence.slice(0, 6))
       doc.moveDown(0.55)
     }
 
@@ -687,10 +700,16 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     }
 
     heading(doc, '9. ' + L('Conclusão e próximos passos', 'Conclusion and next steps'))
-    body(doc, L(
-      'A análise identifica um ponto de fuga, ator direto e candidatos P/O/A com rastreabilidade explícita. Antes do uso formal, a revisão humana deve confirmar essas decisões, revisar as pré-condições e registrar as ações corretivas aplicáveis. O acompanhamento das ações e da recorrência dos padrões deve ser feito no Perfil de Risco.',
-      'The analysis identifies an escape point, direct actor, and P/O/A candidates with explicit traceability. Before formal use, human review should confirm these decisions, review preconditions, and record applicable corrective actions. Corrective-action follow-up and pattern recurrence should be monitored in the Risk Profile.',
-    ), 'justify')
+    const analysisReady = output.evidenceSufficiency.status === 'SUFFICIENT_FOR_CANDIDATE_ANALYSIS' && !Object.values(output.guardrails).some(Boolean)
+    body(doc, analysisReady
+      ? L(
+          'A análise candidata possui evidência mínima para revisão humana. Antes do uso formal, o revisor deve confirmar o ponto de fuga, o ator, os candidatos P/O/A e as pré-condições.',
+          'The candidate analysis has minimum evidence for human review. Before formal use, the reviewer must confirm the escape point, actor, P/O/A candidates, and preconditions.',
+        )
+      : L(
+          'A análise não possui evidência suficiente para fechar P/O/A. O relatório deve ser tratado como pacote de esclarecimento: as razões de bloqueio e perguntas pendentes precisam ser resolvidas antes de qualquer classificação formal ou índice operacional.',
+          'The analysis does not have sufficient evidence to close P/O/A. Treat this report as a clarification package: blocking reasons and pending questions must be resolved before any formal classification or operational index.',
+        ), 'justify')
 
     doc.addPage()
     heading(doc, L('Apêndice técnico - rastreabilidade e auditoria', 'Technical appendix - traceability and audit'))
@@ -723,17 +742,19 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     const uncertain = evidenceItems.filter((item) => item.assertionStatus === 'UNCERTAIN')
     const postEscape = evidenceItems.filter((item) => item.temporalRelation === 'POST_ESCAPE')
     const analysisOnly = evidenceItems.filter((item) => item.sourceSection === 'REPORT_ANALYSIS' || item.sourceSection === 'RECOMMENDATION')
-    meta(doc, L('Itens factuais indexados', 'Indexed factual items'), String(evidenceItems.length))
+    const referenceOnly = evidenceItems.filter((item) => ['NON_CAUSAL_DOCUMENT', 'REFERENCE_PROCEDURE', 'SYSTEM_DESCRIPTION'].includes(item.evidenceType))
+    meta(doc, L('Itens de evidência indexados', 'Indexed evidence items'), String(evidenceItems.length))
     meta(doc, L('Fatores explicitamente rejeitados no relatório-fonte', 'Factors explicitly rejected by the source report'), String(rejected.length))
     meta(doc, L('Afirmações incertas/hipotéticas', 'Uncertain/hypothetical statements'), String(uncertain.length))
     meta(doc, L('Itens pós-ponto de fuga', 'Post-escape items'), String(postEscape.length))
     meta(doc, L('Itens de análise/recomendação não usados como fato causal', 'Analysis/recommendation items not used as causal facts'), String(analysisOnly.length))
+    meta(doc, L('Material documental/de referência excluído da causalidade', 'Document/reference material excluded from causality'), String(referenceOnly.length))
     subheading(doc, L('Fatores que o relatório-fonte declarou como não contribuintes', 'Factors the source report declared non-contributory'))
-    bullets(doc, rejected.map((item) => item.statement))
+    bullets(doc, rejected.slice(0, 8).map((item) => item.statement))
     subheading(doc, L('Hipóteses ou formulações incertas preservadas como incerteza', 'Hypotheses or uncertain formulations retained as uncertainty'))
-    bullets(doc, uncertain.map((item) => item.statement))
+    bullets(doc, uncertain.slice(0, 8).map((item) => item.statement))
     subheading(doc, L('Fatos posteriores ao ponto de fuga, mantidos em quarentena causal', 'Post-escape facts kept in causal quarantine'))
-    bullets(doc, postEscape.map((item) => item.statement))
+    bullets(doc, postEscape.slice(0, 8).map((item) => item.statement))
 
     heading(doc, 'A.3 ' + L('Salvaguardas metodológicas', 'Methodological safeguards'))
     for (const [name, violated] of Object.entries(output.guardrails)) {

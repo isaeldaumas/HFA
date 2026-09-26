@@ -17,6 +17,7 @@ export type SeraEvidenceConcept =
   | 'exceptionalDeviation'
   | 'managedRisk'
   | 'unmanagedRisk'
+  | 'efficiencyObjective'
   | 'safeAction'
   | 'implementedAction'
   | 'feedbackImplementationFailure'
@@ -136,11 +137,13 @@ const CONCEPT_PATTERNS: Record<SeraEvidenceConcept, RegExp[]> = {
     /\b(tunnel[ing]*\s*vision|channelized attention|cognitive tunneling|task saturation)\b/i,
   ],
   timeManagementPressure: [
-    /\b(time pressure|urgency|expedite|rushed sequence|schedule pressure)\b/i,
-    /\b(press[aã]o de tempo|urg[eê]ncia|acelerar|sequ[eê]ncia apressada|press[aã]o de escala|press[aã]o operacional)\b/i,
+    /\b(time pressure|rushed sequence|schedule pressure|slot pressure|tight schedule)\b/i,
+    /\b(press[aã]o de tempo|sequ[eê]ncia apressada|press[aã]o de escala)\b/i,
+    /\b(urgency|urgent)\b.*\b(time|deadline|window|schedule|decision|action|execute|respond)\b/i,
+    /\b(urg[eê]ncia|urgente)\b.*\b(tempo|prazo|janela|hor[aá]rio|decis[aã]o|agir|executar|responder)\b/i,
     /\b(atrasad[ao]|atraso|demora|correria|correndo|apressad[ao])\b.*\b(voo|partida|chegada|escala|hor[aá]rio|turno)\b/i,
     /\b(recuperar|compensar|reduzir)\b.*\b(atraso|tempo|hor[aá]rio)\b/i,
-    /\b(behind schedule|running late|behind time|tight schedule|slot pressure)\b/i,
+    /\b(behind schedule|running late|behind time)\b/i,
     /\b(compromisso|obriga[cç][aã]o|meta|contrato)\b.*\b(hor[aá]rio|prazo|tempo|di[aá]ri[ao])\b/i,
   ],
   informationAmbiguous: [
@@ -275,6 +278,12 @@ const CONCEPT_PATTERNS: Record<SeraEvidenceConcept, RegExp[]> = {
     /\b(assumiu|aceitou|tolerou|correu|ignorou|subestimou|menosprezou)\b.*\b(risco|perigo|amea[cç]a)\b/i,
     /\b(prosseguiu|continuou|manteve)\b.*\b((apesar do|mesmo com o|a despeito do|ignorando o) risco|sem (mitigar|reduzir|controlar|gerenciar))\b/i,
   ],
+  efficiencyObjective: [
+    /\b(save time|gain time|expedite|schedule pressure|productivity|commercial pressure|cost saving|fuel saving|on-time performance|complete the rotation)\b/i,
+    /\b(ganhar tempo|economizar tempo|acelerar|press[aã]o de escala|produtividade|press[aã]o comercial|reduzir custo|economizar combust[ií]vel|pontualidade|cumprir hor[aá]rio|completar a rota[cç][aã]o)\b/i,
+    /\b(objetivo|meta|inten[cç][aã]o)\b.*\b(tempo|prazo|produtividade|economia|custo|combust[ií]vel|pontualidade|hor[aá]rio)\b/i,
+    /\b(goal|objective|intent)\b.*\b(time|deadline|productivity|economy|cost|fuel|schedule|on-time)\b/i,
+  ],
   safeAction: [
     /\b(executed|initiated|performed|commenced)\b.*\b(go-around|go around|discontinued approach|abort(?:ed)?)\b/i,
     /\b(prompt correction|safe separation)\b/i,
@@ -380,8 +389,8 @@ const CONCEPT_PATTERNS: Record<SeraEvidenceConcept, RegExp[]> = {
     /\b(crew|team|cockpit|pilot|copilot|captain|first officer)\b.*\b(communication|coordination|interaction|dialogue)\b.*\b(failure|breakdown|error|problem|issue|poor|ineffective)\b/i,
   ],
   timeManagementAction: [
-    /\b(time pressure|rushed|late decision|urgency|schedule pressure)\b/i,
-    /\b(press[aã]o de tempo|apressad[ao]|decis[aã]o tardia|urg[eê]ncia|press[aã]o de escala)\b/i,
+    /\b(time pressure|rushed|schedule pressure)\b.*\b(action|decision|selected|executed|responded|acted)\b/i,
+    /\b(press[aã]o de tempo|apressad[ao]|press[aã]o de escala)\b.*\b(a[cç][aã]o|decis[aã]o|selecionou|executou|respondeu|atuou)\b/i,
     /\b(decidiu|optou|resolveu|reagiu|atuou|respondeu)\b.*\b(tarde|tardiamente|em cima da hora|no [uú]ltimo (momento|instante|segundo|minuto))\b/i,
     /\b(hesitou|demorou|levou|esperou)\b.*\b(antes de|para|at[eé])\b.*\b(agir|atuar|decidir|reagir|responder|executar|iniciar)\b/i,
     /\b(hesitated|delayed|waited|paused)\b.*\b(before|until)\b.*\b(acting|responding|reacting|deciding|executing)\b/i,

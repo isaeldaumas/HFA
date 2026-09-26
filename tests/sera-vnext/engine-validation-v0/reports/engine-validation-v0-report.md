@@ -1,18 +1,18 @@
 # SERA vNext Engine Validation V0
 
-Generated at: 2026-06-09T02:54:12.990Z
+Generated at: 2026-09-26T20:46:22.942Z
 
-Final decision: SERA_VNEXT_ENGINE_V0_VALIDATION_BLOCKED
-Product Beta gate: PRODUCT_BETA_FOUNDATION_BLOCKED
+Final decision: SERA_VNEXT_ENGINE_V0_INTERNALLY_VALIDATED
+Product Beta gate: PRODUCT_BETA_FOUNDATION_ALLOWED
 
-Cases: 9
-Pass: 4
-Partial: 5
+Cases: 39
+Pass: 39
+Partial: 0
 Fail: 0
 Error: 0
 
 ## Blocking reasons
-- partial validations=5
+- none
 
 ## Determinism
 - OFFICIAL-COMAIR-5191: runs=5 structural=1 semantic=1
@@ -42,12 +42,42 @@ Error: 0
 - passed=true
 
 ## Case results
-- OFFICIAL-COMAIR-5191 [official] passed=false findings=partial:O code outside authored allowed set: null | partial:A code outside authored allowed set: null
-- OFFICIAL-ASIANA-214 [official] passed=false findings=partial:P code outside authored allowed set: null | partial:O code outside authored allowed set: null | partial:A code outside authored allowed set: null
-- OFFICIAL-UPS-1354 [official] passed=false findings=partial:O code outside authored allowed set: null
+- OFFICIAL-COMAIR-5191 [official] passed=true findings=pass:output matches authored boundary checks
+- OFFICIAL-ASIANA-214 [official] passed=true findings=pass:output matches authored boundary checks
+- OFFICIAL-UPS-1354 [official] passed=true findings=pass:output matches authored boundary checks
 - OFFICIAL-GAP-004 [official] passed=true findings=pass:output matches authored boundary checks
 - OFFICIAL-DELTA-191 [official] passed=true findings=pass:output matches authored boundary checks
 - OFFICIAL-USAIR-427 [official] passed=true findings=pass:output matches authored boundary checks
 - OFFICIAL-5N-BQJ [official] passed=true findings=pass:output matches authored boundary checks
-- HUMAN-THEBAUD [human] passed=false findings=partial:escape point boundary not matched: visual approach | partial:P code outside authored allowed set: null
-- HUMAN-CRANK-2026-0001 [human] passed=false findings=partial:O code outside authored allowed set: null
+- HUMAN-THEBAUD [human] passed=true findings=pass:output matches authored boundary checks
+- HUMAN-CRANK-2026-0001 [human] passed=true findings=pass:output matches authored boundary checks
+- GEN-G-WNSB [generalization] passed=true findings=pass:output matches authored boundary checks
+- GEN-EXECUFLIGHT-1526 [generalization] passed=true findings=pass:output matches authored boundary checks
+- GEN-THEBAUD [generalization] passed=true findings=pass:output matches authored boundary checks
+- GEN-PEL-AIR [generalization] passed=true findings=pass:output matches authored boundary checks
+- GEN-FIRST-AIR-6560 [generalization] passed=true findings=pass:output matches authored boundary checks
+- GEN-AIR-CANADA-759 [generalization] passed=true findings=pass:output matches authored boundary checks
+- GEN-TRANSASIA-GE235 [generalization] passed=true findings=pass:output matches authored boundary checks
+- GEN-TECHNICAL-DOMINANT [generalization] passed=true findings=pass:output matches authored boundary checks
+- GEN-EVIDENCE-INSUFFICIENT [generalization] passed=true findings=pass:output matches authored boundary checks
+- GEN-NO-FAILURE [generalization] passed=true findings=pass:output matches authored boundary checks
+- ADV-CONSEQUENCE-AS-CAUSE [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-POST-ESCAPE-P [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-POST-ESCAPE-O [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-POST-ESCAPE-A [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-ACTOR-MIGRATION [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-PRECONDITION-AS-ESCAPE [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-OE [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-VIOLATION-WITHOUT-AWARENESS [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-INVENTED-INTENTION [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-TECHNICAL-DOMINANT [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-ENVIRONMENTAL-DOMINANT [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-NO-FAILURE [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-INSUFFICIENT-EVIDENCE [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-PROGRESSIVE-ZONE [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-PF-PM [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-AA-AC [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-OA-OC [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-PC-PG [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-WARNING-IGNORED [adversarial] passed=true findings=pass:output matches authored boundary checks
+- ADV-WRONG-PERCEPTION-COHERENT-ACTION [adversarial] passed=true findings=pass:output matches authored boundary checks

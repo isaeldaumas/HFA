@@ -6,8 +6,8 @@ function includesNormalized(haystack: string | null, needle: string): boolean {
   return (haystack ?? '').toLowerCase().includes(needle.toLowerCase())
 }
 
-function asComparableArray(value: string[] | 'UNRESOLVED_BY_AUTHOR'): string[] | null {
-  return value === 'UNRESOLVED_BY_AUTHOR' ? null : value.filter((item): item is string => typeof item === 'string')
+function asComparableArray(value: Array<string | null> | 'UNRESOLVED_BY_AUTHOR'): Array<string | null> | null {
+  return value === 'UNRESOLVED_BY_AUTHOR' ? null : value
 }
 
 export function compareOutput(expected: EngineValidationExpectedCase, output: SeraVNextEngineOutput): EngineValidationFinding[] {
@@ -29,7 +29,7 @@ export function compareOutput(expected: EngineValidationExpectedCase, output: Se
   }
 
   const allowedActors = asComparableArray(expected.expectedDirectActor)
-  if (allowedActors && !allowedActors.includes((output.directActor.actor as string | null) ?? '')) {
+  if (allowedActors && !allowedActors.includes(output.directActor.actor ?? null)) {
     findings.push({ severity: 'partial', detail: `unexpected direct actor=${output.directActor.actor}` })
   }
 

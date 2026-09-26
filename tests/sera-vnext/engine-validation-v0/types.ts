@@ -8,8 +8,8 @@ export type EngineValidationCase = {
   narrative: string
 }
 
-export type ExpectedActor = string[] | 'UNRESOLVED_BY_AUTHOR'
-export type ExpectedCodes = string[] | 'UNRESOLVED_BY_AUTHOR'
+export type ExpectedActor = Array<string | null> | 'UNRESOLVED_BY_AUTHOR'
+export type ExpectedCodes = Array<string | null> | 'UNRESOLVED_BY_AUTHOR'
 
 export type EngineValidationExpectedCase = {
   caseId: string

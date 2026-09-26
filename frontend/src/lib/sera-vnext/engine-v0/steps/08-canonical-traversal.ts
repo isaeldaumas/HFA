@@ -131,7 +131,12 @@ export function runStep08CanonicalTraversal(input: {
   axes: SeraVNextEngineOutput['axes']
   canonicalTraversal: SeraVNextEngineOutput['canonicalTraversal']
 } {
-  if (input.escapePoint.status === 'INSUFFICIENT_EVIDENCE' || input.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT') {
+  if (
+    input.escapePoint.status === 'INSUFFICIENT_EVIDENCE'
+    || input.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT'
+    || input.escapePoint.confidence === 'LOW'
+    || input.directActor.status !== 'IDENTIFIED'
+  ) {
     const perception = unresolvedAxisCandidate({ axis: 'P', actor: input.directActor.actor, statement: input.axisStatements.perception.statement, supportingEvidence: input.axisStatements.perception.supportingEvidence, counterEvidence: input.axisStatements.perception.counterEvidence, excludedPostEscapeEvidence: input.escapePoint.excludedPostEscapeEvidence })
     const objective = unresolvedAxisCandidate({ axis: 'O', actor: input.directActor.actor, statement: input.axisStatements.objective.statement, supportingEvidence: input.axisStatements.objective.supportingEvidence, counterEvidence: input.axisStatements.objective.counterEvidence, excludedPostEscapeEvidence: input.escapePoint.excludedPostEscapeEvidence })
     const action = unresolvedAxisCandidate({ axis: 'A', actor: input.directActor.actor, statement: input.axisStatements.action.statement, supportingEvidence: input.axisStatements.action.supportingEvidence, counterEvidence: input.axisStatements.action.counterEvidence, excludedPostEscapeEvidence: input.escapePoint.excludedPostEscapeEvidence })
@@ -141,8 +146,12 @@ export function runStep08CanonicalTraversal(input: {
         status: 'INSUFFICIENT_EVIDENCE',
         paths: [],
         unansweredQuestions: [input.locale === 'pt-BR'
-          ? 'P/O/A não percorridos: ponto de fuga da operação segura não estabelecido com evidência suficiente.'
-          : 'P/O/A not traversed: the safe-operation escape point was not established with sufficient evidence.'],
+          ? (input.directActor.status !== 'IDENTIFIED'
+              ? 'P/O/A não percorridos: ator direto não resolvido no ponto de fuga.'
+              : 'P/O/A não percorridos: ponto de fuga da operação segura não estabelecido com evidência/confiança suficiente.')
+          : (input.directActor.status !== 'IDENTIFIED'
+              ? 'P/O/A not traversed: the direct actor is unresolved at the escape point.'
+              : 'P/O/A not traversed: the safe-operation escape point lacks sufficient evidence/confidence.')],
       },
     }
   }

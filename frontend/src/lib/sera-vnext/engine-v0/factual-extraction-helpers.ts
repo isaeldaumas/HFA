@@ -63,12 +63,51 @@ function normalize(input: string): string {
     .trim()
 }
 
+export function isNonCausalDocumentStatement(statement: string): boolean {
+  const text = normalize(statement)
+  if (!text) return true
+  if (/^(comando da aeronautica|centro de investigacao e prevencao de acidentes aeronauticos|relatorio final|advertencia|glossario|sumario|indice)\b/.test(text)) return true
+  if (/^\d+\s+de\s+\d+\b/.test(text) || /\.{5,}/.test(statement)) return true
+  if (/\bobjetivo unico deste trabalho\b|\bcompete ao sistema de investigacao e prevencao de acidentes aeronauticos\b|\bnao e foco da investigacao sipaer\b/.test(text)) return true
+  if (/\beste relatorio final foi disponibilizado\b|\bpresidente, diretor, chefe\b.*\bprovidencias\b/.test(text)) return true
+  const acronymCount = (statement.match(/\b[A-Z][A-Z0-9-]{1,8}\b/g) ?? []).length
+  return acronymCount >= 7 && !/\b(decidiu|continuou|prosseguiu|executou|falhou|detectou|ativou|desligou|ligou|verbalizou|informou|observou)\b/i.test(statement)
+}
+
+export function isProcedureReferenceStatement(statement: string): boolean {
+  const text = normalize(statement)
+  const source = /\b(fcom|qrh|afm|mel|manual|procedimento|procedure|checklist|regulamento|norma)\b/.test(text)
+  const normative = /\b(estabelecia|determinava|previa|exigia|requeria|deveria|devia|era necessario|era obrigatorio|required|mandated|specified|stated|should|must)\b/.test(text)
+  const occurred = /\b(nao executou|nao realizou|deixou de|falhou em|executou|realizou|cumpriu|descumpriu|foi executado|foi realizado)\b/.test(text)
+  const actorAwareness = /\b(captain|first officer|pilot|crew|comandante|copiloto|piloto|tripulacao)\b.*\b(said|stated|knew|was aware|recognized|noted|commented|disse|afirmou|sabia|conhecia|ciente|reconheceu|comentou)\b/.test(text)
+  return source && normative && !occurred && !actorAwareness
+}
+
+export function isSystemDescriptionStatement(statement: string): boolean {
+  const text = normalize(statement)
+  if (isNonCausalDocumentStatement(statement)) return false
+  const definition = /\b(era responsavel|tinha a funcao|era composto|era constituido|possuia|permitia|armava|ativava|correspondia|provia|indicava|servia para|poderia prover|poderia ser|deveria ser testado)\b/.test(text)
+  const technicalSubject = /\b(sistema|modo|painel|luz|alerta|sensor|apm|afcs|ccas|sps|autopilot|piloto automatico|de-icing|anti-icing|stick pusher|stick shaker|approach \(app|app - aproximacao)\b/.test(text)
+  const eventAnchor = /\b(as \d{1,2}h\d{2}|\d{1,2}:\d{2}|durante o voo|naquele voo|no voo do acidente|a tripulacao|o comandante|o copiloto|o pic|o sic)\b/.test(text)
+  return definition && technicalSubject && !eventAnchor
+}
+
+export function isOperationalEventStatement(statement: string): boolean {
+  if (isNonCausalDocumentStatement(statement) || isProcedureReferenceStatement(statement) || isSystemDescriptionStatement(statement)) return false
+  const text = normalize(statement)
+  const actorAction = /\b(tripulacao|comandante|copiloto|pic|sic|piloto|pilot|crew|captain|first officer|eles|they|maintenance|manutencao|despachante|dov|cco)\b.*\b(decidiu|decidiram|continuou|continuaram|prosseguiu|prosseguiram|manteve|mantiveram|selecionou|acionou|desligou|ligou|executou|omitiu|deixou de|falhou|iniciou|iniciado|iniciada|inseriu|programou|ajustou|configurou|verbalizou|informou|comentou|observou|notou|percebeu|reconheceu|processou|perdeu|interpretou|interpretaram|identificou|identificaram|confundiu|confundiram|associou|associaram|tratou|trataram|conduziu|conduziram|preparou|prepararam|passou|passaram|tomou|tomaram|hesitou|hesitaram|demorou|demoraram|esperou|esperaram|desceu|desceram|subiu|subiram|moveu|moveram|alinhou|alinharam|permitiu|permitiram|continued|decided|selected|executed|failed to|did not|descended|climbed|moved|lined up|allowed|initiated|started|inserted|programmed|configured|noticed|perceived|recognized|processed|lost|interpreted|identified|misidentified|mistook|treated|conducted|prepared|proceeded|treated|hesitated|delayed|waited)\b/.test(text)
+  const eventTime = /\b(as \d{1,2}h\d{2}|\d{1,2}:\d{2}|apos|depois|durante o voo|em seguida|logo apos|na sequencia|when|after|during the flight|then)\b/.test(text)
+  const eventVerb = /\b(foi apresentada|foi detectad|detectou|atingiu|reduziu|aumentou|entrou em|recebeu|apresentou|ocorreu|ativou|desativou|reconheceu|identified|detected|received|entered|activated)\b/.test(text)
+  const preflight = /\b(inspecao (?:de )?pre[- ]?voo|preflight inspection|inspecao visual|visual inspection)\b.*\b(concluida|completed|nao detectou|nada de anormal|nenhuma anormalidade|no abnormality|nothing abnormal)\b/.test(text)
+  return actorAction || preflight || (eventTime && eventVerb)
+}
+
 function detectSection(line: string, current: SeraEvidenceSourceSection): SeraEvidenceSourceSection {
   const text = normalize(line)
   if (/^(?:\d+(?:\.\d+)*\s*)?(recomendacoes?|recomendacoes de seguranca operacional|safety recommendations?|acoes? corretivas?|acoes? preventivas?|licoes? aprendidas?)/.test(text)) return 'RECOMMENDATION'
   if (/^(?:\d+(?:\.\d+)*\s*)?(informacoes? factuais?|informacoes? sobre o evento|historico|aeronave|tripulacao|relatos?\/registros?|relato do|relato da|entrevista|transcricao)/.test(text)) return 'FACTUAL'
   if (/^(?:\d+(?:\.\d+)*\s*)?(conclusao|fatores? contribuintes?|atos? ou condicoes? inseguras?|fatores? de supervisao|influencias? organizacionais?|gerenciamento das barreiras|falha na gestao|analise do evento)/.test(text)) return 'REPORT_ANALYSIS'
-  if (/^(?:\d+(?:\.\d+)*\s*)?(objetivo da investigacao|composicao da comissao|classificacao do evento|classificacao do risco|experiencia do|horas totais|validade do|dados da aeronave)/.test(text)) return 'ADMINISTRATIVE'
+  if (/^(?:\d+(?:\.\d+)*\s*)?(objetivo da investigacao|composicao da comissao|classificacao do evento|classificacao do risco|experiencia do|horas totais|validade do|dados da aeronave|advertencia|glossario|sumario|indice|sinopse)/.test(text)) return 'ADMINISTRATIVE'
   return current
 }
 
@@ -99,7 +138,10 @@ function extractTemporalCue(sentence: string): string | null {
 
 function isPageBoilerplate(line: string): boolean {
   const text = normalize(line)
-  return /^form-sso-/.test(text) || /^investigacao de ocorrencia p\. \d+/.test(text)
+  return /^form-sso-/.test(text)
+    || /^investigacao de ocorrencia p\. \d+/.test(text)
+    || /^\d+\s+de\s+\d+\b/.test(text)
+    || /^(?:a-?\d+\/cenipa\/\d+|ps-[a-z0-9]+\s+\d{2}[a-z]{3}\d{4})\b/.test(text)
 }
 
 function isStructuralHeading(line: string): boolean {

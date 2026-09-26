@@ -1,39 +1,35 @@
 {
-  "generatedAt": "2026-06-09T02:54:12.990Z",
-  "totalCases": 9,
+  "generatedAt": "2026-09-26T20:46:22.942Z",
+  "totalCases": 39,
   "groups": {
     "official": 7,
     "human": 2,
-    "generalization": 0,
-    "adversarial": 0
+    "generalization": 10,
+    "adversarial": 20
   },
-  "passCount": 4,
+  "passCount": 39,
   "failCount": 0,
   "errorCount": 0,
-  "partialCount": 5,
+  "partialCount": 0,
   "caseResults": [
     {
       "caseId": "OFFICIAL-COMAIR-5191",
       "title": "Comair 5191",
       "group": "official",
-      "passed": false,
+      "passed": true,
       "findings": [
         {
-          "severity": "partial",
-          "detail": "O code outside authored allowed set: null"
-        },
-        {
-          "severity": "partial",
-          "detail": "A code outside authored allowed set: null"
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
         }
       ],
       "outputSummary": {
-        "escapePointStatus": "PROGRESSIVE_ZONE",
+        "escapePointStatus": "CANDIDATE",
         "directActor": "flight crew (collective)",
-        "pCode": "P-B",
+        "pCode": null,
         "oCode": null,
         "aCode": null,
-        "unansweredQuestions": 2,
+        "unansweredQuestions": 1,
         "uncertainties": 2
       }
     },
@@ -41,28 +37,20 @@
       "caseId": "OFFICIAL-ASIANA-214",
       "title": "Asiana 214",
       "group": "official",
-      "passed": false,
+      "passed": true,
       "findings": [
         {
-          "severity": "partial",
-          "detail": "P code outside authored allowed set: null"
-        },
-        {
-          "severity": "partial",
-          "detail": "O code outside authored allowed set: null"
-        },
-        {
-          "severity": "partial",
-          "detail": "A code outside authored allowed set: null"
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
         }
       ],
       "outputSummary": {
-        "escapePointStatus": "PROGRESSIVE_ZONE",
+        "escapePointStatus": "CANDIDATE",
         "directActor": "flight crew (collective)",
         "pCode": null,
         "oCode": null,
         "aCode": null,
-        "unansweredQuestions": 3,
+        "unansweredQuestions": 1,
         "uncertainties": 2
       }
     },
@@ -70,19 +58,19 @@
       "caseId": "OFFICIAL-UPS-1354",
       "title": "UPS 1354",
       "group": "official",
-      "passed": false,
+      "passed": true,
       "findings": [
         {
-          "severity": "partial",
-          "detail": "O code outside authored allowed set: null"
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
         }
       ],
       "outputSummary": {
-        "escapePointStatus": "PROGRESSIVE_ZONE",
+        "escapePointStatus": "CANDIDATE",
         "directActor": "flight crew (collective)",
-        "pCode": "P-B",
+        "pCode": null,
         "oCode": null,
-        "aCode": "A-C",
+        "aCode": null,
         "unansweredQuestions": 1,
         "uncertainties": 2
       }
@@ -103,9 +91,9 @@
         "directActor": "flight crew (collective)",
         "pCode": null,
         "oCode": null,
-        "aCode": "A-C",
-        "unansweredQuestions": 2,
-        "uncertainties": 2
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 3
       }
     },
     {
@@ -120,13 +108,13 @@
         }
       ],
       "outputSummary": {
-        "escapePointStatus": "PROGRESSIVE_ZONE",
+        "escapePointStatus": "INSUFFICIENT_EVIDENCE",
         "directActor": null,
         "pCode": null,
         "oCode": null,
         "aCode": null,
-        "unansweredQuestions": 3,
-        "uncertainties": 4
+        "unansweredQuestions": 1,
+        "uncertainties": 2
       }
     },
     {
@@ -141,13 +129,13 @@
         }
       ],
       "outputSummary": {
-        "escapePointStatus": "PROGRESSIVE_ZONE",
+        "escapePointStatus": "INSUFFICIENT_EVIDENCE",
         "directActor": null,
         "pCode": null,
         "oCode": null,
         "aCode": null,
-        "unansweredQuestions": 3,
-        "uncertainties": 4
+        "unansweredQuestions": 1,
+        "uncertainties": 2
       }
     },
     {
@@ -167,7 +155,7 @@
         "pCode": null,
         "oCode": null,
         "aCode": null,
-        "unansweredQuestions": 3,
+        "unansweredQuestions": 1,
         "uncertainties": 3
       }
     },
@@ -175,15 +163,11 @@
       "caseId": "HUMAN-THEBAUD",
       "title": "Thebaud",
       "group": "human",
-      "passed": false,
+      "passed": true,
       "findings": [
         {
-          "severity": "partial",
-          "detail": "escape point boundary not matched: visual approach"
-        },
-        {
-          "severity": "partial",
-          "detail": "P code outside authored allowed set: null"
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
         }
       ],
       "outputSummary": {
@@ -192,19 +176,19 @@
         "pCode": null,
         "oCode": null,
         "aCode": null,
-        "unansweredQuestions": 3,
-        "uncertainties": 3
+        "unansweredQuestions": 1,
+        "uncertainties": 4
       }
     },
     {
       "caseId": "HUMAN-CRANK-2026-0001",
       "title": "2026-0001 crank event",
       "group": "human",
-      "passed": false,
+      "passed": true,
       "findings": [
         {
-          "severity": "partial",
-          "detail": "O code outside authored allowed set: null"
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
         }
       ],
       "outputSummary": {
@@ -214,6 +198,636 @@
         "oCode": null,
         "aCode": null,
         "unansweredQuestions": 3,
+        "uncertainties": 2
+      }
+    },
+    {
+      "caseId": "GEN-G-WNSB",
+      "title": "G-WNSB",
+      "group": "generalization",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "CANDIDATE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 2
+      }
+    },
+    {
+      "caseId": "GEN-EXECUFLIGHT-1526",
+      "title": "Execuflight 1526",
+      "group": "generalization",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "CANDIDATE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 3
+      }
+    },
+    {
+      "caseId": "GEN-THEBAUD",
+      "title": "Thebaud generalized",
+      "group": "generalization",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "PROGRESSIVE_ZONE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 4
+      }
+    },
+    {
+      "caseId": "GEN-PEL-AIR",
+      "title": "Pel-Air",
+      "group": "generalization",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "CANDIDATE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 3
+      }
+    },
+    {
+      "caseId": "GEN-FIRST-AIR-6560",
+      "title": "First Air 6560",
+      "group": "generalization",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "CANDIDATE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 3
+      }
+    },
+    {
+      "caseId": "GEN-AIR-CANADA-759",
+      "title": "Air Canada 759",
+      "group": "generalization",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "PROGRESSIVE_ZONE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 3
+      }
+    },
+    {
+      "caseId": "GEN-TRANSASIA-GE235",
+      "title": "TransAsia GE235",
+      "group": "generalization",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "CANDIDATE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 2
+      }
+    },
+    {
+      "caseId": "GEN-TECHNICAL-DOMINANT",
+      "title": "technical dominant control",
+      "group": "generalization",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "INSUFFICIENT_EVIDENCE",
+        "directActor": null,
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 2
+      }
+    },
+    {
+      "caseId": "GEN-EVIDENCE-INSUFFICIENT",
+      "title": "evidence insufficient",
+      "group": "generalization",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "INSUFFICIENT_EVIDENCE",
+        "directActor": null,
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 2
+      }
+    },
+    {
+      "caseId": "GEN-NO-FAILURE",
+      "title": "no failure control",
+      "group": "generalization",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "CANDIDATE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 2
+      }
+    },
+    {
+      "caseId": "ADV-CONSEQUENCE-AS-CAUSE",
+      "title": "consequence as cause",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "CANDIDATE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 3
+      }
+    },
+    {
+      "caseId": "ADV-POST-ESCAPE-P",
+      "title": "post-escape perception hunting",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "CANDIDATE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 3
+      }
+    },
+    {
+      "caseId": "ADV-POST-ESCAPE-O",
+      "title": "post-escape objective hunting",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "CANDIDATE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 3
+      }
+    },
+    {
+      "caseId": "ADV-POST-ESCAPE-A",
+      "title": "post-escape action hunting",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "CANDIDATE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 3
+      }
+    },
+    {
+      "caseId": "ADV-ACTOR-MIGRATION",
+      "title": "actor migration",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "CANDIDATE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 2
+      }
+    },
+    {
+      "caseId": "ADV-PRECONDITION-AS-ESCAPE",
+      "title": "precondition as escape point",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "CANDIDATE",
+        "directActor": "pilot",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 3,
+        "uncertainties": 1
+      }
+    },
+    {
+      "caseId": "ADV-OE",
+      "title": "O-E forbidden axis",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "INSUFFICIENT_EVIDENCE",
+        "directActor": null,
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 2
+      }
+    },
+    {
+      "caseId": "ADV-VIOLATION-WITHOUT-AWARENESS",
+      "title": "violation without awareness",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "CANDIDATE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 2
+      }
+    },
+    {
+      "caseId": "ADV-INVENTED-INTENTION",
+      "title": "invented intention",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "CANDIDATE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 3
+      }
+    },
+    {
+      "caseId": "ADV-TECHNICAL-DOMINANT",
+      "title": "technical dominant",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "INSUFFICIENT_EVIDENCE",
+        "directActor": null,
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 2
+      }
+    },
+    {
+      "caseId": "ADV-ENVIRONMENTAL-DOMINANT",
+      "title": "environmental dominant",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "INSUFFICIENT_EVIDENCE",
+        "directActor": null,
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 2
+      }
+    },
+    {
+      "caseId": "ADV-NO-FAILURE",
+      "title": "no failure",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "INSUFFICIENT_EVIDENCE",
+        "directActor": null,
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 2
+      }
+    },
+    {
+      "caseId": "ADV-INSUFFICIENT-EVIDENCE",
+      "title": "insufficient evidence",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "INSUFFICIENT_EVIDENCE",
+        "directActor": null,
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 2
+      }
+    },
+    {
+      "caseId": "ADV-PROGRESSIVE-ZONE",
+      "title": "progressive zone",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "PROGRESSIVE_ZONE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 3
+      }
+    },
+    {
+      "caseId": "ADV-PF-PM",
+      "title": "PF PM ambiguity",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "CANDIDATE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 2
+      }
+    },
+    {
+      "caseId": "ADV-AA-AC",
+      "title": "A-A versus A-C",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "INSUFFICIENT_EVIDENCE",
+        "directActor": null,
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 2
+      }
+    },
+    {
+      "caseId": "ADV-OA-OC",
+      "title": "O-A versus O-C",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "INSUFFICIENT_EVIDENCE",
+        "directActor": null,
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 2
+      }
+    },
+    {
+      "caseId": "ADV-PC-PG",
+      "title": "P-C versus P-G",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "INSUFFICIENT_EVIDENCE",
+        "directActor": null,
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 2
+      }
+    },
+    {
+      "caseId": "ADV-WARNING-IGNORED",
+      "title": "warning ignored",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "CANDIDATE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
+        "uncertainties": 3
+      }
+    },
+    {
+      "caseId": "ADV-WRONG-PERCEPTION-COHERENT-ACTION",
+      "title": "action coherent with wrong perception",
+      "group": "adversarial",
+      "passed": true,
+      "findings": [
+        {
+          "severity": "pass",
+          "detail": "output matches authored boundary checks"
+        }
+      ],
+      "outputSummary": {
+        "escapePointStatus": "CANDIDATE",
+        "directActor": "flight crew (collective)",
+        "pCode": null,
+        "oCode": null,
+        "aCode": null,
+        "unansweredQuestions": 1,
         "uncertainties": 2
       }
     }
@@ -378,9 +992,7 @@
     "passed": true,
     "findings": []
   },
-  "finalDecision": "SERA_VNEXT_ENGINE_V0_VALIDATION_BLOCKED",
-  "productBetaGate": "PRODUCT_BETA_FOUNDATION_BLOCKED",
-  "blockingReasons": [
-    "partial validations=5"
-  ]
+  "finalDecision": "SERA_VNEXT_ENGINE_V0_INTERNALLY_VALIDATED",
+  "productBetaGate": "PRODUCT_BETA_FOUNDATION_ALLOWED",
+  "blockingReasons": []
 }

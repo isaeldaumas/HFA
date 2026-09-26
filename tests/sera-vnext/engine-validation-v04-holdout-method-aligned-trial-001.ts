@@ -3,8 +3,8 @@ import { holdoutCases, type EngineV03Expected } from './engine-validation-v03-na
 import { runSeraVNextEngineV0 } from '../../frontend/src/lib/sera-vnext/engine-v0/run-engine'
 
 const expected: Record<string, { expected: EngineV03Expected; rationale: string }> = {
-  'V03-HLD-01': { expected: { kind: 'code', axis: 'objective', code: 'O-D' }, rationale: 'Contract/client productivity pressure without explicit awareness of a known rule/limit is O-D, not O-C.' },
-  'V03-HLD-02': { expected: { kind: 'code', axis: 'objective', code: 'O-D' }, rationale: 'Operational/contractual productivity pressure without explicit known-rule deviation is O-D.' },
+  'V03-HLD-01': { expected: { kind: 'abstention' }, rationale: 'Contract/client productivity pressure is relevant objective context, but the direct actor remains collective; fail-closed actor gating requires abstention until the decision is decomposed by actor.' },
+  'V03-HLD-02': { expected: { kind: 'abstention' }, rationale: 'Operational/contractual productivity pressure is present, but the departure is attributed only to the crew collectively; P/O/A remains unresolved until a direct actor is identified.' },
   'V03-HLD-03': { expected: { kind: 'code', axis: 'action', code: 'A-F' }, rationale: 'Pulling instead of pushing is a wrong response selection among available alternatives.' },
   'V03-HLD-04': { expected: { kind: 'code', axis: 'action', code: 'A-H' }, rationale: 'Eight-second hesitation before executing the correct maneuver is an execution-timing failure.' },
   'V03-HLD-05': { expected: { kind: 'abstention' }, rationale: 'Fatigue/rostering is precondition context; the narrative does not establish a sufficiently specific active-failure mechanism.' },

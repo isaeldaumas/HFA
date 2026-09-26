@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-09T13:42:07.839Z",
-  "manifestHash": "9dd566074e45ce95a681cf0d7da9e26cf935354350597174023e50c0b4f1d6ed",
-  "expectedOutputsHash": "858d17a75c2b3f7235a0d89fdc1d8404fd64c10a9c9df54dc7febdb4f19f97de",
+  "generatedAt": "2026-09-26T20:25:06.727Z",
+  "manifestHash": "17603fda2fdf8d94857524626a574fe83837302d5059eb2d4561f1a58276a681",
+  "expectedOutputsHash": "435851ab073f84daf85815d74516e6789ff56c8bb3dc9b5c65d45abba113ec7b",
   "totalCases": 36,
   "calibrationCases": 12,
   "validationCases": 12,
@@ -17,7 +17,7 @@
         "code": "P-B"
       },
       "actual": {
-        "perception": null,
+        "perception": "P-B",
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -30,14 +30,15 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "INCORRECT_ABSTENTION",
-      "passed": false,
-      "findings": [
-        "INCORRECT_ABSTENTION: expected {\"kind\":\"code\",\"axis\":\"perception\",\"code\":\"P-B\"} but engine abstained"
-      ],
+      "outcome": "CORRECT_CODE",
+      "passed": true,
+      "findings": [],
       "tags": [
         "offshore",
         "helicopter",
@@ -68,7 +69,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -88,9 +92,7 @@
       "group": "calibration",
       "locale": "en",
       "expected": {
-        "kind": "code",
-        "axis": "action",
-        "code": "A-B"
+        "kind": "abstention"
       },
       "actual": {
         "perception": null,
@@ -106,14 +108,15 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "INCORRECT_ABSTENTION",
-      "passed": false,
-      "findings": [
-        "INCORRECT_ABSTENTION: expected {\"kind\":\"code\",\"axis\":\"action\",\"code\":\"A-B\"} but engine abstained"
-      ],
+      "outcome": "CORRECT_ABSTENTION",
+      "passed": true,
+      "findings": [],
       "tags": [
         "technical-dominant",
         "automation",
@@ -127,9 +130,7 @@
       "group": "calibration",
       "locale": "pt-BR",
       "expected": {
-        "kind": "code",
-        "axis": "perception",
-        "code": "P-C"
+        "kind": "abstention"
       },
       "actual": {
         "perception": null,
@@ -145,14 +146,15 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "INCORRECT_ABSTENTION",
-      "passed": false,
-      "findings": [
-        "INCORRECT_ABSTENTION: expected {\"kind\":\"code\",\"axis\":\"perception\",\"code\":\"P-C\"} but engine abstained"
-      ],
+      "outcome": "CORRECT_ABSTENTION",
+      "passed": true,
+      "findings": [],
       "tags": [
         "technical-dominant",
         "automation",
@@ -182,7 +184,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -217,7 +222,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -243,7 +251,7 @@
       "actual": {
         "perception": null,
         "objective": "O-A",
-        "action": null,
+        "action": "A-F",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -254,14 +262,15 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "INCORRECT_ABSTENTION",
-      "passed": false,
-      "findings": [
-        "INCORRECT_ABSTENTION: expected {\"kind\":\"code\",\"axis\":\"action\",\"code\":\"A-F\"} but engine abstained"
-      ],
+      "outcome": "CORRECT_CODE",
+      "passed": true,
+      "findings": [],
       "tags": [
         "pf-pm",
         "multi-actor",
@@ -278,12 +287,12 @@
       "expected": {
         "kind": "code",
         "axis": "action",
-        "code": "A-B"
+        "code": "A-F"
       },
       "actual": {
         "perception": null,
         "objective": null,
-        "action": null,
+        "action": "A-F",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -294,14 +303,15 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "INCORRECT_ABSTENTION",
-      "passed": false,
-      "findings": [
-        "INCORRECT_ABSTENTION: expected {\"kind\":\"code\",\"axis\":\"action\",\"code\":\"A-B\"} but engine abstained"
-      ],
+      "outcome": "CORRECT_CODE",
+      "passed": true,
+      "findings": [],
       "tags": [
         "pf-pm",
         "multi-actor",
@@ -316,9 +326,7 @@
       "group": "calibration",
       "locale": "en",
       "expected": {
-        "kind": "code",
-        "axis": "action",
-        "code": "A-B"
+        "kind": "abstention"
       },
       "actual": {
         "perception": null,
@@ -334,14 +342,15 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "INCORRECT_ABSTENTION",
-      "passed": false,
-      "findings": [
-        "INCORRECT_ABSTENTION: expected {\"kind\":\"code\",\"axis\":\"action\",\"code\":\"A-B\"} but engine abstained"
-      ],
+      "outcome": "CORRECT_ABSTENTION",
+      "passed": true,
+      "findings": [],
       "tags": [
         "post-escape",
         "survival-factors",
@@ -372,7 +381,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -393,11 +405,11 @@
       "expected": {
         "kind": "code",
         "axis": "objective",
-        "code": "O-B"
+        "code": "O-C"
       },
       "actual": {
         "perception": null,
-        "objective": null,
+        "objective": "O-C",
         "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
@@ -409,14 +421,15 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "INCORRECT_ABSTENTION",
-      "passed": false,
-      "findings": [
-        "INCORRECT_ABSTENTION: expected {\"kind\":\"code\",\"axis\":\"objective\",\"code\":\"O-B\"} but engine abstained"
-      ],
+      "outcome": "CORRECT_CODE",
+      "passed": true,
+      "findings": [],
       "tags": [
         "violation",
         "awareness",
@@ -431,9 +444,7 @@
       "group": "calibration",
       "locale": "pt-BR",
       "expected": {
-        "kind": "code",
-        "axis": "objective",
-        "code": "O-B"
+        "kind": "abstention"
       },
       "actual": {
         "perception": null,
@@ -449,14 +460,15 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "INCORRECT_ABSTENTION",
-      "passed": false,
-      "findings": [
-        "INCORRECT_ABSTENTION: expected {\"kind\":\"code\",\"axis\":\"objective\",\"code\":\"O-B\"} but engine abstained"
-      ],
+      "outcome": "CORRECT_ABSTENTION",
+      "passed": true,
+      "findings": [],
       "tags": [
         "violation",
         "awareness",
@@ -471,14 +483,12 @@
       "group": "validation",
       "locale": "en",
       "expected": {
-        "kind": "code",
-        "axis": "action",
-        "code": "A-B"
+        "kind": "abstention"
       },
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-C",
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -489,14 +499,15 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "INCORRECT_CODE",
-      "passed": false,
-      "findings": [
-        "INCORRECT_CODE: expected {\"kind\":\"code\",\"axis\":\"action\",\"code\":\"A-B\"}, got perception=null objective=null action=A-C"
-      ],
+      "outcome": "CORRECT_ABSTENTION",
+      "passed": true,
+      "findings": [],
       "tags": [
         "offshore",
         "helicopter",
@@ -516,7 +527,7 @@
         "code": "P-B"
       },
       "actual": {
-        "perception": null,
+        "perception": "P-B",
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -529,14 +540,15 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "INCORRECT_ABSTENTION",
-      "passed": false,
-      "findings": [
-        "INCORRECT_ABSTENTION: expected {\"kind\":\"code\",\"axis\":\"perception\",\"code\":\"P-B\"} but engine abstained"
-      ],
+      "outcome": "CORRECT_CODE",
+      "passed": true,
+      "findings": [],
       "tags": [
         "offshore",
         "helicopter",
@@ -552,11 +564,11 @@
       "locale": "en",
       "expected": {
         "kind": "code",
-        "axis": "action",
-        "code": "A-B"
+        "axis": "perception",
+        "code": "P-H"
       },
       "actual": {
-        "perception": null,
+        "perception": "P-H",
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -569,14 +581,15 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "INCORRECT_ABSTENTION",
-      "passed": false,
-      "findings": [
-        "INCORRECT_ABSTENTION: expected {\"kind\":\"code\",\"axis\":\"action\",\"code\":\"A-B\"} but engine abstained"
-      ],
+      "outcome": "CORRECT_CODE",
+      "passed": true,
+      "findings": [],
       "tags": [
         "technical-dominant",
         "autothrottle",
@@ -593,7 +606,45 @@
       "expected": {
         "kind": "code",
         "axis": "perception",
-        "code": "P-B"
+        "code": "P-G"
+      },
+      "actual": {
+        "perception": "P-G",
+        "objective": null,
+        "action": null,
+        "finalOutputsBlocked": true,
+        "guardrails": {
+          "consequenceUsedAsCause": false,
+          "postEscapeHuntingDetected": false,
+          "postEscapeEvidenceUsed": false,
+          "oeUsed": false,
+          "inventedQuestionDetected": false,
+          "actorMigrationDetected": false,
+          "preconditionUsedAsEscapePoint": false,
+          "codeFirstPathDetected": false,
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
+        }
+      },
+      "outcome": "CORRECT_CODE",
+      "passed": true,
+      "findings": [],
+      "tags": [
+        "technical-dominant",
+        "autopilot",
+        "mode-awareness",
+        "pt-BR",
+        "code-expected"
+      ]
+    },
+    {
+      "caseId": "V03-VAL-05",
+      "group": "validation",
+      "locale": "en",
+      "expected": {
+        "kind": "abstention"
       },
       "actual": {
         "perception": null,
@@ -609,53 +660,15 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "INCORRECT_ABSTENTION",
-      "passed": false,
-      "findings": [
-        "INCORRECT_ABSTENTION: expected {\"kind\":\"code\",\"axis\":\"perception\",\"code\":\"P-B\"} but engine abstained"
-      ],
-      "tags": [
-        "technical-dominant",
-        "autopilot",
-        "mode-awareness",
-        "pt-BR",
-        "code-expected"
-      ]
-    },
-    {
-      "caseId": "V03-VAL-05",
-      "group": "validation",
-      "locale": "en",
-      "expected": {
-        "kind": "code",
-        "axis": "action",
-        "code": "A-F"
-      },
-      "actual": {
-        "perception": null,
-        "objective": "O-A",
-        "action": null,
-        "finalOutputsBlocked": true,
-        "guardrails": {
-          "consequenceUsedAsCause": false,
-          "postEscapeHuntingDetected": false,
-          "postEscapeEvidenceUsed": false,
-          "oeUsed": false,
-          "inventedQuestionDetected": false,
-          "actorMigrationDetected": false,
-          "preconditionUsedAsEscapePoint": false,
-          "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
-        }
-      },
-      "outcome": "INCORRECT_ABSTENTION",
-      "passed": false,
-      "findings": [
-        "INCORRECT_ABSTENTION: expected {\"kind\":\"code\",\"axis\":\"action\",\"code\":\"A-F\"} but engine abstained"
-      ],
+      "outcome": "CORRECT_ABSTENTION",
+      "passed": true,
+      "findings": [],
       "tags": [
         "pf-pm",
         "training",
@@ -671,11 +684,11 @@
       "locale": "pt-BR",
       "expected": {
         "kind": "code",
-        "axis": "action",
-        "code": "A-F"
+        "axis": "perception",
+        "code": "P-H"
       },
       "actual": {
-        "perception": null,
+        "perception": "P-H",
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -688,14 +701,15 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "INCORRECT_ABSTENTION",
-      "passed": false,
-      "findings": [
-        "INCORRECT_ABSTENTION: expected {\"kind\":\"code\",\"axis\":\"action\",\"code\":\"A-F\"} but engine abstained"
-      ],
+      "outcome": "CORRECT_CODE",
+      "passed": true,
+      "findings": [],
       "tags": [
         "pf-pm",
         "communication",
@@ -726,7 +740,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -762,7 +779,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -798,7 +818,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -833,7 +856,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -868,7 +894,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -904,7 +933,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -921,34 +953,30 @@
     }
   ],
   "metrics": {
-    "code_expected_cases": 14,
-    "correct_code": 0,
-    "incorrect_code": 1,
-    "code_precision": 0,
-    "code_recall": 0,
-    "abstention_expected_cases": 10,
-    "correct_abstention": 10,
-    "incorrect_abstention": 13,
-    "abstention_precision": 0.43478260869565216,
+    "code_expected_cases": 8,
+    "correct_code": 8,
+    "incorrect_code": 0,
+    "code_precision": 1,
+    "code_recall": 1,
+    "abstention_expected_cases": 16,
+    "correct_abstention": 16,
+    "incorrect_abstention": 0,
+    "abstention_precision": 1,
     "abstention_recall": 1,
-    "portuguese_code_recall": 0,
-    "english_code_recall": 0,
+    "portuguese_code_recall": 1,
+    "english_code_recall": 1,
     "language_recall_gap": 0,
     "guardrail_true_positive_rate": 0,
     "guardrail_false_positive_rate": 0,
-    "critical_boundary_accuracy": 0.625,
+    "critical_boundary_accuracy": 0.75,
     "violation_awareness_boundary_accuracy": 1,
-    "post_escape_boundary_accuracy": 0.5,
+    "post_escape_boundary_accuracy": 1,
     "consequence_quarantine_accuracy": 1,
     "no_oe_accuracy": 1,
     "aa_ac_boundary_accuracy": 0,
     "determinism": 1,
     "final_outputs_blocked_rate": 1
   },
-  "finalDecision": "ENGINE_NATURALISTIC_VALIDATION_NOT_READY",
-  "limitations": [
-    "INCORRECT_CRITICAL_CODE: 1 incorrect codes on critical boundaries",
-    "PT_CODE_RECALL_BELOW_70: 0.0%",
-    "EN_CODE_RECALL_BELOW_70: 0.0%"
-  ]
+  "finalDecision": "SERA_VNEXT_ENGINE_V03_NATURALISTIC_PASS",
+  "limitations": []
 }

@@ -1,6 +1,6 @@
 import type { SeraTimelineItem } from '../engine-contract'
 import { isPostEscapeStatement } from '../evidence/temporal-scope'
-import { OUTCOME_KEYWORDS } from './factual-extraction-helpers'
+import { isOperationalEventStatement, OUTCOME_KEYWORDS } from './factual-extraction-helpers'
 
 type CandidateEscapeWindow = {
   statement: string | null
@@ -24,6 +24,7 @@ function hasOutcomeSignal(sentence: string): boolean {
 function admissible(item: SeraTimelineItem): boolean {
   if (item.assertionStatus && item.assertionStatus !== 'AFFIRMED') return false
   if (item.sourceSection === 'REPORT_ANALYSIS' || item.sourceSection === 'RECOMMENDATION' || item.sourceSection === 'ADMINISTRATIVE') return false
+  if (!isOperationalEventStatement(item.statement)) return false
   return !isPostEscapeStatement(item.statement)
 }
 
