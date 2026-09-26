@@ -27,6 +27,7 @@ export type SeraFactCategory =
 
 export type SeraEvidenceSourceSection = 'FACTUAL' | 'REPORT_ANALYSIS' | 'RECOMMENDATION' | 'ADMINISTRATIVE' | 'UNKNOWN'
 export type SeraAssertionStatus = 'AFFIRMED' | 'REJECTED_AS_FACTOR' | 'UNCERTAIN'
+export type SeraOccurrenceScope = 'CURRENT_EVENT' | 'HISTORICAL_COMPARATOR' | 'GENERAL_CONTEXT' | 'UNKNOWN'
 
 export type SeraFact = {
   id: string
@@ -35,6 +36,7 @@ export type SeraFact = {
   sourceSentenceIndex: number
   sourceSection?: SeraEvidenceSourceSection
   assertionStatus?: SeraAssertionStatus
+  occurrenceScope?: SeraOccurrenceScope
 }
 
 export type SeraTimelineItem = {
@@ -45,6 +47,7 @@ export type SeraTimelineItem = {
   sourceSentenceIndex: number
   sourceSection?: SeraEvidenceSourceSection
   assertionStatus?: SeraAssertionStatus
+  occurrenceScope?: SeraOccurrenceScope
 }
 
 export type SeraCanonicalPath = {
@@ -211,6 +214,13 @@ export type SeraVNextEngineOutput = {
     counterEvidence: string[]
     excludedPostEscapeEvidence: string[]
     confidence: SeraConfidence
+    episodeCandidates?: Array<{
+      phase: 'DISPATCH' | 'MAINTENANCE' | 'INFLIGHT' | 'APPROACH' | 'GROUND' | 'GENERIC'
+      anchorStatement: string
+      supportingEvidence: string[]
+      occurrenceScope?: SeraOccurrenceScope
+      selected: boolean
+    }>
   }
 
   unsafeState: {

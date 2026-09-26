@@ -59,15 +59,15 @@ export function classifyPreconditionCategory(args: {
   const explicitMap: Array<[SeraPreconditionCategory, string[]]> = [
     ['SENSORY_LIMITATION', ['visibility', 'fog', 'night', 'sensory', 'low cloud', 'visual references']],
     ['KNOWLEDGE_TRAINING', ['training gap', 'knowledge gap', 'competence gap', 'lack of training', 'lack of knowledge', 'insufficient training', 'not trained', 'unfamiliarity', 'lacuna de treinamento', 'lacuna de conhecimento', 'falta de treinamento', 'falta de conhecimento', 'treinamento insuficiente', 'não treinado', 'nao treinado', 'não familiar', 'nao familiar']],
-    ['TIME_PRESSURE', ['time pressure', 'urgency', 'rushed', 'late decision', 'very late', 'pressão de tempo', 'urgência', 'apressado']],
+    ['TIME_PRESSURE', ['time pressure', 'rushed', 'late decision', 'very late', 'pressão de tempo', 'apressado']],
     ['ATTENTION_WORKLOAD_CONTEXT', ['visão de túnel', 'visao de tunel', 'distração', 'distracao', 'muito focados', 'muito focado', 'carga de trabalho', 'fixação', 'fixacao', 'atenção desviada', 'atencao desviada']],
     ['COMMUNICATION_INFORMATION', ['communication', 'readback', 'briefing', 'callout']],
     ['PROCEDURAL_MONITORING', ['monitoring', 'cross-check', 'procedure', 'verification', 'reconfirmação', 'reconfirmacao', 'código 9p', 'codigo 9p', 'distração', 'distracao', 'visão de túnel', 'visao de tunel', 'focado', 'focada', 'atenção', 'atencao']],
     ['FEEDBACK_VERIFICATION', ['feedback', 'verify', 'verification']],
     ['INTENT_AWARENESS', ['intent', 'conscious', 'knowingly', 'decided', 'decision', 'start the crank']],
-    ['ENVIRONMENTAL_CONTEXT', ['weather', 'wind', 'rain', 'runway condition', 'terrain', 'vento', 'meteorológ', 'meteorolog', 'proximidade', 'próximo', 'proximo', 'distância', 'distancia']],
+    ['ENVIRONMENTAL_CONTEXT', ['weather', 'wind', 'rain', 'runway condition', 'terrain', 'vento', 'condições meteorológicas', 'condicoes meteorologicas', 'severe icing', 'sev ice', 'formação de gelo', 'formacao de gelo', 'icing', 'gelo', 'proximidade', 'próximo', 'proximo', 'distância', 'distancia']],
     ['TEAM_COORDINATION', ['crew coordination', 'team coordination', 'coordenação da tripulação', 'coordenacao da tripulacao', 'crm', 'falha de coordenação', 'falha de coordenacao']],
-    ['ORGANIZATIONAL_CONTEXT', ['schedule', 'organizational', 'dispatch', 'operator pressure', 'reduced staffing', 'degraded supervision', 'staffing', 'supervision', 'supervisão', 'supervisao', 'supervisão inadequada', 'supervisao inadequada']],
+    ['ORGANIZATIONAL_CONTEXT', ['schedule', 'organizational', 'dispatch', 'operator pressure', 'reduced staffing', 'degraded supervision', 'staffing', 'supervision', 'supervisão', 'supervisao', 'supervisão inadequada', 'supervisao inadequada', 'cultura', 'culture', 'registro formal', 'formal record', 'tlb']],
     ['TECHNICAL_CONTEXT', ['warning', 'system', 'automation', 'fmc', 'equipment', 'control law', 'autothrottle', 'dafcs', 'trim fail', 'rudder', 'technical', 'malfunction', 'failure', 'fault']],
     ['PHYSICAL_CAPABILITY', ['physical', 'fatigue', 'ergonomic', 'motor', 'reach']],
   ]
@@ -76,8 +76,16 @@ export function classifyPreconditionCategory(args: {
     const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     return new RegExp(`(^|[^a-z0-9À-ÿ])${escaped}([^a-z0-9À-ÿ]|$)`, 'i').test(normalized)
   }
+  const explicitOperationalTimePressure =
+    /\b(time pressure|rushed sequence|schedule pressure|slot pressure|tight schedule|press[aã]o de tempo|sequ[eê]ncia apressada|press[aã]o de escala|correria|behind schedule|running late)\b/i.test(args.text) ||
+    /\b(urgency|urgent|urg[eê]ncia|urgente)\b.*\b(time|deadline|window|schedule|decision|action|execute|respond|tempo|prazo|janela|hor[aá]rio|decis[aã]o|agir|executar|responder)\b/i.test(args.text)
+
+  if (/\b(failure|fault|malfunction|falha|pane|de-icing|airframe)\b/i.test(args.text) && !/\b(weather|meteorolog|condi[cç][oõ]es? meteorol[oó]gicas|severe icing|sev ice)\b/i.test(args.text)) {
+    return 'TECHNICAL_CONTEXT'
+  }
 
   for (const [category, tokens] of explicitMap) {
+    if (category === 'TIME_PRESSURE' && !explicitOperationalTimePressure) continue
     if (tokens.some(containsToken)) return category
   }
 

@@ -77,6 +77,19 @@ export function runStep07AxisStatements(input: {
   factualExtraction: SeraVNextEngineOutput['factualExtraction']
   escapePoint: SeraVNextEngineOutput['escapePoint']
 }): SeraAxisStatementBundle {
+  const anchorResolved =
+    input.escapePoint.status !== 'INSUFFICIENT_EVIDENCE' &&
+    input.escapePoint.status !== 'NO_HUMAN_ESCAPE_POINT' &&
+    input.escapePoint.confidence !== 'LOW' &&
+    input.directActor.status === 'IDENTIFIED'
+  if (!anchorResolved) {
+    return {
+      perception: { statement: null, supportingEvidence: [], counterEvidence: counterEvidenceFor(input.factualExtraction, 'PERCEPTION'), alternativesConsidered: [] },
+      objective: { statement: null, supportingEvidence: [], counterEvidence: counterEvidenceFor(input.factualExtraction, 'OBJECTIVE'), alternativesConsidered: [] },
+      action: { statement: null, supportingEvidence: [], counterEvidence: counterEvidenceFor(input.factualExtraction, 'ACTION'), alternativesConsidered: [] },
+    }
+  }
+
   const perceptionEvidence = evidenceFor(input.factualExtraction, input.escapePoint, 'PERCEPTION')
   const objectiveEvidence = evidenceFor(input.factualExtraction, input.escapePoint, 'OBJECTIVE')
   const actionEvidence = evidenceFor(input.factualExtraction, input.escapePoint, 'ACTION')

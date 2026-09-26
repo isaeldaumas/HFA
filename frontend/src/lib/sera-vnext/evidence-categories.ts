@@ -33,7 +33,7 @@ const CODE_HINT_MAP: Partial<Record<string, SeraVNextEvidenceCategory[]>> = {
 const TEXT_HINTS: Array<{ category: SeraVNextEvidenceCategory; tokens: string[] }> = [
   { category: 'PHYSICAL_CAPABILITY', tokens: ['physical', 'motor', 'ergonomic'] },
   { category: 'INTENT_AWARENESS', tokens: ['intent', 'intentional', 'conscious'] },
-  { category: 'TIME_PRESSURE', tokens: ['time pressure', 'time-critical', 'urgency'] },
+  { category: 'TIME_PRESSURE', tokens: ['time pressure', 'time-critical', 'schedule pressure', 'rushed sequence'] },
   { category: 'COMMUNICATION_INFORMATION', tokens: ['communication', 'readback', 'briefing', 'information'] },
   { category: 'PROCEDURAL_MONITORING', tokens: ['monitoring', 'cross-check', 'procedure', 'verification'] },
   { category: 'KNOWLEDGE_TRAINING', tokens: ['knowledge', 'training', 'competence'] },

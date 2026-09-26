@@ -1,6 +1,14 @@
 import type { SeraTimelineItem } from '../engine-contract'
 import { isPostEscapeStatement } from '../evidence/temporal-scope'
-import { isOperationalEventStatement, OUTCOME_KEYWORDS } from './factual-extraction-helpers'
+import { isExplicitOperationalDeviationStatement, isExplicitOperationalOmissionStatement, isOperationalEventStatement, OUTCOME_KEYWORDS } from './factual-extraction-helpers'
+
+export type OperationalEpisodeCandidate = {
+  phase: OperationalPhase
+  anchorStatement: string
+  supportingEvidence: string[]
+  occurrenceScope: SeraTimelineItem['occurrenceScope']
+  selected: boolean
+}
 
 type CandidateEscapeWindow = {
   statement: string | null
@@ -8,6 +16,7 @@ type CandidateEscapeWindow = {
   latestCandidate: string | null
   supportingEvidence: string[]
   counterEvidence: string[]
+  episodeCandidates: OperationalEpisodeCandidate[]
 }
 
 function normalized(sentence: string): string {
@@ -24,8 +33,73 @@ function hasOutcomeSignal(sentence: string): boolean {
 function admissible(item: SeraTimelineItem): boolean {
   if (item.assertionStatus && item.assertionStatus !== 'AFFIRMED') return false
   if (item.sourceSection === 'REPORT_ANALYSIS' || item.sourceSection === 'RECOMMENDATION' || item.sourceSection === 'ADMINISTRATIVE') return false
+  if (item.occurrenceScope === 'HISTORICAL_COMPARATOR') return false
   if (!isOperationalEventStatement(item.statement)) return false
   return !isPostEscapeStatement(item.statement)
+}
+
+const EPISODE_STOPWORDS = new Set([
+  'aeronave', 'aircraft', 'tripulacao', 'tripulação', 'crew', 'piloto', 'pilot', 'comandante', 'copiloto',
+  'durante', 'during', 'apos', 'após', 'depois', 'after', 'sistema', 'system', 'procedimento', 'procedimentos',
+  'procedure', 'procedures', 'alerta', 'warning', 'flight', 'voo', 'foram', 'foi', 'com', 'sem', 'para', 'from', 'that',
+])
+
+function topicTokens(statement: string): Set<string> {
+  return new Set(normalized(statement)
+    .replace(/[^a-z0-9à-ÿ-]+/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length >= 4 && !EPISODE_STOPWORDS.has(token)))
+}
+
+function topicalOverlap(a: string, b: string): number {
+  const left = topicTokens(a)
+  const right = topicTokens(b)
+  let count = 0
+  for (const token of left) if (right.has(token)) count += 1
+  return count
+}
+
+type OperationalPhase = 'DISPATCH' | 'MAINTENANCE' | 'INFLIGHT' | 'APPROACH' | 'GROUND' | 'GENERIC'
+
+function operationalPhase(statement: string): OperationalPhase {
+  const text = normalized(statement)
+  if (/\b(despach\w*|dispatch\w*|mel|cco|dov|planejamento|flight planning|antes do despacho|before dispatch)\b/.test(text)) return 'DISPATCH'
+  if (/\b(manutenc|maintenance|mecan|mechanic|inspecao pre-voo|preflight inspection|tlb)\b/.test(text)) return 'MAINTENANCE'
+  if (/\b(aproximacao|approach|final|pouso|landing|go-around|arremet)\b/.test(text)) return 'APPROACH'
+  if (/\b(subida|climb|cruzeiro|cruise|descida|descent|durante o voo|during the flight|fl\d{2,3}|nivelamento|levelled|leveling|de-icing|anti-icing|airframe|cruise speed|degraded performance|increase speed|gelo|icing)\b/.test(text)) return 'INFLIGHT'
+  if (/\b(taxi|solo|ground|pushback|estacionamento)\b/.test(text)) return 'GROUND'
+  return 'GENERIC'
+}
+
+function phaseCompatible(anchor: string, candidate: string): boolean {
+  const a = operationalPhase(anchor)
+  const b = operationalPhase(candidate)
+  if (a === 'GENERIC' || b === 'GENERIC') return true
+  return a === b
+}
+
+function episodeSupport(anchor: SeraTimelineItem, timeline: SeraTimelineItem[]): SeraTimelineItem[] {
+  const nearby = timeline.filter((item) =>
+    item.assertionStatus === 'AFFIRMED' &&
+    item.sourceSection !== 'REPORT_ANALYSIS' &&
+    item.sourceSection !== 'RECOMMENDATION' &&
+    item.sourceSection !== 'ADMINISTRATIVE' &&
+    !hasOutcomeSignal(item.statement) &&
+    Math.abs(item.sourceSentenceIndex - anchor.sourceSentenceIndex) <= 6,
+  )
+  const support = nearby.filter((item) => {
+    if (item.statement === anchor.statement) return true
+    if (!phaseCompatible(anchor.statement, item.statement)) return false
+    if (topicalOverlap(anchor.statement, item.statement) >= 1) return true
+    const anchorText = normalized(anchor.statement)
+    const itemText = normalized(item.statement)
+    const icingEpisode = /\b(gelo|icing|de-icing|anti-icing|airframe|cruise speed|degraded performance|increase speed)\b/.test(anchorText)
+      && /\b(gelo|icing|de-icing|anti-icing|airframe|cruise speed|degraded performance|increase speed)\b/.test(itemText)
+    const dispatchEpisode = /\b(despach\w*|dispatch\w*|mel|meteorolog\w*|weather|sigmet)\b/.test(anchorText)
+      && /\b(despach\w*|dispatch\w*|mel|meteorolog\w*|weather|sigmet)\b/.test(itemText)
+    return icingEpisode || dispatchEpisode
+  })
+  return support.sort((a, b) => a.sourceSentenceIndex - b.sourceSentenceIndex).slice(0, 6)
 }
 
 function candidateScore(sentence: string): number {
@@ -34,6 +108,8 @@ function candidateScore(sentence: string): number {
   if (/\b(n[aã]o h[aá] descri[cç][aã]o|n[aã]o foi descrito|n[aã]o ficou registrado|relat[oó]rio foca|relat[oó]rio (?:n[aã]o )?descreve|par[aá]grafo .* menciona apenas|no description|not described|not recorded|report focuses|report does not describe|report only mentions)\b/i.test(sentence)) return -20
   const text = normalized(sentence)
   let score = 0
+  if (isExplicitOperationalOmissionStatement(sentence)) score += 12
+  if (isExplicitOperationalDeviationStatement(sentence)) score += 11
   if (
     /\b(inspecao (?:de )?pre[- ]?voo|pre[- ]?voo|preflight inspection)\b/.test(text) &&
     /\b(nada de anormal (?:foi|fora) detectado|nenhuma anormalidade (?:foi )?detectada|no abnormality (?:was )?detected)\b/.test(text)
@@ -90,33 +166,64 @@ function hasControlWindowSignal(item: SeraTimelineItem): boolean {
   return candidateScore(item.statement) > 0 || /\b(crew|pilot|operator|decided|continued|failed to|did not|executed|turned|descended|climbed|approach|landing|tripula|piloto|decidiu|continuou|falhou|executou|desceu|subiu|aproxima[cç][aã]o|pouso)\b/i.test(item.statement)
 }
 
+function buildEpisodeCandidates(scored: Array<{ item: SeraTimelineItem; score: number }>, timeline: SeraTimelineItem[]): OperationalEpisodeCandidate[] {
+  const episodes: OperationalEpisodeCandidate[] = []
+  for (const { item } of [...scored].sort((a, b) => a.item.sourceSentenceIndex - b.item.sourceSentenceIndex)) {
+    const support = episodeSupport(item, timeline)
+    const supportSet = new Set(support.map((candidate) => candidate.statement))
+    const phase = operationalPhase(item.statement)
+    const duplicate = episodes.some((episode) => {
+      if (episode.phase !== phase) return false
+      const existing = new Set(episode.supportingEvidence)
+      const overlap = [...supportSet].filter((statement) => existing.has(statement)).length
+      const denominator = Math.max(1, Math.min(existing.size, supportSet.size))
+      return overlap / denominator >= 0.5
+    })
+    if (duplicate) continue
+    episodes.push({
+      phase,
+      anchorStatement: item.statement,
+      supportingEvidence: support.map((candidate) => candidate.statement),
+      occurrenceScope: item.occurrenceScope ?? 'UNKNOWN',
+      selected: false,
+    })
+    if (episodes.length >= 6) break
+  }
+  return episodes
+}
+
 export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): CandidateEscapeWindow {
   const outcomeItem = timeline.find((item) =>
     (!item.assertionStatus || item.assertionStatus === 'AFFIRMED') &&
     item.sourceSection !== 'REPORT_ANALYSIS' &&
     item.sourceSection !== 'RECOMMENDATION' &&
     item.sourceSection !== 'ADMINISTRATIVE' &&
+    item.occurrenceScope !== 'HISTORICAL_COMPARATOR' &&
     hasOutcomeSignal(item.statement)
   ) ?? null
   const candidateItems = timeline.filter((item) => hasControlWindowSignal(item) && !hasOutcomeSignal(item.statement))
   const scored = candidateItems
     .map((item) => ({ item, score: candidateScore(item.statement) }))
     .filter(({ score }) => score >= 5)
+  const episodeCandidates = buildEpisodeCandidates(scored, timeline)
 
-  // Routine activity is not an escape point. Without an explicit unsafe-departure signal,
-  // abstain instead of promoting a generic crew action into the causal anchor.
-  const effectiveItems = scored.map(({ item }) => item)
+  // Reconstruct a compact operational episode around the first supported departure rather than
+  // treating every matching sentence in a long report as one undifferentiated causal window.
+  const effectiveItems = scored.map(({ item }) => item).sort((a, b) => a.sourceSentenceIndex - b.sourceSentenceIndex)
   const earliest = effectiveItems[0] ?? null
   const beliefCandidates = scored.filter(({ item }) => /\b(identificou|entendemos|acreditou|assumiu|associou|misidentified|mistook)\b/i.test(item.statement))
   const sameBeliefBoundary = beliefCandidates.length > 0 && beliefCandidates.length === scored.length
   const decisionCommitment = Boolean(earliest && /\b(decided|chose|opted|decidiu|decidiram|optou|escolheu)\b.*\b(start|initiate|iniciar|come[cç]ar)\b.*\b(crank|cranking|partida|giro)\b/i.test(earliest.statement))
-  const latest = (sameBeliefBoundary || decisionCommitment) ? earliest : (effectiveItems[effectiveItems.length - 1] ?? earliest)
-  const supportingItems = decisionCommitment && earliest ? [earliest] : effectiveItems
+  const supportingItems = earliest ? episodeSupport(earliest, timeline) : []
+  const sameEpisodeCandidates = earliest
+    ? effectiveItems.filter((item) => supportingItems.some((support) => support.statement === item.statement))
+    : []
+  const latest = (sameBeliefBoundary || decisionCommitment) ? earliest : (sameEpisodeCandidates[sameEpisodeCandidates.length - 1] ?? earliest)
 
   const counterEvidence: string[] = []
   if (!effectiveItems.length) counterEvidence.push('No explicit pre-outcome controllable departure statement was found in admissible factual evidence.')
-  if (!outcomeItem && scored.length > 1) counterEvidence.push('No explicit consequence boundary was detected; multiple candidate departure moments require review.')
-  if (scored.length > 1 && !sameBeliefBoundary && !decisionCommitment) counterEvidence.push('Multiple pre-outcome departure candidates remain; earliest supported candidate retained for first-departure review.')
+  if (!outcomeItem && sameEpisodeCandidates.length > 1) counterEvidence.push('No explicit consequence boundary was detected inside the selected operational episode; multiple departure moments require review.')
+  if (sameEpisodeCandidates.length > 1 && !sameBeliefBoundary && !decisionCommitment) counterEvidence.push('Multiple departure candidates remain inside the selected operational episode; the earliest supported candidate is retained for first-departure review.')
   if (earliest && /\b(developed across several moments|across several moments|progressively|gradually|allowed .* to develop|desenvolveu[- ]?se (?:ao longo de|em) (?:v[aá]rios|diversos) momentos|permitiu .* (?:desenvolver|evoluir)|zona progressiva)\b/i.test(earliest.statement)) {
     counterEvidence.push('The narrative explicitly describes the departure as progressive across multiple moments; retain a progressive-zone boundary for human review.')
   }
@@ -125,11 +232,17 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
     if (laterUnsafeState) counterEvidence.push('Visual continuation was followed by a developing unsafe energy state; the safe-operation boundary is retained as a progressive zone.')
   }
 
+  if (earliest) {
+    const selectedEpisode = episodeCandidates.find((episode) => episode.supportingEvidence.includes(earliest.statement))
+    if (selectedEpisode) selectedEpisode.selected = true
+  }
+
   return {
     statement: earliest ? `First supported safe-operation departure candidate: "${earliest.statement}".` : null,
     earliestCandidate: earliest?.statement ?? null,
     latestCandidate: latest?.statement ?? null,
     supportingEvidence: supportingItems.map((item) => item.statement),
     counterEvidence,
+    episodeCandidates,
   }
 }

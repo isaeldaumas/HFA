@@ -324,7 +324,7 @@ export default function EventReportPage() {
             </div>
             {vnextOutput && vnextOutput.escapePoint.supportingEvidence.length > 0 && (
               <div className="mt-3">
-                <p><strong>{L('Fatos-chave considerados', 'Key facts considered')}:</strong></p>
+                <p><strong>{L('Episódio operacional reconstruído', 'Reconstructed operational episode')}:</strong></p>
                 <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
                   {vnextOutput.escapePoint.supportingEvidence.slice(0, 3).map((item) => <li key={item}>{item}</li>)}
                 </ul>
@@ -344,6 +344,17 @@ export default function EventReportPage() {
                 <p><strong>{L('Objetivo', 'Objective')}:</strong> {vnextOutput.axes.objective.proposedCode ?? L('Não resolvido', 'Unresolved')}</p>
                 <p><strong>{L('Ação', 'Action')}:</strong> {vnextOutput.axes.action.proposedCode ?? L('Não resolvida', 'Unresolved')}</p>
               </div>
+              {(vnextOutput.escapePoint.episodeCandidates ?? []).filter((episode) => !episode.selected).length > 0 && (
+                <div className="report-box mt-3">
+                  <p><strong>{L('Outros episódios operacionais detectados', 'Other operational episodes detected')}:</strong></p>
+                  <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
+                    {(vnextOutput.escapePoint.episodeCandidates ?? []).filter((episode) => !episode.selected).slice(0, 5).map((episode) => (
+                      <li key={`${episode.phase}:${episode.anchorStatement}`}>{episode.phase}: {episode.anchorStatement}</li>
+                    ))}
+                  </ul>
+                  <p className="report-note">{L('São contexto global. Cada episódio exige uma travessia SERA própria antes de qualquer código P/O/A.', 'These are global context. Each episode requires its own SERA traversal before any P/O/A code.')}</p>
+                </div>
+              )}
               <p className="report-note">
                 {L('Análise produzida pelo motor SERA 0.3. A liberação formal dos códigos permanece condicionada à revisão humana.', 'Analysis produced by SERA engine 0.3. Formal code release remains subject to human review.')}
               </p>

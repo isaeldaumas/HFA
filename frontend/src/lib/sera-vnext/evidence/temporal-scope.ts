@@ -6,7 +6,7 @@ function normalize(input: string): string {
 }
 
 function hasConsequenceMarker(text: string): boolean {
-  return /\b(crash|impact|impacted|collision|damage|damaged|fatal|injury|injured|ditch|ditched|struck|strike|hit|terrain|runway lights|very low height|acidente|impacto|colis[aã]o|dano|ferid|bateu)\b/i.test(text)
+  return /\b(crash|impact|impacted|collision|damage|damaged|fatal|injury|injured|ditch|ditched|struck|strike|hit|terrain|runway lights|very low height|impacto|colis[aã]o|dano|ferid|bateu)\b/i.test(text)
     || /\b(pousou|realizou o pouso|efetuou o pouso|concluiu o pouso|landed|touchdown)\b.*\b(errad[oa]|equivocad[oa]|erroneamente|por engano|mistakenly|erroneously|nao previst[oa]|não previst[oa]|nao autorizad[oa]|não autorizad[oa]|erro|wrong|diferente|distint[ao]|different|confundindo)\b/i.test(text)
     || /\b(pousou|landed)\b.*\b(unit-[a-z0-9-]+|pcp-?[0-9]+|unidade|plataforma|pista|helideck)\b.*\b(embora|although)\b.*\b(destino|rota|planned destination|planned route)\b/i.test(text)
     || /\b(ap[oó]s (?:concluir )?o pouso|depois do pouso|ap[oó]s o toque|depois do toque|after landing|after touchdown)\b/i.test(text)
@@ -39,6 +39,10 @@ export function classifyTemporalRelation(args: {
   latestEscapeSentenceIndex?: number | null
   sourceSection?: SeraEvidenceSourceSection
 }): SeraEvidenceTemporalRelation {
+  // Administrative, recommendation, and investigator-analysis prose are documentary layers,
+  // not event-time observations. Keep them temporally unclassified instead of mislabeling
+  // words such as "accident" or "impact" as post-escape facts.
+  if (args.sourceSection === 'ADMINISTRATIVE' || args.sourceSection === 'RECOMMENDATION' || args.sourceSection === 'REPORT_ANALYSIS') return 'UNKNOWN'
   if (hasExplicitPostEscapeCue(args.statement)) return 'POST_ESCAPE'
   if (hasConsequenceMarker(args.statement) && !isOpeningTemporalContext(args.statement)) return 'POST_ESCAPE'
   if (hasExplicitPreEscapeCue(args.statement)) return 'PRE_ESCAPE'

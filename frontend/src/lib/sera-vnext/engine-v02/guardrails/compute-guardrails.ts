@@ -66,6 +66,17 @@ export function computeSeraVNextGuardrails(input: {
   const oeEvidence = facts.filter((statement) => hasConcept([statement], 'oeCode'))
   const inventedQuestionEvidence = collectConceptMatches(pathTexts, ['inventedQuestion']).map((item) => item.statement)
   const codeFirstEvidence = pathTexts.filter((statement) => /\b(code-first|selectedCode|releasedCode|expected output|allowedCodes)\b/i.test(statement))
+  const axisPairs = [
+    ['P', input.axes.perception] as const,
+    ['O', input.axes.objective] as const,
+    ['A', input.axes.action] as const,
+  ]
+  const canonicalBypassEvidence = axisPairs.flatMap(([axisName, axis]) => {
+    if (!axis.proposedCode) return []
+    const path = input.canonicalTraversal.paths.find((candidate) => candidate.axis === axisName)
+    if (path && path.candidateCode === axis.proposedCode && path.nodeIds.length > 0 && path.answers.length > 0) return []
+    return [`${axisName}:${axis.proposedCode} has no matching completed canonical node-by-node path`]
+  })
   const actorMigrationEvidence = input.directActor.actorMigrationWarnings
   const violationCode = input.axes.objective.proposedCode === 'O-B' || input.axes.objective.proposedCode === 'O-C'
   const objectiveEvidence = input.axes.objective.supportingEvidence
@@ -122,8 +133,8 @@ export function computeSeraVNextGuardrails(input: {
       evidence: preconditionEscapeOverlap,
     },
     codeFirstPathDetected: {
-      violated: codeFirstEvidence.length > 0,
-      evidence: codeFirstEvidence,
+      violated: codeFirstEvidence.length > 0 || canonicalBypassEvidence.length > 0,
+      evidence: unique([...codeFirstEvidence, ...canonicalBypassEvidence]),
     },
     awarenessMissingForViolation: {
       violated: awarenessMissingForViolation,

@@ -556,7 +556,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     }
 
     heading(doc, '2. ' + L('Fatos-chave utilizados na análise', 'Key facts used in the analysis'))
-    subheading(doc, L('Evidências centrais do ponto de fuga', 'Core escape-point evidence'))
+    subheading(doc, L('Episódio operacional reconstruído ao redor do ponto de fuga', 'Operational episode reconstructed around the escape point'))
     bullets(doc, output.escapePoint.supportingEvidence.slice(0, 5), L('Nenhuma evidência central registrada.', 'No core evidence recorded.'))
     if (output.escapePoint.excludedPostEscapeEvidence.length) {
       subheading(doc, L('Fatos posteriores preservados, mas não usados como causa', 'Later facts retained but not used as causes'))
@@ -587,6 +587,15 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     }
     subheading(doc, L('Evidência de suporte ao ponto de fuga', 'Escape-point supporting evidence'))
     bullets(doc, output.escapePoint.supportingEvidence.slice(0, 6), L('Nenhuma evidência registrada.', 'No evidence recorded.'))
+    const alternativeEpisodes = (output.escapePoint.episodeCandidates ?? []).filter((episode) => !episode.selected)
+    if (alternativeEpisodes.length) {
+      subheading(doc, L('Outros episódios operacionais detectados — exigem travessia SERA própria', 'Other operational episodes detected — each requires its own SERA traversal'))
+      bullets(doc, alternativeEpisodes.slice(0, 5).map((episode) => `${episode.phase}: ${episode.anchorStatement}`))
+      body(doc, L(
+        'Esses episódios compõem a visão global do evento, mas não recebem códigos P/O/A nesta travessia. Selecionar outro episódio exige reiniciar o fluxo metodológico a partir do ponto de fuga e do ator daquele episódio.',
+        'These episodes form the global event view but do not receive P/O/A codes in this traversal. Selecting another episode requires restarting the methodological flow from that episode’s escape point and actor.',
+      ))
+    }
     subheading(doc, L('Contraevidência / incertezas do limite', 'Counter-evidence / boundary uncertainty'))
     bullets(doc, output.escapePoint.counterEvidence.slice(0, 6), L('Nenhuma contraevidência registrada.', 'No counter-evidence recorded.'))
     subheading(doc, L('Evidência posterior excluída da cadeia causal', 'Post-escape evidence excluded from the causal chain'))
@@ -743,12 +752,16 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     const postEscape = evidenceItems.filter((item) => item.temporalRelation === 'POST_ESCAPE')
     const analysisOnly = evidenceItems.filter((item) => item.sourceSection === 'REPORT_ANALYSIS' || item.sourceSection === 'RECOMMENDATION')
     const referenceOnly = evidenceItems.filter((item) => ['NON_CAUSAL_DOCUMENT', 'REFERENCE_PROCEDURE', 'SYSTEM_DESCRIPTION'].includes(item.evidenceType))
+    const historicalComparators = evidenceItems.filter((item) => item.occurrenceScope === 'HISTORICAL_COMPARATOR')
+    const currentEventItems = evidenceItems.filter((item) => item.occurrenceScope === 'CURRENT_EVENT')
     meta(doc, L('Itens de evidência indexados', 'Indexed evidence items'), String(evidenceItems.length))
     meta(doc, L('Fatores explicitamente rejeitados no relatório-fonte', 'Factors explicitly rejected by the source report'), String(rejected.length))
     meta(doc, L('Afirmações incertas/hipotéticas', 'Uncertain/hypothetical statements'), String(uncertain.length))
     meta(doc, L('Itens pós-ponto de fuga', 'Post-escape items'), String(postEscape.length))
     meta(doc, L('Itens de análise/recomendação não usados como fato causal', 'Analysis/recommendation items not used as causal facts'), String(analysisOnly.length))
     meta(doc, L('Material documental/de referência excluído da causalidade', 'Document/reference material excluded from causality'), String(referenceOnly.length))
+    meta(doc, L('Itens do evento atual', 'Current-event items'), String(currentEventItems.length))
+    meta(doc, L('Itens históricos/comparadores proibidos como causa direta', 'Historical/comparator items prohibited as direct causes'), String(historicalComparators.length))
     subheading(doc, L('Fatores que o relatório-fonte declarou como não contribuintes', 'Factors the source report declared non-contributory'))
     bullets(doc, rejected.slice(0, 8).map((item) => item.statement))
     subheading(doc, L('Hipóteses ou formulações incertas preservadas como incerteza', 'Hypotheses or uncertain formulations retained as uncertainty'))

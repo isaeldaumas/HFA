@@ -1,4 +1,4 @@
-import type { SeraAssertionStatus, SeraClarificationQuestion, SeraConfidence, SeraEvidenceSourceSection, SeraFactCategory } from '../engine-contract'
+import type { SeraAssertionStatus, SeraClarificationQuestion, SeraConfidence, SeraEvidenceSourceSection, SeraFactCategory, SeraOccurrenceScope } from '../engine-contract'
 
 export type SeraEvidenceTemporalRelation = 'PRE_ESCAPE' | 'AT_ESCAPE' | 'POST_ESCAPE' | 'UNKNOWN'
 
@@ -37,6 +37,7 @@ export type SeraEvidenceItem = {
   sourceSentenceIndex: number
   sourceSection: SeraEvidenceSourceSection
   assertionStatus: SeraAssertionStatus
+  occurrenceScope?: SeraOccurrenceScope
   temporalRelation: SeraEvidenceTemporalRelation
   actorRelation: SeraEvidenceActorRelation
   actor: string | null

@@ -8,12 +8,20 @@ function formatEscapeStatement(candidate: string | null, locale: SeraVNextEngine
   const clean = candidate
     .replace(/^\s*(?:ponto de fuga\s*[:\-–—]?\s*)?/i, '')
     .replace(/^\s*\d+(?:\.\d+)*\s*/, '')
+    .replace(/^\s*(?:[a-z]\)|[-•▪])\s*/i, '')
     .replace(/^[\s“"']*(por[eé]m|contudo|entretanto|todavia)[,;:]?\s*/i, '')
     .replace(/\b(?:numa|em uma) vis[aã]o de t[uú]nel,?\s*/i, '')
     .replace(/[\s”"']+$/g, '')
     .trim()
 
   if (/^(quando|when)\b/i.test(clean)) return clean.charAt(0).toUpperCase() + clean.slice(1)
+
+  const dispatchDespite = clean.replace(/[.;,\s]+$/g, '').match(/^a despeito d[aeo] (.+?),\s*(a aeronave foi despachada .+)$/i)
+  if (dispatchDespite?.[1] && dispatchDespite?.[2]) {
+    return locale === 'pt-BR'
+      ? `Quando ${dispatchDespite[2]}, apesar de ${dispatchDespite[1]}.`
+      : `When ${dispatchDespite[2]}, despite ${dispatchDespite[1]}.`
+  }
 
   if (
     /\b(inspe[cç][aã]o (?:de )?pr[eé][ -]?voo|pr[eé][ -]?voo|preflight inspection)\b/i.test(clean) &&
@@ -87,6 +95,7 @@ export function runStep03EscapePoint(input: {
         latestCandidate: directClarification.statement,
         supportingEvidence: [directClarification.statement],
         counterEvidence: [],
+        episodeCandidates: [{ phase: 'GENERIC' as const, anchorStatement: directClarification.statement, supportingEvidence: [directClarification.statement], occurrenceScope: 'CURRENT_EVENT' as const, selected: true }],
       }
     : null
   const selectedWindow = clarificationWindow.statement
@@ -115,6 +124,7 @@ export function runStep03EscapePoint(input: {
     supportingEvidence: selectedWindow.supportingEvidence,
     counterEvidence: selectedWindow.counterEvidence,
     excludedPostEscapeEvidence: excludedPostEscapeEvidence(input.factualExtraction.timeline, latestSentenceIndex),
+    episodeCandidates: selectedWindow.episodeCandidates,
     confidence: escapeConfidence({
       candidate: selectedWindow.earliestCandidate,
       supportCount: selectedWindow.supportingEvidence.length,
