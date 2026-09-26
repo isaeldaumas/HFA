@@ -10,18 +10,35 @@ const NODE_LABELS_PT: Record<string, string> = {
   O_ROOT: 'Objetivo pretendido',
   O_RULES: 'Compatibilidade com regras e procedimentos',
   O_MANAGED_RISK: 'Gerenciamento do risco',
-  O_ROUTINE_VIOLATION: 'Padrão de violação',
+  O_ROUTINE: 'Padrão de violação',
   A_ROOT: 'Estratégia de ação',
   A_IMPLEMENTED: 'Execução da ação',
   A_CORRECT: 'Adequação da ação',
   A_CAPABILITY: 'Capacidade de executar',
-  A_SELECTION: 'Seleção da resposta',
-  A_FEEDBACK: 'Feedback e verificação',
+  A_TIME_PRESSURE: 'Pressão de tempo na ação',
+}
+
+const NODE_LABELS_EN: Record<string, string> = {
+  P_ROOT: 'Perceived state',
+  P_ASSESSMENT: 'Situation assessment',
+  P_CAPABILITY: 'Capability to perceive',
+  P_TIME_PRESSURE: 'Time pressure',
+  P_INFORMATION_AMBIGUOUS: 'Information clarity',
+  P_INFORMATION_AVAILABLE: 'Information availability',
+  O_ROOT: 'Intended objective',
+  O_RULES: 'Rules and procedures',
+  O_MANAGED_RISK: 'Risk management',
+  O_ROUTINE: 'Violation pattern',
+  A_ROOT: 'Action strategy',
+  A_IMPLEMENTED: 'Action execution',
+  A_CORRECT: 'Action adequacy',
+  A_CAPABILITY: 'Capability to act',
+  A_TIME_PRESSURE: 'Time pressure on action',
 }
 
 export function friendlyNodeLabel(nodeId: string, pt = true): string {
-  if (!pt) return nodeId.replaceAll('_', ' ').toLowerCase()
-  return NODE_LABELS_PT[nodeId] ?? nodeId.replaceAll('_', ' ').toLowerCase()
+  const labels = pt ? NODE_LABELS_PT : NODE_LABELS_EN
+  return labels[nodeId] ?? nodeId.replaceAll('_', ' ').toLowerCase()
 }
 export type CandidateAttention = {
   score: number

@@ -5,6 +5,7 @@ import { useI18n } from '@/lib/i18n'
 import { localizeRationale } from '@/lib/sera-vnext/engine-v0/localization'
 import { SERA_PT_V1_TREE } from '@/lib/sera-vnext/canonical-tree/sera-pt-v1'
 import { didacticNodeReason, friendlyAnswerLabel, friendlyNodeLabel } from '@/lib/sera-vnext/presentation'
+import { CanonicalTreeDiagram } from './CanonicalTreeDiagram'
 
 function axisTitle(axis: string, pt: boolean): string {
   if (axis === 'P') return pt ? 'Percepção' : 'Perception'
@@ -17,28 +18,6 @@ function question(node: SeraCanonicalPath['answers'][number], pt: boolean): stri
   return SERA_PT_V1_TREE.nodes.find((item) => item.nodeId === node.nodeId)?.question ?? node.question
 }
 
-function FlowRail({ path, pt }: { path: SeraCanonicalPath; pt: boolean }) {
-  return (
-    <div className="overflow-x-auto pb-2">
-      <div className="flex min-w-max items-stretch gap-2">
-        {path.answers.map((node, index) => (
-          <div key={`${path.axis}-${node.nodeId}`} className="flex items-center gap-2">
-            <div className="w-44 rounded-xl border border-cyan-900/60 bg-cyan-950/25 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/15 text-xs font-bold text-cyan-300">{index + 1}</span>
-                <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-400">{friendlyAnswerLabel(node.answer, pt)}</span>
-              </div>
-              <p className="mt-2 text-xs font-semibold leading-snug text-slate-100">{friendlyNodeLabel(node.nodeId, pt)}</p>
-              {node.terminalCode && <p className="mt-2 text-[11px] font-bold text-cyan-300">→ {node.terminalCode}</p>}
-            </div>
-            {index < path.answers.length - 1 && <span aria-hidden className="text-lg text-cyan-700">→</span>}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 export function CanonicalDecisionJourney({ paths }: { paths: SeraCanonicalPath[] }) {
   const { locale } = useI18n()
   const pt = locale === 'pt-BR'
@@ -48,7 +27,7 @@ export function CanonicalDecisionJourney({ paths }: { paths: SeraCanonicalPath[]
     <section className="rounded-xl border border-slate-700 bg-slate-900/70 p-5">
       <h2 className="text-base font-semibold text-white">{pt ? 'Como o sistema chegou à classificação' : 'How the system reached the classification'}</h2>
       <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-500">
-        {pt ? 'O fluxo visual mostra o caminho percorrido. Logo abaixo, cada etapa explica a pergunta, a resposta, a justificativa e a evidência usada.' : 'The visual flow shows the traversed path. Each step below explains the question, answer, rationale, and evidence used.'}
+        {pt ? 'A árvore completa mostra todas as alternativas do SERA. O caminho efetivamente percorrido fica destacado até a classificação alcançada; os ramos não seguidos permanecem visíveis para comparação. Logo abaixo, cada etapa explica pergunta, resposta, justificativa e evidência.' : 'The complete SERA tree shows every alternative. The traversed path is highlighted through the reached classification, while paths not taken remain visible for comparison. Each step below explains the question, answer, rationale, and evidence.'}
       </p>
       <div className="mt-5 space-y-8">
         {paths.map((path) => (
@@ -57,7 +36,7 @@ export function CanonicalDecisionJourney({ paths }: { paths: SeraCanonicalPath[]
               <span className="rounded bg-cyan-950 px-2 py-1 text-xs font-semibold text-cyan-300">{axisTitle(path.axis, pt)}</span>
               <span className="text-xs text-slate-500">{pt ? 'resultado' : 'result'}: <strong className="text-slate-300">{path.candidateCode ?? (pt ? 'não resolvido' : 'unresolved')}</strong></span>
             </div>
-            <FlowRail path={path} pt={pt} />
+            <CanonicalTreeDiagram path={path} pt={pt} compact />
             <div className="grid gap-3 lg:grid-cols-2">
               {path.answers.map((node, index) => (
                 <article key={`${path.axis}-${node.nodeId}-detail`} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">

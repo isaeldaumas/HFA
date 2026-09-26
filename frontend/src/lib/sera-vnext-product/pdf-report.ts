@@ -5,6 +5,7 @@ import type { SeraCanonicalPath, SeraVNextEngineOutput } from '@/lib/sera-vnext/
 import { localizeActor, localizeAssuranceText, localizeRationale } from '@/lib/sera-vnext/engine-v0/localization'
 import { SERA_PT_V1_TREE } from '@/lib/sera-vnext/canonical-tree/sera-pt-v1'
 import { buildExecutiveSummary, computeCandidateAttention, friendlyAnswerLabel, friendlyNodeLabel } from '@/lib/sera-vnext/presentation'
+import { buildCanonicalFlowVisualModel } from '@/lib/sera-vnext/canonical-flow-visual'
 import type {
   SeraVNextAnalysisRecord,
   SeraVNextReviewRecord,
@@ -183,42 +184,148 @@ function axisOutput(output: SeraVNextEngineOutput, axis: string) {
   return output.axes.action
 }
 
-function renderPathMap(doc: Doc, path: SeraCanonicalPath, pt: boolean): void {
-  if (!path.answers.length) return
-  const x = doc.page.margins.left
-  const width = doc.page.width - doc.page.margins.left - doc.page.margins.right
-  const cols = 3
-  const gap = 8
-  const boxHeight = 43
-  const rowGap = 14
-  const boxWidth = (width - gap * (cols - 1)) / cols
-  const rows = Math.ceil(path.answers.length / cols)
-  const totalHeight = rows * boxHeight + (rows - 1) * rowGap
-  keepTogether(doc, totalHeight + 16)
-  const y0 = doc.y
+function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, pt: boolean): void {
+  const model = buildCanonicalFlowVisualModel(path, pt)
+  const title = path.axis === 'P'
+    ? (pt ? 'Percepção' : 'Perception')
+    : path.axis === 'O'
+      ? (pt ? 'Objetivo' : 'Objective')
+      : (pt ? 'Ação' : 'Action')
+  const accent = path.axis === 'P' ? '#0891b2' : path.axis === 'O' ? '#d97706' : '#e11d48'
+  const accentLight = path.axis === 'P' ? '#ecfeff' : path.axis === 'O' ? '#fffbeb' : '#fff1f2'
+  const activeStroke = path.axis === 'P' ? '#0e7490' : path.axis === 'O' ? '#b45309' : '#be123c'
 
-  path.answers.forEach((node, index) => {
-    const row = Math.floor(index / cols)
-    const col = index % cols
-    const bx = x + col * (boxWidth + gap)
-    const by = y0 + row * (boxHeight + rowGap)
-    doc.roundedRect(bx, by, boxWidth, boxHeight, 5).fillAndStroke('#eef6fb', '#b9d2e4')
-    doc.font('Helvetica-Bold').fontSize(7.1).fillColor('#1d4f73')
-      .text(String(index + 1) + '. ' + friendlyNodeLabel(node.nodeId, pt), bx + 6, by + 7, { width: boxWidth - 12, lineBreak: false, ellipsis: true })
-    doc.font('Helvetica').fontSize(7).fillColor('#536676')
-      .text((pt ? 'Resposta: ' : 'Answer: ') + friendlyAnswerLabel(node.answer, pt), bx + 6, by + 23, { width: boxWidth - 12, lineBreak: false, ellipsis: true })
-    if (node.terminalCode) {
-      doc.font('Helvetica-Bold').fontSize(7).fillColor('#1d4f73')
-        .text('> ' + node.terminalCode, bx + 6, by + 33, { width: boxWidth - 12, lineBreak: false })
-    }
+  doc.addPage({ size: 'A4', layout: 'landscape', margin: 34 })
+  const left = doc.page.margins.left
+  const right = doc.page.width - doc.page.margins.right
+  const top = 34
+  const width = right - left
 
-    const sameRowNext = index < path.answers.length - 1 && (index + 1) % cols !== 0
-    if (sameRowNext) {
-      doc.font('Helvetica-Bold').fontSize(10).fillColor('#6f8fa6')
-        .text('>', bx + boxWidth + 1, by + 15, { width: gap - 2, align: 'center' })
+  doc.font('Helvetica-Bold').fontSize(14).fillColor('#173f67')
+    .text((pt ? 'Árvore completa SERA — ' : 'Complete SERA tree — ') + title, left, top, { width })
+  doc.font('Helvetica').fontSize(8).fillColor('#5d6e7c')
+    .text(
+      pt
+        ? `Todos os caminhos permanecem visíveis. O percurso desta análise está destacado até ${path.candidateCode ?? 'resultado não resolvido'}.`
+        : `All paths remain visible. This analysis route is highlighted through ${path.candidateCode ?? 'an unresolved result'}.`,
+      left,
+      top + 21,
+      { width },
+    )
+
+  const legendY = top + 43
+  const legendItems = [
+    { fill: accent, stroke: activeStroke, label: pt ? 'Caminho seguido' : 'Traversed path' },
+    { fill: '#f8fafc', stroke: '#94a3b8', label: pt ? 'Caminho não seguido' : 'Path not taken' },
+    { fill: '#15803d', stroke: '#166534', label: pt ? 'Classificação alcançada' : 'Reached classification' },
+  ]
+  let legendX = left
+  for (const item of legendItems) {
+    doc.roundedRect(legendX, legendY, 19, 9, 2).fillAndStroke(item.fill, item.stroke)
+    doc.font('Helvetica').fontSize(7).fillColor('#536676').text(item.label, legendX + 25, legendY + 1, { width: 115, lineBreak: false })
+    legendX += 155
+  }
+
+  const children = new Map<string, typeof model.edges>()
+  const incoming = new Set<string>()
+  for (const edge of model.edges) {
+    children.set(edge.from, [...(children.get(edge.from) ?? []), edge])
+    incoming.add(edge.to)
+  }
+  const root = model.nodes.find((node) => node.kind === 'question' && !incoming.has(node.id))
+  if (!root) return
+
+  const depth = new Map<string, number>()
+  const visitDepth = (id: string, level: number) => {
+    if ((depth.get(id) ?? -1) >= level) return
+    depth.set(id, level)
+    for (const edge of children.get(id) ?? []) visitDepth(edge.to, level + 1)
+  }
+  visitDepth(root.id, 0)
+  const leaves = model.nodes.filter((node) => (children.get(node.id) ?? []).length === 0)
+  const leafOrder: string[] = []
+  const collectLeaves = (id: string) => {
+    const outgoing = children.get(id) ?? []
+    if (!outgoing.length) {
+      if (!leafOrder.includes(id)) leafOrder.push(id)
+      return
     }
-  })
-  doc.y = y0 + totalHeight + 7
+    for (const edge of outgoing) collectLeaves(edge.to)
+  }
+  collectLeaves(root.id)
+  for (const leaf of leaves) if (!leafOrder.includes(leaf.id)) leafOrder.push(leaf.id)
+
+  const treeTop = legendY + 31
+  const treeBottom = doc.page.height - doc.page.margins.bottom - 16
+  const maxDepth = Math.max(...depth.values(), 1)
+  const levelGap = (treeBottom - treeTop - 38) / maxDepth
+  const leafStep = width / Math.max(leafOrder.length, 1)
+  const xCenter = new Map<string, number>()
+  leafOrder.forEach((id, index) => xCenter.set(id, left + leafStep * (index + 0.5)))
+  const resolveX = (id: string): number => {
+    const cached = xCenter.get(id)
+    if (cached !== undefined) return cached
+    const outgoing = children.get(id) ?? []
+    const xs = outgoing.map((edge) => resolveX(edge.to))
+    const value = xs.length ? xs.reduce((sum, x) => sum + x, 0) / xs.length : left + width / 2
+    xCenter.set(id, value)
+    return value
+  }
+  resolveX(root.id)
+
+  const geom = new Map<string, { x: number; y: number; w: number; h: number }>()
+  for (const node of model.nodes) {
+    const d = depth.get(node.id)
+    if (d === undefined) continue
+    const isTerminal = node.kind === 'terminal'
+    const w = isTerminal ? Math.min(67, Math.max(52, leafStep - 7)) : 93
+    const h = isTerminal ? 34 : 32
+    const cx = resolveX(node.id)
+    const y = treeTop + d * levelGap
+    geom.set(node.id, { x: cx - w / 2, y, w, h })
+  }
+
+  for (const edge of model.edges) {
+    const a = geom.get(edge.from)
+    const b = geom.get(edge.to)
+    if (!a || !b) continue
+    const x1 = a.x + a.w / 2
+    const y1 = a.y + a.h
+    const x2 = b.x + b.w / 2
+    const y2 = b.y
+    const color = edge.active ? activeStroke : '#a8b3bf'
+    doc.strokeColor(color).lineWidth(edge.active ? 2.4 : 0.85)
+      .moveTo(x1, y1).lineTo(x1, y1 + 8).lineTo(x2, y2 - 8).lineTo(x2, y2).stroke()
+    doc.fillColor(color).polygon([x2 - 2.8, y2 - 5], [x2 + 2.8, y2 - 5], [x2, y2]).fill()
+    if (edge.label) {
+      const labelX = x1 + (x2 - x1) * 0.72
+      const labelY = y1 + (y2 - y1) * 0.62 - 3
+      doc.font(edge.active ? 'Helvetica-Bold' : 'Helvetica').fontSize(5.2)
+        .fillColor(edge.active ? activeStroke : '#758494')
+        .text(edge.label, labelX - 27, labelY, { width: 54, align: 'center', lineBreak: false, ellipsis: true })
+    }
+  }
+
+  for (const node of model.nodes) {
+    const g = geom.get(node.id)
+    if (!g) continue
+    const fill = node.selected ? '#15803d' : node.active ? accentLight : '#f8fafc'
+    const stroke = node.selected ? '#166534' : node.active ? activeStroke : '#94a3b8'
+    doc.roundedRect(g.x, g.y, g.w, g.h, node.kind === 'terminal' ? 10 : 4)
+      .lineWidth(node.active || node.selected ? 1.8 : 0.8)
+      .fillAndStroke(fill, stroke)
+    if (node.kind === 'terminal') {
+      doc.font('Helvetica-Bold').fontSize(7).fillColor(node.selected ? '#ffffff' : '#334155')
+        .text(node.code ?? '', g.x + 4, g.y + 6, { width: g.w - 8, align: 'center', lineBreak: false })
+      doc.font('Helvetica').fontSize(5.6).fillColor(node.selected ? '#dcfce7' : '#64748b')
+        .text(node.label, g.x + 3, g.y + 17, { width: g.w - 6, align: 'center', height: 14, ellipsis: true })
+    } else {
+      doc.font('Helvetica-Bold').fontSize(6.4).fillColor(node.active ? activeStroke : '#475569')
+        .text(node.label, g.x + 5, g.y + 8, { width: g.w - 10, align: 'center', height: 18, ellipsis: true })
+    }
+  }
+
+
 }
 
 function renderPath(
@@ -268,8 +375,8 @@ function renderPath(
     return
   }
 
-  renderPathMap(doc, path, pt)
-  doc.moveDown(0.2)
+  body(doc, L('A árvore completa deste eixo está apresentada imediatamente antes deste detalhamento. Abaixo ficam apenas os nós efetivamente percorridos, com sua rastreabilidade.', 'The complete tree for this axis is shown immediately before this detail. Below are only the nodes actually traversed, with their traceability.'))
+  doc.moveDown(0.35)
 
   path.answers.forEach((node, index) => {
     keepTogether(doc, 128)
@@ -506,13 +613,18 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     body(
       doc,
       L(
-        'Esta seção mostra, em linguagem operacional, o caminho efetivamente percorrido. Cada etapa apresenta a pergunta, a resposta, a justificativa e as evidências que sustentaram o ramo seguinte.',
-        'This section shows, in operational language, the path actually traversed. Each step presents the question, answer, rationale, and evidence supporting the next branch.',
+        'Primeiro são apresentadas as árvores completas de Percepção, Objetivo e Ação, preservando inclusive os ramos não seguidos. O caminho usado nesta análise é destacado por cor até o código terminal. Em seguida, cada nó efetivamente percorrido é explicado com pergunta, resposta, justificativa e evidências.',
+        'The complete Perception, Objective, and Action trees are presented first, including paths not taken. The route used in this analysis is highlighted through the terminal code. Each traversed node is then explained with its question, answer, rationale, and evidence.',
       ),
       'justify',
     )
     doc.moveDown(0.45)
-    for (const path of output.canonicalTraversal.paths) renderPath(doc, path, output, pt)
+    for (const path of output.canonicalTraversal.paths) renderCanonicalTreePage(doc, path, pt)
+    if (output.canonicalTraversal.paths.length) {
+      doc.addPage({ size: 'A4', layout: 'portrait', margin: 46 })
+      heading(doc, '6.1 ' + L('Detalhamento do caminho percorrido', 'Traversed-path detail'))
+      for (const path of output.canonicalTraversal.paths) renderPath(doc, path, output, pt)
+    }
 
     heading(doc, '7. ' + L('Pré-condições e hipóteses contextuais', 'Preconditions and contextual hypotheses'))
     const supportedPreconditions = output.preconditions.filter((pc) =>
