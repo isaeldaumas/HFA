@@ -2069,7 +2069,7 @@ export default function RiskProfilePage() {
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
                 <h3 className="text-white font-semibold">Eventos considerados no perfil</h3>
-                <p className="text-slate-500 text-xs mt-1">Somente registros concluídos e ativos entram no cálculo.</p>
+                <p className="text-slate-500 text-xs mt-1">Registros revisados e análises provisórias elegíveis entram no cálculo; registros pendentes de esclarecimento permanecem fora até haver evidência suficiente.</p>
               </div>
               <span className="text-xs text-slate-400">{includedEvents}</span>
             </div>
