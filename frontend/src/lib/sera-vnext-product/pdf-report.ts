@@ -4,7 +4,7 @@ const PDFDocument = require('pdfkit/js/pdfkit.standalone.js') as typeof import('
 import type { SeraCanonicalPath, SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
 import { localizeActor, localizeAssuranceText, localizeRationale } from '@/lib/sera-vnext/engine-v0/localization'
 import { SERA_PT_V1_TREE } from '@/lib/sera-vnext/canonical-tree/sera-pt-v1'
-import { buildExecutiveSummary, computeCandidateAttention, directActorStatusLabel, friendlyAnswerLabel, friendlyNodeLabel, hfacsBridgeLevelLabel, preconditionLevelLabel, preconditionMethodologyMatchLabel } from '@/lib/sera-vnext/presentation'
+import { buildExecutiveSummary, computeCandidateAttention, friendlyAnswerLabel, friendlyNodeLabel, hfacsBridgeLevelLabel, preconditionLevelLabel, preconditionMethodologyMatchLabel } from '@/lib/sera-vnext/presentation'
 import { buildCanonicalFlowVisualModel } from '@/lib/sera-vnext/canonical-flow-visual'
 import { SERA_PRECONDITION_META } from '@/lib/sera-vnext/precondition-taxonomy'
 import { buildSeraHfacsBridge } from '@/lib/sera-vnext/hfacs-bridge'
@@ -33,26 +33,50 @@ function entries(values: string[] | undefined | null): string[] {
   return (values ?? []).filter((item) => item && item.trim().length > 0)
 }
 
+const PDF_COLORS = {
+  navy: '#123B5D',
+  blue: '#2563A6',
+  cyan: '#0E7490',
+  green: '#16734B',
+  greenSoft: '#ECF8F1',
+  amber: '#9A6410',
+  amberSoft: '#FFF8E7',
+  red: '#A13A3A',
+  ink: '#233444',
+  muted: '#667786',
+  line: '#D7E0E8',
+  soft: '#F5F8FB',
+  white: '#FFFFFF',
+}
+
+function pageContentWidth(doc: Doc): number {
+  return doc.page.width - doc.page.margins.left - doc.page.margins.right
+}
+
+function pageBottom(doc: Doc): number {
+  return doc.page.height - doc.page.margins.bottom - 16
+}
+
 function keepTogether(doc: Doc, height = 110): void {
-  if (doc.y + height > doc.page.height - doc.page.margins.bottom - 18) doc.addPage()
+  if (doc.y + height > pageBottom(doc)) doc.addPage({ size: 'A4', layout: 'portrait', margin: 44 })
 }
 
 function heading(doc: Doc, title: string): void {
-  keepTogether(doc, 56)
-  doc.moveDown(0.75)
-  doc.font('Helvetica-Bold').fontSize(13).fillColor('#173f67').text(title)
-  doc.moveDown(0.22)
-  doc.strokeColor('#b9c8d6').lineWidth(0.6)
+  keepTogether(doc, 64)
+  doc.moveDown(0.6)
+  doc.font('Helvetica-Bold').fontSize(17).fillColor(PDF_COLORS.navy).text(title, doc.page.margins.left, doc.y, { width: pageContentWidth(doc), lineGap: 1.5 })
+  doc.moveDown(0.18)
+  doc.strokeColor(PDF_COLORS.line).lineWidth(0.8)
     .moveTo(doc.page.margins.left, doc.y)
     .lineTo(doc.page.width - doc.page.margins.right, doc.y)
     .stroke()
-  doc.moveDown(0.48)
+  doc.moveDown(0.55)
 }
 
 function subheading(doc: Doc, title: string): void {
-  keepTogether(doc, 35)
-  doc.font('Helvetica-Bold').fontSize(10.2).fillColor('#31485e').text(title)
-  doc.moveDown(0.15)
+  keepTogether(doc, 38)
+  doc.font('Helvetica-Bold').fontSize(11.5).fillColor('#355267').text(title, doc.page.margins.left, doc.y, { width: pageContentWidth(doc), lineGap: 1 })
+  doc.moveDown(0.18)
 }
 
 function cleanDisplayText(text: string): string {
@@ -65,31 +89,152 @@ function cleanDisplayText(text: string): string {
 }
 
 function body(doc: Doc, text: string, align: 'left' | 'justify' = 'left'): void {
-  doc.font('Helvetica').fontSize(9).fillColor('#263746').text(cleanDisplayText(text || '-'), {
+  doc.font('Helvetica').fontSize(10.5).fillColor(PDF_COLORS.ink).text(cleanDisplayText(text || '-'), doc.page.margins.left, doc.y, {
+    width: pageContentWidth(doc),
     align,
-    lineGap: 1.6,
+    lineGap: 3,
   })
+  doc.x = doc.page.margins.left
 }
 
 function meta(doc: Doc, label: string, data: string): void {
-  keepTogether(doc, 24)
-  doc.font('Helvetica-Bold').fontSize(8.3).fillColor('#5c6d7b').text(label + ': ', { continued: true })
-  doc.font('Helvetica').fillColor('#263746').text(data || '-')
+  keepTogether(doc, 26)
+  const x = doc.page.margins.left
+  const y = doc.y
+  doc.font('Helvetica-Bold').fontSize(9.4).fillColor(PDF_COLORS.muted).text(label + ': ', x, y, { width: pageContentWidth(doc), continued: true })
+  doc.font('Helvetica').fontSize(9.4).fillColor(PDF_COLORS.ink).text(data || '-', { lineGap: 1.6 })
+  doc.x = x
 }
 
 function bullets(doc: Doc, items: string[], empty = '-'): void {
   if (!items.length) {
-    doc.font('Helvetica-Oblique').fontSize(8.5).fillColor('#748390').text(empty)
+    doc.font('Helvetica-Oblique').fontSize(9.4).fillColor('#768695').text(empty, { lineGap: 2 })
     return
   }
 
   for (const item of items) {
-    keepTogether(doc, 34)
-    doc.font('Helvetica').fontSize(8.5).fillColor('#33475a').text('- ' + cleanDisplayText(item), {
-      indent: 10,
-      lineGap: 1.2,
+    const cleaned = cleanDisplayText(item)
+    const width = pageContentWidth(doc) - 20
+    doc.font('Helvetica').fontSize(9.6)
+    const h = doc.heightOfString(cleaned, { width, lineGap: 2.4 }) + 10
+    keepTogether(doc, h)
+    const y = doc.y + 2
+    doc.circle(doc.page.margins.left + 5, y + 5, 2.2).fill(PDF_COLORS.blue)
+    doc.fillColor(PDF_COLORS.ink).text(cleaned, doc.page.margins.left + 15, y, {
+      width,
+      lineGap: 2.4,
     })
-    doc.moveDown(0.1)
+    doc.y = Math.max(doc.y, y + h)
+  }
+}
+
+function infoCard(
+  doc: Doc,
+  title: string,
+  text: string,
+  options: { accent?: string; fill?: string; label?: string; minHeight?: number } = {},
+): void {
+  const x = doc.page.margins.left
+  const w = pageContentWidth(doc)
+  const innerW = w - 28
+  const accent = options.accent ?? PDF_COLORS.blue
+  const fill = options.fill ?? PDF_COLORS.soft
+  doc.font('Helvetica').fontSize(10.4)
+  const textH = doc.heightOfString(cleanDisplayText(text || '-'), { width: innerW, lineGap: 2.8 })
+  const titleH = title ? 18 : 0
+  const labelH = options.label ? 15 : 0
+  const h = Math.max(options.minHeight ?? 70, 26 + titleH + labelH + textH)
+  keepTogether(doc, h + 10)
+  const y = doc.y
+  doc.roundedRect(x, y, w, h, 8).fillAndStroke(fill, PDF_COLORS.line)
+  doc.rect(x, y, 5, h).fill(accent)
+  let cy = y + 12
+  if (options.label) {
+    doc.font('Helvetica-Bold').fontSize(8.7).fillColor(accent).text(options.label.toUpperCase(), x + 16, cy, { width: innerW })
+    cy += 15
+  }
+  if (title) {
+    doc.font('Helvetica-Bold').fontSize(11.4).fillColor(PDF_COLORS.navy).text(title, x + 16, cy, { width: innerW, lineGap: 1.5 })
+    cy += 19
+  }
+  doc.font('Helvetica').fontSize(10.4).fillColor(PDF_COLORS.ink).text(cleanDisplayText(text || '-'), x + 16, cy, {
+    width: innerW,
+    lineGap: 2.8,
+  })
+  doc.y = y + h + 10
+  doc.x = doc.page.margins.left
+}
+
+function statRow(doc: Doc, items: Array<{ label: string; value: string; accent?: string }>): void {
+  const x = doc.page.margins.left
+  const w = pageContentWidth(doc)
+  const gap = 8
+  const cardW = (w - gap * (items.length - 1)) / items.length
+  const h = 62
+  keepTogether(doc, h + 12)
+  const y = doc.y
+  items.forEach((item, index) => {
+    const cx = x + index * (cardW + gap)
+    doc.roundedRect(cx, y, cardW, h, 7).fillAndStroke('#F8FAFC', PDF_COLORS.line)
+    doc.font('Helvetica-Bold').fontSize(8.2).fillColor(item.accent ?? PDF_COLORS.muted)
+      .text(item.label.toUpperCase(), cx + 10, y + 10, { width: cardW - 20, align: 'center' })
+    doc.font('Helvetica-Bold').fontSize(item.value.length > 26 ? 10.5 : 12.3).fillColor(PDF_COLORS.navy)
+      .text(item.value, cx + 9, y + 28, { width: cardW - 18, height: 27, align: 'center', lineGap: 1 })
+  })
+  doc.y = y + h + 12
+  doc.x = doc.page.margins.left
+}
+
+function axisAccent(axis: string): { accent: string; fill: string } {
+  if (axis === 'P') return { accent: '#087B8F', fill: '#ECFBFD' }
+  if (axis === 'O') return { accent: '#A86408', fill: '#FFF8E8' }
+  return { accent: '#B33452', fill: '#FFF1F4' }
+}
+
+function axisSummaryRow(
+  doc: Doc,
+  axes: Array<{ id: string; title: string; code: string; meaning: string }>,
+): void {
+  const x = doc.page.margins.left
+  const w = pageContentWidth(doc)
+  const gap = 9
+  const cardW = (w - gap * 2) / 3
+  doc.font('Helvetica').fontSize(8.9)
+  const meaningHeight = Math.max(...axes.map((axis) => doc.heightOfString(cleanDisplayText(axis.meaning), { width: cardW - 22, lineGap: 1.6 })))
+  const h = Math.max(110, 66 + meaningHeight)
+  keepTogether(doc, h + 12)
+  const y = doc.y
+  axes.forEach((axis, index) => {
+    const { accent, fill } = axisAccent(axis.id)
+    const cx = x + index * (cardW + gap)
+    doc.roundedRect(cx, y, cardW, h, 8).fillAndStroke(fill, '#D5DEE6')
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(accent).text(axis.title.toUpperCase(), cx + 11, y + 10, { width: cardW - 22 })
+    doc.font('Helvetica-Bold').fontSize(20).fillColor(PDF_COLORS.navy).text(axis.code, cx + 11, y + 28, { width: cardW - 22 })
+    doc.font('Helvetica').fontSize(8.9).fillColor(PDF_COLORS.ink).text(cleanDisplayText(axis.meaning), cx + 11, y + 56, {
+      width: cardW - 22,
+      lineGap: 1.6,
+    })
+  })
+  doc.y = y + h + 12
+  doc.x = doc.page.margins.left
+}
+
+function applyPageChrome(doc: Doc, title: string, analysisId: string, codeCommit: string, pt: boolean): void {
+  const range = doc.bufferedPageRange()
+  for (let i = range.start; i < range.start + range.count; i += 1) {
+    doc.switchToPage(i)
+    const left = doc.page.margins.left
+    const right = doc.page.width - doc.page.margins.right
+    if (i > 0) {
+      doc.font('Helvetica-Bold').fontSize(7.8).fillColor('#758493')
+        .text('HFA / SERA 0.3  -  ' + title, left, 18, { width: right - left, lineBreak: false })
+      doc.strokeColor('#E1E7ED').lineWidth(0.6).moveTo(left, 31).lineTo(right, 31).stroke()
+    }
+    const footerY = pageBottom(doc) + 7
+    doc.strokeColor('#E1E7ED').lineWidth(0.6).moveTo(left, footerY - 5).lineTo(right, footerY - 5).stroke()
+    doc.font('Helvetica').fontSize(7.2).fillColor('#7A8996')
+      .text(`ID ${analysisId.slice(0, 8)}  |  SHA ${codeCommit.slice(0, 8)}`, left, footerY, { lineBreak: false })
+    doc.text(`${pt ? 'Página' : 'Page'} ${i - range.start + 1} ${pt ? 'de' : 'of'} ${range.count}`, right - 92, footerY, { width: 92, align: 'right', lineBreak: false })
   }
 }
 
@@ -255,94 +400,134 @@ function pathAnswerText(answer: SeraCanonicalPath['answers'][number], path: Sera
   return friendlyAnswerLabel(answer.answer, pt)
 }
 
+function canonicalQuestion(answer: SeraCanonicalPath['answers'][number], pt: boolean): string {
+  return pt
+    ? (SERA_PT_V1_TREE.nodes.find((item) => item.nodeId === answer.nodeId)?.question ?? answer.question)
+    : (answer.exactQuestionTextENAnchor ?? answer.question)
+}
+
+function renderAxisDidacticPage(
+  doc: Doc,
+  path: SeraCanonicalPath,
+  output: SeraVNextEngineOutput,
+  pt: boolean,
+  meaning: string | null,
+): void {
+  const axis = axisOutput(output, path.axis)
+  const L = (ptText: string, enText: string) => pt ? ptText : enText
+  const { accent, fill } = axisAccent(path.axis)
+  const code = axis.proposedCode ?? L('Não resolvido', 'Unresolved')
+  const title = axisLabel(path.axis, pt)
+
+  doc.addPage({ size: 'A4', layout: 'portrait', margin: 44 })
+  doc.font('Helvetica-Bold').fontSize(9).fillColor(accent).text(L('PARTE I  -  LEITURA OPERACIONAL', 'PART I  -  OPERATIONAL READING'))
+  doc.moveDown(0.35)
+  doc.font('Helvetica-Bold').fontSize(20).fillColor(PDF_COLORS.navy).text(`${title}  -  ${code}`)
+  doc.font('Helvetica').fontSize(10).fillColor(PDF_COLORS.muted)
+    .text(L('Caminho SERA explicado passo a passo, sem repetir a árvore completa.', 'SERA path explained step by step without repeating the full tree.'), { lineGap: 2 })
+  doc.moveDown(0.6)
+
+  const rootAnswer = path.answers[0] ? pathAnswerText(path.answers[0], path, output, pt) : L('Não estabelecido pela evidência disponível.', 'Not established by the available evidence.')
+  const x = doc.page.margins.left
+  const w = pageContentWidth(doc)
+  const cardText = meaning ? `${rootAnswer}\n\n${meaning}` : rootAnswer
+  doc.font('Helvetica').fontSize(10.6)
+  const cardH = Math.max(112, doc.heightOfString(cardText, { width: w - 32, lineGap: 3 }) + 62)
+  const resultY = doc.y
+  doc.roundedRect(x, resultY, w, cardH, 9).fillAndStroke(fill, '#D5DEE6')
+  doc.font('Helvetica-Bold').fontSize(8.8).fillColor(accent).text(L('RESULTADO DO EIXO', 'AXIS RESULT'), x + 16, resultY + 13)
+  doc.font('Helvetica-Bold').fontSize(24).fillColor(PDF_COLORS.navy).text(code, x + 16, resultY + 31, { width: 90 })
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(PDF_COLORS.ink)
+    .text(candidateStatusLabel(axis.status, pt), x + 108, resultY + 36, { width: w - 124 })
+  let cy = resultY + 63
+  doc.font('Helvetica-Bold').fontSize(9.2).fillColor(accent).text(L('Resposta inicial SERA', 'Initial SERA answer'), x + 16, cy)
+  cy += 15
+  doc.font('Helvetica').fontSize(10.6).fillColor(PDF_COLORS.ink).text(rootAnswer, x + 16, cy, { width: w - 32, lineGap: 3 })
+  cy += doc.heightOfString(rootAnswer, { width: w - 32, lineGap: 3 }) + 8
+  if (meaning) {
+    doc.font('Helvetica').fontSize(9.5).fillColor(PDF_COLORS.muted).text(meaning, x + 16, cy, { width: w - 32, lineGap: 2.4 })
+  }
+  doc.y = resultY + cardH + 16
+  doc.x = x
+
+  doc.font('Helvetica-Bold').fontSize(12).fillColor(PDF_COLORS.navy).text(L('Trajetória percorrida', 'Traversed path'))
+  doc.moveDown(0.25)
+  doc.font('Helvetica').fontSize(9.5).fillColor(PDF_COLORS.muted)
+    .text(L('Cada etapa mostra a pergunta canônica, a resposta e o motivo do ramo. A evidência completa de cada nó fica no apêndice técnico.', 'Each step shows the canonical question, answer, and branch rationale. Full evidence for every node is kept in the technical appendix.'), { lineGap: 2.3 })
+  doc.moveDown(0.6)
+
+  for (let index = 0; index < path.answers.length; index += 1) {
+    const answer = path.answers[index]
+    const q = canonicalQuestion(answer, pt)
+    const response = pathAnswerText(answer, path, output, pt)
+    const rationale = didacticReason(answer.nodeId, answer.answer, localizeRationale(answer.rationale ?? '', pt ? 'pt-BR' : 'en'), pt)
+    const cardW = w - 38
+    doc.font('Helvetica').fontSize(9.6)
+    const qH = doc.heightOfString(q, { width: cardW - 28, lineGap: 2.2 })
+    doc.font('Helvetica-Bold').fontSize(10.1)
+    const aH = doc.heightOfString(response, { width: cardW - 28, lineGap: 2.3 })
+    doc.font('Helvetica').fontSize(9.2)
+    const rH = doc.heightOfString(rationale, { width: cardW - 28, lineGap: 2.1 })
+    const h = Math.max(88, 50 + qH + aH + rH)
+    if (doc.y + h > pageBottom(doc)) {
+      doc.addPage({ size: 'A4', layout: 'portrait', margin: 44 })
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(accent).text(`${title}  -  ${code}  |  ${L('continuação', 'continued')}`)
+      doc.moveDown(0.65)
+    }
+    const y = doc.y
+    doc.strokeColor('#D5DEE6').lineWidth(2).moveTo(x + 13, y + 20).lineTo(x + 13, y + h + 6).stroke()
+    doc.circle(x + 13, y + 18, 11).fill(accent)
+    doc.font('Helvetica-Bold').fontSize(9).fillColor('#FFFFFF')
+      .text(String(index + 1), x + 6.5, y + 12.5, { width: 13, align: 'center', lineBreak: false })
+    const cx = x + 34
+    doc.roundedRect(cx, y, cardW, h, 8).fillAndStroke('#FFFFFF', '#D5DEE6')
+    doc.font('Helvetica-Bold').fontSize(11.2).fillColor(PDF_COLORS.navy)
+      .text(friendlyNodeLabel(answer.nodeId, pt), cx + 14, y + 12, { width: cardW - 28 })
+    let ty = y + 31
+    doc.font('Helvetica').fontSize(9.6).fillColor(PDF_COLORS.muted)
+      .text(q, cx + 14, ty, { width: cardW - 28, lineGap: 2.2 })
+    ty += qH + 7
+    doc.font('Helvetica-Bold').fontSize(10.1).fillColor(answer.terminalCode ? PDF_COLORS.green : PDF_COLORS.ink)
+      .text(`${L('Resposta', 'Answer')}: ${response}`, cx + 14, ty, { width: cardW - 28, lineGap: 2.3 })
+    ty += aH + 8
+    doc.font('Helvetica').fontSize(9.2).fillColor('#536676')
+      .text(`${L('Por quê', 'Why')}: ${rationale}`, cx + 14, ty, { width: cardW - 28, lineGap: 2.1 })
+    doc.y = y + h + 13
+  }
+}
+
 function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, output: SeraVNextEngineOutput, pt: boolean): void {
   const model = buildCanonicalFlowVisualModel(path, pt)
-  const title = path.axis === 'P'
-    ? (pt ? 'Percepção' : 'Perception')
-    : path.axis === 'O'
-      ? (pt ? 'Objetivo' : 'Objective')
-      : (pt ? 'Ação' : 'Action')
-  const accent = path.axis === 'P' ? '#0e7490' : path.axis === 'O' ? '#b45309' : '#be123c'
-  const accentLight = path.axis === 'P' ? '#ecfeff' : path.axis === 'O' ? '#fffbeb' : '#fff1f2'
-
-  doc.addPage({ size: 'A4', layout: 'landscape', margin: 32 })
+  const title = path.axis === 'P' ? (pt ? 'Percepção' : 'Perception') : path.axis === 'O' ? (pt ? 'Objetivo' : 'Objective') : (pt ? 'Ação' : 'Action')
+  const { accent, fill: accentLight } = axisAccent(path.axis)
+  doc.addPage({ size: 'A4', layout: 'landscape', margin: 34 })
   const left = doc.page.margins.left
   const right = doc.page.width - doc.page.margins.right
-  const top = 30
   const width = right - left
-  const bottom = doc.page.height - doc.page.margins.bottom
+  const top = 43
+  const bottom = doc.page.height - doc.page.margins.bottom - 38
 
-  doc.font('Helvetica-Bold').fontSize(14).fillColor('#173f67')
-    .text((pt ? 'Árvore SERA — ' : 'SERA tree — ') + title, left, top, { width })
-  doc.font('Helvetica').fontSize(8).fillColor('#5d6e7c')
-    .text(
-      pt
-        ? `Topologia canônica preservada. À esquerda, a árvore completa; à direita, as perguntas e respostas do percurso até ${path.candidateCode ?? 'resultado não resolvido'}.`
-        : `Canonical topology preserved. The full tree is on the left; traversed questions and answers are on the right through ${path.candidateCode ?? 'an unresolved result'}.`,
-      left,
-      top + 21,
-      { width },
-    )
+  doc.font('Helvetica-Bold').fontSize(18).fillColor(PDF_COLORS.navy).text((pt ? 'Árvore canônica SERA  -  ' : 'Canonical SERA tree  -  ') + title, left, top, { width })
+  doc.font('Helvetica').fontSize(9.5).fillColor(PDF_COLORS.muted)
+    .text(pt ? 'Apêndice técnico. A árvore completa é preservada aqui em página horizontal para manter a topologia legível sem reduzir a tipografia do relatório principal.' : 'Technical appendix. The full tree is preserved here in landscape format to keep the topology legible without shrinking the main report typography.', left, top + 25, { width, lineGap: 2 })
 
-  const legendY = top + 43
+  const legendY = top + 55
   const legendItems = [
     { fill: accentLight, stroke: accent, label: pt ? 'Caminho seguido' : 'Traversed path' },
-    { fill: '#ffffff', stroke: '#a8b3bf', label: pt ? 'Caminho não seguido' : 'Path not taken' },
-    { fill: '#ecfdf5', stroke: '#15803d', label: pt ? 'Classificação alcançada' : 'Reached classification' },
+    { fill: '#FFFFFF', stroke: '#A8B3BF', label: pt ? 'Caminho não seguido' : 'Path not taken' },
+    { fill: PDF_COLORS.greenSoft, stroke: PDF_COLORS.green, label: pt ? 'Classificação alcançada' : 'Reached classification' },
   ]
-  let legendX = left
+  let lx = left
   for (const item of legendItems) {
-    doc.roundedRect(legendX, legendY, 19, 9, 2).fillAndStroke(item.fill, item.stroke)
-    doc.font('Helvetica').fontSize(7).fillColor('#536676').text(item.label, legendX + 25, legendY + 1, { width: 112, lineBreak: false })
-    legendX += 148
+    doc.roundedRect(lx, legendY, 22, 10, 2).fillAndStroke(item.fill, item.stroke)
+    doc.font('Helvetica').fontSize(8).fillColor(PDF_COLORS.muted).text(item.label, lx + 29, legendY + 1, { width: 130, lineBreak: false })
+    lx += 175
   }
 
   const diagramLeft = left
-  const diagramWidth = width * 0.59
-  const panelGap = 20
-  const panelLeft = diagramLeft + diagramWidth + panelGap
-  const panelWidth = right - panelLeft
-  const treeTop = legendY + 30
-  const treeBottom = bottom - 8
-
-  // Right-side didactic panel: full question + substantive/branch response.
-  doc.roundedRect(panelLeft, treeTop - 7, panelWidth, treeBottom - treeTop + 14, 7)
-    .fillAndStroke('#fbfdff', '#d8e1e8')
-  doc.font('Helvetica-Bold').fontSize(9).fillColor('#31485e')
-    .text(pt ? 'Trajetória percorrida' : 'Traversed route', panelLeft + 10, treeTop + 3, { width: panelWidth - 20 })
-  doc.font('Helvetica').fontSize(6.5).fillColor('#657583')
-    .text(pt ? 'A numeração corresponde aos nós destacados na árvore.' : 'Numbers match the highlighted tree nodes.', panelLeft + 10, treeTop + 16, { width: panelWidth - 20 })
-
-  const panelCardsTop = treeTop + 33
-  const answerCount = Math.max(path.answers.length, 1)
-  const panelAvailable = treeBottom - panelCardsTop - 5
-  const cardGap = 5
-  const cardH = Math.min(108, Math.max(54, (panelAvailable - cardGap * (answerCount - 1)) / answerCount))
-  path.answers.forEach((answer, index) => {
-    const y = panelCardsTop + index * (cardH + cardGap)
-    const terminal = Boolean(answer.terminalCode)
-    doc.roundedRect(panelLeft + 8, y, panelWidth - 16, cardH, 5)
-      .fillAndStroke(terminal ? '#f0fdf4' : '#ffffff', terminal ? '#86b99a' : '#cbd5e1')
-    doc.circle(panelLeft + 20, y + 13, 7).fill(accent)
-    doc.font('Helvetica-Bold').fontSize(7).fillColor('#ffffff')
-      .text(String(index + 1), panelLeft + 16, y + 9.2, { width: 8, align: 'center', lineBreak: false })
-    doc.font('Helvetica-Bold').fontSize(6.8).fillColor('#31485e')
-      .text(friendlyNodeLabel(answer.nodeId, pt), panelLeft + 32, y + 5, { width: panelWidth - 48, height: 10 })
-
-    const canonicalQuestion = pt
-      ? (SERA_PT_V1_TREE.nodes.find((item) => item.nodeId === answer.nodeId)?.question ?? answer.question)
-      : (answer.exactQuestionTextENAnchor ?? answer.question)
-    const response = pathAnswerText(answer, path, output, pt)
-    const qFont = canonicalQuestion.length > 175 ? 5.7 : canonicalQuestion.length > 110 ? 6.1 : 6.4
-    const responseFont = response.length > 170 ? 5.6 : response.length > 100 ? 6.0 : 6.4
-    const qTop = y + 18
-    const qHeight = Math.max(18, cardH * 0.43)
-    doc.font('Helvetica').fontSize(qFont).fillColor('#536676')
-      .text((pt ? 'Pergunta: ' : 'Question: ') + canonicalQuestion, panelLeft + 14, qTop, { width: panelWidth - 28, height: qHeight })
-    doc.font('Helvetica-Bold').fontSize(responseFont).fillColor(terminal ? '#166534' : '#263746')
-      .text((pt ? 'Resposta: ' : 'Answer: ') + response, panelLeft + 14, qTop + qHeight, { width: panelWidth - 28, height: Math.max(16, cardH - qHeight - 23) })
-  })
-
+  const diagramWidth = width
+  const treeTop = legendY + 34
+  const treeBottom = bottom
   const children = new Map<string, typeof model.edges>()
   const incoming = new Set<string>()
   for (const edge of model.edges) {
@@ -351,7 +536,6 @@ function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, output: Sera
   }
   const root = model.nodes.find((node) => node.kind === 'question' && !incoming.has(node.id))
   if (!root) return
-
   const depth = new Map<string, number>()
   const visitDepth = (id: string, level: number) => {
     if ((depth.get(id) ?? -1) >= level) return
@@ -363,105 +547,62 @@ function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, output: Sera
   const leafOrder: string[] = []
   const collectLeaves = (id: string) => {
     const outgoing = children.get(id) ?? []
-    if (!outgoing.length) {
-      if (!leafOrder.includes(id)) leafOrder.push(id)
-      return
-    }
+    if (!outgoing.length) { if (!leafOrder.includes(id)) leafOrder.push(id); return }
     for (const edge of outgoing) collectLeaves(edge.to)
   }
   collectLeaves(root.id)
   for (const leaf of leaves) if (!leafOrder.includes(leaf.id)) leafOrder.push(leaf.id)
-
   const maxDepth = Math.max(...depth.values(), 1)
-  const nodeTop = treeTop + 6
+  const nodeTop = treeTop + 8
   const nodeBottom = treeBottom - 5
-  const levelGap = Math.max(48, (nodeBottom - nodeTop - 30) / maxDepth)
+  const levelGap = Math.max(48, (nodeBottom - nodeTop - 52) / maxDepth)
   const leafStep = diagramWidth / Math.max(leafOrder.length, 1)
   const xCenter = new Map<string, number>()
   leafOrder.forEach((id, index) => xCenter.set(id, diagramLeft + leafStep * (index + 0.5)))
   const resolveX = (id: string): number => {
     const cached = xCenter.get(id)
     if (cached !== undefined) return cached
-    const outgoing = children.get(id) ?? []
-    const xs = outgoing.map((edge) => resolveX(edge.to))
-    const value = xs.length ? xs.reduce((sum, x) => sum + x, 0) / xs.length : diagramLeft + diagramWidth / 2
-    xCenter.set(id, value)
-    return value
+    const xs = (children.get(id) ?? []).map((edge) => resolveX(edge.to))
+    const v = xs.length ? xs.reduce((sum, x) => sum + x, 0) / xs.length : diagramLeft + diagramWidth / 2
+    xCenter.set(id, v); return v
   }
   resolveX(root.id)
-
   const geom = new Map<string, { x: number; y: number; w: number; h: number }>()
   for (const node of model.nodes) {
-    const d = depth.get(node.id)
-    if (d === undefined) continue
-    const isTerminal = node.kind === 'terminal'
-    const isRoot = node.sourceId.endsWith('_ROOT')
-    const w = isTerminal ? Math.min(54, Math.max(38, leafStep - 5)) : isRoot ? 96 : 80
-    const h = isTerminal ? 40 : isRoot ? 30 : 44
-    const cx = resolveX(node.id)
-    const y = nodeTop + d * levelGap
-    geom.set(node.id, { x: cx - w / 2, y, w, h })
+    const d = depth.get(node.id); if (d === undefined) continue
+    const terminal = node.kind === 'terminal'
+    const rootNode = node.sourceId.endsWith('_ROOT')
+    const w = terminal ? Math.min(82, Math.max(60, leafStep - 8)) : rootNode ? 125 : 105
+    const h = terminal ? 46 : rootNode ? 38 : 54
+    geom.set(node.id, { x: resolveX(node.id) - w / 2, y: nodeTop + d * levelGap, w, h })
   }
-
-  // Edges first so nodes remain visually crisp.
   for (const edge of model.edges) {
-    const a = geom.get(edge.from)
-    const b = geom.get(edge.to)
-    if (!a || !b) continue
-    const x1 = a.x + a.w / 2
-    const y1 = a.y + a.h
-    const x2 = b.x + b.w / 2
-    const y2 = b.y
-    const color = edge.active ? accent : '#b6c0c9'
-    doc.strokeColor(color).lineWidth(edge.active ? 2.1 : 0.8)
-      .moveTo(x1, y1).lineTo(x1, y1 + 7).lineTo(x2, y2 - 7).lineTo(x2, y2).stroke()
-    doc.fillColor(color).polygon([x2 - 2.6, y2 - 4.5], [x2 + 2.6, y2 - 4.5], [x2, y2]).fill()
-    if (edge.label) {
-      const labelX = x1 + (x2 - x1) * 0.70
-      const labelY = y1 + (y2 - y1) * 0.58 - 3
-      doc.font(edge.active ? 'Helvetica-Bold' : 'Helvetica').fontSize(5.1)
-        .fillColor(edge.active ? accent : '#6f7d89')
-        .text(edge.label, labelX - 22, labelY, { width: 44, align: 'center', lineBreak: false })
-    }
+    const a = geom.get(edge.from); const b = geom.get(edge.to); if (!a || !b) continue
+    const x1 = a.x + a.w / 2; const y1 = a.y + a.h; const x2 = b.x + b.w / 2; const y2 = b.y
+    const color = edge.active ? accent : '#B7C1CB'
+    doc.strokeColor(color).lineWidth(edge.active ? 2.4 : 1).moveTo(x1, y1).lineTo(x1, y1 + 9).lineTo(x2, y2 - 9).lineTo(x2, y2).stroke()
+    doc.fillColor(color).polygon([x2 - 3, y2 - 5], [x2 + 3, y2 - 5], [x2, y2]).fill()
+    if (edge.label) doc.font(edge.active ? 'Helvetica-Bold' : 'Helvetica').fontSize(7).fillColor(edge.active ? accent : '#71808D').text(edge.label, x1 + (x2 - x1) * 0.68 - 25, y1 + (y2 - y1) * 0.56 - 3, { width: 50, align: 'center', lineBreak: false })
   }
-
   for (const node of model.nodes) {
-    const g = geom.get(node.id)
-    if (!g) continue
-    const isRoot = node.sourceId.endsWith('_ROOT')
-    const fill = node.selected ? '#ecfdf5' : node.active ? accentLight : '#ffffff'
-    const stroke = node.selected ? '#15803d' : node.active ? accent : '#a8b3bf'
-    doc.lineWidth(node.active || node.selected ? 1.8 : 0.8)
+    const g = geom.get(node.id); if (!g) continue
+    const rootNode = node.sourceId.endsWith('_ROOT')
+    const fill = node.selected ? PDF_COLORS.greenSoft : node.active ? accentLight : '#FFFFFF'
+    const stroke = node.selected ? PDF_COLORS.green : node.active ? accent : '#A8B3BF'
+    doc.lineWidth(node.active || node.selected ? 2 : 1)
+    if (node.kind === 'terminal') doc.roundedRect(g.x, g.y, g.w, g.h, 9).fillAndStroke(fill, stroke)
+    else if (rootNode) doc.roundedRect(g.x, g.y, g.w, g.h, 8).fillAndStroke(fill, stroke)
+    else doc.polygon([g.x + g.w / 2, g.y], [g.x + g.w, g.y + g.h / 2], [g.x + g.w / 2, g.y + g.h], [g.x, g.y + g.h / 2]).fillAndStroke(fill, stroke)
     if (node.kind === 'terminal') {
-      doc.roundedRect(g.x, g.y, g.w, g.h, 8).fillAndStroke(fill, stroke)
-    } else if (isRoot) {
-      doc.roundedRect(g.x, g.y, g.w, g.h, 7).fillAndStroke(fill, stroke)
+      doc.font('Helvetica-Bold').fontSize(8.2).fillColor(node.selected ? PDF_COLORS.green : '#334155').text(node.code ?? '', g.x + 4, g.y + 6, { width: g.w - 8, align: 'center', lineBreak: false })
+      doc.font('Helvetica').fontSize(node.label.length > 24 ? 6.6 : 7.2).fillColor(node.selected ? PDF_COLORS.green : '#596B79').text(node.label, g.x + 4, g.y + 20, { width: g.w - 8, height: 22, align: 'center', lineGap: 0.5 })
     } else {
-      doc.polygon(
-        [g.x + g.w / 2, g.y],
-        [g.x + g.w, g.y + g.h / 2],
-        [g.x + g.w / 2, g.y + g.h],
-        [g.x, g.y + g.h / 2],
-      ).fillAndStroke(fill, stroke)
+      if (node.stepNumber) {
+        doc.circle(g.x + 10, g.y + 9, 6).fill(accent)
+        doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#FFFFFF').text(String(node.stepNumber), g.x + 6, g.y + 5.2, { width: 8, align: 'center', lineBreak: false })
+      }
+      doc.font('Helvetica-Bold').fontSize(node.label.length > 28 ? 7.2 : 8).fillColor(node.active ? accent : '#475569').text(node.label, g.x + 12, g.y + (rootNode ? 12 : 16), { width: g.w - 24, align: 'center', height: rootNode ? 18 : 25, lineGap: 0.5 })
     }
-
-    if (node.kind === 'terminal') {
-      doc.font('Helvetica-Bold').fontSize(6.7).fillColor(node.selected ? '#166534' : '#334155')
-        .text(node.code ?? '', g.x + 3, g.y + 4, { width: g.w - 6, align: 'center', lineBreak: false })
-      const terminalFont = node.label.length > 24 ? 4.1 : node.label.length > 18 ? 4.4 : 4.7
-      doc.font('Helvetica').fontSize(terminalFont).fillColor(node.selected ? '#166534' : '#64748b')
-        .text(node.label, g.x + 2, g.y + 14, { width: g.w - 4, align: 'center', height: 23, lineGap: 0.2 })
-      continue
-    }
-
-    if (node.stepNumber) {
-      doc.circle(g.x + 8, g.y + 7, 5.3).fill(accent)
-      doc.font('Helvetica-Bold').fontSize(5.6).fillColor('#ffffff')
-        .text(String(node.stepNumber), g.x + 5, g.y + 3.8, { width: 6, align: 'center', lineBreak: false })
-    }
-    const labelFont = node.label.length > 28 ? 5.4 : 5.9
-    doc.font('Helvetica-Bold').fontSize(labelFont).fillColor(node.active ? accent : '#475569')
-      .text(node.label, g.x + 10, g.y + (isRoot ? 9 : 12), { width: g.w - 20, align: 'center', height: isRoot ? 13 : 20 })
   }
 }
 
@@ -472,96 +613,27 @@ function renderPath(
   pt: boolean,
 ): void {
   const axis = axisOutput(output, path.axis)
-  const locale = pt ? 'pt-BR' : 'en'
   const L = (ptText: string, enText: string) => pt ? ptText : enText
-  const x = doc.page.margins.left
-  const width = doc.page.width - doc.page.margins.left - doc.page.margins.right
-
-  keepTogether(doc, 78)
-  const y = doc.y
-  doc.roundedRect(x, y, width, 42, 5).fillAndStroke('#f2f7fb', '#cad8e5')
-  doc.font('Helvetica-Bold').fontSize(10).fillColor('#1b4c72')
-    .text(axisLabel(path.axis, pt) + ' - ' + L('código candidato: ', 'candidate code: ') + value(axis.proposedCode, L('não resolvido', 'unresolved')), x + 9, y + 8)
-  doc.font('Helvetica').fontSize(8.1).fillColor('#536676')
-    .text(
-      'Status: ' + candidateStatusLabel(axis.status, pt) +
-      ' | ' + L('Confiança: ', 'Confidence: ') + (axis.proposedCode ? confidenceLabel(axis.confidence, pt) : L('NÃO APLICÁVEL', 'NOT APPLICABLE')) +
-      ' | ' + L('Ator: ', 'Actor: ') + value(localizeActor(axis.actor, locale)),
-      x + 9,
-      y + 24,
-    )
-  doc.y = y + 51
-
-  if (axis.statementAtEscapePoint) {
-    subheading(doc, L('Enunciado no ponto de fuga', 'Statement at the escape point'))
-    body(doc, axis.statementAtEscapePoint)
-    doc.moveDown(0.25)
-  }
-
-  const conditionalAlternatives = axis.alternativesConsidered.filter((item) => /^[POA]-[A-Z]$/.test(item))
-  if (!axis.proposedCode && conditionalAlternatives.length) {
-    subheading(doc, L('Hipóteses ainda compatíveis — dependem das respostas', 'Still-compatible hypotheses — dependent on clarification'))
-    bullets(doc, conditionalAlternatives)
-    body(doc, L('Não são códigos concluídos nem liberados.', 'These are not concluded or released codes.'))
-    doc.moveDown(0.25)
-  }
-
-  subheading(doc, L('Caminho percorrido', 'Path traversed'))
-  if (!path.answers.length) {
-    body(doc, L('Nenhuma etapa percorrida.', 'No step traversed.'))
-    return
-  }
-
-  body(doc, L('A árvore completa deste eixo está apresentada imediatamente antes deste detalhamento. Abaixo ficam apenas os nós efetivamente percorridos, com sua rastreabilidade.', 'The complete tree for this axis is shown immediately before this detail. Below are only the nodes actually traversed, with their traceability.'))
-  doc.moveDown(0.35)
-
-  path.answers.forEach((node, index) => {
-    keepTogether(doc, 128)
-    const nodeY = doc.y
-    doc.roundedRect(x, nodeY, width, 18, 4).fill('#e7f0f7')
-    doc.font('Helvetica-Bold').fontSize(8.7).fillColor('#1d4f73')
-      .text(L('Etapa ', 'Step ') + String(index + 1) + ' - ' + friendlyNodeLabel(node.nodeId, pt), x + 8, nodeY + 5)
-    doc.y = nodeY + 24
-
-    body(doc, L('Pergunta canônica: ', 'Canonical question: ') + (pt ? (SERA_PT_V1_TREE.nodes.find((item) => item.nodeId === node.nodeId)?.question ?? node.question) : (node.exactQuestionTextENAnchor ?? node.question)))
-    doc.moveDown(0.12)
-    body(doc, L('Resposta: ', 'Answer: ') + pathAnswerText(node, path, output, pt))
-
-    if (node.rationale) {
-      doc.moveDown(0.12)
-      body(doc, L('Por que este ramo foi seguido: ', 'Why this branch was followed: ') + didacticReason(node.nodeId, node.answer, localizeRationale(node.rationale, locale), pt))
-    }
-
-    const destination = node.terminalCode
-      ? L('Código terminal ', 'Terminal code ') + node.terminalCode
-      : node.nextNodeId
-        ? L('Próxima etapa: ', 'Next step: ') + friendlyNodeLabel(node.nextNodeId, pt)
-        : L('Travessia interrompida', 'Traversal stopped')
-
-    doc.moveDown(0.12)
-    body(doc, L('Resultado do nó: ', 'Node result: ') + destination)
-
+  const { accent, fill } = axisAccent(path.axis)
+  infoCard(doc, `${axisLabel(path.axis, pt)}  -  ${axis.proposedCode ?? L('não resolvido', 'unresolved')}`, axis.statementAtEscapePoint ?? L('Eixo não resolvido pela evidência disponível.', 'Axis unresolved by the available evidence.'), { accent, fill, label: L('Rastreabilidade por nó', 'Node traceability') })
+  for (let index = 0; index < path.answers.length; index += 1) {
+    const node = path.answers[index]
+    keepTogether(doc, 105)
+    doc.font('Helvetica-Bold').fontSize(10.5).fillColor(PDF_COLORS.navy).text(`${index + 1}. ${friendlyNodeLabel(node.nodeId, pt)}`)
+    meta(doc, L('Resposta', 'Answer'), pathAnswerText(node, path, output, pt))
+    meta(doc, L('Confiança do nó', 'Node confidence'), confidenceLabel(node.confidence, pt))
     const support = entries(node.supportingEvidence)
     if (support.length) {
-      doc.moveDown(0.25)
-      subheading(doc, L('Evidência usada neste nó', 'Evidence used at this node'))
-      bullets(doc, support.slice(0, 2))
+      doc.font('Helvetica-Bold').fontSize(9.4).fillColor(accent).text(L('Evidência usada', 'Evidence used'))
+      bullets(doc, support.slice(0, 4))
     }
-
     const counter = entries(node.counterEvidence)
     if (counter.length) {
-      doc.moveDown(0.2)
-      subheading(doc, L('Contraevidência / ressalvas', 'Counter-evidence / caveats'))
-      bullets(doc, counter.slice(0, 2))
+      doc.font('Helvetica-Bold').fontSize(9.4).fillColor(PDF_COLORS.amber).text(L('Contraevidência / ressalvas', 'Counter-evidence / caveats'))
+      bullets(doc, counter.slice(0, 3))
     }
-
-    meta(doc, L('Confiança do nó', 'Node confidence'), confidenceLabel(node.confidence, pt))
-    doc.moveDown(0.55)
-  })
-
-  subheading(doc, L('Evidência posterior ao ponto de fuga excluída', 'Excluded post-escape evidence'))
-  bullets(doc, axis.excludedPostEscapeEvidence.slice(0, 5))
-  doc.moveDown(0.35)
+    doc.moveDown(0.5)
+  }
 }
 
 export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Promise<Buffer> {
@@ -602,15 +674,8 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       const item = map[relationship]
       return item ? item[pt ? 0 : 1] : relationship
     }
-    const postEscapeStatements = new Set(
-      output.factualExtraction.evidence
-        .filter((item) => item.temporalRelation === 'POST_ESCAPE' || item.relationshipToFailure === 'POST_ESCAPE_CONSEQUENCE')
-        .map((item) => item.statement.trim()),
-    )
-    const safeOperationEvidence = output.safeOperationModel.evidence.filter((item) => !postEscapeStatements.has(item.trim()))
-
     const doc = new PDFDocument({
-      margin: 46,
+      margin: 44,
       size: 'A4',
       bufferPages: true,
       info: {
@@ -624,38 +689,6 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     doc.on('end', () => resolve(Buffer.concat(chunks)))
     doc.on('error', reject)
 
-    doc.font('Helvetica-Bold').fontSize(18).fillColor('#173f67')
-      .text(L('Relatório Metodológico HFA / SERA', 'HFA / SERA Methodological Report'), { align: 'center' })
-    doc.moveDown(0.2)
-    doc.font('Helvetica-Bold').fontSize(10.5).fillColor('#5d6e7c')
-      .text(L('Análise SERA 0.3 — revisão humana requerida', 'SERA 0.3 analysis — human review required'), { align: 'center' })
-    doc.moveDown(0.55)
-    doc.font('Helvetica').fontSize(9).fillColor('#263746').text(analysis.title, { align: 'center' })
-    doc.moveDown(0.65)
-
-    const bannerY = doc.y
-    doc.roundedRect(46, bannerY, doc.page.width - 92, 54, 5).fillAndStroke('#fff8e7', '#d5b96f')
-    doc.font('Helvetica-Bold').fontSize(9).fillColor('#775015')
-      .text(L('ATENÇÃO - RESULTADO NÃO FINAL', 'NOTICE - NON-FINAL RESULT'), 56, bannerY + 10)
-    doc.font('Helvetica').fontSize(8.2).fillColor('#6e571f')
-      .text(
-        L(
-          'Este documento apresenta uma análise candidata. O ponto de fuga, o ator, os códigos P/O/A e as pré-condições devem ser confirmados por revisão humana antes do uso formal.',
-          'This document presents a candidate analysis. The escape point, actor, P/O/A codes, and preconditions must be confirmed by human review before formal use.',
-        ),
-        56,
-        bannerY + 25,
-        { width: doc.page.width - 112, lineGap: 1.4 },
-      )
-    doc.y = bannerY + 65
-
-    heading(doc, '1. ' + L('Resumo executivo', 'Executive summary'))
-    body(doc, buildExecutiveSummary({ title: analysis.title, output, pt }), 'justify')
-    doc.moveDown(0.4)
-    meta(doc, L('Ator direto candidato', 'Candidate direct actor'), value(localizeActor(output.directActor.actor, locale), L('Não resolvido', 'Unresolved')))
-    meta(doc, L('Classificação candidata', 'Candidate classification'), [output.axes.perception.proposedCode, output.axes.objective.proposedCode, output.axes.action.proposedCode].map((item) => value(item, '—')).join(' / '))
-    meta(doc, L('Status da revisão', 'Review status'), analysis.review_status)
-
     const candidateAttentionEligible =
       output.evidenceSufficiency.status === 'SUFFICIENT_FOR_CANDIDATE_ANALYSIS' &&
       output.directActor.status === 'IDENTIFIED' &&
@@ -668,144 +701,124 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
           output.axes.action.proposedCode,
         )
       : null
+
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(PDF_COLORS.blue)
+      .text(L('RELATÓRIO METODOLÓGICO HFA / SERA', 'HFA / SERA METHODOLOGICAL REPORT'), { align: 'center' })
+    doc.moveDown(0.35)
+    doc.font('Helvetica-Bold').fontSize(24).fillColor(PDF_COLORS.navy)
+      .text(analysis.title, { align: 'center', lineGap: 2 })
+    doc.moveDown(0.18)
+    doc.font('Helvetica').fontSize(10.5).fillColor(PDF_COLORS.muted)
+      .text(L('SERA 0.3  -  análise candidata para revisão humana', 'SERA 0.3  -  candidate analysis for human review'), { align: 'center' })
+    doc.moveDown(0.7)
+
+    const bannerY = doc.y
+    const bannerW = pageContentWidth(doc)
+    doc.roundedRect(doc.page.margins.left, bannerY, bannerW, 48, 8).fillAndStroke(PDF_COLORS.amberSoft, '#E4C982')
+    doc.font('Helvetica-Bold').fontSize(9.3).fillColor(PDF_COLORS.amber)
+      .text(L('ANÁLISE NÃO FINAL', 'NON-FINAL ANALYSIS'), doc.page.margins.left + 14, bannerY + 9)
+    doc.font('Helvetica').fontSize(9.2).fillColor('#6D5725')
+      .text(L(
+        'Ponto de fuga, ator, P/O/A e pré-condições exigem confirmação humana antes do uso formal.',
+        'Escape point, actor, P/O/A, and preconditions require human confirmation before formal use.',
+      ), doc.page.margins.left + 14, bannerY + 24, { width: bannerW - 28, lineGap: 2 })
+    doc.y = bannerY + 60
+
+    infoCard(
+      doc,
+      L('Ponto de fuga candidato', 'Candidate escape point'),
+      value(output.escapePoint.statement, L('Não estabelecido.', 'Not established.')),
+      { accent: PDF_COLORS.blue, fill: '#F2F7FC', label: L('Âncora primária P/O/A', 'Primary P/O/A anchor'), minHeight: 82 },
+    )
+
+    statRow(doc, [
+      { label: L('Ator direto', 'Direct actor'), value: value(localizeActor(output.directActor.actor, locale), L('Não resolvido', 'Unresolved')), accent: PDF_COLORS.blue },
+      { label: L('Classificação', 'Classification'), value: [output.axes.perception.proposedCode, output.axes.objective.proposedCode, output.axes.action.proposedCode].map((item) => value(item, '—')).join(' / '), accent: PDF_COLORS.green },
+      { label: L('Revisão', 'Review'), value: analysis.review_status, accent: PDF_COLORS.amber },
+    ])
+
+    const axisCards = [
+      { id: 'P', title: L('Percepção', 'Perception'), code: output.axes.perception.proposedCode ?? '—', meaning: reviewerOutput.axisReviews.perception.candidateMeaning ?? candidateStatusLabel(output.axes.perception.status, pt) },
+      { id: 'O', title: L('Objetivo', 'Objective'), code: output.axes.objective.proposedCode ?? '—', meaning: reviewerOutput.axisReviews.objective.candidateMeaning ?? candidateStatusLabel(output.axes.objective.status, pt) },
+      { id: 'A', title: L('Ação', 'Action'), code: output.axes.action.proposedCode ?? '—', meaning: reviewerOutput.axisReviews.action.candidateMeaning ?? candidateStatusLabel(output.axes.action.status, pt) },
+    ]
+    axisSummaryRow(doc, axisCards)
+
+    doc.font('Helvetica-Bold').fontSize(11.5).fillColor(PDF_COLORS.navy).text(L('Síntese executiva', 'Executive summary'))
+    doc.moveDown(0.2)
+    body(doc, buildExecutiveSummary({ title: analysis.title, output, pt }), 'justify')
     if (candidateAttention) {
-      keepTogether(doc, 64)
-      const riskY = doc.y + 6
-      doc.roundedRect(doc.page.margins.left, riskY, doc.page.width - doc.page.margins.left - doc.page.margins.right, 48, 5)
-        .fillAndStroke('#eef6ff', '#bfd4ea')
-      doc.font('Helvetica-Bold').fontSize(9).fillColor('#174d78')
-        .text(L('Índice HFA de atenção operacional', 'HFA operational-attention index'), doc.page.margins.left + 10, riskY + 8)
-      doc.font('Helvetica-Bold').fontSize(17).fillColor('#174d78')
-        .text(String(candidateAttention.score) + '/100', doc.page.margins.left + 10, riskY + 21, { continued: true })
-      doc.font('Helvetica').fontSize(8.5).fillColor('#536676')
-        .text('  -  ' + (pt ? candidateAttention.labelPt : candidateAttention.labelEn))
-      doc.y = riskY + 58
-      body(doc, L(
-        'Indicador provisório de priorização com base nos candidatos P/O/A. Não é ERC/ARMS canônico, não estima probabilidade de acidente e não substitui a avaliação operacional de risco.',
-        'Provisional prioritization indicator based on P/O/A candidates. It is not canonical ERC/ARMS, does not estimate accident probability, and does not replace operational risk assessment.',
-      ))
+      doc.moveDown(0.45)
+      infoCard(
+        doc,
+        `${candidateAttention.score}/100  -  ${pt ? candidateAttention.labelPt : candidateAttention.labelEn}`,
+        L(
+          'Índice provisório de atenção operacional baseado nos candidatos P/O/A. Não é ERC/ARMS canônico e não estima probabilidade de acidente.',
+          'Provisional operational-attention index based on P/O/A candidates. It is not canonical ERC/ARMS and does not estimate accident probability.',
+        ),
+        { accent: PDF_COLORS.blue, fill: '#F4F8FC', label: L('Índice HFA de atenção operacional', 'HFA operational-attention index'), minHeight: 68 },
+      )
     }
 
-    heading(doc, '2. ' + L('Fatos-chave utilizados na análise', 'Key facts used in the analysis'))
-    subheading(doc, L('Episódio operacional reconstruído ao redor do ponto de fuga', 'Operational episode reconstructed around the escape point'))
-    bullets(doc, output.escapePoint.supportingEvidence.slice(0, 5), L('Nenhuma evidência central registrada.', 'No core evidence recorded.'))
-    if (output.escapePoint.excludedPostEscapeEvidence.length) {
-      subheading(doc, L('Fatos posteriores ao ato crítico preservados, mas não usados como causa', 'Facts after the critical act retained but not used as causes'))
-      bullets(doc, output.escapePoint.excludedPostEscapeEvidence.slice(0, 4))
-    }
-
-    heading(doc, '3. ' + L('Modelo da operação segura', 'Safe-operation model'))
-    meta(doc, L('Estado seguro esperado', 'Expected safe state'), value(output.safeOperationModel.expectedSafeState))
-    meta(doc, L('Ação segura esperada', 'Expected safe action'), value(output.safeOperationModel.expectedSafeAction))
-    meta(doc, L('Confiança', 'Confidence'), confidenceLabel(output.safeOperationModel.confidence, pt))
-    subheading(doc, L('Evidência considerada', 'Evidence considered'))
-    bullets(doc, safeOperationEvidence, L('Nenhum item pré-ponto de fuga registrado.', 'No pre-escape item recorded.'))
-
-    heading(doc, '4. ' + L('Ponto de fuga da operação segura', 'Safe-operation escape point'))
-    meta(doc, L('Primeira saída da operação segura (Hendy)', 'First departure from safe operation (Hendy)'), value(output.escapePoint.firstDepartureCandidate ?? output.escapePoint.earliestCandidate))
-    meta(doc, L('Ato/condição insegura crítica (Hendy)', 'Critical unsafe act/condition (Hendy)'), value(output.escapePoint.criticalUnsafeActCandidate ?? output.escapePoint.latestCandidate))
-    if (output.escapePoint.irreversibilityBoundaryCandidate) {
-      meta(doc, L('Marco de irreversibilidade / sem retorno', 'Irreversibility / no-return boundary'), output.escapePoint.irreversibilityBoundaryCandidate)
-    }
-    meta(doc, L('Relação entre os marcos', 'Relationship between landmarks'), landmarkRelationshipLabel(output.escapePoint.anchorBasis, pt))
-    subheading(doc, L('Evidência da primeira saída da operação segura', 'First-departure supporting evidence'))
-    bullets(doc, (output.escapePoint.firstDepartureSupportingEvidence ?? []).slice(0, 5), L('Nenhuma evidência específica registrada para este marco.', 'No landmark-specific evidence recorded.'))
-    subheading(doc, L('Evidência do ato/condição insegura crítica', 'Critical-act supporting evidence'))
-    bullets(doc, (output.escapePoint.criticalUnsafeActSupportingEvidence ?? output.escapePoint.supportingEvidence).slice(0, 5), L('Nenhuma evidência específica registrada para este marco.', 'No landmark-specific evidence recorded.'))
-    subheading(doc, L('Âncora primária para P/O/A', 'Primary P/O/A anchor'))
-    body(doc, value(output.escapePoint.statement), 'justify')
+    doc.addPage({ size: 'A4', layout: 'portrait', margin: 44 })
+    heading(doc, '1. ' + L('Linha causal e marcos Hendy', 'Causal line and Hendy landmarks'))
     body(doc, L(
-      'Quando os dois marcos diferem, o primeiro desvio é preservado como início da janela causal; P/O/A permanece ancorado no ato/condição insegura crítica diretamente ligada à trajetória do desfecho. Fatos anteriores que apenas prepararam o cenário permanecem contexto ou pré-condições.',
-      'When the two landmarks differ, the first departure is retained as the start of the causal window; P/O/A remains anchored to the critical unsafe act/condition directly linked to the outcome trajectory. Earlier facts that only set the scene remain context or preconditions.',
-    ))
-    doc.moveDown(0.3)
-    meta(doc, 'Status', candidateStatusLabel(output.escapePoint.status, pt))
-    meta(doc, L('Confiança', 'Confidence'), confidenceLabel(output.escapePoint.confidence, pt))
-    meta(doc, L('Ator direto', 'Direct actor'), value(localizeActor(output.directActor.actor, locale), L('Não resolvido', 'Unresolved')))
-    meta(doc, L('Status do ator', 'Actor status'), directActorStatusLabel(output.directActor, pt))
-    if (output.directActor.alternatives.length) {
-      subheading(doc, L('Atores alternativos / contributivos', 'Alternative / contributory actors'))
-      bullets(doc, output.directActor.alternatives.map((actor) => localizeActor(actor, locale) ?? actor))
-    }
-    if (output.directActor.actorMigrationWarnings.length) {
-      subheading(doc, L('Avisos de fronteira de ator', 'Actor-boundary warnings'))
-      bullets(doc, output.directActor.actorMigrationWarnings)
-    }
-    if (output.escapePoint.humanFactorGate) {
-      meta(doc, L('Gate de âncora de Fatores Humanos', 'Human-Factor anchor gate'), pt ? (output.escapePoint.humanFactorGate.status === 'PASSED' ? 'ATENDIDO' : 'BLOQUEADO') : output.escapePoint.humanFactorGate.status)
-      meta(doc, L('Tipo de âncora SERA', 'SERA anchor type'), output.escapePoint.humanFactorGate.anchorType === 'UNSAFE_ACT' ? L('ATO INSEGURO', 'UNSAFE ACT') : output.escapePoint.humanFactorGate.anchorType === 'OPERATOR_CONTROLLED_UNSAFE_CONDITION' ? L('CONDIÇÃO INSEGURA CONTROLADA PELO OPERADOR', 'OPERATOR-CONTROLLED UNSAFE CONDITION') : L('não estabelecida', 'not established'))
-      bullets(doc, output.escapePoint.humanFactorGate.rationale.map((item) => translateReportText(item, pt)))
-    }
-    const alternativeEpisodes = (output.escapePoint.episodeCandidates ?? []).filter((episode) => !episode.selected)
-    if (alternativeEpisodes.length) {
-      subheading(doc, L('Outras sequências humanas/contextuais detectadas — não são pontos de fuga automáticos', 'Other human/contextual sequences detected — not automatic escape points'))
-      const phasePt: Record<string, string> = { DISPATCH: 'DESPACHO', MAINTENANCE: 'MANUTENÇÃO', INFLIGHT: 'EM VOO', APPROACH: 'APROXIMAÇÃO', GROUND: 'SOLO', GENERIC: 'GENÉRICO' }
-      const rolePt: Record<string, string> = { HUMAN_FACTOR_CANDIDATE: 'CANDIDATO DE FATORES HUMANOS', TECHNICAL_ENVIRONMENT: 'CONTEXTO TÉCNICO/AMBIENTAL', UNRESOLVED: 'NÃO RESOLVIDO' }
-      bullets(doc, alternativeEpisodes.slice(0, 5).map((episode) => `${pt ? (phasePt[episode.phase] ?? episode.phase) : episode.phase} / ${pt ? (rolePt[episode.seraRole ?? 'UNRESOLVED'] ?? episode.seraRole ?? 'UNRESOLVED') : episode.seraRole ?? 'UNRESOLVED'}: ${episode.anchorStatement}`))
-      body(doc, L(
-        'A visão global serve para localizar o ato/condição humana relevante e suas pré-condições. O SERA analisa um ato inseguro por vez: outra sequência só pode receber P/O/A após estabelecer sua própria âncora humana, ator direto e travessia canônica completa. Falhas técnicas, meteorologia e condições organizacionais permanecem contexto/pré-condições quando não constituem essa âncora.',
-        'The global view is used to locate the relevant human act/condition and its preconditions. SERA analyses one unsafe act at a time: another sequence can receive P/O/A only after establishing its own human-factor anchor, direct actor, and complete canonical traversal. Technical failures, weather, and organizational conditions remain context/preconditions when they do not constitute that anchor.',
-      ))
-    }
-    subheading(doc, L('Contraevidência / incertezas do limite', 'Counter-evidence / boundary uncertainty'))
-    bullets(doc, output.escapePoint.counterEvidence.slice(0, 6).map((item) => translateReportText(item, pt)), L('Nenhuma contraevidência registrada.', 'No counter-evidence recorded.'))
-    subheading(doc, L('Evidência posterior ao ato crítico excluída da cadeia causal', 'Post-critical-act evidence excluded from the causal chain'))
-    bullets(doc, output.escapePoint.excludedPostEscapeEvidence.slice(0, 6), L('Nenhum item registrado.', 'No item recorded.'))
+      'A leitura abaixo separa o estado seguro, a primeira saída da operação segura, o ato inseguro crítico que ancora P/O/A e o desfecho posterior. Os marcos não são intercambiáveis.',
+      'The sequence below separates the safe state, the first departure from safe operation, the critical unsafe act anchoring P/O/A, and the later outcome. These landmarks are not interchangeable.',
+    ), 'justify')
+    doc.moveDown(0.55)
 
-    heading(doc, '5. ' + L('Resultado P / O / A - visão sintética', 'P / O / A result - summary view'))
-    const axes = [
-      ['P', output.axes.perception],
-      ['O', output.axes.objective],
-      ['A', output.axes.action],
-    ] as const
+    infoCard(doc, L('Operação segura', 'Safe operation'), `${L('Estado', 'State')}: ${value(output.safeOperationModel.expectedSafeState)}\n${L('Ação esperada', 'Expected action')}: ${value(output.safeOperationModel.expectedSafeAction)}`, {
+      accent: PDF_COLORS.green,
+      fill: '#F2FAF5',
+      label: L('1  -  estado esperado', '1  -  expected state'),
+    })
+    infoCard(doc, L('Primeira saída da operação segura', 'First departure from safe operation'), value(output.escapePoint.firstDepartureCandidate ?? output.escapePoint.earliestCandidate), {
+      accent: PDF_COLORS.amber,
+      fill: '#FFF9EC',
+      label: L('2  -  início da janela causal', '2  -  start of causal window'),
+    })
+    infoCard(doc, L('Ato/condição insegura crítica', 'Critical unsafe act/condition'), value(output.escapePoint.criticalUnsafeActCandidate ?? output.escapePoint.latestCandidate), {
+      accent: PDF_COLORS.red,
+      fill: '#FFF4F4',
+      label: L('3  -  âncora P/O/A', '3  -  P/O/A anchor'),
+    })
+    infoCard(doc, L('Desfecho / irreversibilidade', 'Outcome / irreversibility'), value(output.escapePoint.irreversibilityBoundaryCandidate, L('Nenhum marco explícito de irreversibilidade foi estabelecido.', 'No explicit irreversibility boundary was established.')), {
+      accent: '#6B7280',
+      fill: '#F7F8FA',
+      label: L('4  -  posterior ao ato crítico', '4  -  after the critical act'),
+    })
 
-    for (const [axisId, axis] of axes) {
-      keepTogether(doc, 95)
-      const axisSummaryStatus = axis.proposedCode
-        ? `${axis.proposedCode} - ${candidateStatusLabel(axis.status, pt)}`
-        : candidateStatusLabel(axis.status, pt)
-      doc.font('Helvetica-Bold').fontSize(9.7).fillColor('#1d4f73')
-        .text(axisLabel(axisId, pt) + ': ' + axisSummaryStatus)
-      body(doc, value(axis.statementAtEscapePoint, L('Eixo não resolvido pela evidência disponível.', 'Axis unresolved by the available evidence.')))
-      meta(doc, L('Confiança da classificação', 'Classification confidence'), axis.proposedCode ? confidenceLabel(axis.confidence, pt) : L('NÃO APLICÁVEL', 'NOT APPLICABLE'))
-      const conditional = axis.alternativesConsidered.filter((item) => /^[POA]-[A-Z]$/.test(item))
-      if (!axis.proposedCode && conditional.length) {
-        subheading(doc, L('Hipóteses ainda compatíveis — dependem das respostas', 'Still-compatible hypotheses — dependent on clarification'))
-        bullets(doc, conditional)
-        body(doc, L('Não são códigos concluídos nem liberados.', 'These are not concluded or released codes.'))
-      }
-      if (pt && axis.proposedCode) {
-        const card = axisId === 'P'
+    statRow(doc, [
+      { label: L('Relação entre os marcos', 'Landmark relationship'), value: landmarkRelationshipLabel(output.escapePoint.anchorBasis, pt), accent: PDF_COLORS.blue },
+      { label: L('Ator direto', 'Direct actor'), value: value(localizeActor(output.directActor.actor, locale), L('Não resolvido', 'Unresolved')), accent: PDF_COLORS.blue },
+      { label: L('Confiança do ponto', 'Anchor confidence'), value: confidenceLabel(output.escapePoint.confidence, pt), accent: PDF_COLORS.amber },
+    ])
+
+    subheading(doc, L('Evidência principal da primeira saída', 'Key evidence for the first departure'))
+    bullets(doc, (output.escapePoint.firstDepartureSupportingEvidence ?? []).slice(0, 2), L('Nenhuma evidência específica registrada para este marco.', 'No landmark-specific evidence recorded.'))
+    subheading(doc, L('Evidência principal do ato crítico', 'Key evidence for the critical act'))
+    bullets(doc, (output.escapePoint.criticalUnsafeActSupportingEvidence ?? output.escapePoint.supportingEvidence).slice(0, 2), L('Nenhuma evidência específica registrada para este marco.', 'No landmark-specific evidence recorded.'))
+    if (output.canonicalTraversal.paths.length === 0) {
+      doc.addPage({ size: 'A4', layout: 'portrait', margin: 44 })
+      heading(doc, '2. ' + L('P / O / A - análise interrompida', 'P / O / A - analysis stopped'))
+      infoCard(doc, L('Travessia canônica não iniciada', 'Canonical traversal not started'), L(
+        'O ator direto ou a fronteira do ponto de fuga ainda não permite avançar P/O/A sem inferência. As perguntas de esclarecimento ficam preservadas no apêndice técnico.',
+        'The direct actor or escape-point boundary does not yet allow P/O/A traversal without inference. Clarification questions are preserved in the technical appendix.',
+      ), { accent: PDF_COLORS.amber, fill: PDF_COLORS.amberSoft })
+    } else {
+      for (const path of output.canonicalTraversal.paths) {
+        const reviewCard = path.axis === 'P'
           ? reviewerOutput.axisReviews.perception
-          : axisId === 'O'
+          : path.axis === 'O'
             ? reviewerOutput.axisReviews.objective
             : reviewerOutput.axisReviews.action
-        if (card.candidateMeaning) meta(doc, 'Significado metodológico', card.candidateMeaning)
+        renderAxisDidacticPage(doc, path, output, pt, reviewCard.candidateMeaning ?? null)
       }
-      doc.moveDown(0.35)
     }
 
-    heading(doc, '6. ' + L('Como o sistema chegou à classificação', 'How the system reached the classification'))
-    if (output.canonicalTraversal.paths.length === 0) {
-      body(doc, L(
-        'A travessia canônica P/O/A não foi iniciada porque o ator direto ainda não está resolvido no ponto de fuga. Nenhuma árvore ou caminho deve ser interpretado como percorrido até que essa fronteira de ator seja esclarecida.',
-        'Canonical P/O/A traversal was not started because the direct actor remains unresolved at the escape point. No tree or path should be interpreted as traversed until that actor boundary is clarified.',
-      ), 'justify')
-    } else {
-      body(doc, L(
-        'Primeiro são apresentadas as árvores completas de Percepção, Objetivo e Ação, preservando inclusive os ramos não seguidos. O caminho usado nesta análise é destacado por cor até o código terminal. Em seguida, cada nó efetivamente percorrido é explicado com pergunta, resposta, justificativa e evidências.',
-        'The complete Perception, Objective, and Action trees are presented first, including paths not taken. The route used in this analysis is highlighted through the terminal code. Each traversed node is then explained with its question, answer, rationale, and evidence.',
-      ), 'justify')
-      doc.moveDown(0.45)
-      for (const path of output.canonicalTraversal.paths) renderCanonicalTreePage(doc, path, output, pt)
-    }
-    if (output.canonicalTraversal.paths.length) {
-      doc.addPage({ size: 'A4', layout: 'portrait', margin: 46 })
-      heading(doc, '6.1 ' + L('Detalhamento do caminho percorrido', 'Traversed-path detail'))
-      for (const path of output.canonicalTraversal.paths) renderPath(doc, path, output, pt)
-    }
-
-    heading(doc, '7. ' + L('Pré-condições e hipóteses contextuais', 'Preconditions and contextual hypotheses'))
+    doc.addPage({ size: 'A4', layout: 'portrait', margin: 44 })
+    heading(doc, '5. ' + L('Pré-condições e hipóteses contextuais', 'Preconditions and contextual hypotheses'))
     body(doc, L(
       'No SERA, as pré-condições explicam por que a falha ativa se tornou mais provável. A Tabela 1 de Hendy e o Anexo B, aplicado por Daumas, indicam as pré-condições mais prováveis para cada tipo de falha. Essa lista orienta a investigação, mas não cria uma pré-condição automaticamente: cada item abaixo continua exigindo evidência do evento.',
       'In SERA, preconditions explain why the active failure became more likely. Hendy Table 1 and Annex B, as applied by Daumas, identify the most likely preconditions for each failure type. The list guides the investigation but does not create a precondition automatically: every item below still requires event evidence.',
@@ -818,25 +831,33 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       pc.relationship !== 'CONTEXTUAL_PRECONDITION' && pc.relationship !== 'ENABLING_PRECONDITION',
     )
     const renderPrecondition = (pc: typeof output.preconditions[number], hypothesis: boolean) => {
-      keepTogether(doc, 110)
       const reviewCard = reviewerOutput.preconditionReview.cards.find((card) => card.category === pc.category)
       const canonicalMeta = pc.canonicalCategory ? SERA_PRECONDITION_META[pc.canonicalCategory] : null
       const canonicalName = canonicalMeta ? (pt ? canonicalMeta.pt : canonicalMeta.en) : categoryLabel(pc.category)
-      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(hypothesis ? '#8a5a00' : '#1d4f73')
-        .text(canonicalName + ' - ' + confidenceLabel(pc.confidence, pt))
-      body(doc, pc.description)
-      if (canonicalMeta) meta(doc, L('Nível SERA', 'SERA level'), preconditionLevelLabel(canonicalMeta.level, pt))
-      if (pc.methodologyMatch) meta(doc, L('Relação com a tabela de pré-condições prováveis', 'Relationship to the most-likely preconditions table'), preconditionMethodologyMatchLabel(pc.methodologyMatch, pt))
-      if (pc.likelyForActiveFailureCodes?.length) meta(doc, L('Pré-condição provável para', 'Most likely for'), pc.likelyForActiveFailureCodes.join(', '))
+      const accent = hypothesis ? PDF_COLORS.amber : PDF_COLORS.blue
+      const fill = hypothesis ? PDF_COLORS.amberSoft : '#F3F8FC'
+      infoCard(
+        doc,
+        `${canonicalName}  -  ${confidenceLabel(pc.confidence, pt)}`,
+        pc.description,
+        { accent, fill, label: hypothesis ? L('Hipótese preservada - não confirmada causalmente', 'Retained hypothesis - not causally confirmed') : L('Pré-condição sustentada pela evidência', 'Precondition supported by evidence'), minHeight: 82 },
+      )
+      statRow(doc, [
+        { label: L('Nível SERA', 'SERA level'), value: canonicalMeta ? preconditionLevelLabel(canonicalMeta.level, pt) : '-', accent },
+        { label: L('Associada a', 'Linked to'), value: pc.likelyForActiveFailureCodes?.join(', ') || '-', accent },
+        { label: L('Ator', 'Actor'), value: value(localizeActor(pc.linkedActor, locale)), accent },
+      ])
       meta(doc, L('Relação com a falha', 'Relationship to the failure'), relationshipLabel(pc.relationship))
-      meta(doc, L('Ator associado', 'Associated actor'), value(localizeActor(pc.linkedActor, locale)))
-      meta(doc, L('Regra(s) de origem', 'Source rule(s)'), pc.sourceRuleIds.join(', '))
-      meta(doc, L('É ponto de fuga?', 'Is it the escape point?'), L('NÃO - mantida separadamente da falha ativa', 'NO - kept separate from the active failure'))
-      if (pt && reviewCard?.reviewerQuestion) meta(doc, 'Pergunta ao revisor', reviewCard.reviewerQuestion)
-      subheading(doc, hypothesis ? L('Evidência contextual', 'Contextual evidence') : L('Evidência', 'Evidence'))
-      bullets(doc, pc.evidence.slice(0, 6))
+      if (pc.methodologyMatch) meta(doc, L('Correspondência metodológica', 'Methodological match'), preconditionMethodologyMatchLabel(pc.methodologyMatch, pt))
+      if (pt && reviewCard?.reviewerQuestion) {
+        doc.moveDown(0.2)
+        infoCard(doc, L('Pergunta ao revisor', 'Reviewer question'), reviewCard.reviewerQuestion, { accent, fill: '#FFFFFF', minHeight: 62 })
+      }
+      subheading(doc, hypothesis ? L('Evidência contextual principal', 'Key contextual evidence') : L('Evidência principal', 'Key evidence'))
+      bullets(doc, pc.evidence.slice(0, 3))
       doc.moveDown(0.55)
     }
+
 
     if (!supportedPreconditions.length && !hypothesisPreconditions.length) {
       body(doc, L('Nenhuma pré-condição candidata foi sustentada pela evidência disponível.', 'No candidate precondition was supported by the available evidence.'))
@@ -856,7 +877,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       }
     }
 
-    heading(doc, '8. ' + L('Correspondência SERA / HFACS', 'SERA / HFACS correspondence'))
+    heading(doc, '6. ' + L('Correspondência SERA / HFACS', 'SERA / HFACS correspondence'))
     const hfacsBridge = buildSeraHfacsBridge(
       [output.axes.perception.proposedCode, output.axes.objective.proposedCode, output.axes.action.proposedCode],
       supportedPreconditions.map((pc) => pc.canonicalCategory ?? null),
@@ -884,14 +905,14 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       .filter((item, index, all) => all.indexOf(item) === index)
       .slice(0, 6)
 
-    heading(doc, '9. ' + L('Outros fatores contribuintes e observações operacionais', 'Other contributory factors and operational observations'))
+    heading(doc, '7. ' + L('Outros fatores contribuintes e observações operacionais', 'Other contributory factors and operational observations'))
     body(doc, L(
       'Itens explicitamente registrados pela investigação e preservados para revisão humana, sem convertê-los automaticamente em pré-condições causais.',
       'Items explicitly recorded by the investigation and retained for human review without automatically converting them into causal preconditions.',
     ), 'justify')
     bullets(doc, operationalObservations, L('Nenhum outro fator contribuinte ou observação operacional adicional foi identificado nesta análise.', 'No additional contributory factor or operational observation was identified in this analysis.'))
 
-    heading(doc, '10. ' + L('Conclusão e próximos passos', 'Conclusion and next steps'))
+    heading(doc, '8. ' + L('Conclusão e próximos passos', 'Conclusion and next steps'))
     const analysisReady = output.evidenceSufficiency.status === 'SUFFICIENT_FOR_CANDIDATE_ANALYSIS' && !Object.values(output.guardrails).some(Boolean)
     body(doc, analysisReady
       ? L(
@@ -903,14 +924,76 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
           'The analysis does not have sufficient evidence to close P/O/A. Treat this report as a clarification package: blocking reasons and pending questions must be resolved before any formal classification or operational index.',
         ), 'justify')
 
-    doc.addPage()
-    heading(doc, L('Apêndice técnico - rastreabilidade e auditoria', 'Technical appendix - traceability and audit'))
+    doc.addPage({ size: 'A4', layout: 'portrait', margin: 44 })
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(PDF_COLORS.blue).text(L('PARTE II', 'PART II'))
+    doc.moveDown(0.35)
+    doc.font('Helvetica-Bold').fontSize(23).fillColor(PDF_COLORS.navy)
+      .text(L('Apêndice técnico - rastreabilidade e auditoria', 'Technical appendix - traceability and audit'))
+    doc.moveDown(0.35)
     body(doc, L(
-      'As seções seguintes preservam os dados necessários para auditoria metodológica e reprodutibilidade. Elas não fazem parte da leitura executiva principal.',
-      'The following sections preserve data required for methodological audit and reproducibility. They are not part of the main executive reading.',
+      'Esta parte preserva a topologia completa, a evidência por nó, as regras de pré-condição, a proveniência e as salvaguardas. Ela existe para auditoria e reprodutibilidade; a leitura operacional principal termina antes deste apêndice.',
+      'This part preserves the full topology, node-level evidence, precondition rules, provenance, and safeguards. It exists for audit and reproducibility; the main operational reading ends before this appendix.',
     ), 'justify')
+    doc.moveDown(0.6)
 
-    heading(doc, 'A.1 ' + L('Proveniência e controle metodológico', 'Provenance and methodological control'))
+    if (output.canonicalTraversal.paths.length) {
+      heading(doc, 'A.1 ' + L('Árvores canônicas completas', 'Full canonical trees'))
+      body(doc, L(
+        'As árvores aparecem em páginas A4 horizontais, com tipografia maior. O caminho percorrido permanece destacado, mas perguntas e respostas não são repetidas dentro do diagrama.',
+        'Trees are shown on A4 landscape pages with larger typography. The traversed path remains highlighted, but questions and answers are not repeated inside the diagram.',
+      ))
+      for (const path of output.canonicalTraversal.paths) renderCanonicalTreePage(doc, path, output, pt)
+
+      doc.addPage({ size: 'A4', layout: 'portrait', margin: 44 })
+      heading(doc, 'A.2 ' + L('Rastreabilidade e evidência por nó', 'Node traceability and evidence'))
+      for (const path of output.canonicalTraversal.paths) renderPath(doc, path, output, pt)
+    }
+
+    heading(doc, 'A.3 ' + L('Delimitação do ponto de fuga e fronteira causal', 'Escape-point and causal-boundary audit'))
+    meta(doc, L('Primeira saída da operação segura', 'First departure from safe operation'), value(output.escapePoint.firstDepartureCandidate ?? output.escapePoint.earliestCandidate))
+    meta(doc, L('Ato/condição insegura crítica', 'Critical unsafe act/condition'), value(output.escapePoint.criticalUnsafeActCandidate ?? output.escapePoint.latestCandidate))
+    meta(doc, L('Âncora primária P/O/A', 'Primary P/O/A anchor'), value(output.escapePoint.statement))
+    meta(doc, L('Relação entre os marcos', 'Relationship between landmarks'), landmarkRelationshipLabel(output.escapePoint.anchorBasis, pt))
+    if (output.escapePoint.humanFactorGate) {
+      subheading(doc, L('Gate de âncora de Fatores Humanos', 'Human-Factor anchor gate'))
+      meta(doc, L('Status do gate', 'Gate status'), pt ? (output.escapePoint.humanFactorGate.status === 'PASSED' ? 'ATENDIDO' : 'BLOQUEADO') : output.escapePoint.humanFactorGate.status)
+      meta(doc, L('Tipo de âncora SERA', 'SERA anchor type'), value(output.escapePoint.humanFactorGate.anchorType))
+      bullets(doc, output.escapePoint.humanFactorGate.rationale.map((item) => translateReportText(item, pt)))
+    }
+    const appendixAlternativeEpisodes = (output.escapePoint.episodeCandidates ?? []).filter((episode) => !episode.selected)
+    if (appendixAlternativeEpisodes.length) {
+      subheading(doc, L('Outras sequências detectadas - não são pontos de fuga automáticos', 'Other detected sequences - not automatic escape points'))
+      bullets(doc, appendixAlternativeEpisodes.slice(0, 8).map((episode) => `${episode.phase} / ${episode.seraRole ?? 'UNRESOLVED'}: ${episode.anchorStatement}`))
+    }
+    subheading(doc, L('Contraevidência / incertezas da fronteira', 'Counter-evidence / boundary uncertainties'))
+    bullets(doc, output.escapePoint.counterEvidence.slice(0, 8).map((item) => translateReportText(item, pt)), L('Nenhuma contraevidência registrada.', 'No counter-evidence recorded.'))
+    subheading(doc, L('Evidência posterior excluída da cadeia causal', 'Post-escape evidence excluded from the causal chain'))
+    bullets(doc, output.escapePoint.excludedPostEscapeEvidence.slice(0, 8), L('Nenhum item registrado.', 'No item recorded.'))
+
+    heading(doc, 'A.4 ' + L('Rastreabilidade integral das pré-condições', 'Full precondition traceability'))
+    if (!output.preconditions.length) {
+      body(doc, L('Nenhuma pré-condição candidata registrada.', 'No candidate precondition recorded.'))
+    } else {
+      for (const pc of output.preconditions) {
+        const canonicalMeta = pc.canonicalCategory ? SERA_PRECONDITION_META[pc.canonicalCategory] : null
+        const canonicalName = canonicalMeta ? (pt ? canonicalMeta.pt : canonicalMeta.en) : categoryLabel(pc.category)
+        infoCard(doc, `${canonicalName}  -  ${confidenceLabel(pc.confidence, pt)}`, pc.description, {
+          accent: pc.relationship === 'CONTEXTUAL_PRECONDITION' || pc.relationship === 'ENABLING_PRECONDITION' ? PDF_COLORS.blue : PDF_COLORS.amber,
+          fill: '#F8FAFC',
+        })
+        if (canonicalMeta) meta(doc, L('Nível SERA', 'SERA level'), preconditionLevelLabel(canonicalMeta.level, pt))
+        if (pc.methodologyMatch) meta(doc, L('Relação com a tabela de pré-condições prováveis', 'Relationship to the most-likely preconditions table'), preconditionMethodologyMatchLabel(pc.methodologyMatch, pt))
+        if (pc.likelyForActiveFailureCodes?.length) meta(doc, L('Pré-condição provável para', 'Most likely for'), pc.likelyForActiveFailureCodes.join(', '))
+        meta(doc, L('Relação com a falha', 'Relationship to the failure'), relationshipLabel(pc.relationship))
+        meta(doc, L('Ator associado', 'Associated actor'), value(localizeActor(pc.linkedActor, locale)))
+        meta(doc, L('Regra(s) de origem', 'Source rule(s)'), pc.sourceRuleIds.join(', '))
+        subheading(doc, L('Evidência registrada', 'Recorded evidence'))
+        bullets(doc, pc.evidence.slice(0, 8))
+        doc.moveDown(0.5)
+      }
+    }
+
+    heading(doc, 'A.5 ' + L('Proveniência e controle metodológico', 'Provenance and methodological control'))
     meta(doc, L('ID da análise', 'Analysis ID'), analysis.id)
     meta(doc, L('Motor SERA (runtime)', 'SERA engine (runtime)'), value(analysis.engine_runtime_version, input.versions.engineRuntimeVersion))
     meta(doc, L('Contrato de persistência do motor', 'Engine persistence contract'), analysis.engine_version)
@@ -931,7 +1014,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     meta(doc, L('Schema de entrada', 'Input schema'), input.versions.inputSchemaVersion)
     meta(doc, L('Schema de saída', 'Output schema'), input.versions.outputSchemaVersion)
 
-    heading(doc, 'A.2 ' + L('Rastreabilidade e polaridade da evidência', 'Evidence traceability and polarity'))
+    heading(doc, 'A.6 ' + L('Rastreabilidade e polaridade da evidência', 'Evidence traceability and polarity'))
     const evidenceItems = output.factualExtraction.evidence
     const rejected = evidenceItems.filter((item) => item.assertionStatus === 'REJECTED_AS_FACTOR')
     const uncertain = evidenceItems.filter((item) =>
@@ -960,7 +1043,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     subheading(doc, L('Fatos posteriores ao ponto de fuga, mantidos em quarentena causal', 'Post-escape facts kept in causal quarantine'))
     bullets(doc, postEscape.slice(0, 8).map((item) => item.statement))
 
-    heading(doc, 'A.3 ' + L('Salvaguardas metodológicas', 'Methodological safeguards'))
+    heading(doc, 'A.7 ' + L('Salvaguardas metodológicas', 'Methodological safeguards'))
     for (const [name, violated] of Object.entries(output.guardrails)) {
       const evidence = output.guardrailEvidence[name] ?? []
       doc.font('Helvetica-Bold').fontSize(8.8)
@@ -970,7 +1053,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       doc.moveDown(0.22)
     }
 
-    heading(doc, 'A.4 ' + L('Suficiência da evidência', 'Evidence sufficiency'))
+    heading(doc, 'A.8 ' + L('Suficiência da evidência', 'Evidence sufficiency'))
     meta(doc, 'Status', output.evidenceSufficiency.status)
     meta(doc, L('Evidência mínima satisfeita', 'Minimum evidence satisfied'), output.evidenceSufficiency.minimumEvidenceSatisfied ? L('SIM', 'YES') : L('NÃO', 'NO'))
     subheading(doc, L('Razões de bloqueio', 'Blocking reasons'))
@@ -991,7 +1074,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       body(doc, L('Nenhuma pergunta adicional é necessária para a análise SERA atual.', 'No additional question is required for the current SERA analysis.'))
     }
 
-    heading(doc, 'A.5 ' + L('Incertezas, limitações e perguntas em aberto', 'Uncertainties, limitations, and open questions'))
+    heading(doc, 'A.9 ' + L('Incertezas, limitações e perguntas em aberto', 'Uncertainties, limitations, and open questions'))
     subheading(doc, L('Incertezas', 'Uncertainties'))
     bullets(doc, output.uncertainties.map((item) => translateReportText(item, pt)))
     subheading(doc, L('Limitações', 'Limitations'))
@@ -999,7 +1082,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     subheading(doc, L('Perguntas canônicas ainda não respondidas', 'Canonical questions not yet answered'))
     bullets(doc, output.canonicalTraversal.unansweredQuestions.map((item) => translateReportText(item, pt)))
 
-    heading(doc, 'A.6 ' + L('Pacote de revisão humana', 'Human review package'))
+    heading(doc, 'A.10 ' + L('Pacote de revisão humana', 'Human review package'))
     subheading(doc, L('Decisões requeridas do revisor', 'Reviewer decisions required'))
     bullets(doc, output.humanReviewPackage.reviewerDecisionsRequired.map((item) => translateReportText(item, pt)))
     subheading(doc, L('Avisos críticos', 'Critical warnings'))
@@ -1020,7 +1103,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       }
     }
 
-    heading(doc, 'A.7 ' + L('Nota de uso e revisão', 'Use and review note'))
+    heading(doc, 'A.11 ' + L('Nota de uso e revisão', 'Use and review note'))
     body(
       doc,
       L(
@@ -1030,6 +1113,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       'justify',
     )
 
+    applyPageChrome(doc, analysis.title, analysis.id, input.versions.codeCommit, pt)
     doc.end()
   })
 }
