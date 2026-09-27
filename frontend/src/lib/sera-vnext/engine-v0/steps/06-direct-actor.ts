@@ -48,10 +48,11 @@ export function runStep06DirectActor(input: {
     /\bmaintenance (?:team|technician|inspector|mechanic)s?\b|\bmechanics?\b|\binspectors?\b|\bequipe de manutencao\b|\btecnic[oa]s? de manutencao\b|\bmecanicos?\b|\binspetores?\b/.test(escapeText) ||
     /\b(inspecao (?:de )?pre[- ]?voo|pre[- ]?voo|preflight inspection)\b/.test(escapeText)
   const narrativeHasMaintenance = /\b(maintenance|mechanic|inspector|manutencao|mecanico|mecanicos|inspetor|inspetores)\b/.test(text)
-  const crewOrPilotMention = hasAny(text, ['crew', 'pilot', 'captain', 'first officer', 'tripulacao', 'tripulação', 'comandante', 'copiloto', 'piloto'])
-  const systemDominant =
-    (input.unsafeActOrCondition.type === 'UNSAFE_CONDITION' && !crewOrPilotMention) ||
-    hasAny(text, ['technical condition', 'system failure', 'automation failure', 'rudder movement', 'microburst', 'windshear'])
+  const anchorContext = normalizeText(`${input.unsafeActOrCondition.statement ?? ''} ${input.escapePoint.earliestCandidate ?? ''} ${input.escapePoint.supportingEvidence.join(' ')}`)
+  const anchorHasHumanActor = hasAny(anchorContext, ['crew', 'pilot', 'captain', 'first officer', 'tripulacao', 'tripulação', 'comandante', 'copiloto', 'piloto', 'pic', 'sic', 'cco', 'dov', 'dispatcher', 'despachante'])
+  const systemDominant = input.unsafeActOrCondition.type === 'UNSAFE_CONDITION' &&
+    !anchorHasHumanActor &&
+    hasAny(anchorContext, ['technical condition', 'system failure', 'automation failure', 'rudder movement', 'microburst', 'windshear'])
 
   const legacy = runLegacyDirectActor(
     {

@@ -250,6 +250,40 @@ function isPureHeading(statement: string): boolean {
   return /^(investigacao de ocorrencia|relatorio de investigacao de ocorrencia|form-sso-|\d+(?:\.\d+)+\.?\s+[a-z]|entrevista com|transcricao do relato|experiencia do)/.test(text)
 }
 
+const MAX_SENTENCE_RECORDS = 1000
+const HEAD_RECORD_BUDGET = 180
+const TAIL_RECORD_BUDGET = 320
+
+function boundedSentenceRecords(records: SourceSentence[]): SourceSentence[] {
+  if (records.length <= MAX_SENTENCE_RECORDS) return records
+
+  const ranked = records.map((record, index) => {
+    let priority = 0
+    if (isExplicitOperationalDeviationStatement(record.statement) || isExplicitOperationalOmissionStatement(record.statement)) priority = 100
+    else if (record.occurrenceScope === 'CURRENT_EVENT' && isOperationalEventStatement(record.statement)) priority = 90
+    else if (record.sourceSection === 'FACTUAL' && isOperationalEventStatement(record.statement)) priority = 80
+    else if (record.sourceSection === 'FACTUAL' && record.occurrenceScope === 'CURRENT_EVENT') priority = 50
+    return { index, priority }
+  })
+
+  const selected = new Set<number>()
+  for (let index = 0; index < Math.min(HEAD_RECORD_BUDGET, records.length); index += 1) selected.add(index)
+  for (let index = Math.max(0, records.length - TAIL_RECORD_BUDGET); index < records.length; index += 1) selected.add(index)
+
+  for (const candidate of ranked.sort((a, b) => b.priority - a.priority || a.index - b.index)) {
+    if (candidate.priority <= 0 || selected.size >= MAX_SENTENCE_RECORDS) break
+    selected.add(candidate.index)
+  }
+
+  if (selected.size < MAX_SENTENCE_RECORDS) {
+    const remaining = MAX_SENTENCE_RECORDS - selected.size
+    const stride = Math.max(1, Math.floor(records.length / remaining))
+    for (let index = 0; index < records.length && selected.size < MAX_SENTENCE_RECORDS; index += stride) selected.add(index)
+  }
+
+  return [...selected].sort((a, b) => a - b).map((index) => records[index])
+}
+
 export function splitNarrativeIntoSentenceRecords(input: string): SourceSentence[] {
   const records: SourceSentence[] = []
   let currentSection: SeraEvidenceSourceSection = 'UNKNOWN'
@@ -273,11 +307,10 @@ export function splitNarrativeIntoSentenceRecords(input: string): SourceSentence
         assertionStatus: assertionStatus(statement),
         occurrenceScope: currentOccurrenceScope,
       })
-      if (records.length >= 800) return records
     }
   }
 
-  return records
+  return boundedSentenceRecords(records)
 }
 
 export function splitNarrativeIntoSentences(input: string): string[] {
