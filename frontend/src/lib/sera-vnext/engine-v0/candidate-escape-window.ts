@@ -50,7 +50,7 @@ function hasOutcomeSignal(sentence: string): boolean {
 function admissible(item: SeraTimelineItem): boolean {
   if (item.assertionStatus && item.assertionStatus !== 'AFFIRMED') return false
   if (item.sourceSection === 'REPORT_ANALYSIS' || item.sourceSection === 'RECOMMENDATION' || item.sourceSection === 'ADMINISTRATIVE') return false
-  if (item.occurrenceScope === 'HISTORICAL_COMPARATOR') return false
+  if (['HISTORICAL_COMPARATOR', 'PRE_EVENT_CAUSAL_HISTORY'].includes(item.occurrenceScope ?? 'UNKNOWN')) return false
   if (!isOperationalEventStatement(item.statement)) return false
   return !isPostEscapeStatement(item.statement)
 }
@@ -277,7 +277,7 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
     item.sourceSection !== 'REPORT_ANALYSIS' &&
     item.sourceSection !== 'RECOMMENDATION' &&
     item.sourceSection !== 'ADMINISTRATIVE' &&
-    item.occurrenceScope !== 'HISTORICAL_COMPARATOR' &&
+    !['HISTORICAL_COMPARATOR', 'PRE_EVENT_CAUSAL_HISTORY'].includes(item.occurrenceScope ?? 'UNKNOWN') &&
     hasOutcomeSignal(item.statement)
   ) ?? null
   const irreversibilityItem = timeline.find((item) =>
@@ -285,7 +285,7 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
     item.sourceSection !== 'REPORT_ANALYSIS' &&
     item.sourceSection !== 'RECOMMENDATION' &&
     item.sourceSection !== 'ADMINISTRATIVE' &&
-    item.occurrenceScope !== 'HISTORICAL_COMPARATOR' &&
+    !['HISTORICAL_COMPARATOR', 'PRE_EVENT_CAUSAL_HISTORY'].includes(item.occurrenceScope ?? 'UNKNOWN') &&
     /\b(recupera[cç][aã]o .* (?:j[aá] )?n[aã]o era mais poss[ií]vel|perda de controle .* tornou-se irrevers[ií]vel|irreversible|no way back|recovery .* no longer possible)\b/i.test(item.statement)
   ) ?? null
   const candidateItems = timeline.filter((item) => hasControlWindowSignal(item) && !hasOutcomeSignal(item.statement))
@@ -333,7 +333,7 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
   const causalAnalysis = timeline.filter((item) =>
     item.sourceSection === 'REPORT_ANALYSIS' &&
     (!item.assertionStatus || item.assertionStatus === 'AFFIRMED') &&
-    item.occurrenceScope !== 'HISTORICAL_COMPARATOR' &&
+    !['HISTORICAL_COMPARATOR', 'PRE_EVENT_CAUSAL_HISTORY'].includes(item.occurrenceScope ?? 'UNKNOWN') &&
     /\b(contribuiu|contribuinte|contributed|levou a|led to|resultou|resulted|provocou|caused|favoreceu|culminou|aggrav|agravamento|impacto direto)\b/i.test(item.statement),
   )
 
@@ -362,7 +362,7 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
     const next = timeline
       .filter((item) => item.sourceSentenceIndex > candidate.sourceSentenceIndex)
       .filter((item) => item.sourceSection !== 'REPORT_ANALYSIS' && item.sourceSection !== 'RECOMMENDATION' && item.sourceSection !== 'ADMINISTRATIVE')
-      .filter((item) => item.occurrenceScope !== 'HISTORICAL_COMPARATOR')
+      .filter((item) => !['HISTORICAL_COMPARATOR', 'PRE_EVENT_CAUSAL_HISTORY'].includes(item.occurrenceScope ?? 'UNKNOWN'))
       .filter((item) => hasOutcomeSignal(item.statement) || /\b(perda de controle|loss of control)\b/i.test(item.statement))
       .sort((a, b) => a.sourceSentenceIndex - b.sourceSentenceIndex)[0]
     return next ? next.sourceSentenceIndex - candidate.sourceSentenceIndex : null

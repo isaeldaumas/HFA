@@ -61,11 +61,15 @@ function classifySupportedUses(statement: string, category: SeraFact['category']
 
 function classifyProhibitedUses(statement: string, temporalRelation: SeraEvidenceItem['temporalRelation'], evidenceType: SeraEvidenceItem['evidenceType'], assertionStatus: SeraEvidenceItem['assertionStatus'], occurrenceScope?: SeraEvidenceItem['occurrenceScope']): SeraEvidenceUse[] {
   const prohibited: SeraEvidenceUse[] = []
-  if (occurrenceScope === 'HISTORICAL_COMPARATOR') {
+  if (occurrenceScope === 'HISTORICAL_COMPARATOR' || occurrenceScope === 'PRE_EVENT_CAUSAL_HISTORY') {
     pushUnique(prohibited, 'ESCAPE_POINT')
     pushUnique(prohibited, 'PERCEPTION')
     pushUnique(prohibited, 'OBJECTIVE')
     pushUnique(prohibited, 'ACTION')
+    // External comparators are never causal evidence for this occurrence. Prior numbered
+    // legs of the same occurrence aircraft are different: they remain eligible only as
+    // pre-event causal history for preconditions.
+    if (occurrenceScope === 'HISTORICAL_COMPARATOR') pushUnique(prohibited, 'PRECONDITION')
   }
   if (temporalRelation === 'POST_ESCAPE') {
     pushUnique(prohibited, 'ESCAPE_POINT')
@@ -141,7 +145,11 @@ export function extractEvidenceItems(args: {
       escapePointStatement: args.escapePointStatement,
       sourceSection,
     })
-    const temporalRelation = occurrenceScope === 'HISTORICAL_COMPARATOR' ? 'UNKNOWN' as const : inferredTemporalRelation
+    const temporalRelation = occurrenceScope === 'HISTORICAL_COMPARATOR'
+      ? 'UNKNOWN' as const
+      : occurrenceScope === 'PRE_EVENT_CAUSAL_HISTORY'
+        ? 'PRE_ESCAPE' as const
+        : inferredTemporalRelation
     const actor = inferredActorFor(fact.statement, sourceSentenceIndex)
     const actorRelation = actor
       ? classifyActorRelationForActor(actor, args.directActor ?? null)

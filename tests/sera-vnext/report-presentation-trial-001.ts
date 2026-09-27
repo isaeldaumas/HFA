@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
-import { computeCandidateAttention, directActorStatusLabel, friendlyAnswerLabel, friendlyNodeLabel } from '../../frontend/src/lib/sera-vnext/presentation'
+import { computeCandidateAttention, directActorStatusLabel, friendlyAnswerLabel, friendlyNodeLabel, hfacsBridgeLevelLabel, preconditionLevelLabel, preconditionMethodologyMatchLabel } from '../../frontend/src/lib/sera-vnext/presentation'
 
 const root = path.resolve(__dirname, '..', '..')
 
@@ -10,6 +10,9 @@ assert.equal(friendlyNodeLabel('P_TIME_PRESSURE', true), 'Pressão de tempo')
 assert.equal(friendlyNodeLabel('A_IMPLEMENTED', true), 'Execução da ação')
 assert.equal(friendlyAnswerLabel('START', true), 'Resposta descritiva')
 assert.equal(friendlyAnswerLabel('NÃO', true), 'Não')
+assert.equal(preconditionMethodologyMatchLabel('EVIDENCED_OUTSIDE_MOST_LIKELY_SET', true), 'Sustentada pela evidência fora do conjunto mais provável da tabela')
+assert.equal(preconditionLevelLabel('IMMEDIATE', true), 'Imediato')
+assert.equal(hfacsBridgeLevelLabel('PRECONDITION', true), 'Pré-condição')
 assert.equal(directActorStatusLabel({ actor: 'copiloto', status: 'IDENTIFIED', alternatives: [], actorMigrationWarnings: [] }, true), 'Identificado')
 assert.equal(directActorStatusLabel({ actor: null, status: 'AMBIGUOUS', alternatives: [], actorMigrationWarnings: [] }, true), 'Não resolvido')
 assert.equal(directActorStatusLabel({ actor: 'flight crew (collective)', status: 'AMBIGUOUS', alternatives: ['comandante', 'copiloto'], actorMigrationWarnings: [] }, true), 'Ambíguo — requer decomposição')
@@ -49,6 +52,12 @@ assert.ok(serverPdf.includes('Commit da execução da análise'))
 assert.ok(serverPdf.includes('Commit do runtime que gerou este relatório'))
 assert.ok(serverPdf.includes('Fonte do commit do runtime'))
 assert.ok(serverPdf.includes('Vercel deployment ID'))
+assert.ok(serverPdf.includes('preconditionMethodologyMatchLabel'))
+assert.ok(serverPdf.includes('preconditionLevelLabel'))
+assert.ok(serverPdf.includes("item.sourceSection !== 'RECOMMENDATION'"))
+assert.ok(serverPdf.includes("item.occurrenceScope !== 'HISTORICAL_COMPARATOR'"))
+assert.ok(serverPdf.includes('Hipóteses/afirmações incertas do relatório-fonte'))
+assert.ok(serverPdf.includes('não são incertezas do motor'))
 assert.ok(serverPdf.includes('Outros fatores contribuintes e observações operacionais'))
 assert.equal(serverPdf.includes("L('Barreiras e observações operacionais', 'Operational barriers and observations')"), false)
 assert.ok(serverPdf.includes('const h = isTerminal ? 40'))

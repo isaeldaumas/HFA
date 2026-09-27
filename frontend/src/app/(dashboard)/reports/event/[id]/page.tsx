@@ -12,7 +12,7 @@ import { inferOccurrenceDateFromNarrative } from '@/lib/sera-vnext/occurrence-da
 import { useI18n } from '@/lib/i18n'
 import { localizeActor, localizeRationale } from '@/lib/sera-vnext/engine-v0/localization'
 import { SERA_PT_V1_TREE } from '@/lib/sera-vnext/canonical-tree/sera-pt-v1'
-import { buildExecutiveSummary, computeCandidateAttention, directActorStatusLabel, friendlyAnswerLabel, friendlyNodeLabel } from '@/lib/sera-vnext/presentation'
+import { buildExecutiveSummary, computeCandidateAttention, directActorStatusLabel, friendlyAnswerLabel, friendlyNodeLabel, hfacsBridgeLevelLabel, preconditionMethodologyMatchLabel } from '@/lib/sera-vnext/presentation'
 import { CanonicalTreeDiagram } from '@/components/sera-vnext/CanonicalTreeDiagram'
 import { SERA_PRECONDITION_META } from '@/lib/sera-vnext/precondition-taxonomy'
 import { buildSeraHfacsBridge } from '@/lib/sera-vnext/hfacs-bridge'
@@ -474,7 +474,7 @@ export default function EventReportPage() {
                     <div key={item.id} className="report-box">
                       <p><strong>{item.canonicalCategory ? (pt ? SERA_PRECONDITION_META[item.canonicalCategory].pt : SERA_PRECONDITION_META[item.canonicalCategory].en) : preconditionCategoryLabel(item.category, pt)}:</strong> {item.description}</p>
                       {item.canonicalLevel ? <p className="text-xs text-slate-500 mt-1">{L('Nível SERA', 'SERA level')}: {item.canonicalLevel}</p> : null}
-                      {item.methodologyMatch ? <p className="text-xs text-slate-500 mt-1">{L('Tabela de pré-condições', 'Precondition table')}: {item.methodologyMatch}</p> : null}
+                      {item.methodologyMatch ? <p className="text-xs text-slate-500 mt-1">{L('Tabela de pré-condições', 'Precondition table')}: {preconditionMethodologyMatchLabel(item.methodologyMatch, locale === 'pt-BR')}</p> : null}
                       {item.likelyForActiveFailureCodes?.length ? <p className="text-xs text-slate-500 mt-1">{L('Mais provável para', 'Most likely for')}: {item.likelyForActiveFailureCodes.join(', ')}</p> : null}
                       <p className="text-sm text-slate-700 mt-1">{L('Relação', 'Relationship')}: {preconditionRelationshipLabel(item.relationship, pt)}</p>
                       {item.evidence.length > 0 ? <p className="text-sm text-slate-700 mt-1">{L('Evidência', 'Evidence')}: {item.evidence.slice(0, 3).join(' | ')}</p> : null}
@@ -490,7 +490,7 @@ export default function EventReportPage() {
                     <div key={item.id} className="report-box bg-amber-50">
                       <p><strong>{item.canonicalCategory ? (pt ? SERA_PRECONDITION_META[item.canonicalCategory].pt : SERA_PRECONDITION_META[item.canonicalCategory].en) : preconditionCategoryLabel(item.category, pt)}:</strong> {item.description}</p>
                       {item.canonicalLevel ? <p className="text-xs text-slate-500 mt-1">{L('Nível SERA', 'SERA level')}: {item.canonicalLevel}</p> : null}
-                      {item.methodologyMatch ? <p className="text-xs text-slate-500 mt-1">{L('Tabela de pré-condições', 'Precondition table')}: {item.methodologyMatch}</p> : null}
+                      {item.methodologyMatch ? <p className="text-xs text-slate-500 mt-1">{L('Tabela de pré-condições', 'Precondition table')}: {preconditionMethodologyMatchLabel(item.methodologyMatch, locale === 'pt-BR')}</p> : null}
                       <p className="text-sm text-slate-700 mt-1">{L('Relação', 'Relationship')}: {preconditionRelationshipLabel(item.relationship, pt)}</p>
                       {item.evidence.length > 0 ? <p className="text-sm text-slate-700 mt-1">{L('Evidência contextual', 'Contextual evidence')}: {item.evidence.slice(0, 3).join(' | ')}</p> : null}
                     </div>
@@ -521,11 +521,11 @@ export default function EventReportPage() {
             <div className="grid gap-3 md:grid-cols-2">
               <div className="report-box">
                 <p className="font-semibold">{L('Falhas ativas', 'Active failures')}</p>
-                {hfacsBridge.activeFailures.length ? <ul className="mt-2 list-disc pl-5 text-sm space-y-1">{hfacsBridge.activeFailures.map((item) => <li key={`${item.level}-${item.hfacs}`}>{item.level}: {item.hfacs}</li>)}</ul> : <p className="report-note mt-2">{L('Aguardando fechamento P/O/A.', 'Awaiting P/O/A closure.')}</p>}
+                {hfacsBridge.activeFailures.length ? <ul className="mt-2 list-disc pl-5 text-sm space-y-1">{hfacsBridge.activeFailures.map((item) => <li key={`${item.level}-${item.hfacs}`}>{hfacsBridgeLevelLabel(item.level, locale === 'pt-BR')}: {item.hfacs}</li>)}</ul> : <p className="report-note mt-2">{L('Aguardando fechamento P/O/A.', 'Awaiting P/O/A closure.')}</p>}
               </div>
               <div className="report-box">
                 <p className="font-semibold">{L('Pré-condições', 'Preconditions')}</p>
-                {hfacsBridge.preconditions.length ? <ul className="mt-2 list-disc pl-5 text-sm space-y-1">{hfacsBridge.preconditions.map((item) => <li key={`${item.level}-${item.hfacs}`}>{item.level}: {item.hfacs}</li>)}</ul> : <p className="report-note mt-2">{L('Nenhuma pré-condição confirmada para mapeamento.', 'No confirmed precondition available for mapping.')}</p>}
+                {hfacsBridge.preconditions.length ? <ul className="mt-2 list-disc pl-5 text-sm space-y-1">{hfacsBridge.preconditions.map((item) => <li key={`${item.level}-${item.hfacs}`}>{hfacsBridgeLevelLabel(item.level, locale === 'pt-BR')}: {item.hfacs}</li>)}</ul> : <p className="report-note mt-2">{L('Nenhuma pré-condição confirmada para mapeamento.', 'No confirmed precondition available for mapping.')}</p>}
               </div>
             </div>
           </section>

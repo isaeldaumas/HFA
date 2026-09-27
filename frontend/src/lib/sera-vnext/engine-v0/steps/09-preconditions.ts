@@ -71,6 +71,36 @@ function pushEvidence(target: SeraEvidenceItem[], item: SeraEvidenceItem): void 
   if (!target.some((candidate) => candidate.evidenceId === item.evidenceId)) target.push(item)
 }
 
+function dedupeEvidenceByContainment(items: SeraEvidenceItem[]): SeraEvidenceItem[] {
+  const normalized = (value: string) => value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const tokens = (value: string) => new Set(normalized(value).split(' ').filter((token) => token.length >= 3))
+  const nearDuplicate = (left: string, right: string): boolean => {
+    const a = normalized(left)
+    const b = normalized(right)
+    if (a.includes(b) || b.includes(a)) return true
+    const at = tokens(left)
+    const bt = tokens(right)
+    if (!at.size || !bt.size) return false
+    let shared = 0
+    for (const token of at) if (bt.has(token)) shared += 1
+    return shared / Math.min(at.size, bt.size) >= 0.88
+  }
+  const kept: SeraEvidenceItem[] = []
+  // Input order is relevance-ranked. Preserve the strongest-provenance wording when
+  // the source report repeats substantially the same evidence with minor variations.
+  for (const item of items) {
+    if (kept.some((candidate) => nearDuplicate(candidate.statement, item.statement))) continue
+    kept.push(item)
+  }
+  return kept
+}
+
 function normalizedTokens(text: string): Set<string> {
   const stop = new Set(['aeronave', 'aircraft', 'tripulacao', 'tripulação', 'crew', 'piloto', 'pilot', 'sistema', 'system', 'durante', 'during', 'após', 'apos', 'after', 'foram', 'foi', 'com', 'sem', 'para'])
   return new Set(text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -121,12 +151,20 @@ export function runStep09Preconditions(input: {
     .filter((code): code is string => Boolean(code) && !['P-A', 'O-A', 'A-A'].includes(code as string))
   const mostLikelyCanonical = mostLikelyPreconditionsForCodes(activeFailureCodes)
   const categoryEvidence: Record<string, { texts: string[]; sourceEvidence: SeraEvidenceItem[]; investigationOnly: boolean; explicitInvestigationSupport: boolean; rejectedByInvestigation: boolean }> = {}
-  const escapeAnchorText = [input.escapePoint.statement, ...input.escapePoint.supportingEvidence].filter(Boolean).join(' ')
+  const escapeAnchorText = [
+    input.escapePoint.firstDepartureCandidate,
+    input.escapePoint.criticalUnsafeActCandidate,
+    input.escapePoint.statement,
+    ...input.escapePoint.supportingEvidence,
+  ].filter(Boolean).join(' ')
   const escapeIndexes = input.factualExtraction.evidence
     .filter((item) => input.escapePoint.supportingEvidence.includes(item.statement))
     .map((item) => item.sourceSentenceIndex)
   const contextRelevance = (item: SeraEvidenceItem): number => {
     let score = item.sourceSection === 'FACTUAL' ? 2 : 0
+    if (item.occurrenceScope === 'CURRENT_EVENT') score += 6
+    else if (item.occurrenceScope === 'PRE_EVENT_CAUSAL_HISTORY') score += 2
+    else if (item.occurrenceScope === 'HISTORICAL_COMPARATOR') score -= 100
     if (item.temporalRelation === 'PRE_ESCAPE' || item.temporalRelation === 'AT_ESCAPE') score += 2
     const overlap = escapeAnchorText ? lexicalOverlap(item.statement, escapeAnchorText) : 0
     score += Math.min(overlap, 3) * 2
@@ -164,9 +202,10 @@ export function runStep09Preconditions(input: {
     const hazardousCondition = /\b(condi[cç][oõ]es? meteorolog|weather|severe icing|sev ice|gelo severo|forma[cç][aã]o de gelo|ac[uú]mulo de gelo|vento|wind|chuva|rain|nevoa|fog|visibilidade|visibility|nuvem|cloud)\b/.test(text)
     const spatialCondition = /\b(proximidade|dist[aâ]ncia)\b.{0,80}\b(unidades?|plataformas?|pistas?|destinos?|aer[oó]dromos?|helipontos?)\b/.test(text)
       || /\b(unidades?|plataformas?|pistas?|destinos?|aer[oó]dromos?|helipontos?)\b.{0,80}\b(pr[oó]xim[oa]s?|adjacent|nearby)\b/.test(text)
-    const negatedHazard = /\b(n[aã]o houve|sem|livre de|aus[eê]ncia de|no |without )\b.{0,45}\b(ac[uú]mulo de gelo|gelo|icing|weather|vento|wind|chuva|rain|nevoa|fog|nuvem|cloud)\b/.test(text)
+    const negatedHazard = /\b(n[aã]o houve|sem|livre d[aeo]s?|aus[eê]ncia de|no |without )\b.{0,45}\b(ac[uú]mulo de gelo|gelo|icing|weather|vento|wind|chuva|rain|nevoa|fog|nuvem|cloud)\b/.test(text)
     const hypotheticalOnly = /\b(eventual|hipot[eé]tic|se .* fosse|caso .* ocorresse|would|could)\b/.test(text)
-    return (spatialCondition || (hazardousCondition && !negatedHazard && !hypotheticalOnly))
+    const assertedEventState = /\b(houve|ocorreu|ocorreram|foi observad[oa]|foram observad[oa]s|foi detectad[oa]|foram detectad[oa]s|detectou|detectaram|indicou|indicaram|atingiu|atingiram|permaneceu|permaneceram|configurava|configuravam|estava|estavam|eram|era propici|encontrou|encontraram|encountered|experienced|was present|were present|conditions were|weather was)\b/.test(text)
+    return (spatialCondition || (hazardousCondition && assertedEventState && !negatedHazard && !hypotheticalOnly))
       && !/\b(luz|painel|sensor|detector|stick pusher|stick shaker|aoa|manual|afm|qrh|fcom|procedimento|procedure)\b/.test(text)
   }
   const isActualTechnicalCondition = (statement: string): boolean => {
@@ -184,6 +223,7 @@ export function runStep09Preconditions(input: {
   }
 
   const contextualEvidence = input.factualExtraction.evidence
+    .filter((item) => item.occurrenceScope !== 'HISTORICAL_COMPARATOR')
     .filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
     .filter((item) => isContextualAnalysisStatement(item.statement))
     .filter((item) => !isInvestigatorConclusionStatement(item.statement))
@@ -216,6 +256,13 @@ export function runStep09Preconditions(input: {
     if (!category) continue
     if (category === 'ENVIRONMENTAL_CONTEXT' && !isActualEnvironmentalCondition(item.statement)) continue
     if (category === 'TECHNICAL_CONTEXT' && !isActualTechnicalCondition(item.statement)) continue
+    // A technical fault is not a precondition merely because it occurred on the same aircraft.
+    // Require semantic linkage to the Hendy causal window; explicit investigator-supported
+    // contributors are handled separately below.
+    if (category === 'TECHNICAL_CONTEXT') {
+      const nearEscapeAnchor = escapeIndexes.some((index) => Math.abs(index - item.sourceSentenceIndex) <= 10)
+      if (lexicalOverlap(item.statement, escapeAnchorText) < 2 && !nearEscapeAnchor) continue
+    }
     if (category === 'ORGANIZATIONAL_CONTEXT' && !isActualOrganizationalCondition(item.statement)) continue
     categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true, explicitInvestigationSupport: false, rejectedByInvestigation: false }
     categoryEvidence[category].investigationOnly = false
@@ -301,9 +348,9 @@ export function runStep09Preconditions(input: {
           : evidenceSet.investigationOnly
             ? 'UNRELATED_OR_UNSUPPORTED'
             : relationshipForEvidence(usableCausalEvidence.length ? usableCausalEvidence : evidenceSet.sourceEvidence)
-    const rankedSourceEvidence = [...evidenceForDisplay]
-      .sort((a, b) => contextRelevance(b) - contextRelevance(a) || a.sourceSentenceIndex - b.sourceSentenceIndex)
-      .slice(0, 5)
+    const rankedSourceEvidence = dedupeEvidenceByContainment(
+      [...evidenceForDisplay].sort((a, b) => contextRelevance(b) - contextRelevance(a) || a.sourceSentenceIndex - b.sourceSentenceIndex),
+    ).slice(0, 5)
     const rankedTexts = rankedSourceEvidence.length
       ? rankedSourceEvidence.map((item) => item.statement)
       : evidenceSet.texts.slice(0, 5)

@@ -29,7 +29,7 @@ export type SeraFactCategory =
 
 export type SeraEvidenceSourceSection = 'FACTUAL' | 'REPORT_ANALYSIS' | 'RECOMMENDATION' | 'ADMINISTRATIVE' | 'UNKNOWN'
 export type SeraAssertionStatus = 'AFFIRMED' | 'REJECTED_AS_FACTOR' | 'UNCERTAIN'
-export type SeraOccurrenceScope = 'CURRENT_EVENT' | 'HISTORICAL_COMPARATOR' | 'GENERAL_CONTEXT' | 'UNKNOWN'
+export type SeraOccurrenceScope = 'CURRENT_EVENT' | 'PRE_EVENT_CAUSAL_HISTORY' | 'HISTORICAL_COMPARATOR' | 'GENERAL_CONTEXT' | 'UNKNOWN'
 
 export type SeraFact = {
   id: string
