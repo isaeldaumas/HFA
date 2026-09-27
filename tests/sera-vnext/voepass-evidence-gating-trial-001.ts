@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { runSeraVNextEngineV0 } from '../../frontend/src/lib/sera-vnext/engine-v0/run-engine'
+import { classifyCanonicalPrecondition } from '../../frontend/src/lib/sera-vnext/precondition-taxonomy'
+import { classifyPreconditionCategory } from '../../frontend/src/lib/sera-vnext/engine-v0/utils'
 
 const authorDecision = readFileSync(path.resolve(__dirname, '../../docs/sera-vnext/SERA_PT_AUTHOR_DECISION_HUMAN_FACTOR_ESCAPE_SCOPE_v1.0.md'), 'utf8')
 assert.match(authorDecision, /human-factors investigation/i)
@@ -87,13 +89,19 @@ x) Os procedimentos previstos para o acionamento dos avisos CRUISE SPEED LOW nã
 O alerta MASTER WARNING apresentava indicação da urgência da situação.
 Como consequência, a aeronave entrou em stall e colidiu contra o solo.
 `)
-assert.notEqual(fullContextEpisode.escapePoint.status, 'INSUFFICIENT_EVIDENCE')
+assert.equal(fullContextEpisode.escapePoint.status, 'CANDIDATE')
 assert.match(fullContextEpisode.escapePoint.statement ?? '', /despachada|MEL|procedimentos previstos|checklist|Airframe De-Icing/i)
 assert.equal(fullContextEpisode.escapePoint.humanFactorGate?.status, 'PASSED')
 assert.equal(fullContextEpisode.escapePoint.humanFactorGate?.anchorType, 'UNSAFE_ACT')
 assert.ok(fullContextEpisode.escapePoint.supportingEvidence.some((text) => /Airframe De-Icing|SEV ICE|meteorológ|procedimentos previstos/i.test(text)))
 assert.ok(fullContextEpisode.escapePoint.counterEvidence.some((text) => /Multiple human-factor unsafe-act\/condition candidates/i.test(text)))
 assert.equal(fullContextEpisode.directActor.status, 'AMBIGUOUS')
+assert.equal(fullContextEpisode.directActor.actor, null)
+assert.equal(fullContextEpisode.directActor.alternatives.some((actor) => /^(CCO|DOV|PIC)$/i.test(actor)), false)
+const dispatchActorQuestion = fullContextEpisode.evidenceSufficiency.questions.find((question) => question.id === 'CLARIFY-DIRECT-ACTOR')
+assert.ok(dispatchActorQuestion)
+assert.match(dispatchActorQuestion?.question ?? '', /despacho|liberação operacional/i)
+assert.doesNotMatch(dispatchActorQuestion?.question ?? '', /PF|PM/i)
 assert.deepEqual(
   [fullContextEpisode.axes.perception.proposedCode, fullContextEpisode.axes.objective.proposedCode, fullContextEpisode.axes.action.proposedCode],
   [null, null, null],
@@ -183,7 +191,78 @@ x) Os procedimentos previstos para o acionamento dos avisos CRUISE SPEED LOW nã
 `)
 assert.notEqual(longReport.escapePoint.status, 'INSUFFICIENT_EVIDENCE')
 assert.match(longReport.escapePoint.statement ?? '', /despachada|procedimentos previstos|condições meteorológicas/i)
+assert.equal(longReport.escapePoint.status, 'CANDIDATE')
 assert.equal(longReport.directActor.status, 'AMBIGUOUS')
-assert.match(longReport.directActor.actor ?? '', /operational decision actors|atores/i)
+assert.equal(longReport.directActor.actor, null)
+assert.equal(longReport.directActor.alternatives.some((actor) => /^(CCO|DOV|PIC)$/i.test(actor)), false)
+const longDispatchQuestion = longReport.evidenceSufficiency.questions.find((question) => question.id === 'CLARIFY-DIRECT-ACTOR')
+assert.ok(longDispatchQuestion)
+assert.match(longDispatchQuestion?.question ?? '', /despacho|liberação operacional/i)
+assert.doesNotMatch(longDispatchQuestion?.question ?? '', /PF|PM/i)
 assert.ok(longReport.factualExtraction.evidence.some((item) => /despachada sem as restrições impostas pela MEL/i.test(item.statement)))
 assert.ok(longReport.factualExtraction.evidence.some((item) => /procedimentos previstos no checklist.*não foram realizados/i.test(item.statement)))
+
+// Actors may be decomposed only when the escape-point sentence itself identifies them.
+const dispatchActorsInAnchor = run('VOEPASS-DISPATCH-ACTORS-IN-ANCHOR', `
+3.1. Fatos
+As condições meteorológicas previstas para a rota, antes do despacho da aeronave, não foram avaliadas adequadamente pelo CCO, DOV e PIC.
+`)
+assert.notEqual(dispatchActorsInAnchor.escapePoint.status, 'INSUFFICIENT_EVIDENCE')
+assert.equal(dispatchActorsInAnchor.directActor.status, 'AMBIGUOUS')
+assert.deepEqual(new Set(dispatchActorsInAnchor.directActor.alternatives), new Set(['CCO', 'DOV', 'PIC']))
+
+// Investigation-report document order is not event chronology. System/reference prose must not become post-escape evidence.
+const temporalScope = run('VOEPASS-TEMPORAL-SCOPE-DISPATCH', `
+3.1. Fatos
+A despeito da pane do sistema Airframe De-Icing, a aeronave foi despachada sem as restrições impostas pela MEL.
+Durante o voo em rota, realizado no FL170, o Airframe De-Icing apresentou falha e a aeronave encontrou condições de gelo severo.
+Esse nível compreendia principalmente falhas de sistemas sem impacto imediato na segurança.
+Os boots, quando em operação, atuavam no sentido de quebrar o gelo acumulado nos bordos de ataque.
+Como consequência, a aeronave entrou em stall e colidiu contra o solo.
+`)
+const laterInflight = temporalScope.factualExtraction.evidence.find((item) => /Durante o voo em rota/i.test(item.statement))
+assert.ok(laterInflight)
+assert.equal(laterInflight?.temporalRelation, 'POST_ESCAPE')
+const noImmediateImpact = temporalScope.factualExtraction.evidence.find((item) => /sem impacto imediato na segurança/i.test(item.statement))
+assert.ok(noImmediateImpact)
+assert.notEqual(noImmediateImpact?.temporalRelation, 'POST_ESCAPE')
+const bootsDescription = temporalScope.factualExtraction.evidence.find((item) => /Os boots/i.test(item.statement))
+assert.ok(bootsDescription)
+assert.equal(bootsDescription?.evidenceType, 'SYSTEM_DESCRIPTION')
+assert.notEqual(bootsDescription?.temporalRelation, 'POST_ESCAPE')
+assert.equal(temporalScope.escapePoint.excludedPostEscapeEvidence.some((item) => /sem impacto imediato|Os boots/i.test(item)), false)
+
+// Positive training provision is context, not a training-deficiency precondition.
+const positiveTraining = run('VOEPASS-POSITIVE-TRAINING-NOT-PRECONDITION', `
+3.1. Fatos
+A despeito da pane do sistema Airframe De-Icing, a aeronave foi despachada sem as restrições impostas pela MEL.
+O Programa de Treinamento de Operações incluía treinamento UPRT e treinamento para operações em condições meteorológicas adversas, ambos integrados às sessões em FFS.
+`)
+assert.equal(positiveTraining.preconditions.some((item) => item.category === 'KNOWLEDGE_TRAINING'), false)
+
+// Generic system descriptions and maintenance-program references are not preconditions merely because they mention monitoring.
+const monitoringReferenceNoise = run('VOEPASS-MONITORING-REFERENCE-NOISE', `
+A despeito da pane do sistema Airframe De-Icing, a aeronave foi despachada sem as restrições impostas pela MEL.
+Relatórios gerados pelo Aircraft Condition Monitoring System eram responsáveis pelo monitoramento das condições operacionais dos sistemas da aeronave.
+Luzes MASTER WARNING e MASTER CAUTION, quando acesas, permaneciam piscando com o objetivo de chamar a atenção dos pilotos.
+De acordo com o Programa de Manutenção, estava prevista a execução de downloads periódicos do Engine Condition And Trend Monitoring conforme previsto em manual.
+`)
+assert.equal(monitoringReferenceNoise.preconditions.some((item) => item.category === 'PROCEDURAL_MONITORING'), false)
+assert.equal(classifyCanonicalPrecondition('Pane do sistema Airframe De-Icing.'), 'EQUIPMENT')
+assert.equal(classifyCanonicalPrecondition('Condições meteorológicas com formação de gelo severo.'), 'ENVIRONMENT')
+assert.equal(classifyPreconditionCategory({ text: 'A unidade estava na rota até o destino próximo.', proposedCode: null }), 'ENVIRONMENTAL_CONTEXT')
+assert.notEqual(classifyPreconditionCategory({ text: 'O leme permaneceu próximo ao batente à direita.', proposedCode: null }), 'ENVIRONMENTAL_CONTEXT')
+
+// Editorial report prose is documentary, not event chronology.
+const editorialTemporalNoise = run('VOEPASS-EDITORIAL-TEMPORAL-NOISE', `
+A elaboração deste Relatório Final foi conduzida com base em fatores contribuintes e hipóteses levantadas.
+SINOPSE O presente Relatório Final refere-se ao acidente com a aeronave.
+A despeito da pane do sistema Airframe De-Icing, a aeronave foi despachada sem as restrições impostas pela MEL.
+Como consequência, a aeronave entrou em stall e colidiu contra o solo.
+`)
+for (const pattern of [/A elaboração deste Relatório Final/i, /SINOPSE O presente Relatório Final/i]) {
+  const item = editorialTemporalNoise.factualExtraction.evidence.find((candidate) => pattern.test(candidate.statement))
+  assert.ok(item)
+  assert.notEqual(item?.temporalRelation, 'POST_ESCAPE')
+  assert.equal(editorialTemporalNoise.escapePoint.excludedPostEscapeEvidence.some((statement) => pattern.test(statement)), false)
+}

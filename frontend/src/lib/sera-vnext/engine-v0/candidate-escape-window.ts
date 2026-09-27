@@ -21,6 +21,7 @@ type CandidateEscapeWindow = {
   latestCandidate: string | null
   supportingEvidence: string[]
   counterEvidence: string[]
+  progressiveBoundary: boolean
   episodeCandidates: OperationalEpisodeCandidate[]
   humanFactorGate: {
     status: 'PASSED' | 'BLOCKED'
@@ -75,7 +76,7 @@ function operationalPhase(statement: string): OperationalPhase {
   const text = normalized(statement)
   if (/\b(despach\w*|dispatch\w*|mel|cco|dov|planejamento|flight planning|antes do despacho|before dispatch)\b/.test(text)) return 'DISPATCH'
   if (/\b(manutenc|maintenance|mecan|mechanic|inspecao pre-voo|preflight inspection|tlb)\b/.test(text)) return 'MAINTENANCE'
-  if (/\b(aproximacao|approach|final|pouso|landing|go-around|arremet|runway|pista|lined up|line up|wrong surface)\b/.test(text)) return 'APPROACH'
+  if (/\b(aproximacao|approach|aproximacao final|final approach|pouso|landing|go-around|arremet|runway|pista|lined up|line up|wrong surface)\b/.test(text)) return 'APPROACH'
   if (/\b(subida|climb|cruzeiro|cruise|descida|descent|durante o voo|during the flight|fl\d{2,3}|nivelamento|levelled|leveling|de-icing|anti-icing|airframe|cruise speed|degraded performance|increase speed|gelo|icing)\b/.test(text)) return 'INFLIGHT'
   if (/\b(taxi|solo|ground|pushback|estacionamento)\b/.test(text)) return 'GROUND'
   return 'GENERIC'
@@ -293,17 +294,22 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
   const latest = (sameBeliefBoundary || decisionCommitment) ? earliest : (sameEpisodeCandidates[sameEpisodeCandidates.length - 1] ?? earliest)
 
   const counterEvidence: string[] = []
+  let progressiveBoundary = false
   if (!effectiveItems.length) counterEvidence.push('No explicit pre-outcome controllable departure statement was found in admissible factual evidence.')
   if (!outcomeItem && sameEpisodeCandidates.length > 1) counterEvidence.push('No explicit consequence boundary was detected inside the selected operational episode; multiple departure moments require review.')
   if (sameEpisodeCandidates.length > 1 && !sameBeliefBoundary && !decisionCommitment) counterEvidence.push('Multiple departure candidates remain inside the selected operational episode; the earliest supported candidate is retained for first-departure review.')
   const humanEpisodeCandidates = episodeCandidates.filter((episode) => episode.humanFactorEligible)
   if (humanEpisodeCandidates.length > 1) counterEvidence.push('Multiple human-factor unsafe-act/condition candidates were identified across the event. SERA analyses one unsafe act at a time; the earliest supported candidate is provisional and requires human confirmation of the escape boundary.')
   if (earliest && /\b(developed across several moments|across several moments|progressively|gradually|allowed .* to develop|desenvolveu[- ]?se (?:ao longo de|em) (?:v[aá]rios|diversos) momentos|permitiu .* (?:desenvolver|evoluir)|zona progressiva)\b/i.test(earliest.statement)) {
+    progressiveBoundary = true
     counterEvidence.push('The narrative explicitly describes the departure as progressive across multiple moments; retain a progressive-zone boundary for human review.')
   }
   if (earliest && /\b(continued visually|continued visual|continuou visualmente|prosseguiu visualmente)\b/i.test(earliest.statement)) {
     const laterUnsafeState = timeline.some((item) => item.sourceSentenceIndex > earliest.sourceSentenceIndex && /\b(high descent rate|low airspeed|low-energy|alta raz[aã]o de descida|baixa velocidade|baixa energia)\b/i.test(item.statement))
-    if (laterUnsafeState) counterEvidence.push('Visual continuation was followed by a developing unsafe energy state; the safe-operation boundary is retained as a progressive zone.')
+    if (laterUnsafeState) {
+      progressiveBoundary = true
+      counterEvidence.push('Visual continuation was followed by a developing unsafe energy state; the safe-operation boundary is retained as a progressive zone.')
+    }
   }
 
   if (earliest) {
@@ -338,6 +344,7 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
     latestCandidate: latest?.statement ?? null,
     supportingEvidence: supportingItems.map((item) => item.statement),
     counterEvidence,
+    progressiveBoundary,
     episodeCandidates,
     humanFactorGate,
   }

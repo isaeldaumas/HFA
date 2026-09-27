@@ -2,6 +2,7 @@ import type { SeraVNextEngineOutput, SeraPreconditionCandidate } from '../../eng
 import type { SeraEvidenceItem, SeraEvidenceRelationshipToFailure } from '../../evidence'
 import { isEvidenceUsableFor } from '../../evidence'
 import { classifyPreconditionCategory, confidenceFromCount, pushUnique } from '../utils'
+import { isNonCausalDocumentStatement, isProcedureReferenceStatement, isSystemDescriptionStatement } from '../factual-extraction-helpers'
 import { classifyCanonicalPrecondition, mostLikelyPreconditionsForCodes, SERA_MOST_LIKELY_PRECONDITIONS, SERA_PRECONDITION_META, type SeraCanonicalPreconditionCategory } from '../../precondition-taxonomy'
 
 const CATEGORY_RULE_ID: Record<string, string> = {
@@ -88,7 +89,7 @@ function operationalPhase(text: string): OperationalPhase {
   const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
   if (/\b(despach\w*|dispatch\w*|mel|cco|dov|planejamento|flight planning|antes do despacho|before dispatch)\b/.test(normalized)) return 'DISPATCH'
   if (/\b(manutenc\w*|maintenance|mecan\w*|mechanic|inspecao pre-voo|preflight inspection|tlb)\b/.test(normalized)) return 'MAINTENANCE'
-  if (/\b(aproximacao|approach|final|pouso|landing|go-around|arremet)\b/.test(normalized)) return 'APPROACH'
+  if (/\b(aproximacao|approach|aproximacao final|final approach|pouso|landing|go-around|arremet)\b/.test(normalized)) return 'APPROACH'
   if (/\b(subida|climb|cruzeiro|cruise|descida|descent|durante o voo|during the flight|fl\d{2,3}|nivelamento|levelled|leveling|de-icing|anti-icing|airframe|cruise speed|degraded performance|increase speed|gelo|icing)\b/.test(normalized)) return 'INFLIGHT'
   if (/\b(taxi|solo|ground|pushback|estacionamento)\b/.test(normalized)) return 'GROUND'
   return 'GENERIC'
@@ -136,17 +137,23 @@ export function runStep09Preconditions(input: {
     .filter((item) => !hasResolvedEscapeAnchor || phaseCompatible(input.escapePoint.earliestCandidate ?? input.escapePoint.statement ?? '', item.statement))
     .filter((item) => !hasResolvedEscapeAnchor || contextRelevance(item) >= 3)
     .sort((a, b) => contextRelevance(b) - contextRelevance(a) || a.sourceSentenceIndex - b.sourceSentenceIndex)
+  const isContextualAnalysisStatement = (statement: string): boolean =>
+    !isNonCausalDocumentStatement(statement) &&
+    !isProcedureReferenceStatement(statement) &&
+    !isSystemDescriptionStatement(statement)
   const explicitContributorEvidence = input.factualExtraction.evidence.filter((item) =>
     item.sourceSection === 'REPORT_ANALYSIS' &&
     item.assertionStatus === 'AFFIRMED' &&
     item.supports.includes('PRECONDITION') &&
+    isContextualAnalysisStatement(item.statement) &&
     /\b(contribuiu|contribuinte|contributed|contributory|falha na barreira|aus[eê]ncia da reconfirma[cç][aã]o|n[aã]o havendo a reconfirma[cç][aã]o)\b/i.test(item.statement),
   )
   const investigationIndicatedEvidence = input.factualExtraction.evidence.filter((item) =>
     item.sourceSection === 'REPORT_ANALYSIS' &&
     item.assertionStatus === 'AFFIRMED' &&
     item.supports.includes('PRECONDITION') &&
-    /\b(supervis[aã]o|supervision|coordena[cç][aã]o|coordination|organizacional|organizational|reconfirma[cç][aã]o|c[oó]digo 9p|cross-check|monitoramento)\b/i.test(item.statement),
+    isContextualAnalysisStatement(item.statement) &&
+    /\b(supervis[aã]o|supervision|coordena[cç][aã]o|coordination|organizacional|organizational|reconfirma[cç][aã]o|c[oó]digo 9p|cross-check|monitoramento inadequad|monitoring inadequat|aus[eê]ncia de monitoramento|lack of monitoring)\b/i.test(item.statement),
   )
   const rejectedEvidence = input.factualExtraction.evidence.filter((item) => item.assertionStatus === 'REJECTED_AS_FACTOR')
 

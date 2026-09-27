@@ -40,7 +40,6 @@ export function runStep06DirectActor(input: {
   const captainPm = roleAssigned(text, 'captain', 'pm')
   const copilotPm = roleAssigned(text, 'copilot', 'pm')
   const escapeText = normalizeText(input.escapePoint.earliestCandidate ?? input.escapePoint.statement ?? '')
-  const escapeSupportText = normalizeText(input.escapePoint.supportingEvidence.join(' '))
   const escapeHasCopilot = /\b(copiloto|first officer)\b/.test(escapeText)
   const escapeHasCaptain = /\b(comandante|captain|training captain)\b/.test(escapeText)
   const escapeHasCollectiveCrew = /\b(tripulacao|tripulação|flight crew|crew|ambos os pilotos|dois pilotos|nenhum piloto|nenhum dos pilotos|both pilots|neither pilot)\b/.test(escapeText)
@@ -120,27 +119,46 @@ export function runStep06DirectActor(input: {
     const passiveOperationalDeparture = isExplicitOperationalOmissionStatement(input.escapePoint.earliestCandidate ?? '')
       || isExplicitOperationalDeviationStatement(input.escapePoint.earliestCandidate ?? '')
     if (passiveOperationalDeparture && !escapeHasCopilot && !escapeHasCaptain && !escapeHasMaintenance) {
-      const supportMentionsFlightCrew = /\b(tripulacao|flight crew|crew|comandante|copiloto|pilotos?|captain|first officer)\b/.test(escapeSupportText)
-      const supportMentionsDispatch = /\b(cco|dov|dispatch|dispatcher|despachante|pic)\b/.test(escapeSupportText)
       const escapeIsDispatchDecision = /\b(despach\w*|dispatch\w*|mel)\b/.test(escapeText)
-      if (supportMentionsDispatch || escapeIsDispatchDecision) {
+      const explicitDispatchActors = [
+        /\bcco\b/.test(escapeText) ? 'CCO' : null,
+        /\bdov\b/.test(escapeText) ? 'DOV' : null,
+        /\bpic\b/.test(escapeText) ? 'PIC' : null,
+        /\b(?:dispatcher|despachante)\b/.test(escapeText) ? (input.engineInput.locale === 'pt-BR' ? 'despachante operacional' : 'dispatcher') : null,
+      ].filter((actor): actor is string => Boolean(actor))
+
+      if (escapeIsDispatchDecision) {
+        if (explicitDispatchActors.length === 1) {
+          return { actor: explicitDispatchActors[0], status: 'IDENTIFIED', alternatives: [], actorMigrationWarnings: [] }
+        }
+        if (explicitDispatchActors.length > 1) {
+          return {
+            actor: 'operational decision actors (collective)',
+            status: 'AMBIGUOUS',
+            alternatives: explicitDispatchActors,
+            actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
+              ? 'A própria frase que define o ponto de fuga atribui a decisão/omissão a mais de um ator de despacho; P/O/A permanecem bloqueados até decomposição por ator.'
+              : 'The escape-point sentence itself attributes the decision/omission to more than one dispatch actor; P/O/A remains blocked until actor decomposition.'],
+          }
+        }
         return {
-          actor: 'operational decision actors (collective)',
+          actor: null,
           status: 'AMBIGUOUS',
-          alternatives: ['CCO', 'DOV', 'PIC'],
+          alternatives: [input.engineInput.locale === 'pt-BR' ? 'responsável pelo despacho/liberação operacional' : 'actor responsible for operational dispatch/release'],
           actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
-            ? 'O ponto de fuga operacional está sustentado, mas a frase factual atribui a decisão/omissão a múltiplos atores de planejamento/despacho; P/O/A permanecem bloqueados até decomposição por ator.'
-            : 'The operational escape point is supported, but the factual statement attributes the decision/omission to multiple planning/dispatch actors; P/O/A remains blocked until actor decomposition.'],
+            ? 'O despacho sem as restrições aplicáveis está sustentado, mas a frase factual que define o ponto de fuga não identifica quem o autorizou, executou ou ratificou. Atores citados em outros fatos não podem ser importados para preencher essa lacuna.'
+            : 'Dispatch without the applicable restrictions is supported, but the factual escape-point sentence does not identify who authorized, executed, or ratified it. Actors named in other facts cannot be imported to fill that gap.'],
         }
       }
-      if (supportMentionsFlightCrew || /\b(checklist|qrh|de-icing|airframe|icing|gelo|cruise speed|degraded performance|increase speed)\b/.test(escapeText)) {
+
+      if (/\b(checklist|qrh|de-icing|airframe|icing|gelo|cruise speed|degraded performance|increase speed)\b/.test(escapeText)) {
         return {
-          actor: 'flight crew (collective)',
+          actor: null,
           status: 'AMBIGUOUS',
-          alternatives: ['comandante', 'copiloto', 'PF', 'PM'],
+          alternatives: [input.engineInput.locale === 'pt-BR' ? 'tripulante responsável pelo procedimento' : 'crewmember responsible for the procedure'],
           actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
-            ? 'A omissão/decisão operacional no ponto de fuga está sustentada, mas o registro não identifica qual tripulante a executou; P/O/A permanecem bloqueados até decomposição por ator.'
-            : 'The operational omission/decision at the escape point is supported, but the record does not identify which crewmember executed it; P/O/A remains blocked until actor decomposition.'],
+            ? 'A omissão operacional no ponto de fuga está sustentada, mas a própria frase não identifica qual tripulante era responsável pela execução. O ator não pode ser inferido a partir de fatos de suporte de outro momento.'
+            : 'The operational omission at the escape point is supported, but the sentence itself does not identify which crewmember was responsible for execution. The actor cannot be inferred from support facts from another moment.'],
         }
       }
     }

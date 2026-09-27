@@ -66,7 +66,7 @@ function normalize(input: string): string {
 export function isNonCausalDocumentStatement(statement: string): boolean {
   const text = normalize(statement)
   if (!text) return true
-  if (/^(comando da aeronautica|centro de investigacao e prevencao de acidentes aeronauticos|relatorio final|advertencia|glossario|sumario|indice)\b/.test(text) || /^fonte\s*:/.test(text) || /^figura\s+\d+\b/.test(text)) return true
+  if (/^(comando da aeronautica|centro de investigacao e prevencao de acidentes aeronauticos|relatorio final|a elaboracao deste relatorio final|sinopse(?:\s+o presente relatorio final)?|advertencia|glossario|sumario|indice)\b/.test(text) || /^fonte\s*:/.test(text) || /^figura\s+\d+\b/.test(text)) return true
   if (/^\d+\s+de\s+\d+\b/.test(text) || /\.{5,}/.test(statement)) return true
   if (/\bobjetivo unico deste trabalho\b|\bcompete ao sistema de investigacao e prevencao de acidentes aeronauticos\b|\bnao e foco da investigacao sipaer\b/.test(text)) return true
   if (/\beste relatorio final foi disponibilizado\b|\bpresidente, diretor, chefe\b.*\bprovidencias\b/.test(text)) return true
@@ -77,7 +77,7 @@ export function isNonCausalDocumentStatement(statement: string): boolean {
 export function isProcedureReferenceStatement(statement: string): boolean {
   const text = normalize(statement)
   const source = /\b(fcom|qrh|afm|mel|manual|procedimento|procedure|checklist|regulamento|norma)\b/.test(text)
-  const normative = /\b(estabelecia|determinava|previa|exigia|requeria|deveria|devia|era necessario|era obrigatorio|required|mandated|specified|stated|should|must)\b/.test(text)
+  const normative = /\b(estabelecia|determinava|previa|previsto|prevista|exigia|requeria|deveria|devia|era necessario|era obrigatorio|required|mandated|specified|stated|should|must)\b/.test(text)
   const occurred = /\b(nao executou|nao realizou|deixou de|falhou em|executou|realizou|cumpriu|descumpriu|foi executado|foi realizado|nao foi executad[oa]|nao foi realizad[oa]|nao foram executad[oa]s|nao foram realizad[oa]s|nao foram cumprid[oa]s|were not executed|were not performed|was not executed|was not performed)\b/.test(text)
   const actorAwareness = /\b(captain|first officer|pilot|crew|comandante|copiloto|piloto|tripulacao)\b.*\b(said|stated|knew|was aware|recognized|noted|commented|disse|afirmou|sabia|conhecia|ciente|reconheceu|comentou)\b/.test(text)
   return source && normative && !occurred && !actorAwareness
@@ -86,8 +86,8 @@ export function isProcedureReferenceStatement(statement: string): boolean {
 export function isSystemDescriptionStatement(statement: string): boolean {
   const text = normalize(statement)
   if (isNonCausalDocumentStatement(statement)) return false
-  const definition = /\b(era responsavel|tinha a funcao|era composto|era constituido|possuia|permitia|armava|ativava|correspondia|provia|indicava|apresentava|fornecia|servia para|ficava localizado|rotacionava livremente|poderia prover|poderia ser|deveria ser testado)\b/.test(text)
-  const technicalSubject = /\b(sistema|modo|painel|luz|alerta|sensor|apm|afcs|ccas|sps|autopilot|piloto automatico|de-icing|anti-icing|stick pusher|stick shaker|approach \(app|app - aproximacao)\b/.test(text)
+  const definition = /\b(era responsavel|responsavel por|responsavel pelo|responsaveis|responsaveis por|responsaveis pelo|tinha a funcao|era composto|era constituido|possuia|permitia|armava|ativava|correspondia|provia|indicava|apresentava|fornecia|servia para|ficava localizado|rotacionava livremente|poderia prover|poderia ser|deveria ser testado|atuava|atuavam|funcionava|funcionavam|realizava|realizavam|compreendia|compreendiam|consistia|consistiam|permanecia|permaneciam|com o objetivo de|era ligado|era desligado|eram ligados|eram desligados)\b/.test(text)
+  const technicalSubject = /\b(sistema|sistemas|system|systems|modo|painel|luz|luzes|alerta|sensor|apm|afcs|ccas|sps|autopilot|piloto automatico|de-icing|anti-icing|boots?|stick pusher|stick shaker|approach \(app|app - aproximacao)\b/.test(text)
   const eventAnchor = /\b(as \d{1,2}h\d{2}|\d{1,2}:\d{2}|durante o voo|naquele voo|no voo do acidente|a tripulacao|o comandante|o copiloto|o pic|o sic)\b/.test(text)
   return definition && technicalSubject && !eventAnchor
 }

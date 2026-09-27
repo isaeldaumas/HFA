@@ -56,6 +56,7 @@ export function getSeraVNextProductVersionSet(): SeraVNextProductVersionSet {
     outputSchemaVersion: SERA_VNEXT_PRODUCT_BETA_OUTPUT_SCHEMA_VERSION,
     codeCommit:
       process.env.VERCEL_GIT_COMMIT_SHA?.trim() ||
+      process.env.SERA_CODE_COMMIT?.trim() ||
       process.env.GIT_COMMIT_SHA?.trim() ||
       'LOCAL_OR_UNSET_COMMIT',
     sourceFlow: SERA_VNEXT_SOURCE_FLOW_PRODUCT_BETA,

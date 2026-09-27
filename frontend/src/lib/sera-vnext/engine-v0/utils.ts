@@ -65,7 +65,7 @@ export function classifyPreconditionCategory(args: {
     ['PROCEDURAL_MONITORING', ['monitoring', 'cross-check', 'procedure', 'verification', 'reconfirmação', 'reconfirmacao', 'código 9p', 'codigo 9p', 'distração', 'distracao', 'visão de túnel', 'visao de tunel', 'focado', 'focada', 'atenção', 'atencao']],
     ['FEEDBACK_VERIFICATION', ['feedback', 'verify', 'verification']],
     ['INTENT_AWARENESS', ['intent', 'conscious', 'knowingly', 'decided', 'decision', 'start the crank']],
-    ['ENVIRONMENTAL_CONTEXT', ['weather', 'wind', 'rain', 'runway condition', 'terrain', 'vento', 'condições meteorológicas', 'condicoes meteorologicas', 'severe icing', 'sev ice', 'formação de gelo', 'formacao de gelo', 'icing', 'gelo', 'proximidade', 'próximo', 'proximo', 'distância', 'distancia']],
+    ['ENVIRONMENTAL_CONTEXT', ['weather', 'wind', 'rain', 'runway condition', 'terrain', 'vento', 'condições meteorológicas', 'condicoes meteorologicas', 'severe icing', 'sev ice', 'formação de gelo', 'formacao de gelo', 'icing', 'gelo', 'proximidade', 'distância entre', 'distancia entre']],
     ['TEAM_COORDINATION', ['crew coordination', 'team coordination', 'coordenação da tripulação', 'coordenacao da tripulacao', 'crm', 'falha de coordenação', 'falha de coordenacao']],
     ['ORGANIZATIONAL_CONTEXT', ['schedule', 'organizational', 'dispatch', 'operator pressure', 'reduced staffing', 'degraded supervision', 'staffing', 'supervision', 'supervisão', 'supervisao', 'supervisão inadequada', 'supervisao inadequada', 'cultura', 'culture', 'registro formal', 'formal record', 'tlb']],
     ['TECHNICAL_CONTEXT', ['warning', 'system', 'automation', 'fmc', 'equipment', 'control law', 'autothrottle', 'dafcs', 'trim fail', 'rudder', 'technical', 'malfunction', 'fault', 'pane', 'falha técnica', 'falha tecnica']],
@@ -79,6 +79,12 @@ export function classifyPreconditionCategory(args: {
   const explicitOperationalTimePressure =
     /\b(time pressure|rushed sequence|schedule pressure|slot pressure|tight schedule|press[aã]o de tempo|sequ[eê]ncia apressada|press[aã]o de escala|correria|behind schedule|running late)\b/i.test(args.text) ||
     /\b(urgency|urgent|urg[eê]ncia|urgente)\b.*\b(time|deadline|window|schedule|decision|action|execute|respond|tempo|prazo|janela|hor[aá]rio|decis[aã]o|agir|executar|responder)\b/i.test(args.text)
+
+  const spatialEnvironmentContext =
+    /\bproximidade\s+entre\b/i.test(args.text) ||
+    /\b(?:unidades?|plataformas?|pistas?|destinos?|aer[oó]dromos?|helipontos?)\b.{0,100}\b(?:pr[oó]xim[oa]s?|adjacent|nearby)\b/i.test(args.text) ||
+    /\b(?:pr[oó]xim[oa]s?|adjacent|nearby)\b.{0,100}\b(?:unidades?|plataformas?|pistas?|destinos?|aer[oó]dromos?|helipontos?)\b/i.test(args.text)
+  if (spatialEnvironmentContext) return 'ENVIRONMENTAL_CONTEXT'
 
   const technicalFailure =
     /\b(fault|malfunction|pane|de-icing|airframe|technical failure|falha t[eé]cnica)\b/i.test(args.text) ||
@@ -95,6 +101,6 @@ export function classifyPreconditionCategory(args: {
   return (mapped as SeraPreconditionCategory | undefined) || null
 }
 
-export function excludedPostEscapeEvidence(timeline: SeraTimelineItem[], latestSourceSentenceIndex: number | null): string[] {
-  return excludedPostEscapeEvidenceFromTimeline(timeline, latestSourceSentenceIndex)
+export function excludedPostEscapeEvidence(timeline: SeraTimelineItem[], latestSourceSentenceIndex: number | null, escapePointStatement?: string | null): string[] {
+  return excludedPostEscapeEvidenceFromTimeline(timeline, latestSourceSentenceIndex, escapePointStatement)
 }

@@ -37,6 +37,7 @@ export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngi
     timeline: factualExtraction.timeline,
     directActor: directActor.actor,
     latestEscapeSentenceIndex,
+    escapePointStatement: escapePoint.earliestCandidate ?? escapePoint.statement,
   })
   const supplementalEvidence = extractSupplementalEvidenceItems({
     items: input.supplementalEvidence ?? [],
