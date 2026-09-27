@@ -4,7 +4,7 @@ const PDFDocument = require('pdfkit/js/pdfkit.standalone.js') as typeof import('
 import type { SeraCanonicalPath, SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
 import { localizeActor, localizeAssuranceText, localizeRationale } from '@/lib/sera-vnext/engine-v0/localization'
 import { SERA_PT_V1_TREE } from '@/lib/sera-vnext/canonical-tree/sera-pt-v1'
-import { buildExecutiveSummary, computeCandidateAttention, friendlyAnswerLabel, friendlyNodeLabel } from '@/lib/sera-vnext/presentation'
+import { buildExecutiveSummary, computeCandidateAttention, directActorStatusLabel, friendlyAnswerLabel, friendlyNodeLabel } from '@/lib/sera-vnext/presentation'
 import { buildCanonicalFlowVisualModel } from '@/lib/sera-vnext/canonical-flow-visual'
 import { SERA_PRECONDITION_META } from '@/lib/sera-vnext/precondition-taxonomy'
 import { buildSeraHfacsBridge } from '@/lib/sera-vnext/hfacs-bridge'
@@ -692,7 +692,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     meta(doc, 'Status', candidateStatusLabel(output.escapePoint.status, pt))
     meta(doc, L('Confiança', 'Confidence'), confidenceLabel(output.escapePoint.confidence, pt))
     meta(doc, L('Ator direto', 'Direct actor'), value(localizeActor(output.directActor.actor, locale), L('Não resolvido', 'Unresolved')))
-    meta(doc, L('Status do ator', 'Actor status'), output.directActor.status)
+    meta(doc, L('Status do ator', 'Actor status'), directActorStatusLabel(output.directActor, pt))
     if (output.directActor.alternatives.length) {
       subheading(doc, L('Atores alternativos / contributivos', 'Alternative / contributory actors'))
       bullets(doc, output.directActor.alternatives.map((actor) => localizeActor(actor, locale) ?? actor))

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
-import { computeCandidateAttention, friendlyAnswerLabel, friendlyNodeLabel } from '../../frontend/src/lib/sera-vnext/presentation'
+import { computeCandidateAttention, directActorStatusLabel, friendlyAnswerLabel, friendlyNodeLabel } from '../../frontend/src/lib/sera-vnext/presentation'
 
 const root = path.resolve(__dirname, '..', '..')
 
@@ -10,6 +10,10 @@ assert.equal(friendlyNodeLabel('P_TIME_PRESSURE', true), 'Pressão de tempo')
 assert.equal(friendlyNodeLabel('A_IMPLEMENTED', true), 'Execução da ação')
 assert.equal(friendlyAnswerLabel('START', true), 'Resposta descritiva')
 assert.equal(friendlyAnswerLabel('NÃO', true), 'Não')
+assert.equal(directActorStatusLabel({ actor: 'copiloto', status: 'IDENTIFIED', alternatives: [], actorMigrationWarnings: [] }, true), 'Identificado')
+assert.equal(directActorStatusLabel({ actor: null, status: 'AMBIGUOUS', alternatives: [], actorMigrationWarnings: [] }, true), 'Não resolvido')
+assert.equal(directActorStatusLabel({ actor: 'flight crew (collective)', status: 'AMBIGUOUS', alternatives: ['comandante', 'copiloto'], actorMigrationWarnings: [] }, true), 'Ambíguo — requer decomposição')
+assert.equal(directActorStatusLabel({ actor: null, status: 'NOT_APPLICABLE', alternatives: [], actorMigrationWarnings: [] }, true), 'Não aplicável')
 
 const candidate = computeCandidateAttention('P-G', 'O-A', 'A-A')
 assert.ok(candidate)
@@ -74,6 +78,9 @@ assert.ok(reportsIndex.includes("redirect('/reports/executive')"))
 assert.ok(screenReport.includes('travessia canônica P/O/A não foi iniciada'))
 assert.ok(serverPdf.includes('A travessia canônica P/O/A não foi iniciada'))
 assert.ok(serverPdf.includes('Consequência não utilizada como causa'))
+assert.ok(serverPdf.includes('directActorStatusLabel(output.directActor, pt)'))
+assert.ok(screenReport.includes('directActorStatusLabel(vnextOutput.directActor'))
+assert.ok(eventPanel.includes('directActorStatusLabel(output.directActor, pt)'))
 assert.ok(serverPdf.includes('Nenhuma migração indevida do ator causal'))
 assert.ok(serverPdf.includes("L('Motor SERA (runtime)', 'SERA engine (runtime)')"))
 const versioning = fs.readFileSync(path.join(root, 'frontend/src/lib/sera-vnext-product/versioning.ts'), 'utf8')

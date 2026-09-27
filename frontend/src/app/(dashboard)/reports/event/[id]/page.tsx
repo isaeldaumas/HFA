@@ -12,7 +12,7 @@ import { inferOccurrenceDateFromNarrative } from '@/lib/sera-vnext/occurrence-da
 import { useI18n } from '@/lib/i18n'
 import { localizeActor, localizeRationale } from '@/lib/sera-vnext/engine-v0/localization'
 import { SERA_PT_V1_TREE } from '@/lib/sera-vnext/canonical-tree/sera-pt-v1'
-import { buildExecutiveSummary, computeCandidateAttention, friendlyAnswerLabel, friendlyNodeLabel } from '@/lib/sera-vnext/presentation'
+import { buildExecutiveSummary, computeCandidateAttention, directActorStatusLabel, friendlyAnswerLabel, friendlyNodeLabel } from '@/lib/sera-vnext/presentation'
 import { CanonicalTreeDiagram } from '@/components/sera-vnext/CanonicalTreeDiagram'
 import { SERA_PRECONDITION_META } from '@/lib/sera-vnext/precondition-taxonomy'
 import { buildSeraHfacsBridge } from '@/lib/sera-vnext/hfacs-bridge'
@@ -370,6 +370,7 @@ export default function EventReportPage() {
                 <p><strong>{L('Âncora primária P/O/A', 'Primary P/O/A anchor')}:</strong> {vnextOutput.escapePoint.statement ?? L('Não estabelecida', 'Not established')}</p>
                 <p><strong>{L('Relação entre os marcos', 'Landmark relationship')}:</strong> {vnextOutput.escapePoint.anchorBasis ?? L('Não resolvida', 'Unresolved')}</p>
                 <p><strong>{L('Ator direto', 'Direct actor')}:</strong> {localizeActor(vnextOutput.directActor.actor, locale) ?? L('Não resolvido', 'Unresolved')}</p>
+                <p><strong>{L('Status do ator', 'Actor status')}:</strong> {directActorStatusLabel(vnextOutput.directActor, locale === 'pt-BR')}</p>
                 <p><strong>{L('Percepção', 'Perception')}:</strong> {vnextOutput.axes.perception.proposedCode ?? L('Não resolvida', 'Unresolved')}</p>
                 <p><strong>{L('Objetivo', 'Objective')}:</strong> {vnextOutput.axes.objective.proposedCode ?? L('Não resolvido', 'Unresolved')}</p>
                 <p><strong>{L('Ação', 'Action')}:</strong> {vnextOutput.axes.action.proposedCode ?? L('Não resolvida', 'Unresolved')}</p>

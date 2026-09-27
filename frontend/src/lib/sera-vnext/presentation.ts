@@ -40,6 +40,17 @@ export function friendlyNodeLabel(nodeId: string, pt = true): string {
   const labels = pt ? NODE_LABELS_PT : NODE_LABELS_EN
   return labels[nodeId] ?? nodeId.replaceAll('_', ' ').toLowerCase()
 }
+
+export function directActorStatusLabel(
+  directActor: SeraVNextEngineOutput['directActor'],
+  pt = true,
+): string {
+  if (directActor.status === 'IDENTIFIED') return pt ? 'Identificado' : 'Identified'
+  if (directActor.status === 'NOT_APPLICABLE') return pt ? 'Não aplicável' : 'Not applicable'
+  if (!directActor.actor && directActor.alternatives.length === 0) return pt ? 'Não resolvido' : 'Unresolved'
+  return pt ? 'Ambíguo — requer decomposição' : 'Ambiguous — requires decomposition'
+}
+
 export type CandidateAttention = {
   score: number
   level: 'low' | 'attention' | 'elevated' | 'high'

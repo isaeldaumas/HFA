@@ -3,6 +3,7 @@
 import type { SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
 import { useI18n } from '@/lib/i18n'
 import { localizeActor, localizeAssuranceText } from '@/lib/sera-vnext/engine-v0/localization'
+import { directActorStatusLabel } from '@/lib/sera-vnext/presentation'
 import { CanonicalDecisionJourney } from './CanonicalDecisionJourney'
 import { CandidateRiskCard } from './CandidateRiskCard'
 
@@ -191,6 +192,7 @@ export function VNextEventAnalysisPanel({ output }: { output: SeraVNextEngineOut
           <div className="rounded-lg bg-slate-800 p-3">
             <p className="text-xs text-slate-500">{pt ? 'Ator direto' : 'Direct actor'}</p>
             <p className="mt-1 text-sm text-slate-200">{actor ?? (pt ? 'Não resolvido' : 'Unresolved')}</p>
+            <p className="mt-1 text-xs text-slate-500">{directActorStatusLabel(output.directActor, pt)}</p>
           </div>
           <div className="rounded-lg bg-slate-800 p-3">
             <p className="text-xs text-slate-500">{pt ? 'Confiança' : 'Confidence'}</p>
