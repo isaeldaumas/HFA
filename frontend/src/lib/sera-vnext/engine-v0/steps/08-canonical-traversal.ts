@@ -60,6 +60,7 @@ function buildAxisCandidate(input: {
     axis: input.axis,
     statementAtEscapePoint: input.statement,
     evidence: scopedEvidence,
+    locale: input.locale,
   })
   const nodes = new Map(SERA_PT_V1_TREE.nodes.map((node) => [node.nodeId, node]))
   const answers = traversal.path.answers.map((answer) => {

@@ -38,7 +38,11 @@ assert.ok(eventPage.includes('Somente leitura — motor anterior'), 'legacy clas
 assert.ok(actions.includes('sera_vnext_analysis_id'), 'corrective actions must support current SERA analyses')
 assert.ok(migration.includes('num_nonnulls(analysis_id, sera_vnext_analysis_id) = 1'), 'corrective action source must be exclusive')
 assert.equal(analyze.includes('.update({ raw_input:'), false, 'reanalysis must not overwrite the original event narrative')
-assert.ok(analyze.includes("narrative: String(ev.raw_input ?? rawInput)"), 'reanalysis must use the stored original narrative')
+assert.ok(analyze.includes('mergeCanonicalReanalysisNarrative'), 'reanalysis must merge submitted additional evidence with the preserved narrative')
+assert.ok(analyze.includes('latestVNext?.narrative ?? ev.raw_input'), 'reanalysis must preserve prior supplemental narrative across successive runs')
+assert.ok(reanalyze.includes('additionalInformation'), 'event reanalysis endpoint must accept explicit additional information')
+assert.ok(reanalyze.includes('latestVNext?.narrative ?? event.raw_input'), 'event reanalysis must retain prior additions')
+assert.ok(eventPage.includes('Novas informações para reanálise'), 'event UI must expose additional-information reanalysis input')
 assert.ok(deletionHelper.includes(".in('sera_vnext_analysis_id', vnextIds)"), 'deletion impact must include current SERA corrective actions')
 assert.ok(deletionMigration.includes('EVENT_DELETE_CORRECTIVE_ACTION_BLOCK'), 'database soft-delete must block open current-SERA actions')
 for (const route of legacyRecalcRoutes) {

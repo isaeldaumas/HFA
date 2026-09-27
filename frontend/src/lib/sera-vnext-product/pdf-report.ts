@@ -130,6 +130,14 @@ function confidenceLabel(value: string | undefined | null, pt: boolean): string 
   return value ?? '-'
 }
 
+
+function landmarkRelationshipLabel(value: SeraVNextEngineOutput['escapePoint']['anchorBasis'], pt: boolean): string {
+  if (value === 'FIRST_DEPARTURE_AND_CRITICAL_ACT') return pt ? 'Os dois marcos coincidem no mesmo ato/condição.' : 'Both landmarks coincide in the same act/condition.'
+  if (value === 'CRITICAL_UNSAFE_ACT') return pt ? 'Marcos distintos: o primeiro desvio antecede o ato crítico; P/O/A é ancorado no ato crítico.' : 'Distinct landmarks: the first departure precedes the critical act; P/O/A is anchored to the critical act.'
+  if (value === 'FIRST_DEPARTURE_ONLY') return pt ? 'Somente a primeira saída da operação segura foi estabelecida.' : 'Only the first departure from safe operation was established.'
+  return pt ? 'Relação ainda não resolvida.' : 'Relationship not yet resolved.'
+}
+
 function candidateStatusLabel(value: string, pt: boolean): string {
   const ptMap: Record<string, string> = {
     CANDIDATE: 'CANDIDATO', NO_FAILURE: 'SEM FALHA INDEPENDENTE', INSUFFICIENT_EVIDENCE: 'EVIDÊNCIA INSUFICIENTE',
@@ -150,8 +158,26 @@ function translateReportText(value: string, pt: boolean): string {
     'Confirm or reject the direct actor attribution.': 'Confirmar ou rejeitar a atribuição do ator direto.',
     'Review P/O/A candidate code alternatives and retained uncertainties.': 'Revisar os códigos candidatos P/O/A, as alternativas consideradas e as incertezas mantidas.',
     'Confirm whether each precondition is distinct from the active failure.': 'Confirmar se cada pré-condição é distinta da falha ativa.',
+    'Hendy gate: the anchor is an observable operator unsafe act/inaction or operator-controlled unsafe condition on the occurrence trajectory.': 'Gate Hendy: a âncora é um ato/omissão inseguro observável do operador ou uma condição insegura controlada pelo operador na trajetória da ocorrência.',
+    'The first departure from safe operation and the critical unsafe act are retained separately when they do not coincide; P/O/A uses the critical act as the primary anchor.': 'A primeira saída da operação segura e o ato inseguro crítico são preservados separadamente quando não coincidem; P/O/A usa o ato crítico como âncora primária.',
+    'Technical, environmental, maintenance, dispatch and organizational facts that only set the scene remain context/preconditions rather than displacing the directly outcome-linked unsafe act.': 'Fatos técnicos, ambientais, de manutenção, despacho e organização que apenas compõem o cenário permanecem como contexto/pré-condições e não substituem o ato inseguro diretamente ligado ao desfecho.',
+    'Hendy boundary split: the first departure from safe operation and the most critical unsafe act/condition are different supported landmarks. P/O/A is anchored to the critical act while the earlier departure remains causal-window context.': 'Separação da fronteira Hendy: a primeira saída da operação segura e o ato/condição insegura crítica são marcos distintos sustentados por evidência. P/O/A é ancorado no ato crítico; o desvio anterior permanece contexto da janela causal.',
+    'Multiple human-factor unsafe-act/condition candidates were identified across the event. SERA analyses one unsafe act at a time; the proposed critical-act anchor is provisional and requires human confirmation of the Hendy boundary.': 'Foram identificados múltiplos candidatos a ato/condição insegura de fatores humanos. O SERA analisa um ato inseguro por vez; a âncora crítica proposta é provisória e requer confirmação humana da fronteira Hendy.',
   }
-  if (pt) return ptMap[localized] ?? ptMap[value] ?? localized
+  if (pt) {
+    const exact = ptMap[localized] ?? ptMap[value]
+    if (exact) return exact
+    const dynamic = localized
+      .replace(/^Explicit no-return\/irreversibility boundary preserved from the source:\s*/i, 'Marco explícito de irreversibilidade/sem retorno preservado da fonte: ')
+      .replace(/^Critical-act alternatives remain close in trajectory support and require human review:\s*/i, 'Alternativas de ato crítico permanecem próximas em suporte causal e exigem revisão humana: ')
+      .replace(/^Multiple departure candidates remain inside the selected operational episode; Hendy first-departure and critical-act landmarks are retained separately for review\.?$/i, 'Permanecem múltiplos candidatos de desvio no episódio operacional selecionado; os marcos Hendy de primeira saída e ato crítico são preservados separadamente para revisão.')
+      .replace(/^No explicit consequence boundary was detected inside the selected operational episode; multiple departure moments require review\.?$/i, 'Não foi detectada uma fronteira explícita de consequência no episódio operacional selecionado; múltiplos momentos de desvio exigem revisão.')
+      .replace(/^No explicit pre-outcome controllable departure statement was found in admissible factual evidence\.?$/i, 'Nenhuma saída controlável anterior ao desfecho foi encontrada na evidência factual admissível.')
+      .replace(/^The narrative explicitly describes the departure as progressive across multiple moments; retain a progressive-zone boundary for human review\.?$/i, 'O relato descreve explicitamente o desvio como progressivo ao longo de vários momentos; manter uma fronteira de zona progressiva para revisão humana.')
+      .replace(/^Visual continuation was followed by a developing unsafe energy state; the safe-operation boundary is retained as a progressive zone\.?$/i, 'A continuação visual foi seguida por desenvolvimento de estado energético inseguro; a fronteira da operação segura é mantida como zona progressiva.')
+      .replace(/^Human clarification identifies an observable unsafe act\/inaction or operator-controlled unsafe condition\.?$/i, 'O esclarecimento humano identifica um ato/omissão inseguro observável ou uma condição insegura controlada pelo operador.')
+    return dynamic
+  }
   const reverse = new Map(Object.entries(ptMap).map(([en, ptText]) => [ptText, en]))
   return reverse.get(localized) ?? localized
 }
@@ -681,7 +707,11 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     if (output.escapePoint.irreversibilityBoundaryCandidate) {
       meta(doc, L('Marco de irreversibilidade / sem retorno', 'Irreversibility / no-return boundary'), output.escapePoint.irreversibilityBoundaryCandidate)
     }
-    meta(doc, L('Relação entre os marcos', 'Relationship between landmarks'), value(output.escapePoint.anchorBasis, L('não resolvida', 'unresolved')))
+    meta(doc, L('Relação entre os marcos', 'Relationship between landmarks'), landmarkRelationshipLabel(output.escapePoint.anchorBasis, pt))
+    subheading(doc, L('Evidência da primeira saída da operação segura', 'First-departure supporting evidence'))
+    bullets(doc, (output.escapePoint.firstDepartureSupportingEvidence ?? []).slice(0, 5), L('Nenhuma evidência específica registrada para este marco.', 'No landmark-specific evidence recorded.'))
+    subheading(doc, L('Evidência do ato/condição insegura crítica', 'Critical-act supporting evidence'))
+    bullets(doc, (output.escapePoint.criticalUnsafeActSupportingEvidence ?? output.escapePoint.supportingEvidence).slice(0, 5), L('Nenhuma evidência específica registrada para este marco.', 'No landmark-specific evidence recorded.'))
     subheading(doc, L('Âncora primária para P/O/A', 'Primary P/O/A anchor'))
     body(doc, value(output.escapePoint.statement), 'justify')
     body(doc, L(
@@ -701,24 +731,24 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       subheading(doc, L('Avisos de fronteira de ator', 'Actor-boundary warnings'))
       bullets(doc, output.directActor.actorMigrationWarnings)
     }
-    subheading(doc, L('Evidência de suporte ao ponto de fuga', 'Escape-point supporting evidence'))
-    bullets(doc, output.escapePoint.supportingEvidence.slice(0, 6), L('Nenhuma evidência registrada.', 'No evidence recorded.'))
     if (output.escapePoint.humanFactorGate) {
-      meta(doc, L('Gate de âncora de Fatores Humanos', 'Human-Factor anchor gate'), output.escapePoint.humanFactorGate.status)
-      meta(doc, L('Tipo de âncora SERA', 'SERA anchor type'), value(output.escapePoint.humanFactorGate.anchorType, L('não estabelecida', 'not established')))
-      bullets(doc, output.escapePoint.humanFactorGate.rationale)
+      meta(doc, L('Gate de âncora de Fatores Humanos', 'Human-Factor anchor gate'), pt ? (output.escapePoint.humanFactorGate.status === 'PASSED' ? 'ATENDIDO' : 'BLOQUEADO') : output.escapePoint.humanFactorGate.status)
+      meta(doc, L('Tipo de âncora SERA', 'SERA anchor type'), output.escapePoint.humanFactorGate.anchorType === 'UNSAFE_ACT' ? L('ATO INSEGURO', 'UNSAFE ACT') : output.escapePoint.humanFactorGate.anchorType === 'OPERATOR_CONTROLLED_UNSAFE_CONDITION' ? L('CONDIÇÃO INSEGURA CONTROLADA PELO OPERADOR', 'OPERATOR-CONTROLLED UNSAFE CONDITION') : L('não estabelecida', 'not established'))
+      bullets(doc, output.escapePoint.humanFactorGate.rationale.map((item) => translateReportText(item, pt)))
     }
     const alternativeEpisodes = (output.escapePoint.episodeCandidates ?? []).filter((episode) => !episode.selected)
     if (alternativeEpisodes.length) {
       subheading(doc, L('Outras sequências humanas/contextuais detectadas — não são pontos de fuga automáticos', 'Other human/contextual sequences detected — not automatic escape points'))
-      bullets(doc, alternativeEpisodes.slice(0, 5).map((episode) => `${episode.phase} / ${episode.seraRole ?? 'UNRESOLVED'}: ${episode.anchorStatement}`))
+      const phasePt: Record<string, string> = { DISPATCH: 'DESPACHO', MAINTENANCE: 'MANUTENÇÃO', INFLIGHT: 'EM VOO', APPROACH: 'APROXIMAÇÃO', GROUND: 'SOLO', GENERIC: 'GENÉRICO' }
+      const rolePt: Record<string, string> = { HUMAN_FACTOR_CANDIDATE: 'CANDIDATO DE FATORES HUMANOS', TECHNICAL_ENVIRONMENT: 'CONTEXTO TÉCNICO/AMBIENTAL', UNRESOLVED: 'NÃO RESOLVIDO' }
+      bullets(doc, alternativeEpisodes.slice(0, 5).map((episode) => `${pt ? (phasePt[episode.phase] ?? episode.phase) : episode.phase} / ${pt ? (rolePt[episode.seraRole ?? 'UNRESOLVED'] ?? episode.seraRole ?? 'UNRESOLVED') : episode.seraRole ?? 'UNRESOLVED'}: ${episode.anchorStatement}`))
       body(doc, L(
         'A visão global serve para localizar o ato/condição humana relevante e suas pré-condições. O SERA analisa um ato inseguro por vez: outra sequência só pode receber P/O/A após estabelecer sua própria âncora humana, ator direto e travessia canônica completa. Falhas técnicas, meteorologia e condições organizacionais permanecem contexto/pré-condições quando não constituem essa âncora.',
         'The global view is used to locate the relevant human act/condition and its preconditions. SERA analyses one unsafe act at a time: another sequence can receive P/O/A only after establishing its own human-factor anchor, direct actor, and complete canonical traversal. Technical failures, weather, and organizational conditions remain context/preconditions when they do not constitute that anchor.',
       ))
     }
     subheading(doc, L('Contraevidência / incertezas do limite', 'Counter-evidence / boundary uncertainty'))
-    bullets(doc, output.escapePoint.counterEvidence.slice(0, 6), L('Nenhuma contraevidência registrada.', 'No counter-evidence recorded.'))
+    bullets(doc, output.escapePoint.counterEvidence.slice(0, 6).map((item) => translateReportText(item, pt)), L('Nenhuma contraevidência registrada.', 'No counter-evidence recorded.'))
     subheading(doc, L('Evidência posterior ao ato crítico excluída da cadeia causal', 'Post-critical-act evidence excluded from the causal chain'))
     bullets(doc, output.escapePoint.excludedPostEscapeEvidence.slice(0, 6), L('Nenhum item registrado.', 'No item recorded.'))
 
@@ -731,8 +761,11 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
 
     for (const [axisId, axis] of axes) {
       keepTogether(doc, 95)
+      const axisSummaryStatus = axis.proposedCode
+        ? `${axis.proposedCode} - ${candidateStatusLabel(axis.status, pt)}`
+        : candidateStatusLabel(axis.status, pt)
       doc.font('Helvetica-Bold').fontSize(9.7).fillColor('#1d4f73')
-        .text(axisLabel(axisId, pt) + ': ' + value(axis.proposedCode, L('não resolvido', 'unresolved')) + ' - ' + candidateStatusLabel(axis.status, pt))
+        .text(axisLabel(axisId, pt) + ': ' + axisSummaryStatus)
       body(doc, value(axis.statementAtEscapePoint, L('Eixo não resolvido pela evidência disponível.', 'Axis unresolved by the available evidence.')))
       meta(doc, L('Confiança da classificação', 'Classification confidence'), axis.proposedCode ? confidenceLabel(axis.confidence, pt) : L('NÃO APLICÁVEL', 'NOT APPLICABLE'))
       const conditional = axis.alternativesConsidered.filter((item) => /^[POA]-[A-Z]$/.test(item))

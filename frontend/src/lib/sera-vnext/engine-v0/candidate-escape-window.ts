@@ -24,6 +24,8 @@ type CandidateEscapeWindow = {
   criticalCandidateAlternatives: string[]
   irreversibilityBoundaryCandidate: string | null
   anchorBasis: 'FIRST_DEPARTURE_AND_CRITICAL_ACT' | 'CRITICAL_UNSAFE_ACT' | 'FIRST_DEPARTURE_ONLY' | 'UNRESOLVED'
+  firstDepartureSupportingEvidence: string[]
+  criticalUnsafeActSupportingEvidence: string[]
   supportingEvidence: string[]
   counterEvidence: string[]
   progressiveBoundary: boolean
@@ -411,6 +413,28 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
   const criticalAct = criticalEntry?.item ?? firstDeparture
   const primaryAnchor = criticalAct ?? firstDeparture
   const supportingItems = primaryAnchor ? episodeSupport(primaryAnchor, timeline) : []
+  const firstDepartureSupportingItems = firstDeparture ? episodeSupport(firstDeparture, timeline) : []
+  const firstDepartureSupportingEvidence = firstDeparture
+    ? [...new Set([
+        firstDeparture.statement,
+        ...firstDepartureSupportingItems
+          .filter((item) => {
+            if (item.statement === firstDeparture.statement) return true
+            const firstTags = mechanismTags(firstDeparture.statement)
+            const sharedMechanisms = [...mechanismTags(item.statement)].filter((tag) => firstTags.has(tag)).length
+            return sharedMechanisms >= 2 && topicalOverlap(item.statement, firstDeparture.statement) >= 2
+          })
+          .map((item) => item.statement),
+      ])]
+    : []
+  const criticalUnsafeActSupportingEvidence = criticalAct
+    ? [...new Set([
+        criticalAct.statement,
+        ...supportingItems
+          .filter((item) => item.statement === criticalAct.statement || topicalOverlap(item.statement, criticalAct.statement) >= 2)
+          .map((item) => item.statement),
+      ])]
+    : []
   const sameEpisodeCandidates = primaryAnchor
     ? selectedPool.map(({ item }) => item).filter((item) => supportingItems.some((support) => support.statement === item.statement))
     : []
@@ -483,7 +507,9 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
     criticalCandidateAlternatives,
     irreversibilityBoundaryCandidate: irreversibilityItem?.statement ?? null,
     anchorBasis,
-    supportingEvidence: supportingItems.map((item) => item.statement),
+    firstDepartureSupportingEvidence,
+    criticalUnsafeActSupportingEvidence,
+    supportingEvidence: criticalUnsafeActSupportingEvidence,
     counterEvidence,
     progressiveBoundary,
     episodeCandidates,

@@ -29,6 +29,7 @@ export function runEvidenceTraversal(args: {
   axis: CanonicalSeraAxis
   statementAtEscapePoint: string | null
   evidence: SeraEvidenceItem[]
+  locale?: 'pt-BR' | 'en'
 }): {
   candidateCode: string | null
   status: SeraVNextEngineOutput['axes']['perception']['status']
@@ -51,6 +52,7 @@ export function runEvidenceTraversal(args: {
       evidence: args.evidence,
       statementAtEscapePoint: args.statementAtEscapePoint,
       rootResponseText,
+      locale: args.locale ?? 'pt-BR',
     })
     trace.push(answer)
     if (answer.nodeId.endsWith('_ROOT') && answer.responseText) rootResponseText = answer.responseText

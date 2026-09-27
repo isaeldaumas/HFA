@@ -3,7 +3,7 @@ import { requireBearerUser } from '@/lib/server/api-auth'
 import { getSupabaseAdmin } from '@/lib/server/supabase-admin'
 import { getOrCreateRequestId } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
-import { canonicalAnalyzeResponse, createCanonicalEventAnalysis } from '@/lib/sera-vnext-product/canonical-event-analysis'
+import { canonicalAnalyzeResponse, createCanonicalEventAnalysis, mergeCanonicalReanalysisNarrative } from '@/lib/sera-vnext-product/canonical-event-analysis'
 
 export const maxDuration = 300
 
@@ -33,7 +33,28 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
     }
     const raw = await req.json().catch(() => ({})) as Record<string, unknown>
     const locale: 'pt-BR' | 'en' = raw.locale === 'en' ? 'en' : 'pt-BR'
-    const narrative = String(event.raw_input ?? '').trim()
+    const additionalInformation = [
+      raw.additionalInformation,
+      raw.additional_information,
+      raw.additionalEvidence,
+      raw.newInformation,
+    ].find((value) => typeof value === 'string' && value.trim().length > 0)
+    const submittedNarrative = typeof raw.eventoNarrativa === 'string' ? raw.eventoNarrativa : null
+    const { data: latestVNext } = await admin
+      .from('sera_vnext_analyses')
+      .select('narrative')
+      .eq('tenant_id', user.tenantId)
+      .eq('source_reference', eventId)
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const narrative = mergeCanonicalReanalysisNarrative({
+      baseNarrative: String(latestVNext?.narrative ?? event.raw_input ?? ''),
+      submittedNarrative,
+      originalNarrative: String(event.raw_input ?? ''),
+      additionalInformation: typeof additionalInformation === 'string' ? additionalInformation : null,
+    })
     if (!narrative) {
       return jsonError(requestId, 'VNEXT_REANALYZE_NO_EVIDENCE', 'O evento não possui relato original disponível.', 422)
     }
@@ -80,6 +101,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
         engine_role: 'PRIMARY',
         human_review_required: true,
         evidence_sufficiency_status: result.analysis.engine_output.evidenceSufficiency.status,
+        additional_information_applied: Boolean(additionalInformation || submittedNarrative),
       },
     })
 
