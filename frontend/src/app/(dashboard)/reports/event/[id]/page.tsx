@@ -362,7 +362,13 @@ export default function EventReportPage() {
           {vnextOutput ? (
             <>
               <div className="report-box space-y-1">
-                <p><strong>{L('Ponto de fuga', 'Escape point')}:</strong> {vnextOutput.escapePoint.statement ?? L('Não estabelecido', 'Not established')}</p>
+                <p><strong>{L('Primeira saída da operação segura (Hendy)', 'First departure from safe operation (Hendy)')}:</strong> {vnextOutput.escapePoint.firstDepartureCandidate ?? vnextOutput.escapePoint.earliestCandidate ?? L('Não estabelecida', 'Not established')}</p>
+                <p><strong>{L('Ato/condição insegura crítica (Hendy)', 'Critical unsafe act/condition (Hendy)')}:</strong> {vnextOutput.escapePoint.criticalUnsafeActCandidate ?? vnextOutput.escapePoint.latestCandidate ?? L('Não estabelecido', 'Not established')}</p>
+                {vnextOutput.escapePoint.irreversibilityBoundaryCandidate && (
+                  <p><strong>{L('Marco de irreversibilidade / sem retorno', 'Irreversibility / no-return boundary')}:</strong> {vnextOutput.escapePoint.irreversibilityBoundaryCandidate}</p>
+                )}
+                <p><strong>{L('Âncora primária P/O/A', 'Primary P/O/A anchor')}:</strong> {vnextOutput.escapePoint.statement ?? L('Não estabelecida', 'Not established')}</p>
+                <p><strong>{L('Relação entre os marcos', 'Landmark relationship')}:</strong> {vnextOutput.escapePoint.anchorBasis ?? L('Não resolvida', 'Unresolved')}</p>
                 <p><strong>{L('Ator direto', 'Direct actor')}:</strong> {localizeActor(vnextOutput.directActor.actor, locale) ?? L('Não resolvido', 'Unresolved')}</p>
                 <p><strong>{L('Percepção', 'Perception')}:</strong> {vnextOutput.axes.perception.proposedCode ?? L('Não resolvida', 'Unresolved')}</p>
                 <p><strong>{L('Objetivo', 'Objective')}:</strong> {vnextOutput.axes.objective.proposedCode ?? L('Não resolvido', 'Unresolved')}</p>

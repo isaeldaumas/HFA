@@ -44,10 +44,22 @@ function buildAxisCandidate(input: {
   evidence: SeraEvidenceItem[]
   confidenceCeiling: SeraConfidence
 }): { axisCandidate: SeraAxisCandidate; path: SeraCanonicalPath; unansweredQuestions: string[] } {
+  const allowedEvidenceStatements = new Set([...input.supportingEvidence, ...input.counterEvidence])
+  const scopedEvidence = input.evidence
+    .filter((item) => allowedEvidenceStatements.has(item.statement))
+    .map((item) => {
+      // Step 07 only admits another crewmember's perception statement when the direct actor
+      // explicitly acknowledged that cue at the critical anchor. Rebind that selected cue to
+      // the direct-actor perception lane for traversal; do not generalize context-actor evidence.
+      if (input.axis === 'P' && input.supportingEvidence.includes(item.statement) && item.actorRelation === 'CONTEXT_ACTOR') {
+        return { ...item, actorRelation: 'DIRECT_ACTOR' as const }
+      }
+      return item
+    })
   const traversal = runEvidenceTraversal({
     axis: input.axis,
     statementAtEscapePoint: input.statement,
-    evidence: input.evidence,
+    evidence: scopedEvidence,
   })
   const nodes = new Map(SERA_PT_V1_TREE.nodes.map((node) => [node.nodeId, node]))
   const answers = traversal.path.answers.map((answer) => {
@@ -76,7 +88,7 @@ function buildAxisCandidate(input: {
   const traversalCounter = unique(path.answers.flatMap((answer) => answer.counterEvidence ?? []))
   const supportingEvidence = axisEvidence({
     axis: input.axis,
-    evidence: input.evidence,
+    evidence: scopedEvidence,
     supplementalEvidence: traversalSupport.length ? traversalSupport : input.supportingEvidence,
   })
   const counterEvidence = unique([...input.counterEvidence, ...traversalCounter])
@@ -197,7 +209,7 @@ export function runStep08CanonicalTraversal(input: {
 
   const maintenancePreflightContext =
     /\bmaintenance|manuten[cç][aã]o\b/i.test(input.directActor.actor ?? '') &&
-    /\b(pre[- ]?flight|pr[eé][ -]?voo|inspe[cç][aã]o)\b/i.test(`${input.escapePoint.statement ?? ''} ${input.escapePoint.earliestCandidate ?? ''}`)
+    /\b(pre[- ]?flight|pr[eé][ -]?voo|inspe[cç][aã]o)\b/i.test(`${input.escapePoint.criticalUnsafeActCandidate ?? input.escapePoint.statement ?? input.escapePoint.latestCandidate ?? input.escapePoint.earliestCandidate ?? ''}`)
   if (maintenancePreflightContext && !perception.axisCandidate.proposedCode) {
     perception.axisCandidate.alternativesConsidered = [...new Set([...perception.axisCandidate.alternativesConsidered, 'P-F', 'P-G'])]
   }

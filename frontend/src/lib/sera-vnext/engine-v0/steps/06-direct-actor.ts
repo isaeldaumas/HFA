@@ -1,6 +1,6 @@
 import type { SeraVNextEngineInput, SeraVNextEngineOutput } from '../../engine-contract'
 import { runStep04DirectActor as runLegacyDirectActor } from '../../steps/04-direct-actor'
-import { isExplicitOperationalDeviationStatement, isExplicitOperationalOmissionStatement } from '../factual-extraction-helpers'
+import { isDirectControlResponseStatement, isExplicitOperationalDeviationStatement, isExplicitOperationalOmissionStatement } from '../factual-extraction-helpers'
 
 function normalizeText(input: string): string {
   return input.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
@@ -39,15 +39,16 @@ export function runStep06DirectActor(input: {
   const captainPf = roleAssigned(text, 'captain', 'pf')
   const captainPm = roleAssigned(text, 'captain', 'pm')
   const copilotPm = roleAssigned(text, 'copilot', 'pm')
-  const escapeText = normalizeText(input.escapePoint.earliestCandidate ?? input.escapePoint.statement ?? '')
-  const escapeHasCopilot = /\b(copiloto|first officer)\b/.test(escapeText)
-  const escapeHasCaptain = /\b(comandante|captain|training captain)\b/.test(escapeText)
+  const primaryEscape = input.escapePoint.criticalUnsafeActCandidate ?? input.escapePoint.statement ?? input.escapePoint.latestCandidate ?? input.escapePoint.earliestCandidate ?? ''
+  const escapeText = normalizeText(primaryEscape)
+  const escapeHasCopilot = /\b(copiloto|first officer|sic)\b/.test(escapeText)
+  const escapeHasCaptain = /\b(comandante|captain|training captain|pic)\b/.test(escapeText)
   const escapeHasCollectiveCrew = /\b(tripulacao|tripulação|flight crew|crew|ambos os pilotos|dois pilotos|nenhum piloto|nenhum dos pilotos|both pilots|neither pilot)\b/.test(escapeText)
   const escapeHasMaintenance =
     /\bmaintenance (?:team|technician|inspector|mechanic)s?\b|\bmechanics?\b|\binspectors?\b|\bequipe de manutencao\b|\btecnic[oa]s? de manutencao\b|\bmecanicos?\b|\binspetores?\b/.test(escapeText) ||
     /\b(inspecao (?:de )?pre[- ]?voo|pre[- ]?voo|preflight inspection)\b/.test(escapeText)
   const narrativeHasMaintenance = /\b(maintenance|mechanic|inspector|manutencao|mecanico|mecanicos|inspetor|inspetores)\b/.test(text)
-  const anchorContext = normalizeText(`${input.unsafeActOrCondition.statement ?? ''} ${input.escapePoint.earliestCandidate ?? ''} ${input.escapePoint.supportingEvidence.join(' ')}`)
+  const anchorContext = normalizeText(`${input.unsafeActOrCondition.statement ?? ''} ${primaryEscape} ${input.escapePoint.supportingEvidence.join(' ')}`)
   const anchorHasHumanActor = hasAny(anchorContext, ['crew', 'pilot', 'captain', 'first officer', 'tripulacao', 'tripulação', 'comandante', 'copiloto', 'piloto', 'pic', 'sic', 'cco', 'dov', 'dispatcher', 'despachante'])
   const systemDominant = input.unsafeActOrCondition.type === 'UNSAFE_CONDITION' &&
     !anchorHasHumanActor &&
@@ -96,6 +97,40 @@ export function runStep06DirectActor(input: {
   }
 
   if (!systemDominant) {
+    // Dispatch/release sentences can name several decision actors (e.g. CCO, DOV and PIC).
+    // Resolve that collective attribution before generic captain/copilot logic so the presence of
+    // PIC does not collapse a multi-actor dispatch act into a single cockpit actor.
+    const escapeIsDispatchDecision = /\b(despach\w*|dispatch\w*|mel)\b/.test(escapeText)
+    const dispatchDeparture = isExplicitOperationalOmissionStatement(primaryEscape) || isExplicitOperationalDeviationStatement(primaryEscape)
+    if (dispatchDeparture && escapeIsDispatchDecision) {
+      const explicitDispatchActors = [
+        /\bcco\b/.test(escapeText) ? 'CCO' : null,
+        /\bdov\b/.test(escapeText) ? 'DOV' : null,
+        /\bpic\b/.test(escapeText) ? 'PIC' : null,
+        /\b(?:dispatcher|despachante)\b/.test(escapeText) ? (input.engineInput.locale === 'pt-BR' ? 'despachante operacional' : 'dispatcher') : null,
+      ].filter((actor): actor is string => Boolean(actor))
+      if (explicitDispatchActors.length === 1) {
+        return { actor: explicitDispatchActors[0], status: 'IDENTIFIED', alternatives: [], actorMigrationWarnings: [] }
+      }
+      if (explicitDispatchActors.length > 1) {
+        return {
+          actor: 'operational decision actors (collective)',
+          status: 'AMBIGUOUS',
+          alternatives: explicitDispatchActors,
+          actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
+            ? 'A própria frase que define o ato de despacho atribui a decisão/omissão a mais de um ator; P/O/A permanecem bloqueados até decomposição por ator.'
+            : 'The dispatch-act sentence itself attributes the decision/omission to more than one actor; P/O/A remains blocked until actor decomposition.'],
+        }
+      }
+      return {
+        actor: null,
+        status: 'AMBIGUOUS',
+        alternatives: [input.engineInput.locale === 'pt-BR' ? 'responsável pelo despacho/liberação operacional' : 'actor responsible for operational dispatch/release'],
+        actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
+          ? 'O ato de despacho está sustentado, mas a frase factual não identifica quem o autorizou, executou ou ratificou. Atores citados em outros fatos não podem ser importados para preencher essa lacuna.'
+          : 'The dispatch act is supported, but the factual sentence does not identify who authorized, executed, or ratified it. Actors named in other facts cannot be imported to fill that gap.'],
+      }
+    }
     // Actor attribution is anchored first to the sentence that defines the escape-point candidate.
     // Whole-report mentions are only fallback context, preventing migration to a different crew member.
     if (escapeHasMaintenance && narrativeHasMaintenance) {
@@ -116,8 +151,19 @@ export function runStep06DirectActor(input: {
           : 'The escape point is anchored to preflight/maintenance activity, but the responsible maintenance actor is not identified; do not migrate attribution to post-escape flight-crew detection or recovery.'],
       }
     }
-    const passiveOperationalDeparture = isExplicitOperationalOmissionStatement(input.escapePoint.earliestCandidate ?? '')
-      || isExplicitOperationalDeviationStatement(input.escapePoint.earliestCandidate ?? '')
+    const directControlResponse = isDirectControlResponseStatement(primaryEscape)
+    if (directControlResponse && !escapeHasCopilot && !escapeHasCaptain && !escapeHasCollectiveCrew) {
+      return {
+        actor: null,
+        status: 'AMBIGUOUS',
+        alternatives: [input.engineInput.locale === 'pt-BR' ? 'tripulante que aplicou o comando' : 'crewmember who applied the control input'],
+        actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
+          ? 'O ato crítico de comando está sustentado, mas a frase factual selecionada não identifica quem aplicou o comando. A posição física do comando ou menções a outros tripulantes em fatos adjacentes não bastam para atribuir o ator.'
+          : 'The critical control act is supported, but the selected factual sentence does not identify who applied the input. Control-side position or mentions of other crewmembers in adjacent facts are insufficient for actor attribution.'],
+      }
+    }
+    const passiveOperationalDeparture = isExplicitOperationalOmissionStatement(primaryEscape)
+      || isExplicitOperationalDeviationStatement(primaryEscape)
     if (passiveOperationalDeparture && !escapeHasCopilot && !escapeHasCaptain && !escapeHasMaintenance) {
       const escapeIsDispatchDecision = /\b(despach\w*|dispatch\w*|mel)\b/.test(escapeText)
       const explicitDispatchActors = [

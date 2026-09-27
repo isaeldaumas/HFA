@@ -7,7 +7,7 @@ export function runStep05UnsafeActCondition(input: {
   unsafeState: SeraVNextEngineOutput['unsafeState']
   escapePoint: SeraVNextEngineOutput['escapePoint']
 }): SeraVNextEngineOutput['unsafeActOrCondition'] {
-  const escapeSource = input.escapePoint.earliestCandidate ?? ''
+  const escapeSource = input.escapePoint.criticalUnsafeActCandidate ?? input.escapePoint.statement ?? input.escapePoint.latestCandidate ?? input.escapePoint.earliestCandidate ?? ''
   const humanAnchor = classifyHumanFactorEscapeStatement(escapeSource)
   if (humanAnchor && input.escapePoint.statement) {
     return {

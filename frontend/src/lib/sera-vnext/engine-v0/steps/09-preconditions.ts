@@ -2,7 +2,7 @@ import type { SeraVNextEngineOutput, SeraPreconditionCandidate } from '../../eng
 import type { SeraEvidenceItem, SeraEvidenceRelationshipToFailure } from '../../evidence'
 import { isEvidenceUsableFor } from '../../evidence'
 import { classifyPreconditionCategory, confidenceFromCount, pushUnique } from '../utils'
-import { isNonCausalDocumentStatement, isProcedureReferenceStatement, isSystemDescriptionStatement } from '../factual-extraction-helpers'
+import { isExplicitOperationalDeviationStatement, isExplicitOperationalOmissionStatement, isNonCausalDocumentStatement, isProcedureReferenceStatement, isSystemDescriptionStatement } from '../factual-extraction-helpers'
 import { classifyCanonicalPrecondition, mostLikelyPreconditionsForCodes, SERA_MOST_LIKELY_PRECONDITIONS, SERA_PRECONDITION_META, type SeraCanonicalPreconditionCategory } from '../../precondition-taxonomy'
 
 const CATEGORY_RULE_ID: Record<string, string> = {
@@ -132,15 +132,39 @@ export function runStep09Preconditions(input: {
     return score
   }
   const hasResolvedEscapeAnchor = input.escapePoint.status !== 'INSUFFICIENT_EVIDENCE' && Boolean(input.escapePoint.statement)
-  const contextualEvidence = input.factualExtraction.evidence
-    .filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
-    .filter((item) => !hasResolvedEscapeAnchor || phaseCompatible(input.escapePoint.earliestCandidate ?? input.escapePoint.statement ?? '', item.statement))
-    .filter((item) => !hasResolvedEscapeAnchor || contextRelevance(item) >= 3)
-    .sort((a, b) => contextRelevance(b) - contextRelevance(a) || a.sourceSentenceIndex - b.sourceSentenceIndex)
+  const primaryEscapeAnchor = input.escapePoint.criticalUnsafeActCandidate ?? input.escapePoint.statement ?? input.escapePoint.latestCandidate ?? input.escapePoint.earliestCandidate ?? ''
   const isContextualAnalysisStatement = (statement: string): boolean =>
     !isNonCausalDocumentStatement(statement) &&
     !isProcedureReferenceStatement(statement) &&
     !isSystemDescriptionStatement(statement)
+  const isSeparateActiveFailure = (item: SeraEvidenceItem): boolean =>
+    isExplicitOperationalOmissionStatement(item.statement) || isExplicitOperationalDeviationStatement(item.statement)
+  const isTechnicalReferenceNoise = (statement: string): boolean => {
+    const text = statement.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+    // Descriptions of how a system generally behaves, catalogue/table prose and explanatory
+    // aerodynamics are not preconditions merely because they mention equipment, icing or
+    // monitoring. Preconditions require an event-specific state or circumstance, not a manual.
+    return /^(?:a )?tabela \d+ .*\b(apresenta|resume|contem)\b/.test(text)
+      || /^(?:tal|esse|este) fenomeno ocorre quando\b/.test(text)
+      || /\b(estaria disponivel|seria disponibilizado|ficaria aces[ao]|comecaria a piscar|poderia entao ativar|podiam entao ativar)\b/.test(text)
+      || /\b(de acordo com (?:o )?(?:fabricante|manual|fcom|qrh|catalogo)|conforme (?:o )?(?:fabricante|manual|fcom|qrh|catalogo))\b/.test(text)
+      || /\b(dados tecnicos do catalogo|technical catalogue data|catalogo de pecas|parts catalogue)\b/.test(text)
+      || /^(?:tratava-se|tratava se) de (?:um|uma) \b(sensor|sistema|dispositivo|componente)\b/.test(text)
+      || /^(?:comando|sistema|sensor|atuador|painel|luz|alerta)\b.{0,120}\b(era|consistia|funcionava|operava|atuava)\b/.test(text)
+      || /^(?:o|a) (?:seu|sua) \b(comandamento|acionamento|funcionamento|opera[cç][aã]o)\b.*\b(era realizado|era efetuado|ocorria|funcionava)\b/.test(text)
+      || (/\b(quando|whenever)\b/.test(text) && /\b(fosse|fossem|would be|would remain|would illuminate)\b/.test(text) && /\b(sistema|luz|alerta|de-icing|anti-icing|boots?)\b/.test(text))
+  }
+  const contextualEvidence = input.factualExtraction.evidence
+    .filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
+    .filter((item) => isContextualAnalysisStatement(item.statement))
+    .filter((item) => !isTechnicalReferenceNoise(item.statement))
+    // Hendy separation: another observable unsafe act/omission is not automatically a precondition
+    // of the selected critical act. It needs its own SERA traversal unless separate causal evidence
+    // explicitly establishes it as a precondition.
+    .filter((item) => !isSeparateActiveFailure(item))
+    .filter((item) => !hasResolvedEscapeAnchor || phaseCompatible(primaryEscapeAnchor, item.statement))
+    .filter((item) => !hasResolvedEscapeAnchor || contextRelevance(item) >= 3)
+    .sort((a, b) => contextRelevance(b) - contextRelevance(a) || a.sourceSentenceIndex - b.sourceSentenceIndex)
   const explicitContributorEvidence = input.factualExtraction.evidence.filter((item) =>
     item.sourceSection === 'REPORT_ANALYSIS' &&
     item.assertionStatus === 'AFFIRMED' &&

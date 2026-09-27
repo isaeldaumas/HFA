@@ -1,6 +1,6 @@
 import type { SeraTimelineItem } from '../engine-contract'
 import { isPostEscapeStatement } from '../evidence/temporal-scope'
-import { isExplicitOperationalDeviationStatement, isExplicitOperationalOmissionStatement, isOperationalEventStatement, OUTCOME_KEYWORDS } from './factual-extraction-helpers'
+import { isDirectControlResponseStatement, isExplicitOperationalDeviationStatement, isExplicitOperationalOmissionStatement, isOperationalEventStatement, OUTCOME_KEYWORDS } from './factual-extraction-helpers'
 
 export type HumanFactorEscapeAnchorType = 'UNSAFE_ACT' | 'OPERATOR_CONTROLLED_UNSAFE_CONDITION'
 export type SeraEpisodeRole = 'HUMAN_FACTOR_CANDIDATE' | 'TECHNICAL_ENVIRONMENT'
@@ -19,6 +19,11 @@ type CandidateEscapeWindow = {
   statement: string | null
   earliestCandidate: string | null
   latestCandidate: string | null
+  firstDepartureCandidate: string | null
+  criticalUnsafeActCandidate: string | null
+  criticalCandidateAlternatives: string[]
+  irreversibilityBoundaryCandidate: string | null
+  anchorBasis: 'FIRST_DEPARTURE_AND_CRITICAL_ACT' | 'CRITICAL_UNSAFE_ACT' | 'FIRST_DEPARTURE_ONLY' | 'UNRESOLVED'
   supportingEvidence: string[]
   counterEvidence: string[]
   progressiveBoundary: boolean
@@ -37,6 +42,7 @@ function normalized(sentence: string): string {
 function hasOutcomeSignal(sentence: string): boolean {
   const lower = normalized(sentence)
   if (OUTCOME_KEYWORDS.some((keyword) => lower.includes(normalized(keyword)))) return true
+  if (/\b(colidiu|colidir|colidiram|crashed|impacted|impactou|atingiu o solo|hit the ground)\b/.test(lower)) return true
   return /\b(pousou|realizou o pouso|efetuou o pouso|conclu(?:iu|ir) o pouso|landed|completed the landing)\b.*\b(errad[oa]|erroneamente|equivocad[oa]|nao previst[oa]|nao autorizad[oa]|erro|wrong|different|diferente|distint[ao]|different destination|destino diferente)\b/.test(lower)
     || /\bapos concluir o pouso|after (?:completing|the) landing\b/.test(lower) || /\b(apos concluir o pouso|after landing|after touchdown)\b/.test(lower)
 }
@@ -104,7 +110,7 @@ function isOperatorControlledUnsafeCondition(statement: string): boolean {
 
 function hasObservableHumanAct(statement: string): boolean {
   const text = normalized(statement)
-  if (isExplicitOperationalOmissionStatement(statement) || isExplicitOperationalDeviationStatement(statement)) return true
+  if (isDirectControlResponseStatement(statement) || isExplicitOperationalOmissionStatement(statement) || isExplicitOperationalDeviationStatement(statement)) return true
 
   // Maintenance/preflight is a human operational act even when the report uses passive grammar.
   if (/\b(inspecao (?:de )?pre[- ]?voo|preflight inspection|inspecao visual|visual inspection)\b.*\b(concluida|completed|nao detectou|nada de anormal|nenhuma anormalidade|fora detectad[oa]|no abnormality|nothing abnormal|had been detected)\b/.test(text)) return true
@@ -161,6 +167,9 @@ function candidateScore(sentence: string): number {
   if (/\b(n[aã]o h[aá] descri[cç][aã]o|n[aã]o foi descrito|n[aã]o ficou registrado|relat[oó]rio foca|relat[oó]rio (?:n[aã]o )?descreve|par[aá]grafo .* menciona apenas|no description|not described|not recorded|report focuses|report does not describe|report only mentions)\b/i.test(sentence)) return -20
   const text = normalized(sentence)
   let score = 0
+  if (isDirectControlResponseStatement(sentence)) score += 16
+  if (isDirectControlResponseStatement(sentence) && /\b(sic|pic|pilotos?|pilots?|tripulacao|tripula[cç][aã]o|comandante|captain|copiloto|first officer|pf|pm)\b/.test(text)) score += 6
+  if (/\b(esfor[cç]o|force)\b.*\b(10\s*dan|nose up|nose down|cabrar|picar)\b/.test(text)) score += 3
   if (isExplicitOperationalOmissionStatement(sentence)) score += 12
   if (isExplicitOperationalDeviationStatement(sentence)) score += 11
   if (
@@ -262,44 +271,162 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
     item.occurrenceScope !== 'HISTORICAL_COMPARATOR' &&
     hasOutcomeSignal(item.statement)
   ) ?? null
+  const irreversibilityItem = timeline.find((item) =>
+    (!item.assertionStatus || item.assertionStatus === 'AFFIRMED') &&
+    item.sourceSection !== 'REPORT_ANALYSIS' &&
+    item.sourceSection !== 'RECOMMENDATION' &&
+    item.sourceSection !== 'ADMINISTRATIVE' &&
+    item.occurrenceScope !== 'HISTORICAL_COMPARATOR' &&
+    /\b(recupera[cç][aã]o .* (?:j[aá] )?n[aã]o era mais poss[ií]vel|perda de controle .* tornou-se irrevers[ií]vel|irreversible|no way back|recovery .* no longer possible)\b/i.test(item.statement)
+  ) ?? null
   const candidateItems = timeline.filter((item) => hasControlWindowSignal(item) && !hasOutcomeSignal(item.statement))
   const scored = candidateItems
     .map((item) => ({ item, score: candidateScore(item.statement) }))
     .filter(({ score }) => score >= 5)
   const episodeCandidates = buildEpisodeCandidates(scored, timeline)
 
-  // Global reconstruction may see technical, environmental and organizational facts, but SERA
-  // classification starts only from an observable unsafe act/inaction or an operator-controlled unsafe condition.
-  // No operator group or operational phase is privileged in advance: maintenance, dispatch and flight-crew
-  // acts can each be valid SERA anchors if they mark the supported departure from safe operation.
+  // Hendy requires two related but non-identical landmarks to remain distinguishable:
+  // (1) the first departure from safe operation and (2) the most critical unsafe act/condition,
+  // i.e. the one on the occurrence trajectory from which only the direct outcome trajectory remains.
+  // Upstream maintenance/dispatch/organizational material may set the scene without becoming the
+  // primary P/O/A anchor when a later, directly outcome-linked unsafe act/condition is supported.
   const humanFactorScored = scored.filter(({ item }) => classifyHumanFactorEscapeStatement(item.statement) !== null)
-  const strongestScore = humanFactorScored.reduce((max, candidate) => Math.max(max, candidate.score), 0)
-  const strongCandidateFloor = Math.max(5, strongestScore - 3)
   const phaseRank: Record<OperationalPhase, number> = { MAINTENANCE: 0, DISPATCH: 1, GROUND: 2, INFLIGHT: 3, APPROACH: 4, GENERIC: 5 }
   const selectedPool = humanFactorScored
-    .filter(({ score }) => score >= strongCandidateFloor)
-    .sort((a, b) =>
-      phaseRank[operationalPhase(a.item.statement)] - phaseRank[operationalPhase(b.item.statement)] ||
-      a.item.sourceSentenceIndex - b.item.sourceSentenceIndex,
-    )
-  const effectiveItems = selectedPool.map(({ item }) => item)
-  const earliest = effectiveItems[0] ?? null
-  const beliefCandidates = selectedPool.filter(({ item }) => /\b(identificou|entendemos|acreditou|assumiu|associou|misidentified|mistook)\b/i.test(item.statement))
-  const sameBeliefBoundary = beliefCandidates.length > 0 && beliefCandidates.length === selectedPool.length
-  const decisionCommitment = Boolean(earliest && /\b(decided|chose|opted|decidiu|decidiram|optou|escolheu)\b.*\b(start|initiate|iniciar|come[cç]ar)\b.*\b(crank|cranking|partida|giro)\b/i.test(earliest.statement))
-  const supportingItems = earliest ? episodeSupport(earliest, timeline) : []
-  const sameEpisodeCandidates = earliest
-    ? effectiveItems.filter((item) => supportingItems.some((support) => support.statement === item.statement))
+
+  // First departure is the earliest supported safe-to-unsafe crossing on the occurrence
+  // trajectory. Prefer candidates whose operational phase is explicit; document order is
+  // only a tie-breaker inside a phase and must never make a generic statement outrank a
+  // clearly earlier operational phase.
+  const phaseResolvedFirstPool = humanFactorScored.some(({ item }) => operationalPhase(item.statement) !== 'GENERIC')
+    ? humanFactorScored.filter(({ item }) => operationalPhase(item.statement) !== 'GENERIC')
+    : humanFactorScored
+  const firstDepartureEntry = [...phaseResolvedFirstPool].sort((a, b) =>
+    phaseRank[operationalPhase(a.item.statement)] - phaseRank[operationalPhase(b.item.statement)] ||
+    a.item.sourceSentenceIndex - b.item.sourceSentenceIndex,
+  )[0] ?? null
+  const firstDeparture = firstDepartureEntry?.item ?? null
+
+  type MechanismTag = 'PITCH_CONTROL' | 'STALL_RECOVERY' | 'WARNING_RESPONSE' | 'ICING_MANAGEMENT' | 'APPROACH_CONTROL' | 'DISPATCH' | 'MAINTENANCE'
+  const mechanismTags = (statement: string): Set<MechanismTag> => {
+    const text = normalized(statement)
+    const tags = new Set<MechanismTag>()
+    if (/\b(cabrar|nose up|pitch|arfagem|coluna|manche|control column|stick pusher|stick shaker|yoke)\b/.test(text)) tags.add('PITCH_CONTROL')
+    if (/\b(stall|recupera[cç][aã]o|recovery|upset|uprt)\b/.test(text)) tags.add('STALL_RECOVERY')
+    if (/\b(cruise speed low|degraded performance|increase speed|alerta|warning|master caution|master warning)\b/.test(text)) tags.add('WARNING_RESPONSE')
+    if (/\b(gelo|icing|de-icing|anti-icing|airframe)\b/.test(text)) tags.add('ICING_MANAGEMENT')
+    if (/\b(aproxima[cç][aã]o|approach|pouso|landing|mda|runway|pista)\b/.test(text)) tags.add('APPROACH_CONTROL')
+    if (/\b(despach|dispatch|mel|cco|dov)\b/.test(text)) tags.add('DISPATCH')
+    if (/\b(manutenc|maintenance|tlb|preflight|pre-voo|inspe[cç][aã]o)\b/.test(text)) tags.add('MAINTENANCE')
+    return tags
+  }
+
+  const causalAnalysis = timeline.filter((item) =>
+    item.sourceSection === 'REPORT_ANALYSIS' &&
+    (!item.assertionStatus || item.assertionStatus === 'AFFIRMED') &&
+    item.occurrenceScope !== 'HISTORICAL_COMPARATOR' &&
+    /\b(contribuiu|contribuinte|contributed|levou a|led to|resultou|resulted|provocou|caused|favoreceu|culminou|aggrav|agravamento|impacto direto)\b/i.test(item.statement),
+  )
+
+  function analysisCorroborationScore(candidate: SeraTimelineItem): number {
+    const candidateTags = mechanismTags(candidate.statement)
+    if (!candidateTags.size) return 0
+    let best = 0
+    for (const analysis of causalAnalysis) {
+      const analysisTags = mechanismTags(analysis.statement)
+      const shared = [...candidateTags].filter((tag) => analysisTags.has(tag)).length
+      if (!shared) continue
+      const overlap = topicalOverlap(candidate.statement, analysis.statement)
+      const directContribution = /\b(contribuiu|contributed|levou a|led to|provocou|caused|resultou|resulted|impacto direto)\b/i.test(analysis.statement)
+      const mechanismSpecific = candidateTags.has('PITCH_CONTROL') && analysisTags.has('PITCH_CONTROL')
+        ? 5
+        : candidateTags.has('STALL_RECOVERY') && analysisTags.has('STALL_RECOVERY')
+          ? 3
+          : 0
+      const score = Math.min(shared, 2) * 2 + Math.min(overlap, 3) + (directContribution ? 2 : 0) + mechanismSpecific
+      best = Math.max(best, Math.min(score, 10))
+    }
+    return best
+  }
+
+  const nextOutcomeDistance = (candidate: SeraTimelineItem): number | null => {
+    const next = timeline
+      .filter((item) => item.sourceSentenceIndex > candidate.sourceSentenceIndex)
+      .filter((item) => item.sourceSection !== 'REPORT_ANALYSIS' && item.sourceSection !== 'RECOMMENDATION' && item.sourceSection !== 'ADMINISTRATIVE')
+      .filter((item) => item.occurrenceScope !== 'HISTORICAL_COMPARATOR')
+      .filter((item) => hasOutcomeSignal(item.statement) || /\b(perda de controle|loss of control)\b/i.test(item.statement))
+      .sort((a, b) => a.sourceSentenceIndex - b.sourceSentenceIndex)[0]
+    return next ? next.sourceSentenceIndex - candidate.sourceSentenceIndex : null
+  }
+
+  function criticalTrajectoryScore(candidate: { item: SeraTimelineItem; score: number }): number {
+    const text = normalized(candidate.item.statement)
+    const phase = operationalPhase(candidate.item.statement)
+    let total = candidate.score
+    // Hendy directness gate: a critical act is not selected merely for being late. Discrete
+    // control responses, explicit transitions toward loss of control, and source-investigation
+    // corroboration of the same mechanism carry more weight than temporal proximity.
+    if (isDirectControlResponseStatement(candidate.item.statement)) total += 14
+    if (isDirectControlResponseStatement(candidate.item.statement) && /\b(sic|pic|pilotos?|pilots?|tripulacao|tripula[cç][aã]o|comandante|captain|copiloto|first officer|pf|pm)\b/.test(text)) total += 7
+    if (isExplicitOperationalOmissionStatement(candidate.item.statement)) total += 3
+    if (isExplicitOperationalDeviationStatement(candidate.item.statement)) total += 3
+    if (/\b(stall|upset)\b.*\b(recupera[cç][aã]o|recovery)\b|\b(recupera[cç][aã]o|recovery)\b.*\b(stall|upset)\b/.test(text)) total += 6
+    if (/\b(provocou|causou|resultou em|levou a|caused|resulted in|led to)\b/.test(text)) total += 6
+    if (/\b(checklist|qrh|procedimento|procedimentos|procedure|procedures)\b.*\b(nao foram realizados|nao foram executados|nao foi realizado|nao foi executado|not performed|not executed|failed to perform|failed to execute)\b/.test(text)) total += 3
+    if (/\b(continuou|prosseguiu|manteve|continued|proceeded|maintained)\b.*\b(apesar|despite|abaixo|below|insegur|unsafe|gelo|icing)\b/.test(text)) total += 3
+    if (/\b(desceu|descendeu|descended|permaneceu|remained)\b.*\b(abaixo|below)\b.*\b(mda|minim|perfil|profile)\b/.test(text)) total += 4
+    if (/\b(errad[oa]|incorret[oa]|wrong|incorrect)\b.*\b(pista|runway|destino|destination|peca|part|torque)\b/.test(text)) total += 3
+    total += analysisCorroborationScore(candidate.item)
+    const distance = nextOutcomeDistance(candidate.item)
+    if (distance !== null) total += distance <= 2 ? 4 : distance <= 5 ? 3 : distance <= 12 ? 2 : distance <= 30 ? 1 : 0
+    if (irreversibilityItem && candidate.item.sourceSentenceIndex < irreversibilityItem.sourceSentenceIndex) {
+      const irreversibleDistance = irreversibilityItem.sourceSentenceIndex - candidate.item.sourceSentenceIndex
+      total += irreversibleDistance <= 20 ? 5 : irreversibleDistance <= 80 ? 3 : irreversibleDistance <= 1000 ? 1 : 0
+    }
+    // Operational phase is only a weak tie-breaker.
+    total += phase === 'APPROACH' || phase === 'INFLIGHT' ? 1 : 0
+    return total
+  }
+
+  const criticalRanked = [...selectedPool].sort((a, b) =>
+    criticalTrajectoryScore(b) - criticalTrajectoryScore(a) ||
+    b.item.sourceSentenceIndex - a.item.sourceSentenceIndex,
+  )
+  const criticalEntry = criticalRanked[0] ?? null
+  const criticalTopScore = criticalEntry ? criticalTrajectoryScore(criticalEntry) : 0
+  const criticalCandidateAlternatives = criticalRanked
+    .filter((candidate) => candidate.item.statement !== criticalEntry?.item.statement)
+    .filter((candidate) => criticalTopScore - criticalTrajectoryScore(candidate) <= 4)
+    .slice(0, 3)
+    .map((candidate) => candidate.item.statement)
+  const criticalAct = criticalEntry?.item ?? firstDeparture
+  const primaryAnchor = criticalAct ?? firstDeparture
+  const supportingItems = primaryAnchor ? episodeSupport(primaryAnchor, timeline) : []
+  const sameEpisodeCandidates = primaryAnchor
+    ? selectedPool.map(({ item }) => item).filter((item) => supportingItems.some((support) => support.statement === item.statement))
     : []
-  const latest = (sameBeliefBoundary || decisionCommitment) ? earliest : (sameEpisodeCandidates[sameEpisodeCandidates.length - 1] ?? earliest)
+  const earliest = firstDeparture
+  const latest = criticalAct
+  const effectiveItems = selectedPool.map(({ item }) => item)
+  const sameBoundary = Boolean(earliest && latest && earliest.statement === latest.statement)
+  const anchorBasis: CandidateEscapeWindow['anchorBasis'] = !primaryAnchor
+    ? 'UNRESOLVED'
+    : sameBoundary
+      ? 'FIRST_DEPARTURE_AND_CRITICAL_ACT'
+      : criticalAct
+        ? 'CRITICAL_UNSAFE_ACT'
+        : 'FIRST_DEPARTURE_ONLY'
 
   const counterEvidence: string[] = []
   let progressiveBoundary = false
   if (!effectiveItems.length) counterEvidence.push('No explicit pre-outcome controllable departure statement was found in admissible factual evidence.')
   if (!outcomeItem && sameEpisodeCandidates.length > 1) counterEvidence.push('No explicit consequence boundary was detected inside the selected operational episode; multiple departure moments require review.')
-  if (sameEpisodeCandidates.length > 1 && !sameBeliefBoundary && !decisionCommitment) counterEvidence.push('Multiple departure candidates remain inside the selected operational episode; the earliest supported candidate is retained for first-departure review.')
+  if (sameEpisodeCandidates.length > 1) counterEvidence.push('Multiple departure candidates remain inside the selected operational episode; Hendy first-departure and critical-act landmarks are retained separately for review.')
+  if (earliest && latest && earliest.statement !== latest.statement) counterEvidence.push('Hendy boundary split: the first departure from safe operation and the most critical unsafe act/condition are different supported landmarks. P/O/A is anchored to the critical act while the earlier departure remains causal-window context.')
+  if (criticalCandidateAlternatives.length) counterEvidence.push(`Critical-act alternatives remain close in trajectory support and require human review: ${criticalCandidateAlternatives.join(' | ')}`)
+  if (irreversibilityItem) counterEvidence.push(`Explicit no-return/irreversibility boundary preserved from the source: ${irreversibilityItem.statement}`)
   const humanEpisodeCandidates = episodeCandidates.filter((episode) => episode.humanFactorEligible)
-  if (humanEpisodeCandidates.length > 1) counterEvidence.push('Multiple human-factor unsafe-act/condition candidates were identified across the event. SERA analyses one unsafe act at a time; the earliest supported candidate is provisional and requires human confirmation of the escape boundary.')
+  if (humanEpisodeCandidates.length > 1) counterEvidence.push('Multiple human-factor unsafe-act/condition candidates were identified across the event. SERA analyses one unsafe act at a time; the proposed critical-act anchor is provisional and requires human confirmation of the Hendy boundary.')
   if (earliest && /\b(developed across several moments|across several moments|progressively|gradually|allowed .* to develop|desenvolveu[- ]?se (?:ao longo de|em) (?:v[aá]rios|diversos) momentos|permitiu .* (?:desenvolver|evoluir)|zona progressiva)\b/i.test(earliest.statement)) {
     progressiveBoundary = true
     counterEvidence.push('The narrative explicitly describes the departure as progressive across multiple moments; retain a progressive-zone boundary for human review.')
@@ -312,21 +439,21 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
     }
   }
 
-  if (earliest) {
-    const selectedEpisode = episodeCandidates.find((episode) => episode.anchorStatement === earliest.statement)
-      ?? episodeCandidates.find((episode) => episode.humanFactorEligible && episode.supportingEvidence.includes(earliest.statement))
+  if (primaryAnchor) {
+    const selectedEpisode = episodeCandidates.find((episode) => episode.anchorStatement === primaryAnchor.statement)
+      ?? episodeCandidates.find((episode) => episode.humanFactorEligible && episode.supportingEvidence.includes(primaryAnchor.statement))
     if (selectedEpisode) selectedEpisode.selected = true
   }
 
-  const anchorType = earliest ? classifyHumanFactorEscapeStatement(earliest.statement) : null
-  const selectedRole = earliest ? seraEpisodeRole(earliest) : null
+  const anchorType = primaryAnchor ? classifyHumanFactorEscapeStatement(primaryAnchor.statement) : null
   const humanFactorGate = anchorType
     ? {
         status: 'PASSED' as const,
         anchorType,
         rationale: [
-          'SERA anchor is an observable operator unsafe act/inaction or operator-controlled unsafe condition, without privileging a particular operator group or phase.',
-          'Technical, environmental and organizational facts may support context or preconditions but cannot by themselves determine P/O/A.',
+          'Hendy gate: the anchor is an observable operator unsafe act/inaction or operator-controlled unsafe condition on the occurrence trajectory.',
+          'The first departure from safe operation and the critical unsafe act are retained separately when they do not coincide; P/O/A uses the critical act as the primary anchor.',
+          'Technical, environmental, maintenance, dispatch and organizational facts that only set the scene remain context/preconditions rather than displacing the directly outcome-linked unsafe act.',
         ],
       }
     : {
@@ -339,9 +466,14 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
       }
 
   return {
-    statement: earliest ? `Human-factor safe-operation departure candidate: "${earliest.statement}".` : null,
+    statement: primaryAnchor ? `Human-factor critical unsafe-act/condition candidate: "${primaryAnchor.statement}".` : null,
     earliestCandidate: earliest?.statement ?? null,
     latestCandidate: latest?.statement ?? null,
+    firstDepartureCandidate: earliest?.statement ?? null,
+    criticalUnsafeActCandidate: latest?.statement ?? null,
+    criticalCandidateAlternatives,
+    irreversibilityBoundaryCandidate: irreversibilityItem?.statement ?? null,
+    anchorBasis,
     supportingEvidence: supportingItems.map((item) => item.statement),
     counterEvidence,
     progressiveBoundary,

@@ -663,7 +663,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     subheading(doc, L('Episódio operacional reconstruído ao redor do ponto de fuga', 'Operational episode reconstructed around the escape point'))
     bullets(doc, output.escapePoint.supportingEvidence.slice(0, 5), L('Nenhuma evidência central registrada.', 'No core evidence recorded.'))
     if (output.escapePoint.excludedPostEscapeEvidence.length) {
-      subheading(doc, L('Fatos posteriores preservados, mas não usados como causa', 'Later facts retained but not used as causes'))
+      subheading(doc, L('Fatos posteriores ao ato crítico preservados, mas não usados como causa', 'Facts after the critical act retained but not used as causes'))
       bullets(doc, output.escapePoint.excludedPostEscapeEvidence.slice(0, 4))
     }
 
@@ -675,7 +675,18 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     bullets(doc, safeOperationEvidence, L('Nenhum item pré-ponto de fuga registrado.', 'No pre-escape item recorded.'))
 
     heading(doc, '4. ' + L('Ponto de fuga da operação segura', 'Safe-operation escape point'))
+    meta(doc, L('Primeira saída da operação segura (Hendy)', 'First departure from safe operation (Hendy)'), value(output.escapePoint.firstDepartureCandidate ?? output.escapePoint.earliestCandidate))
+    meta(doc, L('Ato/condição insegura crítica (Hendy)', 'Critical unsafe act/condition (Hendy)'), value(output.escapePoint.criticalUnsafeActCandidate ?? output.escapePoint.latestCandidate))
+    if (output.escapePoint.irreversibilityBoundaryCandidate) {
+      meta(doc, L('Marco de irreversibilidade / sem retorno', 'Irreversibility / no-return boundary'), output.escapePoint.irreversibilityBoundaryCandidate)
+    }
+    meta(doc, L('Relação entre os marcos', 'Relationship between landmarks'), value(output.escapePoint.anchorBasis, L('não resolvida', 'unresolved')))
+    subheading(doc, L('Âncora primária para P/O/A', 'Primary P/O/A anchor'))
     body(doc, value(output.escapePoint.statement), 'justify')
+    body(doc, L(
+      'Quando os dois marcos diferem, o primeiro desvio é preservado como início da janela causal; P/O/A permanece ancorado no ato/condição insegura crítica diretamente ligada à trajetória do desfecho. Fatos anteriores que apenas prepararam o cenário permanecem contexto ou pré-condições.',
+      'When the two landmarks differ, the first departure is retained as the start of the causal window; P/O/A remains anchored to the critical unsafe act/condition directly linked to the outcome trajectory. Earlier facts that only set the scene remain context or preconditions.',
+    ))
     doc.moveDown(0.3)
     meta(doc, 'Status', candidateStatusLabel(output.escapePoint.status, pt))
     meta(doc, L('Confiança', 'Confidence'), confidenceLabel(output.escapePoint.confidence, pt))
@@ -707,7 +718,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     }
     subheading(doc, L('Contraevidência / incertezas do limite', 'Counter-evidence / boundary uncertainty'))
     bullets(doc, output.escapePoint.counterEvidence.slice(0, 6), L('Nenhuma contraevidência registrada.', 'No counter-evidence recorded.'))
-    subheading(doc, L('Evidência posterior excluída da cadeia causal', 'Post-escape evidence excluded from the causal chain'))
+    subheading(doc, L('Evidência posterior ao ato crítico excluída da cadeia causal', 'Post-critical-act evidence excluded from the causal chain'))
     bullets(doc, output.escapePoint.excludedPostEscapeEvidence.slice(0, 6), L('Nenhum item registrado.', 'No item recorded.'))
 
     heading(doc, '5. ' + L('Resultado P / O / A - visão sintética', 'P / O / A result - summary view'))

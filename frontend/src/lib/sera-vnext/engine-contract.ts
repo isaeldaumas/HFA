@@ -215,8 +215,15 @@ export type SeraVNextEngineOutput = {
   escapePoint: {
     status: 'CANDIDATE' | 'PROGRESSIVE_ZONE' | 'NO_HUMAN_ESCAPE_POINT' | 'INSUFFICIENT_EVIDENCE'
     statement: string | null
+    /** Hendy: first observable departure from safe operation on the occurrence trajectory. */
     earliestCandidate: string | null
+    /** Hendy: most critical unsafe act/condition, when distinguishable from the first departure. */
     latestCandidate: string | null
+    firstDepartureCandidate?: string | null
+    criticalUnsafeActCandidate?: string | null
+    criticalCandidateAlternatives?: string[]
+    irreversibilityBoundaryCandidate?: string | null
+    anchorBasis?: 'FIRST_DEPARTURE_AND_CRITICAL_ACT' | 'CRITICAL_UNSAFE_ACT' | 'FIRST_DEPARTURE_ONLY' | 'UNRESOLVED'
     directActor: string | null
     supportingEvidence: string[]
     counterEvidence: string[]
