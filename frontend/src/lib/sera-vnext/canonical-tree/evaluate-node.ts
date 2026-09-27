@@ -10,6 +10,8 @@ export type SeraNodeEvidenceContext = {
   node: SeraCanonicalNode
   evidence: SeraEvidenceItem[]
   statementAtEscapePoint: string | null
+  /** Substantive answer produced at the descriptive root and carried to later nodes. */
+  rootResponseText?: string | null
 }
 
 export type SeraNodeAnswer = {
@@ -17,6 +19,8 @@ export type SeraNodeAnswer = {
   question: string
   exactQuestionTextENAnchor: string
   answer: 'START' | 'SIM' | 'NÃO' | 'NÃO_SENSORIAL' | 'NÃO_CONHECIMENTO' | 'SIM_ATENCAO' | 'SIM_GERENCIAMENTO' | 'NÃO_DESLIZE_LAPSO_ERRO' | 'NÃO_FEEDBACK' | 'NÃO_INABILIDADE' | 'NÃO_SELECAO' | 'SIM_SELECAO' | 'SIM_FEEDBACK' | 'INSUFFICIENT_EVIDENCE'
+  /** Human-readable answer to descriptive/root questions; never the internal START token. */
+  responseText: string | null
   nextNodeId: string | null
   terminalCode: string | null
   supportingEvidence: string[]
@@ -49,6 +53,7 @@ function usableStatements(ctx: SeraNodeEvidenceContext): string[] {
   return unique([
     ...ctx.evidence.filter((item) => isEvidenceUsableFor(item, use)).map((item) => item.statement),
     ctx.statementAtEscapePoint ?? '',
+    ctx.rootResponseText ?? '',
   ])
 }
 
@@ -68,10 +73,34 @@ function anyConcept(statements: string[], concepts: SeraEvidenceConcept[]): bool
   return concepts.some((item) => hasConcept(statements, item))
 }
 
+function stripAxisStatementPrefix(value: string | null): string | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  const colon = trimmed.indexOf(':')
+  if (colon > 0 && /ponto de fuga|escape point/i.test(trimmed.slice(0, colon))) {
+    return trimmed.slice(colon + 1).trim() || null
+  }
+  return trimmed || null
+}
+
+function rootResponseText(ctx: SeraNodeEvidenceContext, supportingEvidence: string[]): string | null {
+  // The root asks a descriptive question. START is only the internal branch token;
+  // the user-facing answer must state what was perceived/intended/done.
+  const fromStatement = stripAxisStatementPrefix(ctx.statementAtEscapePoint)
+  if (fromStatement) return fromStatement
+  return supportingEvidence[0]?.trim() || null
+}
+
 function decideP(nodeId: string, statements: string[]): Decision {
   switch (nodeId) {
-    case 'P_ROOT':
-      return { answer: 'START', supportingEvidence: statements.slice(0, 2), rationale: 'Root node starts canonical perception traversal.' }
+    case 'P_ROOT': {
+      const perceivedState = unique([
+        ...concept(statements, 'inadequateAssessment'),
+        ...concept(statements, 'adequateAssessment'),
+        ...concept(statements, 'informationAvailableCorrect'),
+      ])
+      return { answer: 'START', supportingEvidence: (perceivedState.length ? perceivedState : statements).slice(0, 2), rationale: 'Root node establishes the operator perceived state before that assessment is tested.' }
+    }
     case 'P_ASSESSMENT': {
       const positive = concept(statements, 'adequateAssessment')
       const negative = concept(statements, 'inadequateAssessment')
@@ -129,8 +158,15 @@ function decideP(nodeId: string, statements: string[]): Decision {
 
 function decideO(nodeId: string, statements: string[]): Decision {
   switch (nodeId) {
-    case 'O_ROOT':
-      return { answer: 'START', supportingEvidence: statements.slice(0, 2), rationale: 'Root node starts canonical objective traversal.' }
+    case 'O_ROOT': {
+      const intendedGoal = unique([
+        ...concept(statements, 'safeGoal'),
+        ...concept(statements, 'efficiencyObjective'),
+        ...matchingConceptStatementsWithoutNegation(statements, 'consciousDeviation'),
+        ...concept(statements, 'unmanagedRisk'),
+      ])
+      return { answer: 'START', supportingEvidence: (intendedGoal.length ? intendedGoal : statements).slice(0, 2), rationale: 'Root node establishes the operator intended goal before rule/risk consistency is tested.' }
+    }
     case 'O_RULES': {
       const safeGoal = concept(statements, 'safeGoal')
       const violationPrerequisites = unique([
@@ -243,8 +279,16 @@ function decideO(nodeId: string, statements: string[]): Decision {
 
 function decideA(nodeId: string, statements: string[]): Decision {
   switch (nodeId) {
-    case 'A_ROOT':
-      return { answer: 'START', supportingEvidence: statements.slice(0, 2), rationale: 'Root node starts canonical action traversal.' }
+    case 'A_ROOT': {
+      const actionStrategy = unique([
+        ...concept(statements, 'implementedAction'),
+        ...concept(statements, 'safeAction'),
+        ...concept(statements, 'incorrectAction'),
+        ...concept(statements, 'selectionSubtype'),
+        ...concept(statements, 'timeManagementAction'),
+      ])
+      return { answer: 'START', supportingEvidence: (actionStrategy.length ? actionStrategy : statements).slice(0, 2), rationale: 'Root node establishes how the operator was trying to achieve the goal before implementation/adequacy is tested.' }
+    }
     case 'A_IMPLEMENTED': {
       const safeAction = concept(statements, 'safeAction')
       const implemented = concept(statements, 'implementedAction')
@@ -336,6 +380,9 @@ export function evaluateCanonicalNode(ctx: SeraNodeEvidenceContext): SeraNodeAns
     question: ctx.node.question,
     exactQuestionTextENAnchor: ctx.node.exactQuestionTextENAnchor,
     answer: branchTarget ? decision.answer : 'INSUFFICIENT_EVIDENCE',
+    responseText: ctx.node.nodeId.endsWith('_ROOT') && branchTarget
+      ? rootResponseText(ctx, supportingEvidence)
+      : null,
     nextNodeId,
     terminalCode,
     supportingEvidence,

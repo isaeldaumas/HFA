@@ -68,7 +68,7 @@ export function classifyPreconditionCategory(args: {
     ['ENVIRONMENTAL_CONTEXT', ['weather', 'wind', 'rain', 'runway condition', 'terrain', 'vento', 'condições meteorológicas', 'condicoes meteorologicas', 'severe icing', 'sev ice', 'formação de gelo', 'formacao de gelo', 'icing', 'gelo', 'proximidade', 'próximo', 'proximo', 'distância', 'distancia']],
     ['TEAM_COORDINATION', ['crew coordination', 'team coordination', 'coordenação da tripulação', 'coordenacao da tripulacao', 'crm', 'falha de coordenação', 'falha de coordenacao']],
     ['ORGANIZATIONAL_CONTEXT', ['schedule', 'organizational', 'dispatch', 'operator pressure', 'reduced staffing', 'degraded supervision', 'staffing', 'supervision', 'supervisão', 'supervisao', 'supervisão inadequada', 'supervisao inadequada', 'cultura', 'culture', 'registro formal', 'formal record', 'tlb']],
-    ['TECHNICAL_CONTEXT', ['warning', 'system', 'automation', 'fmc', 'equipment', 'control law', 'autothrottle', 'dafcs', 'trim fail', 'rudder', 'technical', 'malfunction', 'failure', 'fault']],
+    ['TECHNICAL_CONTEXT', ['warning', 'system', 'automation', 'fmc', 'equipment', 'control law', 'autothrottle', 'dafcs', 'trim fail', 'rudder', 'technical', 'malfunction', 'fault', 'pane', 'falha técnica', 'falha tecnica']],
     ['PHYSICAL_CAPABILITY', ['physical', 'fatigue', 'ergonomic', 'motor', 'reach']],
   ]
 
@@ -80,7 +80,10 @@ export function classifyPreconditionCategory(args: {
     /\b(time pressure|rushed sequence|schedule pressure|slot pressure|tight schedule|press[aã]o de tempo|sequ[eê]ncia apressada|press[aã]o de escala|correria|behind schedule|running late)\b/i.test(args.text) ||
     /\b(urgency|urgent|urg[eê]ncia|urgente)\b.*\b(time|deadline|window|schedule|decision|action|execute|respond|tempo|prazo|janela|hor[aá]rio|decis[aã]o|agir|executar|responder)\b/i.test(args.text)
 
-  if (/\b(failure|fault|malfunction|falha|pane|de-icing|airframe)\b/i.test(args.text) && !/\b(weather|meteorolog|condi[cç][oõ]es? meteorol[oó]gicas|severe icing|sev ice)\b/i.test(args.text)) {
+  const technicalFailure =
+    /\b(fault|malfunction|pane|de-icing|airframe|technical failure|falha t[eé]cnica)\b/i.test(args.text) ||
+    (/\b(failure|falha)\b/i.test(args.text) && /\b(system|sistema|equipment|equipamento|sensor|display|automation|automacao|motor|engine|hydraulic|hidraul|electrical|eletric|de-icing|airframe|fmc|dafcs|rudder|trim)\b/i.test(args.text))
+  if (technicalFailure && !/\b(weather|meteorolog|condi[cç][oõ]es? meteorol[oó]gicas|severe icing|sev ice)\b/i.test(args.text)) {
     return 'TECHNICAL_CONTEXT'
   }
 

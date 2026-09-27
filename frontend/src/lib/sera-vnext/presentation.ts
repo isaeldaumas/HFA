@@ -100,7 +100,7 @@ export function buildExecutiveSummary(args: {
 }
 export function friendlyAnswerLabel(value: string, pt = true): string {
   const yes = new Set(['SIM', 'SIM_ATENCAO', 'SIM_GERENCIAMENTO', 'SIM_SELECAO', 'SIM_FEEDBACK'])
-  if (value === 'START') return pt ? 'Início' : 'Start'
+  if (value === 'START') return pt ? 'Resposta descritiva' : 'Descriptive response'
   if (yes.has(value)) return pt ? 'Sim' : 'Yes'
   if (value.startsWith('NÃO')) return pt ? 'Não' : 'No'
   if (value === 'INSUFFICIENT_EVIDENCE') return pt ? 'Evidência insuficiente' : 'Insufficient evidence'

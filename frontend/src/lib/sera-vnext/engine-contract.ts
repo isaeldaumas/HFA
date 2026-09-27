@@ -63,6 +63,8 @@ export type SeraCanonicalPath = {
     question: string
     exactQuestionTextENAnchor?: string
     answer: string
+    /** Substantive response to descriptive/root questions. START remains an internal branch token only. */
+    responseText?: string | null
     nextNodeId: string | null
     terminalCode: string | null
     supportingEvidence?: string[]

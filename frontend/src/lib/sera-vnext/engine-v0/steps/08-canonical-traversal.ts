@@ -3,7 +3,7 @@ import {
   SERA_PT_V1_TREE,
   validateCanonicalTree,
 } from '../../canonical-tree/index'
-import type { SeraAxisCandidate, SeraCanonicalPath, SeraVNextEngineOutput } from '../../engine-contract'
+import type { SeraAxisCandidate, SeraCanonicalPath, SeraConfidence, SeraVNextEngineOutput } from '../../engine-contract'
 import type { SeraEvidenceItem } from '../../evidence'
 import { axisToEvidenceUse, isEvidenceUsableFor } from '../../evidence'
 import type { CanonicalSeraAxis } from '../../types'
@@ -14,6 +14,11 @@ validateCanonicalTree(SERA_PT_V1_TREE)
 
 function unique(values: string[]): string[] {
   return [...new Set(values.filter((value) => value.trim().length > 0))]
+}
+
+function capConfidence(value: SeraConfidence, ceiling: SeraConfidence): SeraConfidence {
+  const rank: Record<SeraConfidence, number> = { LOW: 0, MEDIUM: 1, HIGH: 2 }
+  return rank[value] <= rank[ceiling] ? value : ceiling
 }
 
 function axisEvidence(args: {
@@ -37,6 +42,7 @@ function buildAxisCandidate(input: {
   counterEvidence: string[]
   excludedPostEscapeEvidence: string[]
   evidence: SeraEvidenceItem[]
+  confidenceCeiling: SeraConfidence
 }): { axisCandidate: SeraAxisCandidate; path: SeraCanonicalPath; unansweredQuestions: string[] } {
   const traversal = runEvidenceTraversal({
     axis: input.axis,
@@ -87,7 +93,7 @@ function buildAxisCandidate(input: {
       excludedPostEscapeEvidence: input.excludedPostEscapeEvidence,
       alternativesConsidered: path.answers.map((answer) => `${answer.nodeId}:${answer.answer}`),
       canonicalPath: path.nodeIds,
-      confidence: confidenceFromCount(supportingEvidence.length),
+      confidence: capConfidence(confidenceFromCount(supportingEvidence.length), input.confidenceCeiling),
     },
     path,
     unansweredQuestions,
@@ -164,6 +170,7 @@ export function runStep08CanonicalTraversal(input: {
     counterEvidence: input.axisStatements.perception.counterEvidence,
     excludedPostEscapeEvidence: input.escapePoint.excludedPostEscapeEvidence,
     evidence: input.factualExtraction.evidence,
+    confidenceCeiling: input.escapePoint.confidence,
   })
   const objective = buildAxisCandidate({
     axis: 'O',
@@ -174,6 +181,7 @@ export function runStep08CanonicalTraversal(input: {
     counterEvidence: input.axisStatements.objective.counterEvidence,
     excludedPostEscapeEvidence: input.escapePoint.excludedPostEscapeEvidence,
     evidence: input.factualExtraction.evidence,
+    confidenceCeiling: input.escapePoint.confidence,
   })
   const action = buildAxisCandidate({
     axis: 'A',
@@ -184,6 +192,7 @@ export function runStep08CanonicalTraversal(input: {
     counterEvidence: input.axisStatements.action.counterEvidence,
     excludedPostEscapeEvidence: input.escapePoint.excludedPostEscapeEvidence,
     evidence: input.factualExtraction.evidence,
+    confidenceCeiling: input.escapePoint.confidence,
   })
 
   const maintenancePreflightContext =
