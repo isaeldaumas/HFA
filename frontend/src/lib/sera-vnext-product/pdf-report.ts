@@ -4,7 +4,7 @@ const PDFDocument = require('pdfkit/js/pdfkit.standalone.js') as typeof import('
 import type { SeraCanonicalPath, SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
 import { localizeActor, localizeAssuranceText, localizeRationale } from '@/lib/sera-vnext/engine-v0/localization'
 import { SERA_PT_V1_TREE } from '@/lib/sera-vnext/canonical-tree/sera-pt-v1'
-import { buildExecutiveSummary, computeCandidateAttention, directActorStatusLabel, friendlyAnswerLabel, friendlyNodeLabel } from '@/lib/sera-vnext/presentation'
+import { buildExecutiveSummary, computeCandidateAttention, directActorStatusLabel, friendlyAnswerLabel, friendlyNodeLabel, hfacsBridgeLevelLabel, preconditionLevelLabel, preconditionMethodologyMatchLabel } from '@/lib/sera-vnext/presentation'
 import { buildCanonicalFlowVisualModel } from '@/lib/sera-vnext/canonical-flow-visual'
 import { SERA_PRECONDITION_META } from '@/lib/sera-vnext/precondition-taxonomy'
 import { buildSeraHfacsBridge } from '@/lib/sera-vnext/hfacs-bridge'
@@ -792,8 +792,8 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       doc.font('Helvetica-Bold').fontSize(9.5).fillColor(hypothesis ? '#8a5a00' : '#1d4f73')
         .text(canonicalName + ' - ' + confidenceLabel(pc.confidence, pt))
       body(doc, pc.description)
-      if (canonicalMeta) meta(doc, L('Nível SERA', 'SERA level'), canonicalMeta.level)
-      if (pc.methodologyMatch) meta(doc, L('Relação com a tabela de pré-condições prováveis', 'Relationship to the most-likely preconditions table'), pc.methodologyMatch)
+      if (canonicalMeta) meta(doc, L('Nível SERA', 'SERA level'), preconditionLevelLabel(canonicalMeta.level, pt))
+      if (pc.methodologyMatch) meta(doc, L('Relação com a tabela de pré-condições prováveis', 'Relationship to the most-likely preconditions table'), preconditionMethodologyMatchLabel(pc.methodologyMatch, pt))
       if (pc.likelyForActiveFailureCodes?.length) meta(doc, L('Pré-condição provável para', 'Most likely for'), pc.likelyForActiveFailureCodes.join(', '))
       meta(doc, L('Relação com a falha', 'Relationship to the failure'), relationshipLabel(pc.relationship))
       meta(doc, L('Ator associado', 'Associated actor'), value(localizeActor(pc.linkedActor, locale)))
@@ -834,9 +834,9 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     ), 'justify')
     doc.moveDown(0.25)
     subheading(doc, L('Falhas ativas SERA — melhor correspondência HFACS/AGA135', 'SERA active failures — best-fit HFACS/AGA135 correspondence'))
-    bullets(doc, hfacsBridge.activeFailures.map((item) => `${item.level}: ${item.hfacs}`), L('Nenhuma correspondência disponível enquanto P/O/A permanecer não resolvido.', 'No correspondence is available while P/O/A remains unresolved.'))
+    bullets(doc, hfacsBridge.activeFailures.map((item) => `${hfacsBridgeLevelLabel(item.level, pt)}: ${item.hfacs}`), L('Nenhuma correspondência disponível enquanto P/O/A permanecer não resolvido.', 'No correspondence is available while P/O/A remains unresolved.'))
     subheading(doc, L('Pré-condições SERA — melhor correspondência HFACS/AGA135', 'SERA preconditions — best-fit HFACS/AGA135 correspondence'))
-    bullets(doc, hfacsBridge.preconditions.map((item) => `${item.level}: ${item.hfacs}`), L('Nenhuma pré-condição confirmada para mapeamento.', 'No confirmed precondition available for mapping.'))
+    bullets(doc, hfacsBridge.preconditions.map((item) => `${hfacsBridgeLevelLabel(item.level, pt)}: ${item.hfacs}`), L('Nenhuma pré-condição confirmada para mapeamento.', 'No confirmed precondition available for mapping.'))
 
     const operationalObservations = output.factualExtraction.evidence
       .filter((item) =>
@@ -901,7 +901,12 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     heading(doc, 'A.2 ' + L('Rastreabilidade e polaridade da evidência', 'Evidence traceability and polarity'))
     const evidenceItems = output.factualExtraction.evidence
     const rejected = evidenceItems.filter((item) => item.assertionStatus === 'REJECTED_AS_FACTOR')
-    const uncertain = evidenceItems.filter((item) => item.assertionStatus === 'UNCERTAIN')
+    const uncertain = evidenceItems.filter((item) =>
+      item.assertionStatus === 'UNCERTAIN' &&
+      item.sourceSection !== 'RECOMMENDATION' &&
+      item.occurrenceScope !== 'HISTORICAL_COMPARATOR' &&
+      !['NON_CAUSAL_DOCUMENT', 'REFERENCE_PROCEDURE', 'SYSTEM_DESCRIPTION'].includes(item.evidenceType),
+    )
     const postEscape = evidenceItems.filter((item) => item.temporalRelation === 'POST_ESCAPE')
     const analysisOnly = evidenceItems.filter((item) => item.sourceSection === 'REPORT_ANALYSIS' || item.sourceSection === 'RECOMMENDATION')
     const referenceOnly = evidenceItems.filter((item) => ['NON_CAUSAL_DOCUMENT', 'REFERENCE_PROCEDURE', 'SYSTEM_DESCRIPTION'].includes(item.evidenceType))
@@ -909,7 +914,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     const currentEventItems = evidenceItems.filter((item) => item.occurrenceScope === 'CURRENT_EVENT')
     meta(doc, L('Itens de evidência indexados', 'Indexed evidence items'), String(evidenceItems.length))
     meta(doc, L('Fatores explicitamente rejeitados no relatório-fonte', 'Factors explicitly rejected by the source report'), String(rejected.length))
-    meta(doc, L('Afirmações incertas/hipotéticas', 'Uncertain/hypothetical statements'), String(uncertain.length))
+    meta(doc, L('Hipóteses/afirmações incertas do relatório-fonte', 'Source-report hypotheses/uncertain statements'), String(uncertain.length))
     meta(doc, L('Itens pós-ponto de fuga', 'Post-escape items'), String(postEscape.length))
     meta(doc, L('Itens de análise/recomendação não usados como fato causal', 'Analysis/recommendation items not used as causal facts'), String(analysisOnly.length))
     meta(doc, L('Material documental/de referência excluído da causalidade', 'Document/reference material excluded from causality'), String(referenceOnly.length))
@@ -917,7 +922,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     meta(doc, L('Itens históricos/comparadores proibidos como causa direta', 'Historical/comparator items prohibited as direct causes'), String(historicalComparators.length))
     subheading(doc, L('Fatores que o relatório-fonte declarou como não contribuintes', 'Factors the source report declared non-contributory'))
     bullets(doc, rejected.slice(0, 8).map((item) => item.statement))
-    subheading(doc, L('Hipóteses ou formulações incertas preservadas como incerteza', 'Hypotheses or uncertain formulations retained as uncertainty'))
+    subheading(doc, L('Hipóteses do relatório-fonte preservadas separadamente (não são incertezas do motor)', 'Source-report hypotheses retained separately (not engine uncertainties)'))
     bullets(doc, uncertain.slice(0, 8).map((item) => item.statement))
     subheading(doc, L('Fatos posteriores ao ponto de fuga, mantidos em quarentena causal', 'Post-escape facts kept in causal quarantine'))
     bullets(doc, postEscape.slice(0, 8).map((item) => item.statement))

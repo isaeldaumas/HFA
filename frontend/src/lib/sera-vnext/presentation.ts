@@ -51,6 +51,37 @@ export function directActorStatusLabel(
   return pt ? 'Ambíguo — requer decomposição' : 'Ambiguous — requires decomposition'
 }
 
+export function preconditionMethodologyMatchLabel(value: string, pt = true): string {
+  const labels: Record<string, [string, string]> = {
+    MOST_LIKELY_AND_EVIDENCED: ['Prevista na tabela e sustentada pela evidência', 'Listed as most likely and supported by evidence'],
+    EVIDENCED_OUTSIDE_MOST_LIKELY_SET: ['Sustentada pela evidência fora do conjunto mais provável da tabela', 'Supported by evidence outside the table most-likely set'],
+    HYPOTHESIS_ONLY: ['Hipótese da tabela sem confirmação causal', 'Table hypothesis without causal confirmation'],
+  }
+  const label = labels[value]
+  return label ? label[pt ? 0 : 1] : value
+}
+
+export function preconditionLevelLabel(value: string, pt = true): string {
+  const labels: Record<string, [string, string]> = {
+    IMMEDIATE: ['Imediato', 'Immediate'],
+    COMMAND_CONTROL_SUPERVISION: ['Comando, controle e supervisão', 'Command, control and supervision'],
+    ORGANIZATIONAL: ['Organizacional', 'Organizational'],
+  }
+  const label = labels[value]
+  return label ? label[pt ? 0 : 1] : value
+}
+
+export function hfacsBridgeLevelLabel(value: string, pt = true): string {
+  const labels: Record<string, [string, string]> = {
+    ACTIVE_FAILURE: ['Falha ativa', 'Active failure'],
+    PRECONDITION: ['Pré-condição', 'Precondition'],
+    SUPERVISION: ['Supervisão', 'Supervision'],
+    ORGANIZATION: ['Organização', 'Organization'],
+  }
+  const label = labels[value]
+  return label ? label[pt ? 0 : 1] : value
+}
+
 export type CandidateAttention = {
   score: number
   level: 'low' | 'attention' | 'elevated' | 'high'

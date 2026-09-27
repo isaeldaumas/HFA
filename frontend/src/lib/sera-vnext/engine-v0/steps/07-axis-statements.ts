@@ -57,7 +57,7 @@ function evidenceFor(
         && !item.prohibitedFor.includes(use)
         && item.supports.includes(use)
     })
-    .filter((item) => item.occurrenceScope !== 'HISTORICAL_COMPARATOR')
+    .filter((item) => !['HISTORICAL_COMPARATOR', 'PRE_EVENT_CAUSAL_HISTORY'].includes(item.occurrenceScope ?? 'UNKNOWN'))
     .filter((item) => {
       if (criticalAnchorIndex == null) return true
       if (escapeSupport.has(item.statement) || item.temporalRelation === 'AT_ESCAPE') return true

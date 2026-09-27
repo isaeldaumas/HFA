@@ -129,7 +129,7 @@ assert.ok(warningUrgency)
 assert.equal(warningUrgency?.evidenceType, 'SYSTEM_DESCRIPTION')
 assert.ok(warningUrgency?.prohibitedFor.includes('PRECONDITION'))
 
-// Historical comparator flights may inform context, but cannot become the escape point or P/O/A evidence for the current occurrence.
+// Numbered prior legs of the same accident-aircraft history may support preconditions, but cannot become the escape point or P/O/A evidence.
 const historicalComparator = run('VOEPASS-HISTORICAL-COMPARATOR-SCOPE', `
 1.18.1.3. Voo -1
 A tripulação manteve o Airframe De-Icing ligado após a falha e selecionou o FL160 como novo nível de cruzeiro.
@@ -144,9 +144,23 @@ assert.doesNotMatch(historicalComparator.escapePoint.earliestCandidate ?? '', /F
 assert.match(historicalComparator.escapePoint.earliestCandidate ?? '', /procedimentos previstos|não foram realizados/i)
 const priorFlightEvidence = historicalComparator.factualExtraction.evidence.find((item) => /FL160 como novo nível/i.test(item.statement))
 assert.ok(priorFlightEvidence)
-assert.equal(priorFlightEvidence?.occurrenceScope, 'HISTORICAL_COMPARATOR')
+assert.equal(priorFlightEvidence?.occurrenceScope, 'PRE_EVENT_CAUSAL_HISTORY')
 for (const use of ['ESCAPE_POINT', 'PERCEPTION', 'OBJECTIVE', 'ACTION'] as const) {
   assert.ok(priorFlightEvidence?.prohibitedFor.includes(use))
+}
+
+assert.equal(priorFlightEvidence?.prohibitedFor.includes('PRECONDITION'), false)
+
+// A genuinely external comparator remains non-causal for every SERA stage, including preconditions.
+const externalComparator = run('VOEPASS-EXTERNAL-COMPARATOR-SCOPE', `
+Em outro voo da frota, uma tripulação manteve o sistema De-Icing ligado após uma falha e prosseguiu em gelo.
+No voo do acidente, o SIC aplicou comando NOSE UP contra o stick pusher, contrariando o QRH.
+`)
+const externalEvidence = externalComparator.factualExtraction.evidence.find((item) => /outro voo da frota/i.test(item.statement))
+assert.ok(externalEvidence)
+assert.equal(externalEvidence?.occurrenceScope, 'HISTORICAL_COMPARATOR')
+for (const use of ['ESCAPE_POINT', 'PERCEPTION', 'OBJECTIVE', 'ACTION', 'PRECONDITION'] as const) {
+  assert.ok(externalEvidence?.prohibitedFor.includes(use))
 }
 
 // If a code is ever proposed, it must be the terminal result of its canonical node-by-node path.
@@ -254,6 +268,9 @@ assert.ok(recordedUtterance)
 assert.equal(recordedUtterance?.assertionStatus, 'AFFIRMED')
 
 const separatedPreconditions = run('VOEPASS-PRECONDITION-SEPARATION', `
+O ignitor B estava inoperante desde o dia anterior e havia sido despachado via MEL.
+O IEP tinha por objetivo proporcionar indicação visual de acúmulo de gelo aos pilotos.
+De acordo com a filosofia do fabricante, as luzes acenderiam para indicar uma condição anormal.
 A aeronave encontrou condições de formação de gelo severo, com acúmulo de gelo e degradação de desempenho.
 O sistema Airframe De-Icing apresentou falha e permaneceu com a mensagem AIRFRAME FAULT.
 Havia uma cultura de ausência de registro formal no TLB, impedindo tratamento adequado das falhas conhecidas.
@@ -268,6 +285,20 @@ const envPc = separatedPreconditions.preconditions.find((item) => item.canonical
 const equipPc = separatedPreconditions.preconditions.find((item) => item.canonicalCategory === 'EQUIPMENT')
 assert.equal(envPc?.evidence.some((text) => /AIRFRAME FAULT|sistema Airframe.*falha/i.test(text)), false)
 assert.ok(equipPc?.evidence.some((text) => /AIRFRAME FAULT|sistema Airframe.*falha/i.test(text)))
+assert.equal(separatedPreconditions.preconditions.some((item) => item.evidence.some((text) => /ignitor B/i.test(text))), false)
+assert.equal(separatedPreconditions.preconditions.some((item) => item.label === 'PROCEDURAL_MONITORING'), false)
+assert.equal(envPc?.evidence.some((text) => /IEP tinha por objetivo|luzes acenderiam/i.test(text)), false)
+
+const repeatedPreconditionEvidence = run('VOEPASS-PRECONDITION-EVIDENCE-DEDUPE', `
+Durante as entrevistas realizadas no curso da investigação, a Comissão recebeu relatos de que integrantes da equipe de manutenção do turno noturno tomaram conhecimento, por meio de comunicação verbal com os pilotos, sobre a ocorrência de uma falha no sistema Airframe De-Icing durante o “voo -3”.
+Durante as entrevistas realizadas no curso da investigação, a Comissão recebeu relatos de que integrantes da equipe de manutenção do turno noturno tomaram conhecimento, por meio de comunicação verbal com os pilotos, sobre a ocorrência de uma falha no sistema Airframe De-Icing durante o “voo -3”, embora não houvesse registro formal no TLB.
+Havia uma cultura de ausência de registro formal no TLB que impedia o tratamento adequado das falhas conhecidas.
+Durante a atuação do stick pusher, os dados registrados mostraram que o SIC aplicou esforço NOSE UP em oposição ao stick pusher.
+Como consequência, a aeronave entrou em stall e colidiu contra o solo.
+`)
+const repeatedOrgPc = repeatedPreconditionEvidence.preconditions.find((item) => item.canonicalCategory === 'ORGANIZATIONAL_CLIMATE')
+assert.ok(repeatedOrgPc)
+assert.equal(repeatedOrgPc?.evidence.filter((text) => /Durante as entrevistas realizadas no curso da investigação/i.test(text)).length, 1)
 
 // A purely technical failure can be important context, but it cannot by itself start SERA P/O/A.
 const technicalOnly = run('SERA-HUMAN-FACTOR-GATE-TECHNICAL-ONLY', `
