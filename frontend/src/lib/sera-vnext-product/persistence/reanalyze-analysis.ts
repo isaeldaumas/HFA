@@ -98,6 +98,11 @@ export async function reanalyzeSeraVNextAnalysis(args: {
       source: 'product_beta_reanalyze',
       clarificationResponses,
       evidenceSufficiencyStatus: engineOutput.evidenceSufficiency.status,
+      provenance: {
+        codeCommit: versions.codeCommit,
+        codeCommitSource: versions.codeCommitSource,
+        deploymentId: versions.deploymentId,
+      },
     },
   })
 
@@ -141,6 +146,9 @@ export async function reanalyzeSeraVNextAnalysis(args: {
       clarificationResponsesCount: clarificationResponses.length,
       clarificationQuestionIds: clarificationResponses.map((item) => item.questionId),
       evidenceSufficiencyStatus: engineOutput.evidenceSufficiency.status,
+      codeCommit: versions.codeCommit,
+      codeCommitSource: versions.codeCommitSource,
+      deploymentId: versions.deploymentId,
     },
   })
   return { analysis: updated, revision }

@@ -41,11 +41,32 @@ export type SeraVNextProductVersionSet = {
   inputSchemaVersion: string
   outputSchemaVersion: string
   codeCommit: string
+  codeCommitSource: 'VERCEL_GIT_COMMIT_SHA' | 'SERA_CODE_COMMIT' | 'GIT_COMMIT_SHA' | 'UNAVAILABLE'
+  deploymentId: string | null
   sourceFlow: SeraVNextSourceFlow
   canonicalTreeVersion: string
 }
 
+function normalizeGitCommitSha(value: string | undefined): string | null {
+  const normalized = value?.trim().toLowerCase() ?? ''
+  return /^[0-9a-f]{40}$/.test(normalized) ? normalized : null
+}
+
+function resolveCodeCommit(): Pick<SeraVNextProductVersionSet, 'codeCommit' | 'codeCommitSource'> {
+  const candidates = [
+    ['VERCEL_GIT_COMMIT_SHA', process.env.VERCEL_GIT_COMMIT_SHA],
+    ['SERA_CODE_COMMIT', process.env.SERA_CODE_COMMIT],
+    ['GIT_COMMIT_SHA', process.env.GIT_COMMIT_SHA],
+  ] as const
+  for (const [source, value] of candidates) {
+    const sha = normalizeGitCommitSha(value)
+    if (sha) return { codeCommit: sha, codeCommitSource: source }
+  }
+  return { codeCommit: 'UNAVAILABLE', codeCommitSource: 'UNAVAILABLE' }
+}
+
 export function getSeraVNextProductVersionSet(): SeraVNextProductVersionSet {
+  const commit = resolveCodeCommit()
   return {
     engineVersion: SERA_VNEXT_PRODUCT_BETA_DB_ENGINE_VERSION,
     engineRuntimeVersion: SERA_VNEXT_ENGINE_VERSION,
@@ -54,11 +75,9 @@ export function getSeraVNextProductVersionSet(): SeraVNextProductVersionSet {
     fixtureSetId: SERA_VNEXT_FIXTURE_SET_ID,
     inputSchemaVersion: SERA_VNEXT_PRODUCT_BETA_INPUT_SCHEMA_VERSION,
     outputSchemaVersion: SERA_VNEXT_PRODUCT_BETA_OUTPUT_SCHEMA_VERSION,
-    codeCommit:
-      process.env.VERCEL_GIT_COMMIT_SHA?.trim() ||
-      process.env.SERA_CODE_COMMIT?.trim() ||
-      process.env.GIT_COMMIT_SHA?.trim() ||
-      'LOCAL_OR_UNSET_COMMIT',
+    codeCommit: commit.codeCommit,
+    codeCommitSource: commit.codeCommitSource,
+    deploymentId: process.env.VERCEL_DEPLOYMENT_ID?.trim() || null,
     sourceFlow: SERA_VNEXT_SOURCE_FLOW_PRODUCT_BETA,
     canonicalTreeVersion: SERA_VNEXT_CANONICAL_TREE_VERSION,
   }

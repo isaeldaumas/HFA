@@ -123,6 +123,11 @@ export async function createSeraVNextAnalysis(args: {
       ...(args.input.metadata ?? {}),
       inputPayloadHash: hashJson({ title: args.input.title, narrativeHash, sourceType: args.input.sourceType }),
       stableEngineOutput: stableJson(engineOutput).length,
+      provenance: {
+        codeCommit: versions.codeCommit,
+        codeCommitSource: versions.codeCommitSource,
+        deploymentId: versions.deploymentId,
+      },
     },
     // Proveniência metodológica (auditoria HFA, 3ª etapa). engine-v0 roda com allowLlm:false
     // (buildEngineInput acima) — é puramente determinístico, nunca sugestão de LLM.
@@ -162,6 +167,9 @@ export async function createSeraVNextAnalysis(args: {
       engineVersion: versions.engineVersion,
       engineRuntimeVersion: versions.engineRuntimeVersion,
       sourceFlow: effectiveSourceFlow,
+      codeCommit: versions.codeCommit,
+      codeCommitSource: versions.codeCommitSource,
+      deploymentId: versions.deploymentId,
       warningsCount: warnings.length,
       evidenceSufficiencyStatus: engineOutput.evidenceSufficiency.status,
       clarificationQuestionIds: engineOutput.evidenceSufficiency.questions.map((item) => item.id),
