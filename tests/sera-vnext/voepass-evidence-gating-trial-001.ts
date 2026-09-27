@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { runSeraVNextEngineV0 } from '../../frontend/src/lib/sera-vnext/engine-v0/run-engine'
+
+const authorDecision = readFileSync(path.resolve(__dirname, '../../docs/sera-vnext/SERA_PT_AUTHOR_DECISION_HUMAN_FACTOR_ESCAPE_SCOPE_v1.0.md'), 'utf8')
+assert.match(authorDecision, /human-factors investigation/i)
+assert.match(authorDecision, /one unsafe act at a time/i)
+assert.match(authorDecision, /Purely technical failures, weather states, documentary statements or organizational conditions cannot, by themselves/i)
 
 function run(id: string, narrative: string) {
   return runSeraVNextEngineV0({
@@ -81,8 +88,11 @@ O alerta MASTER WARNING apresentava indicação da urgência da situação.
 Como consequência, a aeronave entrou em stall e colidiu contra o solo.
 `)
 assert.notEqual(fullContextEpisode.escapePoint.status, 'INSUFFICIENT_EVIDENCE')
-assert.match(fullContextEpisode.escapePoint.statement ?? '', /despachada|MEL|Airframe De-Icing/i)
-assert.ok(fullContextEpisode.escapePoint.supportingEvidence.some((text) => /SEV ICE|meteorológ/i.test(text)))
+assert.match(fullContextEpisode.escapePoint.statement ?? '', /despachada|MEL|procedimentos previstos|checklist|Airframe De-Icing/i)
+assert.equal(fullContextEpisode.escapePoint.humanFactorGate?.status, 'PASSED')
+assert.equal(fullContextEpisode.escapePoint.humanFactorGate?.anchorType, 'UNSAFE_ACT')
+assert.ok(fullContextEpisode.escapePoint.supportingEvidence.some((text) => /Airframe De-Icing|SEV ICE|meteorológ|procedimentos previstos/i.test(text)))
+assert.ok(fullContextEpisode.escapePoint.counterEvidence.some((text) => /Multiple human-factor unsafe-act\/condition candidates/i.test(text)))
 assert.equal(fullContextEpisode.directActor.status, 'AMBIGUOUS')
 assert.deepEqual(
   [fullContextEpisode.axes.perception.proposedCode, fullContextEpisode.axes.objective.proposedCode, fullContextEpisode.axes.action.proposedCode],
@@ -93,8 +103,8 @@ assert.equal(fullContextEpisode.axes.objective.statementAtEscapePoint, null)
 assert.equal(fullContextEpisode.axes.action.statementAtEscapePoint, null)
 assert.equal(fullContextEpisode.canonicalTraversal.status, 'INSUFFICIENT_EVIDENCE')
 assert.equal(fullContextEpisode.canonicalTraversal.paths.length, 0)
-assert.ok((fullContextEpisode.escapePoint.episodeCandidates ?? []).some((episode) => episode.phase === 'DISPATCH' && episode.selected))
-assert.ok((fullContextEpisode.escapePoint.episodeCandidates ?? []).some((episode) => episode.phase === 'INFLIGHT' && !episode.selected))
+assert.ok((fullContextEpisode.escapePoint.episodeCandidates ?? []).some((episode) => episode.selected && episode.seraRole === 'HUMAN_FACTOR_CANDIDATE'))
+assert.ok((fullContextEpisode.escapePoint.episodeCandidates ?? []).filter((episode) => episode.humanFactorEligible).length >= 2)
 assert.equal(fullContextEpisode.preconditions.some((item) => item.category === 'TIME_PRESSURE'), false)
 const warningUrgency = fullContextEpisode.factualExtraction.evidence.find((item) => /urgência da situação/i.test(item.statement))
 assert.ok(warningUrgency)
@@ -131,3 +141,25 @@ for (const axisName of ['P', 'O', 'A'] as const) {
   assert.ok((path?.nodeIds.length ?? 0) > 0)
   assert.ok((path?.answers.length ?? 0) > 0)
 }
+
+
+// A purely technical failure can be important context, but it cannot by itself start SERA P/O/A.
+const technicalOnly = run('SERA-HUMAN-FACTOR-GATE-TECHNICAL-ONLY', `
+Durante a subida, o sistema Airframe De-Icing apresentou falha.
+Havia formação de gelo severo na rota.
+Como consequência, a aeronave entrou em stall e colidiu contra o solo.
+`)
+assert.equal(technicalOnly.escapePoint.status, 'INSUFFICIENT_EVIDENCE')
+assert.equal(technicalOnly.escapePoint.humanFactorGate?.status, 'BLOCKED')
+assert.equal(technicalOnly.escapePoint.humanFactorGate?.anchorType, null)
+assert.deepEqual([technicalOnly.axes.perception.proposedCode, technicalOnly.axes.objective.proposedCode, technicalOnly.axes.action.proposedCode], [null, null, null])
+
+// Hendy also permits an operator-controlled unsafe condition to mark the boundary.
+const controlledCondition = run('SERA-HUMAN-FACTOR-GATE-CONTROLLED-CONDITION', `
+Durante a aproximação, a aeronave desceu abaixo da MDA sem a pista à vista.
+Posteriormente ocorreu o impacto com o terreno.
+`)
+assert.notEqual(controlledCondition.escapePoint.status, 'INSUFFICIENT_EVIDENCE')
+assert.equal(controlledCondition.escapePoint.humanFactorGate?.status, 'PASSED')
+assert.equal(controlledCondition.escapePoint.humanFactorGate?.anchorType, 'OPERATOR_CONTROLLED_UNSAFE_CONDITION')
+assert.equal(controlledCondition.unsafeActOrCondition.type, 'UNSAFE_CONDITION')

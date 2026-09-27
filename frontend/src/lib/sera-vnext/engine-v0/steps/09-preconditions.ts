@@ -2,6 +2,7 @@ import type { SeraVNextEngineOutput, SeraPreconditionCandidate } from '../../eng
 import type { SeraEvidenceItem, SeraEvidenceRelationshipToFailure } from '../../evidence'
 import { isEvidenceUsableFor } from '../../evidence'
 import { classifyPreconditionCategory, confidenceFromCount, pushUnique } from '../utils'
+import { classifyCanonicalPrecondition, mostLikelyPreconditionsForCodes, SERA_MOST_LIKELY_PRECONDITIONS, SERA_PRECONDITION_META, type SeraCanonicalPreconditionCategory } from '../../precondition-taxonomy'
 
 const CATEGORY_RULE_ID: Record<string, string> = {
   PHYSICAL_CAPABILITY: 'PC-RULE-PHYSICAL_CAPABILITY',
@@ -109,6 +110,9 @@ export function runStep09Preconditions(input: {
     input.escapePoint.status !== 'NO_HUMAN_ESCAPE_POINT' &&
     input.escapePoint.confidence !== 'LOW' &&
     input.directActor.status === 'IDENTIFIED'
+  const activeFailureCodes = [input.axes.perception.proposedCode, input.axes.objective.proposedCode, input.axes.action.proposedCode]
+    .filter((code): code is string => Boolean(code) && !['P-A', 'O-A', 'A-A'].includes(code as string))
+  const mostLikelyCanonical = mostLikelyPreconditionsForCodes(activeFailureCodes)
   const categoryEvidence: Record<string, { texts: string[]; sourceEvidence: SeraEvidenceItem[]; investigationOnly: boolean; explicitInvestigationSupport: boolean; rejectedByInvestigation: boolean }> = {}
   const escapeAnchorText = [input.escapePoint.statement, ...input.escapePoint.supportingEvidence].filter(Boolean).join(' ')
   const escapeIndexes = input.factualExtraction.evidence
@@ -173,16 +177,33 @@ export function runStep09Preconditions(input: {
     if (category && categoryEvidence[category]) categoryEvidence[category].rejectedByInvestigation = true
   }
 
+  const canonicalProfileFor = (evidenceSet: (typeof categoryEvidence)[string]) => {
+    const canonicalCounts = new Map<SeraCanonicalPreconditionCategory, number>()
+    for (const item of evidenceSet.sourceEvidence) {
+      const canonical = classifyCanonicalPrecondition(item.statement)
+      if (canonical) canonicalCounts.set(canonical, (canonicalCounts.get(canonical) ?? 0) + 1)
+    }
+    const canonicalCategory = [...canonicalCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+    const likelyForActiveFailureCodes = canonicalCategory
+      ? activeFailureCodes.filter((code) => (SERA_MOST_LIKELY_PRECONDITIONS[code] ?? []).includes(canonicalCategory))
+      : []
+    return { canonicalCategory, likelyForActiveFailureCodes }
+  }
+
   const confidenceFor = (category: string, evidenceSet: (typeof categoryEvidence)[string]) => {
     if (!causalBoundaryResolved) return 'LOW' as const
     if (evidenceSet.rejectedByInvestigation && !evidenceSet.explicitInvestigationSupport) return 'LOW' as const
     if (evidenceSet.explicitInvestigationSupport) return evidenceSet.sourceEvidence.length >= 2 ? 'HIGH' as const : 'MEDIUM' as const
     if (evidenceSet.investigationOnly) return 'LOW' as const
     const base = confidenceFromCount(evidenceSet.texts.length)
+    const canonical = canonicalProfileFor(evidenceSet).canonicalCategory
+    const outsideLikely = canonical && activeFailureCodes.length > 0 && !mostLikelyCanonical.has(canonical)
+    if (outsideLikely && base === 'HIGH') return 'MEDIUM' as const
     return category === 'ATTENTION_WORKLOAD_CONTEXT' && base === 'HIGH' ? 'MEDIUM' as const : base
   }
 
   return Object.entries(categoryEvidence).map(([category, evidenceSet]) => {
+    const canonicalProfile = canonicalProfileFor(evidenceSet)
     const rankedSourceEvidence = [...evidenceSet.sourceEvidence]
       .sort((a, b) => contextRelevance(b) - contextRelevance(a) || a.sourceSentenceIndex - b.sourceSentenceIndex)
       .slice(0, 5)
@@ -204,9 +225,13 @@ export function runStep09Preconditions(input: {
         ? (input.locale === 'pt-BR'
             ? 'Fator indicado pela investigação, preservado como hipótese contextual e não confirmado como pré-condição causal.'
             : 'Factor indicated by the investigation, retained as a contextual hypothesis and not confirmed as a causal precondition.')
-        : (input.locale === 'pt-BR'
-            ? (CATEGORY_DESCRIPTION[category] ?? 'Pré-condição candidata sustentada por evidência e mantida separada do ponto de fuga e da falha ativa.')
-            : (CATEGORY_DESCRIPTION_EN[category] ?? 'Candidate precondition supported by evidence and kept separate from the escape point and active failure.')),
+        : canonicalProfile.canonicalCategory
+          ? (input.locale === 'pt-BR'
+              ? SERA_PRECONDITION_META[canonicalProfile.canonicalCategory].definitionPt
+              : SERA_PRECONDITION_META[canonicalProfile.canonicalCategory].definitionEn)
+          : (input.locale === 'pt-BR'
+              ? (CATEGORY_DESCRIPTION[category] ?? 'Pré-condição candidata sustentada por evidência e mantida separada do ponto de fuga e da falha ativa.')
+              : (CATEGORY_DESCRIPTION_EN[category] ?? 'Candidate precondition supported by evidence and kept separate from the escape point and active failure.')),
     category: category as SeraPreconditionCandidate['category'],
     evidence: rankedTexts,
     relationship: !causalBoundaryResolved
@@ -217,12 +242,27 @@ export function runStep09Preconditions(input: {
           ? 'CONTEXTUAL_PRECONDITION'
           : evidenceSet.investigationOnly ? 'UNRELATED_OR_UNSUPPORTED' : relationshipForEvidence(evidenceSet.sourceEvidence),
     sourceEvidence: rankedSourceEvidence,
-    sourceRuleIds: [CATEGORY_RULE_ID[category]],
+    sourceRuleIds: canonicalProfile.canonicalCategory
+      ? [
+          `SERA-HENDY-ANNEX-B-${canonicalProfile.canonicalCategory}`,
+          ...(canonicalProfile.likelyForActiveFailureCodes.length
+            ? canonicalProfile.likelyForActiveFailureCodes.map((code) => `SERA-HENDY-TABLE1-${code}-${canonicalProfile.canonicalCategory}`)
+            : []),
+        ]
+      : [CATEGORY_RULE_ID[category]],
     linkedActor: causalBoundaryResolved ? input.directActor.actor : null,
     explicitlyNotEscapePoint: true,
     basedOnCandidateCode: false,
     nonFinal: true,
     confidence: confidenceFor(category, { ...evidenceSet, texts: rankedTexts, sourceEvidence: rankedSourceEvidence }),
+    canonicalCategory: canonicalProfile.canonicalCategory,
+    canonicalLevel: canonicalProfile.canonicalCategory ? SERA_PRECONDITION_META[canonicalProfile.canonicalCategory].level : null,
+    likelyForActiveFailureCodes: canonicalProfile.likelyForActiveFailureCodes,
+    methodologyMatch: !causalBoundaryResolved || !canonicalProfile.canonicalCategory
+      ? 'HYPOTHESIS_ONLY'
+      : canonicalProfile.likelyForActiveFailureCodes.length > 0
+        ? 'MOST_LIKELY_AND_EVIDENCED'
+        : 'EVIDENCED_OUTSIDE_MOST_LIKELY_SET',
     }
   })
 }

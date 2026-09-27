@@ -1,5 +1,5 @@
 import type { SeraSupplementalEvidenceInput, SeraTimelineItem, SeraVNextEngineInput, SeraVNextEngineOutput } from '../../engine-contract'
-import { buildCandidateEscapeWindow } from '../candidate-escape-window'
+import { buildCandidateEscapeWindow, classifyHumanFactorEscapeStatement } from '../candidate-escape-window'
 import { isOperationalEventStatement } from '../factual-extraction-helpers'
 import { excludedPostEscapeEvidence } from '../utils'
 
@@ -52,8 +52,7 @@ function usableDirectEscapeClarification(statement: string): boolean {
   const text = statement.trim()
   if (!text) return false
   if (/^(n[aã]o sei|desconhecido|n[aã]o informado|n[aã]o foi poss[ií]vel|indeterminado|unknown|not known|not determined)\b/i.test(text)) return false
-  return /^\s*(?:(?:ponto de fuga|escape point)\s*[:\-–—]?\s*)?(?:quando|when)\b/i.test(text)
-    || /\b(decidiu|iniciou|concluiu|liberou|considerou|executou|omitiu|deixou de|prosseguiu|selecionou|acionou|inspe[cç][aã]o|pre[- ]?voo|decided|initiated|completed|released|considered|executed|omitted|failed to|continued|selected|preflight)\b/i.test(text)
+  return classifyHumanFactorEscapeStatement(text) !== null
 }
 
 function escapeConfidence(args: {
@@ -95,7 +94,8 @@ export function runStep03EscapePoint(input: {
         latestCandidate: directClarification.statement,
         supportingEvidence: [directClarification.statement],
         counterEvidence: [],
-        episodeCandidates: [{ phase: 'GENERIC' as const, anchorStatement: directClarification.statement, supportingEvidence: [directClarification.statement], occurrenceScope: 'CURRENT_EVENT' as const, selected: true }],
+        episodeCandidates: [{ phase: 'GENERIC' as const, anchorStatement: directClarification.statement, supportingEvidence: [directClarification.statement], occurrenceScope: 'CURRENT_EVENT' as const, seraRole: 'HUMAN_FACTOR_CANDIDATE' as const, humanFactorEligible: true, selected: true }],
+        humanFactorGate: { status: 'PASSED' as const, anchorType: classifyHumanFactorEscapeStatement(directClarification.statement), rationale: ['Human clarification identifies an observable unsafe act/inaction or operator-controlled unsafe condition.'] },
       }
     : null
   const selectedWindow = clarificationWindow.statement
@@ -131,5 +131,6 @@ export function runStep03EscapePoint(input: {
       counterCount: selectedWindow.counterEvidence.length,
       fromDirectClarification: selectedWindow === directClarificationWindow || selectedWindow === clarificationWindow,
     }),
+    humanFactorGate: selectedWindow.humanFactorGate,
   }
 }

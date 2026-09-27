@@ -5,6 +5,8 @@ export type SeraConfidence = 'LOW' | 'MEDIUM' | 'HIGH'
 
 export type SeraVNextEngineMode = 'CANDIDATE_ONLY' | 'VALIDATION'
 
+import type { SeraCanonicalPreconditionCategory, SeraPreconditionLevel } from './precondition-taxonomy'
+
 export type SeraVNextEngineSourceType =
   | 'real_event'
   | 'human_applied_reference'
@@ -128,6 +130,10 @@ export type SeraPreconditionCandidate = {
   basedOnCandidateCode: boolean
   nonFinal: true
   confidence: SeraConfidence
+  canonicalCategory?: SeraCanonicalPreconditionCategory | null
+  canonicalLevel?: SeraPreconditionLevel | null
+  likelyForActiveFailureCodes?: string[]
+  methodologyMatch?: 'MOST_LIKELY_AND_EVIDENCED' | 'EVIDENCED_OUTSIDE_MOST_LIKELY_SET' | 'HYPOTHESIS_ONLY'
 }
 
 export type SeraClarificationQuestion = {
@@ -214,11 +220,18 @@ export type SeraVNextEngineOutput = {
     counterEvidence: string[]
     excludedPostEscapeEvidence: string[]
     confidence: SeraConfidence
+    humanFactorGate?: {
+      status: 'PASSED' | 'BLOCKED'
+      anchorType: 'UNSAFE_ACT' | 'OPERATOR_CONTROLLED_UNSAFE_CONDITION' | null
+      rationale: string[]
+    }
     episodeCandidates?: Array<{
       phase: 'DISPATCH' | 'MAINTENANCE' | 'INFLIGHT' | 'APPROACH' | 'GROUND' | 'GENERIC'
       anchorStatement: string
       supportingEvidence: string[]
       occurrenceScope?: SeraOccurrenceScope
+      seraRole?: 'HUMAN_FACTOR_CANDIDATE' | 'TECHNICAL_ENVIRONMENT'
+      humanFactorEligible?: boolean
       selected: boolean
     }>
   }

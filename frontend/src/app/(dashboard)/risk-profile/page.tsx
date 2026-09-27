@@ -11,6 +11,8 @@ import type { SafetyIssueCandidate } from '@/lib/sera/safety-issue-candidates'
 import type { RiskQualityTrendPoint } from '@/lib/sera/risk-quality-trend'
 import type { DataConfidence } from '@/lib/sera/data-confidence'
 import type { RiskProfileSourceEvent, RiskProfileSummary } from '@/lib/risk-profile/types'
+import { SERA_PRECONDITION_META, type SeraCanonicalPreconditionCategory } from '@/lib/sera-vnext/precondition-taxonomy'
+import { computeHendyStrategicRisk, computeHendyTacticalRisk, SERA_STRATEGIC_FACTORS, SERA_TACTICAL_PERSONNEL_FACTORS, SERA_TACTICAL_TASK_FACTORS, SERA_TACTICAL_WORKING_FACTORS, type SeraRiskConditionLevel } from '@/lib/sera-vnext/risk-management'
 
 type Intelligence = RiskProfileSummary
 
@@ -1197,6 +1199,57 @@ function TopPreconditionsPanel({ preconditions }: { preconditions: Intelligence[
   )
 }
 
+
+function ObservedSeraRiskPanel({ profile }: { profile: Intelligence['sera_observed_profile'] }) {
+  const failures = Object.entries(profile.activeFailureCounts).sort((a,b) => b[1]-a[1]).slice(0, 8)
+  const preconditions = Object.entries(profile.preconditionCounts).sort((a,b) => b[1]-a[1]).slice(0, 10)
+  const label = (code: string) => (SERA_PRECONDITION_META as Record<string, { pt: string }>)[code]?.pt ?? code
+  return (
+    <div className="bg-slate-900 border border-cyan-800/60 rounded-xl p-6 space-y-5">
+      <div>
+        <h3 className="text-white font-semibold">Perfil SERA observado — falhas e pré-condições</h3>
+        <p className="text-slate-400 text-xs mt-1">Consolidação descritiva dos eventos analisados. Frequência na amostra não é probabilidade operacional sem denominador de exposição.</p>
+      </div>
+      <div className="grid md:grid-cols-2 gap-5">
+        <div>
+          <p className="text-cyan-300 text-xs font-semibold uppercase tracking-wide mb-2">Falhas ativas mais recorrentes</p>
+          <div className="space-y-2">{failures.length ? failures.map(([code,count]) => <div key={code} className="flex justify-between rounded-lg bg-slate-800/60 px-3 py-2 text-sm"><span className="font-mono text-cyan-300">{code}</span><span className="text-white font-semibold">{count}</span></div>) : <p className="text-slate-500 text-sm">Sem falhas ativas consolidadas.</p>}</div>
+        </div>
+        <div>
+          <p className="text-yellow-300 text-xs font-semibold uppercase tracking-wide mb-2">Pré-condições SERA mais recorrentes</p>
+          <div className="space-y-2">{preconditions.length ? preconditions.map(([code,count]) => <div key={code} className="flex items-center justify-between gap-3 rounded-lg bg-slate-800/60 px-3 py-2 text-sm"><span className="text-slate-300">{label(code)}</span><span className="text-white font-semibold">{count}</span></div>) : <p className="text-slate-500 text-sm">Sem pré-condições consolidadas.</p>}</div>
+        </div>
+      </div>
+      {profile.failurePreconditionPairs.length > 0 && <div><p className="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-2">Associações mais recorrentes</p><div className="flex flex-wrap gap-2">{profile.failurePreconditionPairs.slice(0,8).map((item) => <span key={`${item.failure}-${item.precondition}`} className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-xs text-slate-300"><span className="font-mono text-cyan-300">{item.failure}</span> + {label(item.precondition)} · {item.count}</span>)}</div></div>}
+    </div>
+  )
+}
+
+function HendyProspectiveRiskPanel({ method }: { method: Intelligence['sera_risk_method'] }) {
+  const [open, setOpen] = useState(false)
+  const [qualification, setQualification] = useState<'UNKNOWN'|'GO'|'NO_GO'>('UNKNOWN')
+  const [levels, setLevels] = useState<Partial<Record<SeraCanonicalPreconditionCategory, SeraRiskConditionLevel>>>({})
+  const setLevel = (factor: SeraCanonicalPreconditionCategory, value: string) => setLevels((prev) => ({ ...prev, [factor]: value as SeraRiskConditionLevel }))
+  const tactical = computeHendyTacticalRisk({ qualificationAuthorized: qualification === 'UNKNOWN' ? null : qualification === 'GO', levels })
+  const strategic = computeHendyStrategicRisk(levels)
+  const factorRows = [...SERA_TACTICAL_PERSONNEL_FACTORS, ...SERA_TACTICAL_TASK_FACTORS, ...SERA_TACTICAL_WORKING_FACTORS, ...SERA_STRATEGIC_FACTORS]
+  const uniqueFactors = [...new Set(factorRows)]
+  return (
+    <div className="bg-slate-900 border border-violet-800/60 rounded-xl p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div><h3 className="text-white font-semibold">Gestão de risco SERA — modelo prospectivo de Hendy</h3><p className="text-slate-400 text-xs mt-1">{method.note}</p></div>
+        <button onClick={() => setOpen((v) => !v)} className="text-xs rounded-lg border border-slate-700 px-3 py-2 text-slate-300 hover:bg-slate-800">{open ? 'Fechar' : 'Abrir avaliação experimental'}</button>
+      </div>
+      <div className="mt-3 rounded-lg border border-amber-700/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">Modelo demonstrativo de Hendy (2003), explicitamente não validado para uso operacional automático. Não substitui o processo formal de gerenciamento de risco da organização.</div>
+      {open && <div className="mt-5 space-y-5">
+        <div className="flex items-center gap-3"><label className="text-sm text-slate-300">Qualificação e autorização</label><select value={qualification} onChange={(e) => setQualification(e.target.value as typeof qualification)} className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white"><option value="UNKNOWN">Não avaliado</option><option value="GO">GO</option><option value="NO_GO">NO-GO</option></select></div>
+        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">{uniqueFactors.map((factor) => <label key={factor} className="rounded-lg bg-slate-800/60 p-3"><span className="block text-xs text-slate-300 mb-2">{SERA_PRECONDITION_META[factor].pt}</span><select value={levels[factor] ?? 'LOW'} onChange={(e) => setLevel(factor,e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"><option value="LOW">Não degradado — 0</option><option value="MEDIUM">Levemente degradado — 5</option><option value="HIGH">Significativamente degradado — 10</option></select></label>)}</div>
+        <div className="grid md:grid-cols-2 gap-4"><div className="rounded-lg border border-cyan-800/50 bg-cyan-500/5 p-4"><p className="text-cyan-300 text-xs uppercase font-semibold">Risco tático protótipo</p><p className="text-3xl font-semibold text-white mt-2">{tactical.qualificationAuthorization === 'NO_GO' ? 'NO-GO' : tactical.risk0to10?.toFixed(2) ?? '—'}</p><p className="text-slate-500 text-xs mt-2">{tactical.formula}</p></div><div className="rounded-lg border border-violet-800/50 bg-violet-500/5 p-4"><p className="text-violet-300 text-xs uppercase font-semibold">Risco estratégico protótipo</p><p className="text-3xl font-semibold text-white mt-2">{strategic.risk0to10.toFixed(2)}</p><p className="text-slate-500 text-xs mt-2">{strategic.formula}</p></div></div>
+      </div>}
+    </div>
+  )
+}
+
 // ── Utility components ────────────────────────────────────────────────────────
 
 const combinationMeaning: Record<string, string> = {
@@ -1814,11 +1867,12 @@ export default function RiskProfilePage() {
         <div className="bg-blue-500/8 border border-blue-500/20 rounded-xl px-5 py-4">
           <p className="text-blue-300 text-xs font-semibold mb-1">Como ler este perfil</p>
           <p className="text-slate-400 text-xs leading-relaxed">
-            O perfil organiza as análises em três leituras:{' '}
+            O perfil organiza as análises em quatro leituras:{' '}
             <strong className="text-slate-300">confiança da base</strong>,{' '}
+            <strong className="text-slate-300">falhas e pré-condições SERA observadas</strong>,{' '}
             <strong className="text-slate-300">padrões recorrentes</strong> e{' '}
             <strong className="text-slate-300">tendência qualitativa</strong>.
-            As matrizes funcionam como apoio à triagem — não como conclusão isolada.
+            O perfil SERA observado é descritivo; a avaliação prospectiva de Hendy é um protótipo não validado; as matrizes ISO/ARMS abaixo são camadas auxiliares de triagem e não substituem nenhuma dessas duas leituras.
           </p>
         </div>
       )}
@@ -1880,14 +1934,25 @@ export default function RiskProfilePage() {
         <QualityTrendPanel points={data?.quality_trend ?? []} />
       )}
 
-      {/* Matrizes de apoio à triagem */}
+      {/* Perfil SERA observado e protótipo prospectivo de Hendy */}
+      {data && hasAnalyses && (
+        <div className="space-y-6">
+          <ObservedSeraRiskPanel profile={data.sera_observed_profile} />
+          <HendyProspectiveRiskPanel method={data.sera_risk_method} />
+        </div>
+      )}
+
+      {/* Matrizes de apoio à triagem — camada separada do risco SERA/Hendy */}
       {data && hasAnalyses && (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           {/* Esquerda: Matriz */}
           <div className="lg:col-span-3">
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-5">
               <div className="flex items-center justify-between flex-wrap gap-3">
-                <h3 className="text-white font-semibold">Matrizes de apoio à triagem</h3>
+                <div>
+                  <h3 className="text-white font-semibold">Matrizes de apoio à triagem</h3>
+                  <p className="text-amber-300/90 text-xs mt-1">Camada separada do modelo de risco SERA/Hendy. Não use estas matrizes como substitutas das pré-condições SERA nem como probabilidade operacional do acidente.</p>
+                </div>
                 <div className="flex rounded-lg overflow-hidden border border-slate-700 text-sm">
                   <button
                     onClick={() => setMatrixTab('traditional')}

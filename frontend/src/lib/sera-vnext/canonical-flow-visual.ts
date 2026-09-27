@@ -1,7 +1,7 @@
 import type { SeraCanonicalPath } from './engine-contract'
 import { SERA_CANONICAL_TREE_NODES } from './canonical-tree'
 import type { CanonicalSeraAxis } from './types'
-import { friendlyNodeLabel } from './presentation'
+import { friendlyAnswerLabel, friendlyNodeLabel } from './presentation'
 
 export type CanonicalFlowVisualNode = {
   id: string
@@ -11,6 +11,8 @@ export type CanonicalFlowVisualNode = {
   code: string | null
   active: boolean
   selected: boolean
+  stepNumber: number | null
+  activeAnswer: string | null
 }
 
 export type CanonicalFlowVisualEdge = {
@@ -75,6 +77,12 @@ export function branchLabel(condition: string, pt: boolean): string {
   return (pt ? mapPt : mapEn)[condition] ?? condition.replaceAll('_', ' ').toLowerCase()
 }
 
+function canonicalQuestionText(nodeId: string, pt: boolean, rows: typeof SERA_CANONICAL_TREE_NODES): string {
+  const row = rows.find((item) => item.nodeId === nodeId)
+  if (!row) return friendlyNodeLabel(nodeId, pt)
+  return pt ? row.exactQuestionTextPt : row.exactQuestionTextEn
+}
+
 export function buildCanonicalFlowVisualModel(path: SeraCanonicalPath, pt = true): CanonicalFlowVisualModel {
   const axis = path.axis as CanonicalSeraAxis
   const rows = SERA_CANONICAL_TREE_NODES.filter((row) => row.axis === axis)
@@ -84,14 +92,20 @@ export function buildCanonicalFlowVisualModel(path: SeraCanonicalPath, pt = true
   const uniqueQuestionIds = [...new Set(rows.map((row) => row.nodeId))]
   const terminalCodes = [...new Set(rows.flatMap((row) => row.leafCode ? [row.leafCode] : []))]
 
+  const answerByNode = new Map(path.answers.map((item, index) => [item.nodeId, { stepNumber: index + 1, answer: friendlyAnswerLabel(item.answer, pt) }]))
   const nodes: CanonicalFlowVisualNode[] = [
-    ...uniqueQuestionIds.map((nodeId) => ({
-      id: safeId(nodeId, 'N_'), sourceId: nodeId, kind: 'question' as const,
-      label: friendlyNodeLabel(nodeId, pt), code: null, active: visited.has(nodeId), selected: false,
-    })),
+    ...uniqueQuestionIds.map((nodeId) => {
+      const traversed = answerByNode.get(nodeId)
+      return {
+        id: safeId(nodeId, 'N_'), sourceId: nodeId, kind: 'question' as const,
+        label: canonicalQuestionText(nodeId, pt, rows), code: null, active: visited.has(nodeId), selected: false,
+        stepNumber: traversed?.stepNumber ?? null, activeAnswer: traversed?.answer ?? null,
+      }
+    }),
     ...terminalCodes.map((code) => ({
       id: safeId(code, 'L_'), sourceId: code, kind: 'terminal' as const,
       label: terminalLabel(code, pt), code, active: code === selectedTerminal, selected: code === selectedTerminal,
+      stepNumber: null, activeAnswer: null,
     })),
   ]
 
@@ -112,19 +126,33 @@ function escapeMermaid(value: string): string {
   return value.replace(/"/g, "'").replace(/[{}]/g, '')
 }
 
+function wrapMermaidLabel(value: string, max = 28): string {
+  const words = value.split(/\s+/)
+  const lines: string[] = []
+  let current = ''
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word
+    if (next.length > max && current) { lines.push(current); current = word } else current = next
+  }
+  if (current) lines.push(current)
+  return lines.join('<br/>')
+}
+
 export function buildCanonicalFlowMermaid(path: SeraCanonicalPath, pt = true): string {
   const model = buildCanonicalFlowVisualModel(path, pt)
   const axisColor = model.axis === 'P' ? '#0891b2' : model.axis === 'O' ? '#d97706' : '#e11d48'
   const activeStroke = model.axis === 'P' ? '#67e8f9' : model.axis === 'O' ? '#fbbf24' : '#fda4af'
-  const lines: string[] = ['flowchart TD']
+  const lines: string[] = ['%%{init: {"flowchart": {"nodeSpacing": 34, "rankSpacing": 42, "curve": "linear"}}}%%', 'flowchart TD']
 
   for (const node of model.nodes) {
     if (node.kind === 'terminal') {
       lines.push(`  ${node.id}(["${escapeMermaid(node.code ?? '')}<br/>${escapeMermaid(node.label)}"])`)
-    } else if (node.sourceId.endsWith('_ROOT')) {
-      lines.push(`  ${node.id}(["${escapeMermaid(node.label)}"])`)
     } else {
-      lines.push(`  ${node.id}{"${escapeMermaid(node.label)}"}`)
+      const prefix = node.stepNumber ? `${node.stepNumber}. ` : ''
+      const answer = node.activeAnswer ? `<br/><b>${pt ? 'Resposta' : 'Answer'}: ${escapeMermaid(node.activeAnswer)}</b>` : ''
+      const label = `${prefix}${wrapMermaidLabel(escapeMermaid(node.label))}${answer}`
+      if (node.sourceId.endsWith('_ROOT')) lines.push(`  ${node.id}(["${label}"])`)
+      else lines.push(`  ${node.id}{"${label}"}`)
     }
   }
 

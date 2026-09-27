@@ -110,10 +110,12 @@ export function isOperationalEventStatement(statement: string): boolean {
   if (isExplicitOperationalOmissionStatement(statement) || isExplicitOperationalDeviationStatement(statement)) return true
   const text = normalize(statement)
   const actorAction = /\b(tripulacao|comandante|copiloto|pic|sic|piloto|pilot|crew|captain|first officer|eles|they|maintenance|manutencao|despachante|dov|cco)\b.*\b(decidiu|decidiram|continuou|continuaram|prosseguiu|prosseguiram|manteve|mantiveram|selecionou|acionou|desligou|ligou|executou|omitiu|deixou de|falhou|iniciou|iniciado|iniciada|inseriu|programou|ajustou|configurou|verbalizou|informou|comentou|observou|notou|percebeu|reconheceu|processou|perdeu|interpretou|interpretaram|identificou|identificaram|confundiu|confundiram|associou|associaram|tratou|trataram|conduziu|conduziram|preparou|prepararam|passou|passaram|tomou|tomaram|hesitou|hesitaram|demorou|demoraram|esperou|esperaram|desceu|desceram|subiu|subiram|moveu|moveram|alinhou|alinharam|permitiu|permitiram|continued|decided|selected|executed|failed to|did not|descended|climbed|moved|lined up|allowed|initiated|started|inserted|programmed|configured|noticed|perceived|recognized|processed|lost|interpreted|identified|misidentified|mistook|treated|conducted|prepared|proceeded|treated|hesitated|delayed|waited)\b/.test(text)
-  const eventTime = /\b(as \d{1,2}h\d{2}|\d{1,2}:\d{2}|apos|depois|durante o voo|em seguida|logo apos|na sequencia|when|after|during the flight|then)\b/.test(text)
-  const eventVerb = /\b(foi apresentada|foi detectad|detectou|atingiu|reduziu|aumentou|entrou em|recebeu|apresentou|ocorreu|ativou|desativou|reconheceu|identified|detected|received|entered|activated)\b/.test(text)
-  const preflight = /\b(inspecao (?:de )?pre[- ]?voo|preflight inspection|inspecao visual|visual inspection)\b.*\b(concluida|completed|nao detectou|nada de anormal|nenhuma anormalidade|no abnormality|nothing abnormal)\b/.test(text)
-  return actorAction || preflight || (eventTime && eventVerb)
+  const eventTime = /\b(as \d{1,2}h\d{2}|\d{1,2}:\d{2}|apos|depois|durante o voo|durante a aproximacao|durante a descida|em seguida|logo apos|na sequencia|when|after|during the flight|during approach|during descent|then)\b/.test(text)
+  const eventVerb = /\b(foi apresentada|foi detectad|detectou|atingiu|reduziu|aumentou|entrou em|recebeu|apresentou|ocorreu|ativou|desativou|reconheceu|desceu|descendeu|permaneceu|alinhou|pousou|identified|detected|received|entered|activated|descended|remained|lined up|landed)\b/.test(text)
+  const preflight = /\b(inspecao (?:de )?pre[- ]?voo|preflight inspection|inspecao visual|visual inspection)\b.*\b(concluida|completed|nao detectou|nada de anormal|nenhuma anormalidade|fora detectad[oa]|no abnormality|nothing abnormal|had been detected)\b/.test(text)
+  const preflightRelease = /\b(aeronave|aircraft|inspecao|inspection)\b.*\b(pre[- ]?voo|preflight)\b.*\b(liberad[ao]|released|considerada apta|considered fit|sem travamento|not secured|unlatched|latches?|fechos?)\b/.test(text)
+    || /\b(pre[- ]?voo|preflight)\b.*\b(aeronave|aircraft)\b.*\b(liberad[ao]|released|considerada apta|considered fit)\b/.test(text)
+  return actorAction || preflight || preflightRelease || (eventTime && eventVerb)
 }
 
 function detectSection(line: string, current: SeraEvidenceSourceSection): SeraEvidenceSourceSection {

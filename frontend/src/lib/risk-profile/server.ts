@@ -16,6 +16,8 @@ import {
 } from './erc-containment'
 import { computeRiskAttentionIndex } from './attention-score'
 import { normalizeRiskProfileVNextPreconditions } from './precondition-normalization'
+import { buildObservedSeraRiskSignature } from '@/lib/sera-vnext/risk-management'
+import { SERA_PRECONDITION_META } from '@/lib/sera-vnext/precondition-taxonomy'
 import { normalizeRiskProfileVNextStatus } from './source-status'
 import type {
   RiskProfileRecurringPattern,
@@ -186,7 +188,7 @@ function normalizeLegacyPreconditions(value: unknown): string[] {
 const normalizeVNextPreconditions = normalizeRiskProfileVNextPreconditions
 
 function preconditionName(code: string): string {
-  return LEGACY_PRECONDITION_NAMES[code] ?? VNEXT_PRECONDITION_NAMES[code] ?? code
+  return LEGACY_PRECONDITION_NAMES[code] ?? VNEXT_PRECONDITION_NAMES[code] ?? (SERA_PRECONDITION_META as Record<string, { pt: string }>)[code]?.pt ?? code
 }
 
 function buildExclusionLookup(rows: ExclusionRow[]): Map<string, ExclusionRow> {
@@ -733,6 +735,11 @@ export async function getRiskProfileSummaryForTenant(
     action_code: source.actionCode ?? null,
   }))
 
+  const seraObservedProfile = buildObservedSeraRiskSignature(includedSources.map((source) => ({
+    codes: [source.perceptionCode, source.objectiveCode, source.actionCode],
+    preconditions: source.preconditions ?? [],
+  })))
+
   return {
     score,
     distribution: {
@@ -758,6 +765,13 @@ export async function getRiskProfileSummaryForTenant(
     },
     top_preconditions: topPreconditions,
     top_combinations: topCombinations,
+    sera_observed_profile: seraObservedProfile,
+    sera_risk_method: {
+      tacticalModel: 'HENDY_2003_TACTICAL_PROTOTYPE',
+      strategicModel: 'HENDY_2003_STRATEGIC_PROTOTYPE',
+      validationStatus: 'NOT_VALIDATED_PROTOTYPE',
+      note: 'Os padrões observados dos eventos são descritivos. As fórmulas tática e estratégica de Hendy são protótipos prospectivos e só devem ser calculadas com avaliação explícita dos estados das pré-condições.',
+    },
     actions: actionsResult,
     trend,
     alerts,

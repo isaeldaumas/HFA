@@ -143,6 +143,11 @@ export function runStep06DirectActor(input: {
         }
       }
     }
+    const genericPilotUnsafeAction = /\bpiloto\b.{0,120}\b(iniciou|iniciado|iniciada|executou|continuou|prosseguiu|manteve|selecionou|moveu|desceu|subiu|initiated|executed|continued|proceeded|maintained|selected|moved|descended|climbed)\b/.test(escapeText)
+      || /\bpiloto\b.{0,120}\b(nao notou|nao percebeu|nao processou|nao monitorou|nao verificou|did not notice|did not perceive|did not process|did not monitor|did not verify)\b/.test(escapeText)
+    if (genericPilotUnsafeAction && !escapeHasCaptain && !escapeHasCollectiveCrew) {
+      return { actor: 'piloto', status: 'IDENTIFIED', alternatives: ['tripulação'], actorMigrationWarnings: [] }
+    }
     if (escapeHasCopilot && escapeHasCaptain) {
       return {
         actor: 'flight crew (collective)',

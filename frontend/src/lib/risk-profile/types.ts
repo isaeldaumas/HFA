@@ -3,6 +3,7 @@ import type { HfaErcCategory } from '@/lib/sera/erc-conversion'
 import type { RiskQualityTrendPoint } from '@/lib/sera/risk-quality-trend'
 import type { SafetyIssueCandidate } from '@/lib/sera/safety-issue-candidates'
 import type { ErcPresentationMode } from './erc-containment'
+import type { SeraObservedRiskSignature } from '@/lib/sera-vnext/risk-management'
 
 export type RiskProfileSourceType = 'legacy_event' | 'sera_vnext_analysis'
 
@@ -77,6 +78,13 @@ export type RiskProfileSummary = {
   }
   top_preconditions: RiskProfilePreconditionBucket[]
   top_combinations: Array<{ pair: string; count: number; pct: number }>
+  sera_observed_profile: SeraObservedRiskSignature
+  sera_risk_method: {
+    tacticalModel: 'HENDY_2003_TACTICAL_PROTOTYPE'
+    strategicModel: 'HENDY_2003_STRATEGIC_PROTOTYPE'
+    validationStatus: 'NOT_VALIDATED_PROTOTYPE'
+    note: string
+  }
   actions: {
     total: number
     open_total: number
