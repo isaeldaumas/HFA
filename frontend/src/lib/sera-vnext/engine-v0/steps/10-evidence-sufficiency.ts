@@ -121,7 +121,7 @@ function directActorClarification(args: {
   escapePoint: SeraVNextEngineOutput['escapePoint']
   locale: 'pt-BR' | 'en'
 }): Pick<SeraClarificationQuestion, 'question' | 'whyNeeded' | 'requestedEvidence'> {
-  const anchor = `${args.escapePoint.earliestCandidate ?? ''} ${args.escapePoint.statement ?? ''}`.toLowerCase()
+  const anchor = `${args.escapePoint.criticalUnsafeActCandidate ?? args.escapePoint.statement ?? args.escapePoint.latestCandidate ?? args.escapePoint.earliestCandidate ?? ''}`.toLowerCase()
   const dispatchContext = /\b(despach|dispatch|mel|libera[cç][aã]o operacional|operational release)\w*/i.test(anchor)
   const maintenanceContext = /\b(manuten[cç][aã]o|maintenance|pre[- ]?voo|pr[eé][ -]?voo|preflight|inspetor|inspector|mec[aâ]nico|mechanic)\b/i.test(anchor)
   const flightCrewContext = /\b(tripula[cç][aã]o|flight crew|crew|piloto|pilot|comandante|captain|copiloto|first officer|pic|sic|pf|pm|checklist|qrh|de-icing|airframe|cruise speed|degraded performance|increase speed)\b/i.test(anchor)
@@ -204,7 +204,7 @@ export function runStep10EvidenceSufficiency(input: {
   const maintenancePreflightContext =
     /\bmaintenance|manuten[cç][aã]o\b/i.test(input.directActor.actor ?? '') &&
     /\b(inspe[cç][aã]o (?:de )?pr[eé][ -]?voo|pr[eé][ -]?voo|preflight inspection)\b/i.test(
-      `${input.escapePoint.statement ?? ''} ${input.escapePoint.earliestCandidate ?? ''}`,
+      `${input.escapePoint.criticalUnsafeActCandidate ?? input.escapePoint.statement ?? input.escapePoint.latestCandidate ?? input.escapePoint.earliestCandidate ?? ''}`,
     )
 
   if (!input.safeOperationModel.expectedSafeState && !input.safeOperationModel.expectedSafeAction) {

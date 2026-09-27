@@ -33,8 +33,52 @@ function evidenceFor(
   use: 'PERCEPTION' | 'OBJECTIVE' | 'ACTION',
 ): string[] {
   const escapeSupport = new Set(escapePoint.supportingEvidence)
+  const criticalAnchor = escapePoint.criticalUnsafeActCandidate ?? escapePoint.latestCandidate ?? escapePoint.statement ?? escapePoint.earliestCandidate
+  const criticalAnchorIndex = criticalAnchor
+    ? factualExtraction.timeline.find((item) => item.statement === criticalAnchor)?.sourceSentenceIndex ?? null
+    : null
+  const maxDistance = use === 'ACTION' ? 60 : 90
+  const criticalAnchorText = (criticalAnchor ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const anchorAcknowledgesCrewCue = /\b(acknowledg\w*|recognized|noted|confirmed|reconheceu|confirmou|acusou recebimento|ciente)\b/.test(criticalAnchorText)
   const ranked = factualExtraction.evidence
-    .filter((item) => isEvidenceUsableFor(item, use))
+    .filter((item) => {
+      if (isEvidenceUsableFor(item, use)) return true
+      // isEvidenceUsableFor intentionally blocks CONTEXT_ACTOR for P/O/A. The only exception
+      // considered here is a locally communicated perception cue that the direct actor explicitly
+      // acknowledged at the critical anchor; the next filter enforces that linkage.
+      return use === 'PERCEPTION'
+        && item.actorRelation === 'CONTEXT_ACTOR'
+        && item.assertionStatus === 'AFFIRMED'
+        && item.temporalRelation !== 'POST_ESCAPE'
+        && item.sourceSection !== 'REPORT_ANALYSIS'
+        && item.sourceSection !== 'RECOMMENDATION'
+        && item.sourceSection !== 'ADMINISTRATIVE'
+        && !['NON_CAUSAL_DOCUMENT', 'REFERENCE_PROCEDURE', 'SYSTEM_DESCRIPTION'].includes(item.evidenceType)
+        && !item.prohibitedFor.includes(use)
+        && item.supports.includes(use)
+    })
+    .filter((item) => item.occurrenceScope !== 'HISTORICAL_COMPARATOR')
+    .filter((item) => {
+      if (criticalAnchorIndex == null) return true
+      if (escapeSupport.has(item.statement) || item.temporalRelation === 'AT_ESCAPE') return true
+      const distance = Math.abs(item.sourceSentenceIndex - criticalAnchorIndex)
+      if (distance > maxDistance) return false
+      if (item.actorRelation === 'DIRECT_ACTOR') return true
+      // Perception is evaluated against the state of the world available to the actor. A nearby
+      // system/environment cue (e.g. missing annunciation, degraded visibility) is therefore
+      // legitimate P evidence even though the system is not the direct human actor.
+      if (use === 'PERCEPTION' && item.actorRelation === 'SYSTEM_ENVIRONMENT' && distance <= 16) return true
+      // A cue voiced by the other crewmember may support the direct actor's perception only
+      // when the critical-anchor sentence explicitly establishes that the direct actor
+      // acknowledged/recognized that cue. This is a local communication link, not actor migration.
+      if (use === 'PERCEPTION' && item.actorRelation === 'CONTEXT_ACTOR' && distance <= 4 && anchorAcknowledgesCrewCue &&
+          /\b(mentioned|said|called out|noted|commented|informed|reported|mencionou|disse|comentou|informou|reportou|alertou)\b/i.test(item.statement)) return true
+      // Permit a very small local window for evidence that explicitly states the relevant
+      // P/O/A semantics but whose actor parser could not resolve a grammatical subject.
+      const semantic = semanticEvidenceScore(use, item.statement)
+      const localUnknownLimit = use === 'ACTION' ? 10 : 16
+      return item.actorRelation === 'UNKNOWN' && distance <= localUnknownLimit && semantic > 0
+    })
     .sort((a, b) => {
       const rank = (item: typeof a): number => {
         if (item.temporalRelation === 'AT_ESCAPE') return 0
@@ -71,12 +115,16 @@ function semanticEvidenceScore(use: 'PERCEPTION' | 'OBJECTIVE' | 'ACTION', text:
     let score = 0
     if (/\b(identific|associ|acredit|entend|perceb|reconhec|confund|interpret)\w*/.test(t)) score += 6
     if (/\b(visao de tunel|tunnel vision|destino|unidade|plataforma|pista|helideck|warning|alerta)\b/.test(t)) score += 4
+    if (/\b(gps|fms|navegacao|navigation|coordenad|autoriza|configurad|programad)\w*/.test(t)) score += 4
+    if (/\b(visibilidade|visibility|nevoa|fog|nuvem|cloud|chuva|rain|noite|night|referencia visual|referencias visuais|visual reference|visual references|pistas visuais|visual cues)\b/.test(t)) score += 5
+    if (/\b(corretamente|correto|correta|correctly|correct|accurate)\b/.test(t)) score += 2
     return score
   }
   if (use === 'OBJECTIVE') {
     let score = 0
     if (/\b(objetiv|intenc|pretend|planej|meta|goal|intent|planned|planning)\w*/.test(t)) score += 6
-    if (/\b(entendemos que|acreditava que|pouso seria|destino previsto|rota prevista|planned destination|planned route)\b/.test(t)) score += 5
+    if (/\b(entendemos que|acreditava que|pouso seria|destino (?:inicial )?(?:previsto|planejado|programado)|rota prevista|planned (?:initial )?destination|planned route)\b/.test(t)) score += 5
+    if (/\b(autorizad|authorization|clearance)\w*/.test(t) && /\b(destino|destination|unidade|unit-)\b/.test(t)) score += 4
     if (/\b(eficiencia|economia|prazo|schedule|productivity|produtividade|cost|custo)\b/.test(t)) score += 4
     return score
   }

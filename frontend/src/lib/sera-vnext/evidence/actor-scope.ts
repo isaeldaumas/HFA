@@ -7,9 +7,11 @@ function normalize(value: string): string {
 export function detectEvidenceActor(statement: string): string | null {
   const text = normalize(statement)
   // Prefer the grammatical/operational subject over a person merely mentioned as recipient.
-  if (/^(?:the )?(captain|comandante)\b/.test(text) || /\b(captain|comandante)\b.{0,40}\b(said|decided|selected|performed|executed|continued|informed|disse|decidiu|selecionou|executou|prosseguiu|informou)\b/.test(text)) return 'captain'
-  if (/^(?:the )?(first officer|copiloto)\b/.test(text) || /\b(first officer|copiloto)\b.{0,40}\b(said|decided|selected|performed|executed|continued|informed|disse|decidiu|selecionou|executou|prosseguiu|informou)\b/.test(text)) return 'first officer'
-  if (/\b(first officer|copiloto)\b/.test(text)) return 'first officer'
+  if (/\bpic\b/.test(text)) return 'captain'
+  if (/\bsic\b/.test(text)) return 'first officer'
+  if (/^(?:the )?(captain|comandante)\b/.test(text) || /\b(captain|comandante)\b.{0,40}\b(said|mentioned|noted|commented|acknowledged|decided|selected|performed|executed|continued|informed|disse|mencionou|observou|comentou|reconheceu|confirmou|decidiu|selecionou|executou|prosseguiu|informou)\b/.test(text)) return 'captain'
+  if (/^(?:the )?(first officer|copilot|copiloto)\b/.test(text) || /\b(first officer|copilot|copiloto)\b.{0,40}\b(said|mentioned|noted|commented|acknowledged|decided|selected|performed|executed|continued|informed|disse|mencionou|observou|comentou|reconheceu|confirmou|decidiu|selecionou|executou|prosseguiu|informou)\b/.test(text)) return 'first officer'
+  if (/\b(first officer|copilot|copiloto)\b/.test(text)) return 'first officer'
   if (/\b(captain|comandante)\b/.test(text)) return 'captain'
   if (/\bflight crew|\bcrew\b|tripulacao/.test(text)) return 'flight crew (collective)'
   if (/\bpilot\b|piloto/.test(text)) return 'pilot'

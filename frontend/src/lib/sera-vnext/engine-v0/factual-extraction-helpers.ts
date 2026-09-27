@@ -86,10 +86,24 @@ export function isProcedureReferenceStatement(statement: string): boolean {
 export function isSystemDescriptionStatement(statement: string): boolean {
   const text = normalize(statement)
   if (isNonCausalDocumentStatement(statement)) return false
-  const definition = /\b(era responsavel|responsavel por|responsavel pelo|responsaveis|responsaveis por|responsaveis pelo|tinha a funcao|era composto|era constituido|possuia|permitia|armava|ativava|correspondia|provia|indicava|apresentava|fornecia|servia para|ficava localizado|rotacionava livremente|poderia prover|poderia ser|deveria ser testado|atuava|atuavam|funcionava|funcionavam|realizava|realizavam|compreendia|compreendiam|consistia|consistiam|permanecia|permaneciam|com o objetivo de|era ligado|era desligado|eram ligados|eram desligados)\b/.test(text)
+  const definition = /\b(era responsavel|responsavel por|responsavel pelo|responsaveis|responsaveis por|responsaveis pelo|tinha a funcao|era composto|era constituido|possuia|permitia|armava|ativava|correspondia|provia|indicava|apresentava|fornecia|servia para|ficava localizado|rotacionava livremente|poderia prover|poderia ser|deveria ser testado|deveria ser mantido|deveriam ser mantidos|ficaria acesa|ficariam acesas|comecaria a piscar|comecariam a piscar|atuava|atuavam|funcionava|funcionavam|realizava|realizavam|utilizava|utilizavam|monitorava|monitoravam|emitia|emitiam|compreendia|compreendiam|consistia|consistiam|permanecia|permaneciam|com o objetivo de|era ligado|era desligado|eram ligados|eram desligados)\b/.test(text)
   const technicalSubject = /\b(sistema|sistemas|system|systems|modo|painel|luz|luzes|alerta|sensor|apm|afcs|ccas|sps|autopilot|piloto automatico|de-icing|anti-icing|boots?|stick pusher|stick shaker|approach \(app|app - aproximacao)\b/.test(text)
-  const eventAnchor = /\b(as \d{1,2}h\d{2}|\d{1,2}:\d{2}|durante o voo|naquele voo|no voo do acidente|a tripulacao|o comandante|o copiloto|o pic|o sic)\b/.test(text)
-  return definition && technicalSubject && !eventAnchor
+  const temporalEventAnchor = /\b(as \d{1,2}h\d{2}|\d{1,2}:\d{2}|naquele voo|no voo do acidente)\b/.test(text) || /^(durante o voo|during the flight)\b/.test(text)
+  const actorEventAnchor = /\b(a tripulacao|o comandante|o copiloto|o pic|o sic)\b.{0,100}\b(decidiu|manteve|executou|acionou|desligou|ligou|comentou|informou|observou|percebeu|reconheceu|falhou|deixou de|continuou|prosseguiu)\b/.test(text)
+  return definition && technicalSubject && !temporalEventAnchor && !actorEventAnchor
+}
+
+
+export function isDirectControlResponseStatement(statement: string): boolean {
+  const text = normalize(statement)
+  const controlSurface = /\b(coluna(?: de comando)?|manche|comando(?: de arfagem)?|profundor|control column|yoke|stick|cyclic|ciclico|coletivo|collective|pitch control)\b/.test(text)
+  const protectiveCue = /\b(stick pusher|stick shaker|stall warning|stall protection|sps|prote[cç][aã]o contra stall|alerta de stall)\b/.test(text)
+  const opposingInput = /\b(em oposicao|oposi[cç][aã]o|contrari[ao]|contra a atua[cç][aã]o|sentido contrario|aft input|aft-column|nose up|cabrar|puxou|puxaram|pulled|opposed|opposing)\b/.test(text)
+  const measuredOpposingForce = /\b(esfor[cç]o|force)\b.*\b(coluna|manche|control column|yoke|stick)\b.*\b(oposi[cç][aã]o|opposing|contra|contrari[ao])\b/.test(text)
+  const actorOpposingForce = /\b(sic|pic|pilotos?|pilots?|tripulacao|tripula[cç][aã]o|comandante|captain|copiloto|first officer|pf|pm)\b.*\b(esfor[cç]o|force|input|atua[cç][aã]o)\b.*\b(nose up|nose down|cabrar|picar|oposi[cç][aã]o|opposing|contra|contrari[ao])\b/.test(text)
+  // A control movement is not unsafe merely because a pilot made it. Require an explicit
+  // opposing/unsafe relationship to a protective cue or a measured opposing force.
+  return (controlSurface && ((protectiveCue && opposingInput) || measuredOpposingForce)) || (protectiveCue && actorOpposingForce)
 }
 
 export function isExplicitOperationalOmissionStatement(statement: string): boolean {
@@ -107,7 +121,7 @@ export function isExplicitOperationalDeviationStatement(statement: string): bool
 
 export function isOperationalEventStatement(statement: string): boolean {
   if (isNonCausalDocumentStatement(statement) || isProcedureReferenceStatement(statement) || isSystemDescriptionStatement(statement)) return false
-  if (isExplicitOperationalOmissionStatement(statement) || isExplicitOperationalDeviationStatement(statement)) return true
+  if (isDirectControlResponseStatement(statement) || isExplicitOperationalOmissionStatement(statement) || isExplicitOperationalDeviationStatement(statement)) return true
   const text = normalize(statement)
   const actorAction = /\b(tripulacao|comandante|copiloto|pic|sic|piloto|pilot|crew|captain|first officer|eles|they|maintenance|manutencao|despachante|dov|cco)\b.*\b(decidiu|decidiram|continuou|continuaram|prosseguiu|prosseguiram|manteve|mantiveram|selecionou|acionou|desligou|ligou|executou|omitiu|deixou de|falhou|iniciou|iniciado|iniciada|inseriu|programou|ajustou|configurou|verbalizou|informou|comentou|observou|notou|percebeu|reconheceu|processou|perdeu|interpretou|interpretaram|identificou|identificaram|confundiu|confundiram|associou|associaram|tratou|trataram|conduziu|conduziram|preparou|prepararam|passou|passaram|tomou|tomaram|hesitou|hesitaram|demorou|demoraram|esperou|esperaram|desceu|desceram|subiu|subiram|moveu|moveram|alinhou|alinharam|permitiu|permitiram|continued|decided|selected|executed|failed to|did not|descended|climbed|moved|lined up|allowed|initiated|started|inserted|programmed|configured|noticed|perceived|recognized|processed|lost|interpreted|identified|misidentified|mistook|treated|conducted|prepared|proceeded|treated|hesitated|delayed|waited)\b/.test(text)
   const eventTime = /\b(as \d{1,2}h\d{2}|\d{1,2}:\d{2}|apos|depois|durante o voo|durante a aproximacao|durante a descida|em seguida|logo apos|na sequencia|when|after|during the flight|during approach|during descent|then)\b/.test(text)

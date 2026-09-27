@@ -34,10 +34,13 @@ export function buildEscapePointReview(escapePoint: EscapePointOutput): SeraRevi
   return {
     candidateStatement: escapePoint.statement,
     reviewerQuestion: escapePointReviewerQuestion(),
-    whyThisMatters: 'O ponto de fuga delimita o momento e o ator onde a análise causal é aplicada. Todos os eixos P/O/A são avaliados relativamente a este ponto. Se o ponto de fuga estiver incorreto, toda a análise downstream fica comprometida.',
+    whyThisMatters: 'Hendy distingue a primeira saída da operação segura do ato/condição insegura crítica. Quando os marcos diferem, o primeiro delimita o início da janela causal e P/O/A é ancorado no ato crítico diretamente ligado à trajetória do desfecho. Se essa fronteira estiver incorreta, toda a análise downstream fica comprometida.',
     supportingEvidence: supporting.length > 0 ? supporting : ['Nenhuma evidência explícita de suporte registrada.'],
     counterEvidence: counter.length > 0 ? counter : ['Nenhuma evidência contrária explícita registrada.'],
-    boundaryWarnings: boundaryWarnings(escapePoint.status),
+    boundaryWarnings: [
+      ...boundaryWarnings(escapePoint.status),
+      ...(escapePoint.anchorBasis === 'CRITICAL_UNSAFE_ACT' ? ['Hendy boundary split — primeira saída e ato crítico são marcos distintos; confirmar ambos antes de concluir P/O/A.'] : []),
+    ],
     confidence: confidenceLabel(escapePoint.confidence),
     reviewerOptions: escapePointReviewerOptions(),
   }

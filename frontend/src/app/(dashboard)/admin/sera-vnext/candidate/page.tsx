@@ -31,6 +31,11 @@ type CandidateResponse = {
     statement: string | null
     earliestCandidate: string | null
     latestCandidate: string | null
+    firstDepartureCandidate?: string | null
+    criticalUnsafeActCandidate?: string | null
+    criticalCandidateAlternatives?: string[]
+    irreversibilityBoundaryCandidate?: string | null
+    anchorBasis?: 'FIRST_DEPARTURE_AND_CRITICAL_ACT' | 'CRITICAL_UNSAFE_ACT' | 'FIRST_DEPARTURE_ONLY' | 'UNRESOLVED'
     directActor: string | null
     supportingEvidence: string[]
     counterEvidence: string[]
@@ -277,14 +282,20 @@ export default function AdminSeraVNextCandidatePage() {
             <p className="text-sm text-slate-300">{result.escapePoint.statement ?? 'Sem janela candidata explícita no texto enviado.'}</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
               <div className="rounded-lg border border-slate-800 bg-slate-950 p-3 text-slate-300">
-                <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">Earliest candidate</p>
-                {result.escapePoint.earliestCandidate ?? '-'}
+                <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">First departure from safe operation</p>
+                {result.escapePoint.firstDepartureCandidate ?? result.escapePoint.earliestCandidate ?? '-'}
               </div>
               <div className="rounded-lg border border-slate-800 bg-slate-950 p-3 text-slate-300">
-                <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">Latest candidate</p>
-                {result.escapePoint.latestCandidate ?? '-'}
+                <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">Critical unsafe act / condition</p>
+                {result.escapePoint.criticalUnsafeActCandidate ?? result.escapePoint.latestCandidate ?? '-'}
               </div>
             </div>
+            {result.escapePoint.irreversibilityBoundaryCandidate && (
+              <div className="rounded-lg border border-slate-800 bg-slate-950 p-3 text-sm text-slate-300">
+                <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">Irreversibility / no-return boundary</p>
+                {result.escapePoint.irreversibilityBoundaryCandidate}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
