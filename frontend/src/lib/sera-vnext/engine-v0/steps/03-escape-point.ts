@@ -94,6 +94,7 @@ export function runStep03EscapePoint(input: {
         latestCandidate: directClarification.statement,
         supportingEvidence: [directClarification.statement],
         counterEvidence: [],
+        progressiveBoundary: false,
         episodeCandidates: [{ phase: 'GENERIC' as const, anchorStatement: directClarification.statement, supportingEvidence: [directClarification.statement], occurrenceScope: 'CURRENT_EVENT' as const, seraRole: 'HUMAN_FACTOR_CANDIDATE' as const, humanFactorEligible: true, selected: true }],
         humanFactorGate: { status: 'PASSED' as const, anchorType: classifyHumanFactorEscapeStatement(directClarification.statement), rationale: ['Human clarification identifies an observable unsafe act/inaction or operator-controlled unsafe condition.'] },
       }
@@ -110,7 +111,7 @@ export function runStep03EscapePoint(input: {
     : null
 
   const status = selectedWindow.statement
-    ? selectedWindow.counterEvidence.length > 0
+    ? selectedWindow.progressiveBoundary
       ? 'PROGRESSIVE_ZONE'
       : 'CANDIDATE'
     : 'INSUFFICIENT_EVIDENCE'
@@ -123,7 +124,7 @@ export function runStep03EscapePoint(input: {
     directActor: null,
     supportingEvidence: selectedWindow.supportingEvidence,
     counterEvidence: selectedWindow.counterEvidence,
-    excludedPostEscapeEvidence: excludedPostEscapeEvidence(input.factualExtraction.timeline, latestSentenceIndex),
+    excludedPostEscapeEvidence: excludedPostEscapeEvidence(input.factualExtraction.timeline, latestSentenceIndex, selectedWindow.earliestCandidate),
     episodeCandidates: selectedWindow.episodeCandidates,
     confidence: escapeConfidence({
       candidate: selectedWindow.earliestCandidate,

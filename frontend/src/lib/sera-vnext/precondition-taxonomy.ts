@@ -64,6 +64,9 @@ function n(value: string): string { return value.normalize('NFD').replace(/[\u03
 
 export function classifyCanonicalPrecondition(text: string): SeraCanonicalPreconditionCategory | null {
   const x = n(text)
+  const explicitTechnicalFailure = /\b(pane|fault|malfunction|falha tecnica|technical failure|inoperante|inoperative)\b/.test(x)
+    && /\b(sistema|system|equipamento|equipment|sensor|display|automation|automacao|de-icing|airframe|anti-icing|boots?|motor|engine|rudder|leme|trim)\b/.test(x)
+  if (explicitTechnicalFailure) return 'EQUIPMENT'
   const rules: Array<[SeraCanonicalPreconditionCategory, RegExp]> = [
     ['QUALIFICATION_AUTHORIZATION', /\b(qualifica|habilita|autorizad|authorization|qualified|licen[cs])\b/],
     ['TRAINING_SELECTION', /\b(treinamento|training|selecao|selection|profici|familiaridade|unfamiliar|knowledge gap|conhecimento insuficiente)\b/],

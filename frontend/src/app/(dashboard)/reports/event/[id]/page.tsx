@@ -560,7 +560,9 @@ export default function EventReportPage() {
         {vnextOutput && (
           <section className="report-section">
             <h3 className="report-title">8. {L('Como o sistema chegou à classificação', 'How the system reached the classification')}</h3>
-            <p className="report-note mb-3">{L('A árvore preserva a topologia canônica do SERA. Os nós usam rótulos curtos e dimensões padronizadas; a pergunta canônica completa e a resposta aparecem logo abaixo com o mesmo número da etapa. A resposta da Etapa 1 é descritiva e alimenta a avaliação das etapas seguintes.', 'The tree preserves the canonical SERA topology. Nodes use short labels and standardized dimensions; the full canonical question and answer appear immediately below with the same step number. Step 1 produces a descriptive answer that feeds the subsequent evaluation.')}</p>
+            <p className="report-note mb-3">{vnextOutput.canonicalTraversal.paths.length === 0
+              ? L('A travessia canônica P/O/A não foi iniciada porque o ator direto ainda não está resolvido no ponto de fuga. Nenhuma árvore ou caminho é tratado como percorrido até que essa fronteira de ator seja esclarecida.', 'Canonical P/O/A traversal was not started because the direct actor remains unresolved at the escape point. No tree or path is treated as traversed until that actor boundary is clarified.')
+              : L('A árvore preserva a topologia canônica do SERA. Os nós usam rótulos curtos e dimensões padronizadas; a pergunta canônica completa e a resposta aparecem logo abaixo com o mesmo número da etapa. A resposta da Etapa 1 é descritiva e alimenta a avaliação das etapas seguintes.', 'The tree preserves the canonical SERA topology. Nodes use short labels and standardized dimensions; the full canonical question and answer appear immediately below with the same step number. Step 1 produces a descriptive answer that feeds the subsequent evaluation.')}</p>
             <div className="space-y-4">
               {vnextOutput.canonicalTraversal.paths.map((path) => (
                 <div key={path.axis} className="report-box">

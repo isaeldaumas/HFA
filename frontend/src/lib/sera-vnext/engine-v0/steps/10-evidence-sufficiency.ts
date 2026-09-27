@@ -117,6 +117,70 @@ function uniqueQuestions(items: SeraClarificationQuestion[]): SeraClarificationQ
   })
 }
 
+function directActorClarification(args: {
+  escapePoint: SeraVNextEngineOutput['escapePoint']
+  locale: 'pt-BR' | 'en'
+}): Pick<SeraClarificationQuestion, 'question' | 'whyNeeded' | 'requestedEvidence'> {
+  const anchor = `${args.escapePoint.earliestCandidate ?? ''} ${args.escapePoint.statement ?? ''}`.toLowerCase()
+  const dispatchContext = /\b(despach|dispatch|mel|libera[cç][aã]o operacional|operational release)\w*/i.test(anchor)
+  const maintenanceContext = /\b(manuten[cç][aã]o|maintenance|pre[- ]?voo|pr[eé][ -]?voo|preflight|inspetor|inspector|mec[aâ]nico|mechanic)\b/i.test(anchor)
+  const flightCrewContext = /\b(tripula[cç][aã]o|flight crew|crew|piloto|pilot|comandante|captain|copiloto|first officer|pic|sic|pf|pm|checklist|qrh|de-icing|airframe|cruise speed|degraded performance|increase speed)\b/i.test(anchor)
+
+  if (dispatchContext) {
+    return args.locale === 'pt-BR'
+      ? {
+          question: 'Quem autorizou, executou ou ratificou o despacho/liberação operacional que constitui o ponto de fuga? Identifique o papel de cada ator diretamente vinculado a esse ato e a evidência que demonstra essa participação.',
+          whyNeeded: 'P/O/A devem ser atribuídos ao ator do próprio ato de despacho. Atores citados em outros fatos, como avaliação meteorológica ou ações posteriores da tripulação, não podem ser importados por inferência.',
+          requestedEvidence: ['registro de despacho/liberação operacional', 'aplicação ou dispensa das restrições da MEL', 'registro/TLB ou comunicação que identifique quem autorizou, executou ou ratificou o despacho'],
+        }
+      : {
+          question: 'Who authorized, executed, or ratified the dispatch/operational release that constitutes the escape point? Identify each actor directly tied to that act and the evidence establishing that participation.',
+          whyNeeded: 'P/O/A must be attributed to the actor of the dispatch act itself. Actors mentioned in other facts, such as weather assessment or later flight-crew actions, cannot be imported by inference.',
+          requestedEvidence: ['dispatch/operational-release record', 'application or waiver of MEL restrictions', 'log/TLB or communication identifying who authorized, executed, or ratified the dispatch'],
+        }
+  }
+
+  if (maintenanceContext) {
+    return args.locale === 'pt-BR'
+      ? {
+          question: 'Quem executou, inspecionou ou liberou a atividade de manutenção/pré-voo que constitui o ponto de fuga? Identifique a função e a evidência que vincula essa pessoa ao ato.',
+          whyNeeded: 'A análise P/O/A deve permanecer no executor ou decisor da atividade de manutenção/pré-voo, sem migrar para quem detectou a condição posteriormente.',
+          requestedEvidence: ['ordem/registro de manutenção ou pré-voo', 'identificação do executor/inspetor/liberador', 'passo executado e eventual verificação independente'],
+        }
+      : {
+          question: 'Who performed, inspected, or released the maintenance/preflight activity that constitutes the escape point? Identify the role and evidence linking that person to the act.',
+          whyNeeded: 'P/O/A must remain anchored to the maintenance/preflight actor and must not migrate to someone who detected the condition later.',
+          requestedEvidence: ['maintenance/preflight record', 'identity of performer/inspector/releaser', 'performed step and any independent verification'],
+        }
+  }
+
+  if (flightCrewContext) {
+    return args.locale === 'pt-BR'
+      ? {
+          question: 'Qual tripulante executou ou comandou a ação/omissão no ponto de fuga? Informe quem era PF, quem era PM e quem realizou a ação ou tomou a decisão relevante.',
+          whyNeeded: 'A análise P/O/A deve permanecer ancorada no tripulante diretamente ligado ao ponto de fuga; não é permitido migrar a causalidade para outro membro da tripulação por inferência.',
+          requestedEvidence: ['papéis PF/PM no momento', 'tripulante que executou a ação/omissão', 'tripulante que tomou a decisão, quando diferente'],
+        }
+      : {
+          question: 'Which crewmember executed or directed the action/omission at the escape point? Identify PF, PM, and who performed the relevant action or made the decision.',
+          whyNeeded: 'P/O/A must remain anchored to the crewmember directly connected to the escape point; causality cannot migrate to another crewmember by inference.',
+          requestedEvidence: ['PF/PM roles at that moment', 'crewmember who performed the action/omission', 'crewmember who made the decision, when different'],
+        }
+  }
+
+  return args.locale === 'pt-BR'
+    ? {
+        question: 'Quem executou, comandou ou tomou a decisão que constitui o ponto de fuga? Informe a função do ator e a evidência factual que o vincula diretamente a esse ato.',
+        whyNeeded: 'A análise P/O/A deve permanecer ancorada no ator diretamente ligado ao ponto de fuga; atores de outros momentos do evento não podem preencher essa lacuna por inferência.',
+        requestedEvidence: ['ator diretamente vinculado ao ato', 'função operacional no momento', 'registro ou relato factual que demonstre a participação'],
+      }
+    : {
+        question: 'Who performed, directed, or made the decision that constitutes the escape point? Identify the actor role and factual evidence directly linking that actor to the act.',
+        whyNeeded: 'P/O/A must remain anchored to the actor directly connected to the escape point; actors from other moments cannot fill this gap by inference.',
+        requestedEvidence: ['actor directly linked to the act', 'operational role at that moment', 'record or factual account establishing participation'],
+      }
+}
+
 export function runStep10EvidenceSufficiency(input: {
   safeOperationModel: SeraVNextEngineOutput['safeOperationModel']
   escapePoint: SeraVNextEngineOutput['escapePoint']
@@ -184,14 +248,13 @@ export function runStep10EvidenceSufficiency(input: {
 
   if (input.escapePoint.status !== 'INSUFFICIENT_EVIDENCE' && input.directActor.status === 'AMBIGUOUS') {
     blockingReasons.push('DIRECT_ACTOR_UNRESOLVED')
+    const actorQuestion = directActorClarification({ escapePoint: input.escapePoint, locale: input.locale })
     questions.push({
       id: 'CLARIFY-DIRECT-ACTOR',
       stage: 'DIRECT_ACTOR',
       blocking: true,
       linkedNodeId: null,
-      question: input.locale === 'pt-BR' ? 'Quem executou ou comandou a ação no ponto de fuga? Se havia dois pilotos, informe quem era PF, quem era PM e quem realizou a ação ou tomou a decisão relevante.' : 'Who executed or directed the action at the escape point? If two pilots were involved, identify PF, PM, and who performed the relevant action or decision.',
-      whyNeeded: input.locale === 'pt-BR' ? 'A análise P/O/A deve permanecer ancorada no ator diretamente ligado ao ponto de fuga; não é permitido migrar a causalidade para outro membro da equipe por inferência.' : 'P/O/A analysis must remain anchored to the actor directly connected to the escape point; causality cannot migrate to another team member by inference.',
-      requestedEvidence: input.locale === 'pt-BR' ? ['papéis PF/PM', 'ator que executou a ação', 'ator que tomou a decisão, quando diferente'] : ['PF/PM roles', 'actor who performed the action', 'actor who made the decision, when different'],
+      ...actorQuestion,
     })
   }
 

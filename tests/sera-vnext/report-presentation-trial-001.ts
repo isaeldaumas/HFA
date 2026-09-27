@@ -63,5 +63,12 @@ for (const source of [screenReport, serverPdf, eventPanel]) {
   assert.ok(source.includes('item.statement.length <= 1200'))
 }
 assert.ok(reportsIndex.includes("redirect('/reports/executive')"))
+assert.ok(screenReport.includes('travessia canônica P/O/A não foi iniciada'))
+assert.ok(serverPdf.includes('A travessia canônica P/O/A não foi iniciada'))
+assert.ok(serverPdf.includes('Consequência não utilizada como causa'))
+assert.ok(serverPdf.includes('Nenhuma migração indevida do ator causal'))
+assert.ok(serverPdf.includes("L('Motor SERA (runtime)', 'SERA engine (runtime)')"))
+const versioning = fs.readFileSync(path.join(root, 'frontend/src/lib/sera-vnext-product/versioning.ts'), 'utf8')
+assert.ok(versioning.includes('SERA_CODE_COMMIT'))
 
 console.log('PASS report presentation and didactic flow')

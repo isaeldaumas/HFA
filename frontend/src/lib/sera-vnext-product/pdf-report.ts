@@ -156,8 +156,8 @@ function translateReportText(value: string, pt: boolean): string {
   return reverse.get(localized) ?? localized
 }
 
-function guardrailLabel(name: string, pt: boolean): string {
-  const ptMap: Record<string, string> = {
+function guardrailLabel(name: string, violated: boolean, pt: boolean): string {
+  const violationPt: Record<string, string> = {
     consequenceUsedAsCause: 'Consequência utilizada indevidamente como causa', postEscapeHuntingDetected: 'Busca causal após o ponto de fuga',
     postEscapeEvidenceUsed: 'Evidência pós-ponto de fuga usada na causalidade', oeUsed: 'Código O-E inexistente utilizado',
     inventedQuestionDetected: 'Pergunta canônica inventada ou reconstruída', actorMigrationDetected: 'Migração indevida do ator causal',
@@ -167,7 +167,17 @@ function guardrailLabel(name: string, pt: boolean): string {
     escapePointReferenceContamination: 'Material de referência utilizado como ponto de fuga',
     candidateEvidenceMinimumMissing: 'Código candidato sem evidência mínima específica',
   }
-  const enMap: Record<string, string> = {
+  const safePt: Record<string, string> = {
+    consequenceUsedAsCause: 'Consequência não utilizada como causa', postEscapeHuntingDetected: 'Nenhuma busca causal após o ponto de fuga',
+    postEscapeEvidenceUsed: 'Evidência pós-ponto de fuga não utilizada na causalidade', oeUsed: 'Código O-E inexistente não utilizado',
+    inventedQuestionDetected: 'Nenhuma pergunta canônica inventada ou reconstruída', actorMigrationDetected: 'Nenhuma migração indevida do ator causal',
+    preconditionUsedAsEscapePoint: 'Pré-condição não utilizada como ponto de fuga', codeFirstPathDetected: 'Código não definido antes da travessia metodológica',
+    awarenessMissingForViolation: 'Nenhuma violação atribuída sem evidência de consciência da regra',
+    nonCausalEvidenceUsed: 'Evidência documental não causal não utilizada na classificação',
+    escapePointReferenceContamination: 'Material de referência não utilizado como ponto de fuga',
+    candidateEvidenceMinimumMissing: 'Nenhum código candidato sem evidência mínima específica',
+  }
+  const violationEn: Record<string, string> = {
     consequenceUsedAsCause: 'Consequence improperly used as cause', postEscapeHuntingDetected: 'Post-escape causal hunting',
     postEscapeEvidenceUsed: 'Post-escape evidence used causally', oeUsed: 'Nonexistent O-E code used',
     inventedQuestionDetected: 'Canonical question invented or reconstructed', actorMigrationDetected: 'Improper causal actor migration',
@@ -177,7 +187,18 @@ function guardrailLabel(name: string, pt: boolean): string {
     escapePointReferenceContamination: 'Reference material used as the escape point',
     candidateEvidenceMinimumMissing: 'Candidate code lacks code-specific minimum evidence',
   }
-  return (pt ? ptMap : enMap)[name] ?? name
+  const safeEn: Record<string, string> = {
+    consequenceUsedAsCause: 'Consequence not used as cause', postEscapeHuntingDetected: 'No post-escape causal hunting detected',
+    postEscapeEvidenceUsed: 'Post-escape evidence not used causally', oeUsed: 'Nonexistent O-E code not used',
+    inventedQuestionDetected: 'No canonical question invented or reconstructed', actorMigrationDetected: 'No improper causal actor migration',
+    preconditionUsedAsEscapePoint: 'Precondition not used as escape point', codeFirstPathDetected: 'Code not selected before methodological traversal',
+    awarenessMissingForViolation: 'No violation attributed without rule-awareness evidence',
+    nonCausalEvidenceUsed: 'Non-causal document evidence not used in classification',
+    escapePointReferenceContamination: 'Reference material not used as the escape point',
+    candidateEvidenceMinimumMissing: 'No candidate code lacks code-specific minimum evidence',
+  }
+  const map = pt ? (violated ? violationPt : safePt) : (violated ? violationEn : safeEn)
+  return map[name] ?? name
 }
 
 function axisLabel(axis: string, pt: boolean): string {
@@ -720,16 +741,19 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     }
 
     heading(doc, '6. ' + L('Como o sistema chegou à classificação', 'How the system reached the classification'))
-    body(
-      doc,
-      L(
+    if (output.canonicalTraversal.paths.length === 0) {
+      body(doc, L(
+        'A travessia canônica P/O/A não foi iniciada porque o ator direto ainda não está resolvido no ponto de fuga. Nenhuma árvore ou caminho deve ser interpretado como percorrido até que essa fronteira de ator seja esclarecida.',
+        'Canonical P/O/A traversal was not started because the direct actor remains unresolved at the escape point. No tree or path should be interpreted as traversed until that actor boundary is clarified.',
+      ), 'justify')
+    } else {
+      body(doc, L(
         'Primeiro são apresentadas as árvores completas de Percepção, Objetivo e Ação, preservando inclusive os ramos não seguidos. O caminho usado nesta análise é destacado por cor até o código terminal. Em seguida, cada nó efetivamente percorrido é explicado com pergunta, resposta, justificativa e evidências.',
         'The complete Perception, Objective, and Action trees are presented first, including paths not taken. The route used in this analysis is highlighted through the terminal code. Each traversed node is then explained with its question, answer, rationale, and evidence.',
-      ),
-      'justify',
-    )
-    doc.moveDown(0.45)
-    for (const path of output.canonicalTraversal.paths) renderCanonicalTreePage(doc, path, output, pt)
+      ), 'justify')
+      doc.moveDown(0.45)
+      for (const path of output.canonicalTraversal.paths) renderCanonicalTreePage(doc, path, output, pt)
+    }
     if (output.canonicalTraversal.paths.length) {
       doc.addPage({ size: 'A4', layout: 'portrait', margin: 46 })
       heading(doc, '6.1 ' + L('Detalhamento do caminho percorrido', 'Traversed-path detail'))
@@ -843,8 +867,8 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
 
     heading(doc, 'A.1 ' + L('Proveniência e controle metodológico', 'Provenance and methodological control'))
     meta(doc, L('ID da análise', 'Analysis ID'), analysis.id)
-    meta(doc, L('Motor', 'Engine'), analysis.engine_version)
-    meta(doc, 'Runtime', value(analysis.engine_runtime_version))
+    meta(doc, L('Motor SERA (runtime)', 'SERA engine (runtime)'), value(analysis.engine_runtime_version, input.versions.engineRuntimeVersion))
+    meta(doc, L('Contrato de persistência do motor', 'Engine persistence contract'), analysis.engine_version)
     meta(doc, L('Metodologia', 'Methodology'), analysis.methodology_version)
     meta(doc, 'Baseline', analysis.baseline_id)
     meta(doc, 'Fixture set', analysis.fixture_set_id)
@@ -854,8 +878,8 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     meta(doc, L('Hash da saída', 'Output hash'), analysis.engine_output_hash)
     meta(doc, 'Status', analysis.status + ' / ' + analysis.review_status)
     meta(doc, L('Revisão corrente', 'Current revision'), String(analysis.current_revision))
-    meta(doc, L('Motor do produto', 'Product engine'), input.versions.engineVersion)
-    meta(doc, L('Runtime do produto', 'Product runtime'), input.versions.engineRuntimeVersion)
+    meta(doc, L('Contrato do produto', 'Product contract'), input.versions.engineVersion)
+    meta(doc, L('Runtime executável', 'Executable runtime'), input.versions.engineRuntimeVersion)
     meta(doc, L('Schema de entrada', 'Input schema'), input.versions.inputSchemaVersion)
     meta(doc, L('Schema de saída', 'Output schema'), input.versions.outputSchemaVersion)
 
@@ -888,7 +912,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       const evidence = output.guardrailEvidence[name] ?? []
       doc.font('Helvetica-Bold').fontSize(8.8)
         .fillColor(violated ? '#9b2c2c' : '#2f6f4e')
-        .text((violated ? L('VIOLAÇÃO', 'VIOLATION') : 'OK') + ' - ' + guardrailLabel(name, pt))
+        .text((violated ? L('VIOLAÇÃO', 'VIOLATION') : 'OK') + ' - ' + guardrailLabel(name, violated, pt))
       if (evidence.length) bullets(doc, evidence)
       doc.moveDown(0.22)
     }

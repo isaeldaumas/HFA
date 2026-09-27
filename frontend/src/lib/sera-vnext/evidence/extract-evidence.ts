@@ -30,7 +30,10 @@ function statementHasAnyConcept(statement: string, concepts: SeraEvidenceConcept
 function classifySupportedUses(statement: string, category: SeraFact['category'], evidenceType: SeraEvidenceItem['evidenceType']): SeraEvidenceUse[] {
   if (['NON_CAUSAL_DOCUMENT', 'REFERENCE_PROCEDURE', 'SYSTEM_DESCRIPTION'].includes(evidenceType)) return []
   const supports: SeraEvidenceUse[] = []
+  const positiveTrainingProvision = /\b(programa de treinamento|training program|treinamentos?|training)\b.*\b(inclu[ií]a|inclu[ií]do|integrad[oa]s?|contemplava|previa|provided|included|integrated|completed|realizado|realizados|ministrado|recebeu|received)\b/i.test(statement)
+    && !/\b(falta|lacuna|insuficient|inadequad|n[aã]o recebeu|n[aã]o realizou|n[aã]o treinad|lack|gap|insufficient|inadequate|not trained|did not receive)\b/i.test(statement)
   const normalState = /\b(treinamentos?|habilita[cç][oõ]es?|certificados?|cma|cht)\b.*\b(em dia|v[aá]lid[oa]s?|current|valid)\b|\b(situa[cç][aã]o t[eé]cnica normal|coordenadas? (?:foram )?inseridas? normalmente|checklists? (?:foram )?lidos?)\b/i.test(statement)
+    || positiveTrainingProvision
   if (['action', 'decision', 'control_input'].includes(category)) pushUnique(supports, 'ACTION')
   if (/\b(crew|pilot|captain|continued|decided|moved|turned|descended|approach|lever|line(?:d)? up|go-around|executed|failed to|did not|tripula[cç][aã]o|piloto|comandante|continuou|decidiu|moveu|virou|desceu|aproxima[cç][aã]o|manete|alinhou|arremetida|executou|falhou|n[aã]o)\b/i.test(statement)) pushUnique(supports, 'ESCAPE_POINT')
   if (/\b(perceiv\w*|notic\w*|recogniz\w*|warning|alert|cue|visual|visibility|cloud|fog|night|instrument|deviation|awareness|information|ambiguous|misleading|did not see|failed to notice|horizon|visual reference|visual references|reference points|sense of height|message|meaning|display|percebeu|perceber|notou|notar|reconheceu|reconhecer|identificou|identificar|confundiu|avistou|avistar|observou|enxergou|distinguir|acreditando|tratar-se|gps|fms|sistema de navega[cç][aã]o|dados? corret[ao]s?|plano|planejamento|coordenadas?|rota prevista|destino previsto|autoriza[cç][aã]o|proa direta|alerta|pista visual|visibilidade|nuvem|nevoeiro|noite|instrumento|desvio|consci[eê]ncia|informa[cç][aã]o|amb[ií]gu[ao]|enganos[ao]|n[aã]o viu|falhou em notar|horizonte|refer[eê]ncia visual|refer[eê]ncias visuais|pontos? de refer[eê]ncia|no[cç][aã]o de altura|mensagem|atualiza[cç][aã]o|despacho|identificador|significado|painel)\b/i.test(statement)) pushUnique(supports, 'PERCEPTION')
@@ -109,6 +112,7 @@ export function extractEvidenceItems(args: {
   timeline: SeraTimelineItem[]
   directActor?: string | null
   latestEscapeSentenceIndex?: number | null
+  escapePointStatement?: string | null
 }): SeraEvidenceItem[] {
   const timelineByStatement = new Map(args.timeline.map((item) => [item.statement, item]))
   const inferredActorFor = (statement: string, sourceSentenceIndex: number): string | null => {
@@ -134,6 +138,7 @@ export function extractEvidenceItems(args: {
       statement: fact.statement,
       sourceSentenceIndex,
       latestEscapeSentenceIndex: args.latestEscapeSentenceIndex,
+      escapePointStatement: args.escapePointStatement,
       sourceSection,
     })
     const temporalRelation = occurrenceScope === 'HISTORICAL_COMPARATOR' ? 'UNKNOWN' as const : inferredTemporalRelation
