@@ -75,7 +75,7 @@ function operationalPhase(statement: string): OperationalPhase {
   const text = normalized(statement)
   if (/\b(despach\w*|dispatch\w*|mel|cco|dov|planejamento|flight planning|antes do despacho|before dispatch)\b/.test(text)) return 'DISPATCH'
   if (/\b(manutenc|maintenance|mecan|mechanic|inspecao pre-voo|preflight inspection|tlb)\b/.test(text)) return 'MAINTENANCE'
-  if (/\b(aproximacao|approach|final|pouso|landing|go-around|arremet)\b/.test(text)) return 'APPROACH'
+  if (/\b(aproximacao|approach|final|pouso|landing|go-around|arremet|runway|pista|lined up|line up|wrong surface)\b/.test(text)) return 'APPROACH'
   if (/\b(subida|climb|cruzeiro|cruise|descida|descent|durante o voo|during the flight|fl\d{2,3}|nivelamento|levelled|leveling|de-icing|anti-icing|airframe|cruise speed|degraded performance|increase speed|gelo|icing)\b/.test(text)) return 'INFLIGHT'
   if (/\b(taxi|solo|ground|pushback|estacionamento)\b/.test(text)) return 'GROUND'
   return 'GENERIC'
@@ -175,7 +175,9 @@ function candidateScore(sentence: string): number {
   if (/\bassociou\b.*\b(unidade|plataforma|pista|destino|helideck)\b/.test(text)) score += 9
   if (/\b(confundiu|confundiram|misidentified|mistook|wrong runway|wrong surface|wrong deck)\b/.test(text)) score += 9
   if (/\b(entendemos|acreditou|acreditavam|julgou|assumiu)\b.*\b(pouso|destino|unidade|plataforma|pista|helideck)\b/.test(text)) score += 8
-  if (/\b(iniciou|iniciaram|prosseguiu|prosseguiram|conduziu|conduziram|alinhou|alinhados|aproximou|approach|lined up|continued)\b.*\b(pouso|aproximacao|approach|landing|destino|unidade|plataforma|pista|helideck)\b/.test(text)) score += 6
+  if (/\b(prosseguiu|prosseguiram|conduziu|conduziram|alinhou|alinhados|aproximou|approach|lined up|continued)\b.*\b(pouso|aproximacao|approach|landing|destino|unidade|plataforma|pista|helideck)\b/.test(text)) score += 6
+  if (/\b(iniciou|iniciaram|initiated|started)\b\s+(?:a\s+|o\s+|the\s+)?\b(aproximacao|approach|descida|descent|pouso|landing|curva|turn|manobra|maneuver)\b/.test(text)) score += 6
+  if (/\b(iniciou|iniciaram|initiated|started)\b.*\b(planejamento|preparacao|planning|preparation)\b.*\b(aproximacao|approach|pouso|landing)\b/.test(text)) score += 6
   if (/\bpassou a\b.*\b(conduzir|preparar|realizar|executar|prosseguir|aproximar|alinhar|descer)\b.*\b(aproximacao|pouso|destino|unidade|plataforma|pista|helideck|unit-[a-z0-9-]+)\b/.test(text)) score += 6
   if (/\b(nao reconfirm|nao confirm|nao verific|nao confer|sem reconfirm|sem confirm|failed to verify|did not verify|did not confirm)\b/.test(text)) score += 5
   if (/\b(did not|failed to|neither pilot|nao|nenhum dos pilotos|nenhum piloto)\b.*\b(notic\w*|perceiv\w*|recogniz\w*|process\w*|initiat\w*|call(?:ed)? for|insist\w*|notou|percebeu|reconheceu|processou|iniciou|chamou|insistiu)\b/.test(text)) score += 8
@@ -270,7 +272,15 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
   // No operator group or operational phase is privileged in advance: maintenance, dispatch and flight-crew
   // acts can each be valid SERA anchors if they mark the supported departure from safe operation.
   const humanFactorScored = scored.filter(({ item }) => classifyHumanFactorEscapeStatement(item.statement) !== null)
-  const selectedPool = [...humanFactorScored].sort((a, b) => a.item.sourceSentenceIndex - b.item.sourceSentenceIndex)
+  const strongestScore = humanFactorScored.reduce((max, candidate) => Math.max(max, candidate.score), 0)
+  const strongCandidateFloor = Math.max(5, strongestScore - 3)
+  const phaseRank: Record<OperationalPhase, number> = { MAINTENANCE: 0, DISPATCH: 1, GROUND: 2, INFLIGHT: 3, APPROACH: 4, GENERIC: 5 }
+  const selectedPool = humanFactorScored
+    .filter(({ score }) => score >= strongCandidateFloor)
+    .sort((a, b) =>
+      phaseRank[operationalPhase(a.item.statement)] - phaseRank[operationalPhase(b.item.statement)] ||
+      a.item.sourceSentenceIndex - b.item.sourceSentenceIndex,
+    )
   const effectiveItems = selectedPool.map(({ item }) => item)
   const earliest = effectiveItems[0] ?? null
   const beliefCandidates = selectedPool.filter(({ item }) => /\b(identificou|entendemos|acreditou|assumiu|associou|misidentified|mistook)\b/i.test(item.statement))

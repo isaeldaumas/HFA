@@ -57,6 +57,11 @@ assert.ok(serverPdf.includes('Topologia canônica preservada'))
 assert.ok(serverPdf.includes("L('Apêndice técnico - rastreabilidade e auditoria'"))
 assert.ok(eventPanel.includes('CanonicalDecisionJourney'))
 assert.ok(eventPanel.includes('CandidateRiskCard'))
+for (const source of [screenReport, serverPdf, eventPanel]) {
+  assert.ok(source.includes("item.evidenceType !== 'NON_CAUSAL_DOCUMENT'"))
+  assert.ok(source.includes("item.evidenceType !== 'SYSTEM_DESCRIPTION'"))
+  assert.ok(source.includes('item.statement.length <= 1200'))
+}
 assert.ok(reportsIndex.includes("redirect('/reports/executive')"))
 
 console.log('PASS report presentation and didactic flow')

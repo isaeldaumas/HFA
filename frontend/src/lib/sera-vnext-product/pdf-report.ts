@@ -806,6 +806,9 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       .filter((item) =>
         item.sourceSection === 'REPORT_ANALYSIS' &&
         item.assertionStatus === 'AFFIRMED' &&
+      item.evidenceType !== 'NON_CAUSAL_DOCUMENT' &&
+      item.evidenceType !== 'SYSTEM_DESCRIPTION' &&
+      item.statement.length <= 1200 &&
         /\b(reconfirma[cç][aã]o|c[oó]digo 9p|cross-check|checklist|barreira|monitoramento|monitoring|verification|coordena[cç][aã]o|coordination)\b/i.test(item.statement),
       )
       .map((item) => item.statement)

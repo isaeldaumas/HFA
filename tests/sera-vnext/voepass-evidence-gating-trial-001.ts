@@ -163,3 +163,27 @@ assert.notEqual(controlledCondition.escapePoint.status, 'INSUFFICIENT_EVIDENCE')
 assert.equal(controlledCondition.escapePoint.humanFactorGate?.status, 'PASSED')
 assert.equal(controlledCondition.escapePoint.humanFactorGate?.anchorType, 'OPERATOR_CONTROLLED_UNSAFE_CONDITION')
 assert.equal(controlledCondition.unsafeActOrCondition.type, 'UNSAFE_CONDITION')
+
+// Long source reports must retain late operational facts instead of truncating after 800 records.
+const longReportFiller = Array.from({ length: 920 }, (_, index) =>
+  `Descrição técnica ${index + 1}. O sistema de referência apresentava parâmetros documentais sem ação operacional observável.`,
+).join('\n')
+const longReport = run('VOEPASS-LONG-REPORT-LATE-FACTS', `
+${longReportFiller}
+Descrição de referência: system failure é um termo genérico de documentação técnica e não define o ator do evento.
+1.18. Histórico do voo
+16h17min26s – o PIC iniciou a comunicação para os passageiros, informou que em breve iniciariam a descida e comentou as condições meteorológicas no destino.
+16h18min09s – o SIC iniciou nova comunicação via VHF2 com a base da empresa.
+3. CONCLUSÕES
+3.1. Fatos
+k) A despeito da pane do sistema Airframe De-Icing, a aeronave foi despachada sem as restrições impostas pela MEL;
+n) As condições meteorológicas previstas para a rota, antes do despacho da aeronave, não foram avaliadas adequadamente pelo CCO, DOV e PIC;
+s) Os procedimentos previstos no checklist para a falha do sistema Airframe De-Icing não foram realizados;
+x) Os procedimentos previstos para o acionamento dos avisos CRUISE SPEED LOW não foram executados.
+`)
+assert.notEqual(longReport.escapePoint.status, 'INSUFFICIENT_EVIDENCE')
+assert.match(longReport.escapePoint.statement ?? '', /despachada|procedimentos previstos|condições meteorológicas/i)
+assert.equal(longReport.directActor.status, 'AMBIGUOUS')
+assert.match(longReport.directActor.actor ?? '', /operational decision actors|atores/i)
+assert.ok(longReport.factualExtraction.evidence.some((item) => /despachada sem as restrições impostas pela MEL/i.test(item.statement)))
+assert.ok(longReport.factualExtraction.evidence.some((item) => /procedimentos previstos no checklist.*não foram realizados/i.test(item.statement)))
