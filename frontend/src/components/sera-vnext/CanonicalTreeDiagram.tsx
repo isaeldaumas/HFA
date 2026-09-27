@@ -13,10 +13,10 @@ export function CanonicalTreeDiagram({ path, pt, compact = false }: { path: Sera
     <div className="space-y-2">
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
         <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-5 rounded-sm" style={{ backgroundColor: pathColor }} />{pt ? 'Caminho seguido' : 'Traversed path'}</span>
-        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-5 rounded-sm border border-slate-400 bg-slate-100" />{pt ? 'Caminho não seguido' : 'Path not taken'}</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-5 rounded-sm border border-slate-300 bg-white" />{pt ? 'Caminho não seguido' : 'Path not taken'}</span>
         <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-5 rounded-sm bg-green-700" />{pt ? 'Classificação alcançada' : 'Reached classification'}</span>
       </div>
-      <div className={compact ? 'max-h-[620px] overflow-auto rounded-xl border border-slate-300 bg-white' : 'overflow-auto rounded-xl border border-slate-300 bg-white'}>
+      <div className={compact ? 'max-h-[620px] overflow-auto rounded-xl border border-slate-200 bg-white' : 'overflow-auto rounded-xl border border-slate-200 bg-white'}>
         <FlowDiagram chart={chart} id={`canonical-${path.axis}-${path.candidateCode ?? 'unresolved'}`} variant="light" />
       </div>
     </div>

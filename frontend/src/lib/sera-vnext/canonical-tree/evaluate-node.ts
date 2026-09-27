@@ -83,12 +83,51 @@ function stripAxisStatementPrefix(value: string | null): string | null {
   return trimmed || null
 }
 
+function conciseRootResponse(axis: CanonicalSeraAxis, raw: string): string {
+  const text = raw.trim().replace(/^por[eé]m,?\s*/i, '').replace(/^however,?\s*/i, '')
+
+  if (axis === 'P') {
+    const firstLanding = text.match(/identificou\s+(a|o)?\s*([A-Z0-9-]+)\s+como\s+(?:o\s+)?primeiro\s+pouso/i)
+    if (firstLanding) {
+      const article = (firstLanding[1] ?? '').toLowerCase() === 'o' ? 'o' : 'a'
+      return `O operador acreditava que ${article} ${firstLanding[2]} era a unidade prevista para o primeiro pouso.`
+    }
+    const identifiedAs = text.match(/(?:identificou|tratou|interpretou)\s+(.{1,70}?)\s+como\s+(.{1,100}?)(?:[.;,]|\s+devido\b|\s+porque\b|$)/i)
+    if (identifiedAs) return `O operador acreditava que ${identifiedAs[1].trim()} correspondia a ${identifiedAs[2].trim()}.`
+    const believed = text.match(/(?:acreditava|entendeu|entendia|percebia)\s+que\s+(.{1,180}?)(?:[.;]|$)/i)
+    if (believed) return `O operador acreditava que ${believed[1].trim()}.`
+    const enIdentified = text.match(/identified\s+(.{1,70}?)\s+as\s+(?:the\s+)?(.{1,100}?)(?:[.;,]|\s+because\b|$)/i)
+    if (enIdentified) return `The operator believed ${enIdentified[1].trim()} was the ${enIdentified[2].trim()}.`
+  }
+
+  if (axis === 'O') {
+    if (/pouso\s+seria\s+nessa?\s+primeira\s+unidade/i.test(text)) {
+      return 'O operador pretendia realizar o primeiro pouso na unidade que acreditava ser o destino previsto.'
+    }
+    const goal = text.match(/(?:objetivo|inten[cç][aã]o|meta)\s+(?:era|foi|consistia em)?\s*:?[\s]*(.{1,180}?)(?:[.;]|$)/i)
+    if (goal) return `O objetivo do operador era ${goal[1].trim()}.`
+    if (/planned\s+(?:route|destination)|intended\s+(?:route|destination)/i.test(text)) {
+      return 'The operator intended to complete the route or destination believed to be planned.'
+    }
+  }
+
+  if (axis === 'A') {
+    const pcp = text.match(/passou a tratar\s+([A-Z0-9-]+)\s+como\s+o destino previsto para o primeiro pouso/i)
+    if (pcp) return `O operador passou a planejar e conduzir a aproximação para ${pcp[1]}, que tratava como o destino previsto para o primeiro pouso.`
+    const approach = text.match(/(?:planej|conduz|inici|prosseg|continu)\w*\s+(.{1,180}?)(?:[.;]|$)/i)
+    if (approach) return `O operador tentou alcançar o objetivo por meio de ${approach[1].trim()}.`
+  }
+
+  return text
+}
+
 function rootResponseText(ctx: SeraNodeEvidenceContext, supportingEvidence: string[]): string | null {
   // The root asks a descriptive question. START is only the internal branch token;
   // the user-facing answer must state what was perceived/intended/done.
   const fromStatement = stripAxisStatementPrefix(ctx.statementAtEscapePoint)
-  if (fromStatement) return fromStatement
-  return supportingEvidence[0]?.trim() || null
+  if (fromStatement) return conciseRootResponse(ctx.axis, fromStatement)
+  const fallback = supportingEvidence[0]?.trim()
+  return fallback ? conciseRootResponse(ctx.axis, fallback) : null
 }
 
 function decideP(nodeId: string, statements: string[]): Decision {

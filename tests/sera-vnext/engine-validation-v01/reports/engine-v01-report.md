@@ -1,23 +1,23 @@
 # SERA vNext Engine Validation v0.1
 
-Generated at: 2026-06-09T13:42:05.721Z
+Generated at: 2026-09-27T01:21:19.666Z
 
-Final decision: SERA_VNEXT_ENGINE_V01_VALIDATED_WITH_NONCRITICAL_LIMITATIONS
-Product Beta gate: PRODUCT_BETA_FOUNDATION_ALLOWED
+Final decision: SERA_VNEXT_ENGINE_V01_VALIDATION_BLOCKED
+Product Beta gate: PRODUCT_BETA_FOUNDATION_BLOCKED
 
 Cases: 39
-Pass: 37
-Noncritical: 2
-Critical: 0
+Pass: 35
+Noncritical: 0
+Critical: 4
 Fail: 0
 Error: 0
 
 ## Blocking reasons
-- none
+- critical methodological findings=4
 
 ## Noncritical limitations
-- GEN-FIRST-AIR-6560:guardrails.consequenceUsedAsCause:v02 computed guardrail detected=consequenceUsedAsCause
-- ADV-OE:guardrails.oeUsed:v02 computed guardrail detected=oeUsed
+- ADV-NO-FAILURE:directActor.actor:unexpected direct actor=null
+- ADV-AA-AC:directActor.actor:unexpected direct actor=null
 
 ## Determinism
 - OFFICIAL-COMAIR-5191: runs=5 structural=1 semantic=1
@@ -71,13 +71,13 @@ Error: 0
 - OFFICIAL-DELTA-191 [official] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - OFFICIAL-USAIR-427 [official] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - OFFICIAL-5N-BQJ [official] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
-- HUMAN-THEBAUD [human] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
+- HUMAN-THEBAUD [human] passed=false critical=1 noncritical=0 findings=critical:preconditions.category:missing critical precondition category=TECHNICAL_CONTEXT
 - HUMAN-CRANK-2026-0001 [human] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - GEN-G-WNSB [generalization] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - GEN-EXECUFLIGHT-1526 [generalization] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - GEN-THEBAUD [generalization] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - GEN-PEL-AIR [generalization] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
-- GEN-FIRST-AIR-6560 [generalization] passed=false critical=0 noncritical=1 findings=noncritical:guardrails.consequenceUsedAsCause:v02 computed guardrail detected=consequenceUsedAsCause
+- GEN-FIRST-AIR-6560 [generalization] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - GEN-AIR-CANADA-759 [generalization] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - GEN-TRANSASIA-GE235 [generalization] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - GEN-TECHNICAL-DOMINANT [generalization] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
@@ -89,17 +89,17 @@ Error: 0
 - ADV-POST-ESCAPE-A [adversarial] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - ADV-ACTOR-MIGRATION [adversarial] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - ADV-PRECONDITION-AS-ESCAPE [adversarial] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
-- ADV-OE [adversarial] passed=false critical=0 noncritical=1 findings=noncritical:guardrails.oeUsed:v02 computed guardrail detected=oeUsed
+- ADV-OE [adversarial] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - ADV-VIOLATION-WITHOUT-AWARENESS [adversarial] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - ADV-INVENTED-INTENTION [adversarial] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - ADV-TECHNICAL-DOMINANT [adversarial] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - ADV-ENVIRONMENTAL-DOMINANT [adversarial] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
-- ADV-NO-FAILURE [adversarial] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
+- ADV-NO-FAILURE [adversarial] passed=false critical=1 noncritical=1 findings=critical:escapePoint.status:unexpected escapePoint.status=INSUFFICIENT_EVIDENCE | noncritical:directActor.actor:unexpected direct actor=null
 - ADV-INSUFFICIENT-EVIDENCE [adversarial] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - ADV-PROGRESSIVE-ZONE [adversarial] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - ADV-PF-PM [adversarial] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
-- ADV-AA-AC [adversarial] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
-- ADV-OA-OC [adversarial] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
+- ADV-AA-AC [adversarial] passed=false critical=1 noncritical=1 findings=critical:escapePoint.status:unexpected escapePoint.status=INSUFFICIENT_EVIDENCE | noncritical:directActor.actor:unexpected direct actor=null
+- ADV-OA-OC [adversarial] passed=false critical=1 noncritical=0 findings=critical:escapePoint.status:unexpected escapePoint.status=INSUFFICIENT_EVIDENCE
 - ADV-PC-PG [adversarial] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - ADV-WARNING-IGNORED [adversarial] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries
 - ADV-WRONG-PERCEPTION-COHERENT-ACTION [adversarial] passed=true critical=0 noncritical=0 findings=pass:case:output matches v0.1 methodological boundaries

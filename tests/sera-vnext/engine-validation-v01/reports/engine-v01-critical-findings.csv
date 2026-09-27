@@ -1,1 +1,5 @@
 "caseId","group","severity","field","detail"
+"HUMAN-THEBAUD","human","critical","preconditions.category","missing critical precondition category=TECHNICAL_CONTEXT"
+"ADV-NO-FAILURE","adversarial","critical","escapePoint.status","unexpected escapePoint.status=INSUFFICIENT_EVIDENCE"
+"ADV-AA-AC","adversarial","critical","escapePoint.status","unexpected escapePoint.status=INSUFFICIENT_EVIDENCE"
+"ADV-OA-OC","adversarial","critical","escapePoint.status","unexpected escapePoint.status=INSUFFICIENT_EVIDENCE"

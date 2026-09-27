@@ -97,7 +97,7 @@ function didacticReason(nodeId: string, answer: string, fallback: string | undef
   if (!pt) return fallback ?? 'The answer was determined by the usable evidence available at this node.'
   const key = nodeId + ':' + answer
   const map: Record<string, string> = {
-    'P_ROOT:START': 'Início da árvore de Percepção: primeiro se estabelece o estado que o operador acreditava existir no ponto de fuga.',
+    'P_ROOT:START': 'A Etapa 1 estabelece explicitamente o estado que o operador acreditava existir; a Etapa 2 avalia se esse estado percebido correspondia adequadamente à situação real.',
     'P_ASSESSMENT:NÃO': 'A evidência mostra que a avaliação da situação não correspondia ao estado real; por isso a árvore testa qual mecanismo perceptivo explica a divergência.',
     'P_ASSESSMENT:SIM': 'A evidência sustenta avaliação adequada da situação; não há falha perceptiva independente neste eixo.',
     'P_CAPABILITY:SIM': 'Havia capacidade e meios para perceber a situação; por isso não se encerra em limitação sensorial ou de conhecimento e a análise segue para pressão temporal e qualidade da informação.',
@@ -108,12 +108,12 @@ function didacticReason(nodeId: string, answer: string, fallback: string | undef
     'P_INFORMATION_AMBIGUOUS:SIM': 'A evidência sustenta que a informação era ambígua ou ilusória.',
     'P_INFORMATION_AVAILABLE:SIM': 'A informação necessária estava disponível e correta, mas a avaliação permaneceu inadequada; isso conduz ao código P-G.',
     'P_INFORMATION_AVAILABLE:NÃO': 'A informação necessária não estava disponível/correta; isso conduz ao ramo de comunicação/informação.',
-    'O_ROOT:START': 'Início da árvore de Objetivo: identifica-se o que o operador pretendia alcançar no ponto de fuga.',
+    'O_ROOT:START': 'A Etapa 1 explicita o objetivo que o operador pretendia alcançar; os nós seguintes testam esse objetivo quanto a regras e gerenciamento do risco.',
     'O_RULES:SIM': 'O objetivo pretendido era compatível com regras/procedimentos e com a finalidade operacional declarada; a árvore testa se havia um objetivo de risco independente.',
     'O_RULES:NÃO': 'Há evidência de objetivo incompatível com regras/procedimentos; a árvore passa a distinguir violação rotineira de excepcional.',
     'O_MANAGED_RISK:NÃO': 'Não foi demonstrado um objetivo inseguro independente; mantém-se O-A, sem falha de objetivo.',
     'O_MANAGED_RISK:SIM': 'Há evidência de objetivo que, embora compatível com regras gerais, não gerenciava adequadamente o risco operacional.',
-    'A_ROOT:START': 'Início da árvore de Ação: identifica-se como o operador tentou executar o objetivo no ponto de fuga.',
+    'A_ROOT:START': 'A Etapa 1 explicita como o operador tentou alcançar o objetivo; os nós seguintes avaliam implementação e adequação dessa ação.',
     'A_IMPLEMENTED:SIM': 'A ação foi implementada de forma coerente com o estado percebido pelo ator; a árvore então verifica se existia falha de ação independente.',
     'A_IMPLEMENTED:NÃO_DESLIZE_LAPSO_ERRO': 'Há evidência de deslize, lapso ou erro específico de implementação da ação.',
     'A_IMPLEMENTED:NÃO_FEEDBACK': 'Há evidência de falha de feedback/verificação da própria execução.',
@@ -192,30 +192,46 @@ function axisOutput(output: SeraVNextEngineOutput, axis: string) {
   return output.axes.action
 }
 
-function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, pt: boolean): void {
+function stripAxisPrefix(value: string | null | undefined): string | null {
+  if (!value) return null
+  const colon = value.indexOf(':')
+  if (colon > 0 && /ponto de fuga|escape point/i.test(value.slice(0, colon))) return value.slice(colon + 1).trim() || null
+  return value.trim() || null
+}
+
+function pathAnswerText(answer: SeraCanonicalPath['answers'][number], path: SeraCanonicalPath, output: SeraVNextEngineOutput, pt: boolean): string {
+  if (answer.responseText) return answer.responseText
+  if (answer.answer === 'START') {
+    return stripAxisPrefix(axisOutput(output, path.axis).statementAtEscapePoint)
+      ?? (pt ? 'Resposta descritiva não registrada; reanalise o evento para atualizar este nó.' : 'Descriptive response not recorded; reanalyze the event to update this node.')
+  }
+  return friendlyAnswerLabel(answer.answer, pt)
+}
+
+function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, output: SeraVNextEngineOutput, pt: boolean): void {
   const model = buildCanonicalFlowVisualModel(path, pt)
   const title = path.axis === 'P'
     ? (pt ? 'Percepção' : 'Perception')
     : path.axis === 'O'
       ? (pt ? 'Objetivo' : 'Objective')
       : (pt ? 'Ação' : 'Action')
-  const accent = path.axis === 'P' ? '#0891b2' : path.axis === 'O' ? '#d97706' : '#e11d48'
+  const accent = path.axis === 'P' ? '#0e7490' : path.axis === 'O' ? '#b45309' : '#be123c'
   const accentLight = path.axis === 'P' ? '#ecfeff' : path.axis === 'O' ? '#fffbeb' : '#fff1f2'
-  const activeStroke = path.axis === 'P' ? '#0e7490' : path.axis === 'O' ? '#b45309' : '#be123c'
 
-  doc.addPage({ size: 'A4', layout: 'landscape', margin: 34 })
+  doc.addPage({ size: 'A4', layout: 'landscape', margin: 32 })
   const left = doc.page.margins.left
   const right = doc.page.width - doc.page.margins.right
-  const top = 34
+  const top = 30
   const width = right - left
+  const bottom = doc.page.height - doc.page.margins.bottom
 
   doc.font('Helvetica-Bold').fontSize(14).fillColor('#173f67')
-    .text((pt ? 'Árvore completa SERA — ' : 'Complete SERA tree — ') + title, left, top, { width })
+    .text((pt ? 'Árvore SERA — ' : 'SERA tree — ') + title, left, top, { width })
   doc.font('Helvetica').fontSize(8).fillColor('#5d6e7c')
     .text(
       pt
-        ? `Todos os caminhos permanecem visíveis. O percurso desta análise está destacado até ${path.candidateCode ?? 'resultado não resolvido'}.`
-        : `All paths remain visible. This analysis route is highlighted through ${path.candidateCode ?? 'an unresolved result'}.`,
+        ? `Topologia canônica preservada. À esquerda, a árvore completa; à direita, as perguntas e respostas do percurso até ${path.candidateCode ?? 'resultado não resolvido'}.`
+        : `Canonical topology preserved. The full tree is on the left; traversed questions and answers are on the right through ${path.candidateCode ?? 'an unresolved result'}.`,
       left,
       top + 21,
       { width },
@@ -223,16 +239,62 @@ function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, pt: boolean)
 
   const legendY = top + 43
   const legendItems = [
-    { fill: accent, stroke: activeStroke, label: pt ? 'Caminho seguido' : 'Traversed path' },
-    { fill: '#f8fafc', stroke: '#94a3b8', label: pt ? 'Caminho não seguido' : 'Path not taken' },
-    { fill: '#15803d', stroke: '#166534', label: pt ? 'Classificação alcançada' : 'Reached classification' },
+    { fill: accentLight, stroke: accent, label: pt ? 'Caminho seguido' : 'Traversed path' },
+    { fill: '#ffffff', stroke: '#a8b3bf', label: pt ? 'Caminho não seguido' : 'Path not taken' },
+    { fill: '#ecfdf5', stroke: '#15803d', label: pt ? 'Classificação alcançada' : 'Reached classification' },
   ]
   let legendX = left
   for (const item of legendItems) {
     doc.roundedRect(legendX, legendY, 19, 9, 2).fillAndStroke(item.fill, item.stroke)
-    doc.font('Helvetica').fontSize(7).fillColor('#536676').text(item.label, legendX + 25, legendY + 1, { width: 115, lineBreak: false })
-    legendX += 155
+    doc.font('Helvetica').fontSize(7).fillColor('#536676').text(item.label, legendX + 25, legendY + 1, { width: 112, lineBreak: false })
+    legendX += 148
   }
+
+  const diagramLeft = left
+  const diagramWidth = width * 0.59
+  const panelGap = 20
+  const panelLeft = diagramLeft + diagramWidth + panelGap
+  const panelWidth = right - panelLeft
+  const treeTop = legendY + 30
+  const treeBottom = bottom - 8
+
+  // Right-side didactic panel: full question + substantive/branch response.
+  doc.roundedRect(panelLeft, treeTop - 7, panelWidth, treeBottom - treeTop + 14, 7)
+    .fillAndStroke('#fbfdff', '#d8e1e8')
+  doc.font('Helvetica-Bold').fontSize(9).fillColor('#31485e')
+    .text(pt ? 'Trajetória percorrida' : 'Traversed route', panelLeft + 10, treeTop + 3, { width: panelWidth - 20 })
+  doc.font('Helvetica').fontSize(6.5).fillColor('#657583')
+    .text(pt ? 'A numeração corresponde aos nós destacados na árvore.' : 'Numbers match the highlighted tree nodes.', panelLeft + 10, treeTop + 16, { width: panelWidth - 20 })
+
+  const panelCardsTop = treeTop + 33
+  const answerCount = Math.max(path.answers.length, 1)
+  const panelAvailable = treeBottom - panelCardsTop - 5
+  const cardGap = 5
+  const cardH = Math.min(108, Math.max(54, (panelAvailable - cardGap * (answerCount - 1)) / answerCount))
+  path.answers.forEach((answer, index) => {
+    const y = panelCardsTop + index * (cardH + cardGap)
+    const terminal = Boolean(answer.terminalCode)
+    doc.roundedRect(panelLeft + 8, y, panelWidth - 16, cardH, 5)
+      .fillAndStroke(terminal ? '#f0fdf4' : '#ffffff', terminal ? '#86b99a' : '#cbd5e1')
+    doc.circle(panelLeft + 20, y + 13, 7).fill(accent)
+    doc.font('Helvetica-Bold').fontSize(7).fillColor('#ffffff')
+      .text(String(index + 1), panelLeft + 16, y + 9.2, { width: 8, align: 'center', lineBreak: false })
+    doc.font('Helvetica-Bold').fontSize(6.8).fillColor('#31485e')
+      .text(friendlyNodeLabel(answer.nodeId, pt), panelLeft + 32, y + 5, { width: panelWidth - 48, height: 10 })
+
+    const canonicalQuestion = pt
+      ? (SERA_PT_V1_TREE.nodes.find((item) => item.nodeId === answer.nodeId)?.question ?? answer.question)
+      : (answer.exactQuestionTextENAnchor ?? answer.question)
+    const response = pathAnswerText(answer, path, output, pt)
+    const qFont = canonicalQuestion.length > 175 ? 5.7 : canonicalQuestion.length > 110 ? 6.1 : 6.4
+    const responseFont = response.length > 170 ? 5.6 : response.length > 100 ? 6.0 : 6.4
+    const qTop = y + 18
+    const qHeight = Math.max(18, cardH * 0.43)
+    doc.font('Helvetica').fontSize(qFont).fillColor('#536676')
+      .text((pt ? 'Pergunta: ' : 'Question: ') + canonicalQuestion, panelLeft + 14, qTop, { width: panelWidth - 28, height: qHeight })
+    doc.font('Helvetica-Bold').fontSize(responseFont).fillColor(terminal ? '#166534' : '#263746')
+      .text((pt ? 'Resposta: ' : 'Answer: ') + response, panelLeft + 14, qTop + qHeight, { width: panelWidth - 28, height: Math.max(16, cardH - qHeight - 23) })
+  })
 
   const children = new Map<string, typeof model.edges>()
   const incoming = new Set<string>()
@@ -263,19 +325,19 @@ function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, pt: boolean)
   collectLeaves(root.id)
   for (const leaf of leaves) if (!leafOrder.includes(leaf.id)) leafOrder.push(leaf.id)
 
-  const treeTop = legendY + 31
-  const treeBottom = doc.page.height - doc.page.margins.bottom - 118
   const maxDepth = Math.max(...depth.values(), 1)
-  const levelGap = (treeBottom - treeTop - 38) / maxDepth
-  const leafStep = width / Math.max(leafOrder.length, 1)
+  const nodeTop = treeTop + 6
+  const nodeBottom = treeBottom - 5
+  const levelGap = Math.max(48, (nodeBottom - nodeTop - 30) / maxDepth)
+  const leafStep = diagramWidth / Math.max(leafOrder.length, 1)
   const xCenter = new Map<string, number>()
-  leafOrder.forEach((id, index) => xCenter.set(id, left + leafStep * (index + 0.5)))
+  leafOrder.forEach((id, index) => xCenter.set(id, diagramLeft + leafStep * (index + 0.5)))
   const resolveX = (id: string): number => {
     const cached = xCenter.get(id)
     if (cached !== undefined) return cached
     const outgoing = children.get(id) ?? []
     const xs = outgoing.map((edge) => resolveX(edge.to))
-    const value = xs.length ? xs.reduce((sum, x) => sum + x, 0) / xs.length : left + width / 2
+    const value = xs.length ? xs.reduce((sum, x) => sum + x, 0) / xs.length : diagramLeft + diagramWidth / 2
     xCenter.set(id, value)
     return value
   }
@@ -286,13 +348,15 @@ function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, pt: boolean)
     const d = depth.get(node.id)
     if (d === undefined) continue
     const isTerminal = node.kind === 'terminal'
-    const w = isTerminal ? Math.min(58, Math.max(46, leafStep - 10)) : 112
-    const h = isTerminal ? 29 : 50
+    const isRoot = node.sourceId.endsWith('_ROOT')
+    const w = isTerminal ? Math.min(54, Math.max(38, leafStep - 5)) : isRoot ? 96 : 80
+    const h = isTerminal ? 28 : isRoot ? 30 : 44
     const cx = resolveX(node.id)
-    const y = treeTop + d * levelGap
+    const y = nodeTop + d * levelGap
     geom.set(node.id, { x: cx - w / 2, y, w, h })
   }
 
+  // Edges first so nodes remain visually crisp.
   for (const edge of model.edges) {
     const a = geom.get(edge.from)
     const b = geom.get(edge.to)
@@ -301,75 +365,56 @@ function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, pt: boolean)
     const y1 = a.y + a.h
     const x2 = b.x + b.w / 2
     const y2 = b.y
-    const color = edge.active ? activeStroke : '#a8b3bf'
-    doc.strokeColor(color).lineWidth(edge.active ? 2.4 : 0.85)
-      .moveTo(x1, y1).lineTo(x1, y1 + 8).lineTo(x2, y2 - 8).lineTo(x2, y2).stroke()
-    doc.fillColor(color).polygon([x2 - 2.8, y2 - 5], [x2 + 2.8, y2 - 5], [x2, y2]).fill()
+    const color = edge.active ? accent : '#b6c0c9'
+    doc.strokeColor(color).lineWidth(edge.active ? 2.1 : 0.8)
+      .moveTo(x1, y1).lineTo(x1, y1 + 7).lineTo(x2, y2 - 7).lineTo(x2, y2).stroke()
+    doc.fillColor(color).polygon([x2 - 2.6, y2 - 4.5], [x2 + 2.6, y2 - 4.5], [x2, y2]).fill()
     if (edge.label) {
-      const labelX = x1 + (x2 - x1) * 0.72
-      const labelY = y1 + (y2 - y1) * 0.62 - 3
-      doc.font(edge.active ? 'Helvetica-Bold' : 'Helvetica').fontSize(5.2)
-        .fillColor(edge.active ? activeStroke : '#758494')
-        .text(edge.label, labelX - 27, labelY, { width: 54, align: 'center', lineBreak: false, ellipsis: true })
+      const labelX = x1 + (x2 - x1) * 0.70
+      const labelY = y1 + (y2 - y1) * 0.58 - 3
+      doc.font(edge.active ? 'Helvetica-Bold' : 'Helvetica').fontSize(5.1)
+        .fillColor(edge.active ? accent : '#6f7d89')
+        .text(edge.label, labelX - 22, labelY, { width: 44, align: 'center', lineBreak: false })
     }
   }
 
   for (const node of model.nodes) {
     const g = geom.get(node.id)
     if (!g) continue
-    const fill = node.selected ? '#15803d' : node.active ? accentLight : '#f8fafc'
-    const stroke = node.selected ? '#166534' : node.active ? activeStroke : '#94a3b8'
+    const isRoot = node.sourceId.endsWith('_ROOT')
+    const fill = node.selected ? '#ecfdf5' : node.active ? accentLight : '#ffffff'
+    const stroke = node.selected ? '#15803d' : node.active ? accent : '#a8b3bf'
     doc.lineWidth(node.active || node.selected ? 1.8 : 0.8)
     if (node.kind === 'terminal') {
-      doc.roundedRect(g.x, g.y, g.w, g.h, 10).fillAndStroke(fill, stroke)
-    } else {
+      doc.roundedRect(g.x, g.y, g.w, g.h, 8).fillAndStroke(fill, stroke)
+    } else if (isRoot) {
       doc.roundedRect(g.x, g.y, g.w, g.h, 7).fillAndStroke(fill, stroke)
-    }
-    if (node.kind === 'terminal') {
-      doc.font('Helvetica-Bold').fontSize(7).fillColor(node.selected ? '#ffffff' : '#334155')
-        .text(node.code ?? '', g.x + 4, g.y + 5, { width: g.w - 8, align: 'center', lineBreak: false })
-      doc.font('Helvetica').fontSize(5.3).fillColor(node.selected ? '#dcfce7' : '#64748b')
-        .text(node.label, g.x + 3, g.y + 16, { width: g.w - 6, align: 'center', height: 13, ellipsis: true })
     } else {
-      if (node.stepNumber) {
-        doc.circle(g.x + 9, g.y + 8, 6).fill(activeStroke)
-        doc.font('Helvetica-Bold').fontSize(6.2).fillColor('#ffffff')
-          .text(String(node.stepNumber), g.x + 5.5, g.y + 4.6, { width: 7, align: 'center', lineBreak: false })
-      }
-      const questionTop = g.y + 7
-      const questionHeight = node.activeAnswer ? 27 : 37
-      const questionFont = node.label.length > 135 ? 3.85 : node.label.length > 95 ? 4.05 : 4.3
-      doc.font('Helvetica-Bold').fontSize(questionFont).fillColor(node.active ? activeStroke : '#475569')
-        .text(node.label, g.x + 12, questionTop, { width: g.w - 24, align: 'center', height: questionHeight })
-      if (node.activeAnswer) {
-        doc.font('Helvetica-Bold').fontSize(4.9).fillColor(node.active ? activeStroke : '#64748b')
-          .text((pt ? 'Resposta: ' : 'Answer: ') + node.activeAnswer, g.x + 8, g.y + g.h - 14, { width: g.w - 16, align: 'center', height: 9, ellipsis: true })
-      }
+      doc.polygon(
+        [g.x + g.w / 2, g.y],
+        [g.x + g.w, g.y + g.h / 2],
+        [g.x + g.w / 2, g.y + g.h],
+        [g.x, g.y + g.h / 2],
+      ).fillAndStroke(fill, stroke)
     }
-  }
 
-  // Didactic reading strip: same numbers as the highlighted flow, with question + answer on the same page.
-  const summaryTop = treeBottom + 18
-  doc.font('Helvetica-Bold').fontSize(8).fillColor('#31485e')
-    .text(pt ? 'Leitura da trajetória destacada' : 'Reading the highlighted route', left, summaryTop, { width })
-  const cardsTop = summaryTop + 13
-  const cols = 3
-  const gap = 8
-  const cardW = (width - gap * (cols - 1)) / cols
-  const cardH = 38
-  path.answers.slice(0, 6).forEach((answer, index) => {
-    const col = index % cols
-    const row = Math.floor(index / cols)
-    const x = left + col * (cardW + gap)
-    const y = cardsTop + row * (cardH + 5)
-    doc.roundedRect(x, y, cardW, cardH, 4).fillAndStroke('#f8fafc', answer.terminalCode ? '#15803d' : '#b8c6d3')
-    doc.circle(x + 12, y + 12, 7).fill(accent)
-    doc.font('Helvetica-Bold').fontSize(7).fillColor('#ffffff').text(String(index + 1), x + 8, y + 8.2, { width: 8, align: 'center', lineBreak: false })
-    doc.font('Helvetica-Bold').fontSize(6.6).fillColor('#31485e')
-      .text(friendlyNodeLabel(answer.nodeId, pt), x + 23, y + 5, { width: cardW - 29, height: 13, ellipsis: true })
-    doc.font('Helvetica').fontSize(6.2).fillColor('#536676')
-      .text((pt ? 'Resposta: ' : 'Answer: ') + (answer.responseText?.trim() || friendlyAnswerLabel(answer.answer, pt)), x + 23, y + 19, { width: cardW - 29, height: 13, ellipsis: true })
-  })
+    if (node.kind === 'terminal') {
+      doc.font('Helvetica-Bold').fontSize(6.7).fillColor(node.selected ? '#166534' : '#334155')
+        .text(node.code ?? '', g.x + 3, g.y + 4, { width: g.w - 6, align: 'center', lineBreak: false })
+      doc.font('Helvetica').fontSize(4.8).fillColor(node.selected ? '#166534' : '#64748b')
+        .text(node.label, g.x + 2, g.y + 14, { width: g.w - 4, align: 'center', height: 11 })
+      continue
+    }
+
+    if (node.stepNumber) {
+      doc.circle(g.x + 8, g.y + 7, 5.3).fill(accent)
+      doc.font('Helvetica-Bold').fontSize(5.6).fillColor('#ffffff')
+        .text(String(node.stepNumber), g.x + 5, g.y + 3.8, { width: 6, align: 'center', lineBreak: false })
+    }
+    const labelFont = node.label.length > 28 ? 5.4 : 5.9
+    doc.font('Helvetica-Bold').fontSize(labelFont).fillColor(node.active ? accent : '#475569')
+      .text(node.label, g.x + 10, g.y + (isRoot ? 9 : 12), { width: g.w - 20, align: 'center', height: isRoot ? 13 : 20 })
+  }
 }
 
 function renderPath(
@@ -432,7 +477,7 @@ function renderPath(
 
     body(doc, L('Pergunta canônica: ', 'Canonical question: ') + (pt ? (SERA_PT_V1_TREE.nodes.find((item) => item.nodeId === node.nodeId)?.question ?? node.question) : (node.exactQuestionTextENAnchor ?? node.question)))
     doc.moveDown(0.12)
-    body(doc, L('Resposta: ', 'Answer: ') + (node.responseText?.trim() || friendlyAnswerLabel(node.answer, pt)))
+    body(doc, L('Resposta: ', 'Answer: ') + pathAnswerText(node, path, output, pt))
 
     if (node.rationale) {
       doc.moveDown(0.12)
@@ -684,7 +729,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       'justify',
     )
     doc.moveDown(0.45)
-    for (const path of output.canonicalTraversal.paths) renderCanonicalTreePage(doc, path, pt)
+    for (const path of output.canonicalTraversal.paths) renderCanonicalTreePage(doc, path, output, pt)
     if (output.canonicalTraversal.paths.length) {
       doc.addPage({ size: 'A4', layout: 'portrait', margin: 46 })
       heading(doc, '6.1 ' + L('Detalhamento do caminho percorrido', 'Traversed-path detail'))

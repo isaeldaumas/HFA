@@ -1,6 +1,6 @@
 # SERA vNext Engine Validation V03 — Naturalistic Corpus
 
-Generated at: 2026-09-26T20:25:06.727Z
+Generated at: 2026-09-27T01:21:23.249Z
 Final decision: SERA_VNEXT_ENGINE_V03_NATURALISTIC_PASS
 Manifest hash: 17603fda2fdf8d94857524626a574fe83837302d5059eb2d4561f1a58276a681
 Expected outputs hash: 435851ab073f84daf85815d74516e6789ff56c8bb3dc9b5c65d45abba113ec7b

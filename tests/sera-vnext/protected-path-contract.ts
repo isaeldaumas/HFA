@@ -259,9 +259,22 @@ export function isAllowedSeraVNextEngineV03CalibrationPath(rootDir: string, chan
 }
 
 export function isAllowedSeraVNextCanonicalTreePath(rootDir: string, changedPath: string): boolean {
-  if (changedPath !== "frontend/src/lib/sera-vnext/canonical-tree/evaluate-node.ts") return false;
-  assertCanonicalTreeEngineContract(rootDir);
-  return true;
+  if (changedPath === "frontend/src/lib/sera-vnext/canonical-tree/evaluate-node.ts") {
+    assertCanonicalTreeEngineContract(rootDir);
+    return true;
+  }
+  if (changedPath === "frontend/src/lib/sera-vnext/canonical-tree/run-evidence-traversal.ts") {
+    assertCanonicalTreeEngineContract(rootDir);
+    const source = readRel(rootDir, changedPath);
+    assert.ok(source.includes("let rootResponseText: string | null = null"), `${changedPath}: traversal must carry the descriptive root response explicitly`);
+    assert.ok(source.includes("rootResponseText,"), `${changedPath}: downstream node evaluation must receive the root response`);
+    assert.ok(source.includes("answer.nodeId.endsWith('_ROOT') && answer.responseText"), `${changedPath}: only a root answer may seed the carried response`);
+    for (const forbidden of ["selectedCode", "releasedCode", "finalConclusion", "downstreamAllowed"]) {
+      assert.equal(source.includes(forbidden), false, `${changedPath}: must not activate final output field ${forbidden}`);
+    }
+    return true;
+  }
+  return false;
 }
 
 export function isAllowedPrimarySeraMigrationPath(rootDir: string, changedPath: string): boolean {
