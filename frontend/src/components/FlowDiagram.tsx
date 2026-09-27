@@ -16,9 +16,10 @@ mermaid.initialize({
 interface FlowDiagramProps {
   chart: string
   id: string
+  variant?: 'dark' | 'light'
 }
 
-export default function FlowDiagram({ chart, id }: FlowDiagramProps) {
+export default function FlowDiagram({ chart, id, variant = 'dark' }: FlowDiagramProps) {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -30,5 +31,5 @@ export default function FlowDiagram({ chart, id }: FlowDiagramProps) {
     }
   }, [chart, id])
 
-  return <div ref={ref} className="w-full overflow-x-auto bg-slate-900 rounded-lg p-4 min-h-[200px]" />
+  return <div ref={ref} className={`w-full overflow-x-auto rounded-lg p-4 min-h-[200px] ${variant === 'light' ? 'bg-white' : 'bg-slate-900'}`} />
 }

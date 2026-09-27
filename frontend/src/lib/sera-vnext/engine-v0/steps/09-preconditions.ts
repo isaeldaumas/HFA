@@ -140,7 +140,7 @@ export function runStep09Preconditions(input: {
     item.sourceSection === 'REPORT_ANALYSIS' &&
     item.assertionStatus === 'AFFIRMED' &&
     item.supports.includes('PRECONDITION') &&
-    /\b(contribuiu|contribuinte|contributed|contributory|falha na barreira|aus[eê]ncia da reconfirma[cç][aã]o|n[aã]o havendo a reconfirma[cç][aã]o)\b/i.test(item.statement),
+    /\b(contribuiu|contribuinte|contributed|contributory|aus[eê]ncia da reconfirma[cç][aã]o|n[aã]o havendo a reconfirma[cç][aã]o)\b/i.test(item.statement),
   )
   const investigationIndicatedEvidence = input.factualExtraction.evidence.filter((item) =>
     item.sourceSection === 'REPORT_ANALYSIS' &&

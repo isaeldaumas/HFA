@@ -92,7 +92,7 @@ export function buildCanonicalFlowVisualModel(path: SeraCanonicalPath, pt = true
   const uniqueQuestionIds = [...new Set(rows.map((row) => row.nodeId))]
   const terminalCodes = [...new Set(rows.flatMap((row) => row.leafCode ? [row.leafCode] : []))]
 
-  const answerByNode = new Map(path.answers.map((item, index) => [item.nodeId, { stepNumber: index + 1, answer: friendlyAnswerLabel(item.answer, pt) }]))
+  const answerByNode = new Map(path.answers.map((item, index) => [item.nodeId, { stepNumber: index + 1, answer: item.responseText?.trim() || friendlyAnswerLabel(item.answer, pt) }]))
   const nodes: CanonicalFlowVisualNode[] = [
     ...uniqueQuestionIds.map((nodeId) => {
       const traversed = answerByNode.get(nodeId)
@@ -141,7 +141,6 @@ function wrapMermaidLabel(value: string, max = 28): string {
 export function buildCanonicalFlowMermaid(path: SeraCanonicalPath, pt = true): string {
   const model = buildCanonicalFlowVisualModel(path, pt)
   const axisColor = model.axis === 'P' ? '#0891b2' : model.axis === 'O' ? '#d97706' : '#e11d48'
-  const activeStroke = model.axis === 'P' ? '#67e8f9' : model.axis === 'O' ? '#fbbf24' : '#fda4af'
   const lines: string[] = ['%%{init: {"flowchart": {"nodeSpacing": 34, "rankSpacing": 42, "curve": "linear"}}}%%', 'flowchart TD']
 
   for (const node of model.nodes) {
@@ -151,8 +150,7 @@ export function buildCanonicalFlowMermaid(path: SeraCanonicalPath, pt = true): s
       const prefix = node.stepNumber ? `${node.stepNumber}. ` : ''
       const answer = node.activeAnswer ? `<br/><b>${pt ? 'Resposta' : 'Answer'}: ${escapeMermaid(node.activeAnswer)}</b>` : ''
       const label = `${prefix}${wrapMermaidLabel(escapeMermaid(node.label))}${answer}`
-      if (node.sourceId.endsWith('_ROOT')) lines.push(`  ${node.id}(["${label}"])`)
-      else lines.push(`  ${node.id}{"${label}"}`)
+      lines.push(`  ${node.id}["${label}"]`)
     }
   }
 
@@ -161,9 +159,10 @@ export function buildCanonicalFlowMermaid(path: SeraCanonicalPath, pt = true): s
     lines.push(`  ${edge.from} -->${label} ${edge.to}`)
   })
 
-  lines.push('  classDef mutedNode fill:#111827,stroke:#475569,color:#cbd5e1,stroke-width:1.2px')
-  lines.push('  classDef mutedLeaf fill:#0f172a,stroke:#475569,color:#94a3b8,stroke-width:1.2px')
-  lines.push(`  classDef activeNode fill:${axisColor},stroke:${activeStroke},color:#ffffff,stroke-width:2.8px`)
+  const activeFill = model.axis === 'P' ? '#ecfeff' : model.axis === 'O' ? '#fff7ed' : '#fff1f2'
+  lines.push('  classDef mutedNode fill:#f8fafc,stroke:#94a3b8,color:#334155,stroke-width:1.2px')
+  lines.push('  classDef mutedLeaf fill:#f8fafc,stroke:#94a3b8,color:#64748b,stroke-width:1.2px')
+  lines.push(`  classDef activeNode fill:${activeFill},stroke:${axisColor},color:#0f172a,stroke-width:2.8px`)
   lines.push('  classDef selectedLeaf fill:#15803d,stroke:#86efac,color:#ffffff,stroke-width:3px')
 
   const mutedNodes = model.nodes.filter((node) => node.kind === 'question' && !node.active).map((node) => node.id)
@@ -176,6 +175,6 @@ export function buildCanonicalFlowMermaid(path: SeraCanonicalPath, pt = true): s
   if (selectedLeaves.length) lines.push(`  class ${selectedLeaves.join(',')} selectedLeaf`)
 
   const activeEdges = model.edges.map((edge, index) => edge.active ? index : -1).filter((index) => index >= 0)
-  if (activeEdges.length) lines.push(`  linkStyle ${activeEdges.join(',')} stroke:${activeStroke},stroke-width:3.5px`)
+  if (activeEdges.length) lines.push(`  linkStyle ${activeEdges.join(',')} stroke:${axisColor},stroke-width:3.5px`)
   return lines.join('\n')
 }

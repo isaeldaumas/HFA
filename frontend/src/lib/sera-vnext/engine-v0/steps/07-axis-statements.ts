@@ -65,9 +65,38 @@ function actorLabel(actor: string | null, locale: SeraVNextEngineInput['locale']
   return localizeActor(actor, locale)?.trim() || (isPt(locale) ? 'ator direto' : 'direct actor')
 }
 
-function genericStatement(label: string, evidence: string[]): string | null {
+function semanticEvidenceScore(use: 'PERCEPTION' | 'OBJECTIVE' | 'ACTION', text: string): number {
+  const t = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  if (use === 'PERCEPTION') {
+    let score = 0
+    if (/\b(identific|associ|acredit|entend|perceb|reconhec|confund|interpret)\w*/.test(t)) score += 6
+    if (/\b(visao de tunel|tunnel vision|destino|unidade|plataforma|pista|helideck|warning|alerta)\b/.test(t)) score += 4
+    return score
+  }
+  if (use === 'OBJECTIVE') {
+    let score = 0
+    if (/\b(objetiv|intenc|pretend|planej|meta|goal|intent|planned|planning)\w*/.test(t)) score += 6
+    if (/\b(entendemos que|acreditava que|pouso seria|destino previsto|rota prevista|planned destination|planned route)\b/.test(t)) score += 5
+    if (/\b(eficiencia|economia|prazo|schedule|productivity|produtividade|cost|custo)\b/.test(t)) score += 4
+    return score
+  }
+  let score = 0
+  if (/\b(aproxim|pous|decol|descend|subi|prosseg|continu|selecion|acion|execut|realiz|planej|conduz|virou|manteve|land|approach|descend|climb|continued|selected|executed)\w*/.test(t)) score += 6
+  if (/\b(comando|controle de voo|flight control|checklist|switch|modo|mode)\b/.test(t)) score += 2
+  return score
+}
+
+function primaryEvidence(use: 'PERCEPTION' | 'OBJECTIVE' | 'ACTION', evidence: string[]): string | null {
   if (!evidence.length) return null
-  return `${label}: ${evidence.slice(0, 2).join(' ')}`
+  return evidence
+    .map((text, index) => ({ text, index, score: semanticEvidenceScore(use, text) }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)[0]?.text ?? evidence[0]
+}
+
+function genericStatement(label: string, evidence: string[], use: 'PERCEPTION' | 'OBJECTIVE' | 'ACTION', override?: string | null): string | null {
+  const primary = override?.trim() || primaryEvidence(use, evidence)
+  if (!primary) return null
+  return `${label}: ${primary}`
 }
 
 export function runStep07AxisStatements(input: {
@@ -104,14 +133,18 @@ export function runStep07AxisStatements(input: {
   const perceptionStatement = genericStatement(
     isPt(locale) ? `Estado perceptivo de ${actor} no ponto de fuga` : `Perceptual state of ${actor} at the escape point`,
     perceptionEvidence,
+    'PERCEPTION',
   )
   const objectiveStatement = genericStatement(
     isPt(locale) ? `Objetivo operacional de ${actor} no ponto de fuga` : `Operational objective of ${actor} at the escape point`,
     objectiveEvidence,
+    'OBJECTIVE',
   )
   const actionStatement = genericStatement(
     isPt(locale) ? `Ação de ${actor} no ponto de fuga` : `Action of ${actor} at the escape point`,
     actionEvidence,
+    'ACTION',
+    input.unsafeActOrCondition.type === 'UNSAFE_ACT' ? input.unsafeActOrCondition.statement : null,
   )
 
   return {

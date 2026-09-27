@@ -286,9 +286,8 @@ function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, pt: boolean)
     const d = depth.get(node.id)
     if (d === undefined) continue
     const isTerminal = node.kind === 'terminal'
-    const isRoot = node.sourceId.endsWith('_ROOT')
-    const w = isTerminal ? Math.min(64, Math.max(50, leafStep - 8)) : isRoot ? 170 : 126
-    const h = isTerminal ? 32 : isRoot ? 66 : 72
+    const w = isTerminal ? Math.min(58, Math.max(46, leafStep - 10)) : 112
+    const h = isTerminal ? 29 : 50
     const cx = resolveX(node.id)
     const y = treeTop + d * levelGap
     geom.set(node.id, { x: cx - w / 2, y, w, h })
@@ -320,19 +319,11 @@ function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, pt: boolean)
     if (!g) continue
     const fill = node.selected ? '#15803d' : node.active ? accentLight : '#f8fafc'
     const stroke = node.selected ? '#166534' : node.active ? activeStroke : '#94a3b8'
-    const isRoot = node.sourceId.endsWith('_ROOT')
     doc.lineWidth(node.active || node.selected ? 1.8 : 0.8)
     if (node.kind === 'terminal') {
       doc.roundedRect(g.x, g.y, g.w, g.h, 10).fillAndStroke(fill, stroke)
-    } else if (isRoot) {
-      doc.roundedRect(g.x, g.y, g.w, g.h, 8).fillAndStroke(fill, stroke)
     } else {
-      doc.polygon(
-        [g.x + g.w / 2, g.y],
-        [g.x + g.w, g.y + g.h / 2],
-        [g.x + g.w / 2, g.y + g.h],
-        [g.x, g.y + g.h / 2],
-      ).fillAndStroke(fill, stroke)
+      doc.roundedRect(g.x, g.y, g.w, g.h, 7).fillAndStroke(fill, stroke)
     }
     if (node.kind === 'terminal') {
       doc.font('Helvetica-Bold').fontSize(7).fillColor(node.selected ? '#ffffff' : '#334155')
@@ -345,14 +336,14 @@ function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, pt: boolean)
         doc.font('Helvetica-Bold').fontSize(6.2).fillColor('#ffffff')
           .text(String(node.stepNumber), g.x + 5.5, g.y + 4.6, { width: 7, align: 'center', lineBreak: false })
       }
-      const questionTop = g.y + (isRoot ? 8 : 12)
-      const questionHeight = node.activeAnswer ? (isRoot ? 38 : 43) : (isRoot ? 50 : 54)
-      const questionFont = node.label.length > 135 ? 4.15 : node.label.length > 95 ? 4.5 : isRoot ? 4.9 : 4.7
+      const questionTop = g.y + 7
+      const questionHeight = node.activeAnswer ? 27 : 37
+      const questionFont = node.label.length > 135 ? 3.85 : node.label.length > 95 ? 4.05 : 4.3
       doc.font('Helvetica-Bold').fontSize(questionFont).fillColor(node.active ? activeStroke : '#475569')
         .text(node.label, g.x + 12, questionTop, { width: g.w - 24, align: 'center', height: questionHeight })
       if (node.activeAnswer) {
         doc.font('Helvetica-Bold').fontSize(4.9).fillColor(node.active ? activeStroke : '#64748b')
-          .text((pt ? 'Resposta: ' : 'Answer: ') + node.activeAnswer, g.x + 12, g.y + g.h - 16, { width: g.w - 24, align: 'center', height: 10 })
+          .text((pt ? 'Resposta: ' : 'Answer: ') + node.activeAnswer, g.x + 8, g.y + g.h - 14, { width: g.w - 16, align: 'center', height: 9, ellipsis: true })
       }
     }
   }
@@ -377,7 +368,7 @@ function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, pt: boolean)
     doc.font('Helvetica-Bold').fontSize(6.6).fillColor('#31485e')
       .text(friendlyNodeLabel(answer.nodeId, pt), x + 23, y + 5, { width: cardW - 29, height: 13, ellipsis: true })
     doc.font('Helvetica').fontSize(6.2).fillColor('#536676')
-      .text((pt ? 'Resposta: ' : 'Answer: ') + friendlyAnswerLabel(answer.answer, pt), x + 23, y + 19, { width: cardW - 29, height: 13, ellipsis: true })
+      .text((pt ? 'Resposta: ' : 'Answer: ') + (answer.responseText?.trim() || friendlyAnswerLabel(answer.answer, pt)), x + 23, y + 19, { width: cardW - 29, height: 13, ellipsis: true })
   })
 }
 
@@ -441,7 +432,7 @@ function renderPath(
 
     body(doc, L('Pergunta canônica: ', 'Canonical question: ') + (pt ? (SERA_PT_V1_TREE.nodes.find((item) => item.nodeId === node.nodeId)?.question ?? node.question) : (node.exactQuestionTextENAnchor ?? node.question)))
     doc.moveDown(0.12)
-    body(doc, L('Resposta: ', 'Answer: ') + friendlyAnswerLabel(node.answer, pt))
+    body(doc, L('Resposta: ', 'Answer: ') + (node.responseText?.trim() || friendlyAnswerLabel(node.answer, pt)))
 
     if (node.rationale) {
       doc.moveDown(0.12)
@@ -754,7 +745,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     heading(doc, '8. ' + L('Correspondência SERA / HFACS', 'SERA / HFACS correspondence'))
     const hfacsBridge = buildSeraHfacsBridge(
       [output.axes.perception.proposedCode, output.axes.objective.proposedCode, output.axes.action.proposedCode],
-      output.preconditions.map((pc) => pc.canonicalCategory ?? null),
+      supportedPreconditions.map((pc) => pc.canonicalCategory ?? null),
     )
     body(doc, L(
       'Esta é uma ponte de classificação posterior ao SERA, baseada nas Tabelas 3 a 6 de Hendy. Ela não altera o caminho da árvore nem serve para escolher códigos SERA. O próprio Hendy ressalta que a correspondência não é um-para-um e deve ser resolvida pelo contexto do ato inseguro.',

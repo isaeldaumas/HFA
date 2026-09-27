@@ -218,7 +218,7 @@ export default function EventReportPage() {
   const hfacsBridge = vnextOutput
     ? buildSeraHfacsBridge(
         [vnextOutput.axes.perception.proposedCode, vnextOutput.axes.objective.proposedCode, vnextOutput.axes.action.proposedCode],
-        vnextPreconditions.map((item) => item.canonicalCategory ?? null),
+        supportedVnextPreconditions.map((item) => item.canonicalCategory ?? null),
       )
     : null
   const recommendations = analysis?.recommendations ?? []

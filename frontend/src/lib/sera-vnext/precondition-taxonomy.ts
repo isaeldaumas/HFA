@@ -76,7 +76,7 @@ export function classifyCanonicalPrecondition(text: string): SeraCanonicalPrecon
     ['OBJECTIVES', /\b(objetiv|goal|meta da tarefa|task goal|risk.?benefit|risco.?beneficio)\b/],
     ['WORKSPACE', /\b(espaco de trabalho|workspace|cockpit layout|layout do cockpit|obstruc|inacessivel|inaccessible)\b/],
     ['ENVIRONMENT', /\b(ambiente|environment|meteorolog|weather|vento|wind|chuva|rain|gelo|icing|nevoa|fog|iluminacao|lighting|ruido|noise|vibracao|vibration)\b/],
-    ['EQUIPMENT', /\b(equipamento|equipment|display|controle|control|interface|system|sistema|defeituos|defective|falha tecnica|technical failure|malfunction)\b/],
+    ['EQUIPMENT', /\b(equipamento|equipment|display|interface|system|sistema|defeituos|defective|falha tecnica|technical failure|malfunction|painel de controle|control panel|comando de voo|comandos de voo|flight control|flight controls)\b/],
     ['FORMING_INTENT', /\b(formacao do proposito|forming intent|objetivos? .*gerent|goals? .*management|expectativas? irreais|unrealistic expectations)\b/],
     ['COMMUNICATING_INTENT', /\b(comunicacao do proposito|communicating intent|intencao .*comunicad|intent .*communicat)\b/],
     ['MONITORING_SUPERVISION', /\b(monitoramento e supervisao|monitoring and supervision|supervisao|supervision|supervisor)\b/],

@@ -50,6 +50,7 @@ Erro na inclusão das coordenadas — Não interferiu.
 Problemas no GPS — Não interferiu.
 Semelhança entre unidades — Não interferiu.
 Proximidade entre unidades — Contribuiu.
+Falha na barreira da consciência situacional — apontada na análise investigativa.
 Alta carga de trabalho — Não interferiu.
 Falta de Familiaridade com a área — Não interferiu.
 
@@ -96,9 +97,16 @@ assert.equal(pPath?.answers.find((a) => a.nodeId === 'P_INFORMATION_AVAILABLE')?
 assert.equal(oPath?.candidateCode, 'O-A')
 assert.equal(aPath?.candidateCode, 'A-A')
 
+assert.match(pPath?.answers.find((a) => a.nodeId === 'P_ROOT')?.responseText ?? '', /PCP1.*primeiro pouso/i)
+assert.match(oPath?.answers.find((a) => a.nodeId === 'O_ROOT')?.responseText ?? '', /(?:PCP2.*primeiro pouso|primeiro pouso.*PCP2)/i)
+assert.match(aPath?.answers.find((a) => a.nodeId === 'A_ROOT')?.responseText ?? '', /PCP1.*destino previsto|aproxima[cç][aã]o/i)
+assert.notEqual(pPath?.answers.find((a) => a.nodeId === 'P_ROOT')?.responseText, 'START')
+
 assert.equal(output.preconditions.some((p) => p.category === 'KNOWLEDGE_TRAINING'), false)
 assert.equal(output.preconditions.some((p) => p.category === 'ATTENTION_WORKLOAD_CONTEXT'), true)
 assert.equal(output.preconditions.some((p) => p.category === 'ENVIRONMENTAL_CONTEXT'), true)
+assert.equal(output.preconditions.some((p) => p.category === 'TECHNICAL_CONTEXT'), false)
+assert.equal(output.preconditions.some((p) => p.canonicalCategory === 'EQUIPMENT'), false)
 const environmentPc = output.preconditions.find((p) => p.category === 'ENVIRONMENTAL_CONTEXT')
 const attentionPc = output.preconditions.find((p) => p.category === 'ATTENTION_WORKLOAD_CONTEXT')
 assert.equal(environmentPc?.relationship, 'CONTEXTUAL_PRECONDITION')
@@ -108,11 +116,15 @@ assert.equal(environmentPc?.canonicalLevel, 'IMMEDIATE')
 assert.deepEqual(environmentPc?.likelyForActiveFailureCodes, ['P-G'])
 assert.equal(environmentPc?.methodologyMatch, 'MOST_LIKELY_AND_EVIDENCED')
 
+const supportedPreconditionsForBridge = output.preconditions.filter((p) =>
+  p.relationship === 'CONTEXTUAL_PRECONDITION' || p.relationship === 'ENABLING_PRECONDITION',
+)
 const hfacsBridge = buildSeraHfacsBridge(
   [output.axes.perception.proposedCode, output.axes.objective.proposedCode, output.axes.action.proposedCode],
-  output.preconditions.map((p) => p.canonicalCategory ?? null),
+  supportedPreconditionsForBridge.map((p) => p.canonicalCategory ?? null),
 )
 assert.equal(hfacsBridge.preconditions.some((item) => item.hfacs === 'Environment'), true)
+assert.equal(hfacsBridge.preconditions.some((item) => item.hfacs === 'Adverse mental states'), false)
 assert.equal(attentionPc?.relationship, 'UNRELATED_OR_UNSUPPORTED')
 assert.equal(attentionPc?.confidence, 'LOW')
 assert.match(attentionPc?.description ?? '', /não contribuinte|non-contributory/i)
