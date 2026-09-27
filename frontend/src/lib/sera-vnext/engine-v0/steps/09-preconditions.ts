@@ -37,6 +37,10 @@ const CATEGORY_DESCRIPTION: Record<string, string> = {
   ORGANIZATIONAL_CONTEXT: 'Condição organizacional, de supervisão, recursos ou processo potencialmente contributiva.',
 }
 
+const CANONICAL_FALLBACK_BY_OPERATIONAL_CATEGORY: Partial<Record<string, SeraCanonicalPreconditionCategory>> = {
+  ENVIRONMENTAL_CONTEXT: 'ENVIRONMENT',
+}
+
 const CATEGORY_DESCRIPTION_EN: Record<string, string> = {
   PHYSICAL_CAPABILITY: 'Physical or ergonomic condition potentially relevant to task execution.',
   SENSORY_LIMITATION: 'Sensory condition potentially relevant to situation perception.',
@@ -177,13 +181,15 @@ export function runStep09Preconditions(input: {
     if (category && categoryEvidence[category]) categoryEvidence[category].rejectedByInvestigation = true
   }
 
-  const canonicalProfileFor = (evidenceSet: (typeof categoryEvidence)[string]) => {
+  const canonicalProfileFor = (category: string, evidenceSet: (typeof categoryEvidence)[string]) => {
     const canonicalCounts = new Map<SeraCanonicalPreconditionCategory, number>()
     for (const item of evidenceSet.sourceEvidence) {
       const canonical = classifyCanonicalPrecondition(item.statement)
       if (canonical) canonicalCounts.set(canonical, (canonicalCounts.get(canonical) ?? 0) + 1)
     }
-    const canonicalCategory = [...canonicalCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+    const canonicalCategory = [...canonicalCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+      ?? CANONICAL_FALLBACK_BY_OPERATIONAL_CATEGORY[category]
+      ?? null
     const likelyForActiveFailureCodes = canonicalCategory
       ? activeFailureCodes.filter((code) => (SERA_MOST_LIKELY_PRECONDITIONS[code] ?? []).includes(canonicalCategory))
       : []
@@ -196,14 +202,14 @@ export function runStep09Preconditions(input: {
     if (evidenceSet.explicitInvestigationSupport) return evidenceSet.sourceEvidence.length >= 2 ? 'HIGH' as const : 'MEDIUM' as const
     if (evidenceSet.investigationOnly) return 'LOW' as const
     const base = confidenceFromCount(evidenceSet.texts.length)
-    const canonical = canonicalProfileFor(evidenceSet).canonicalCategory
+    const canonical = canonicalProfileFor(category, evidenceSet).canonicalCategory
     const outsideLikely = canonical && activeFailureCodes.length > 0 && !mostLikelyCanonical.has(canonical)
     if (outsideLikely && base === 'HIGH') return 'MEDIUM' as const
     return category === 'ATTENTION_WORKLOAD_CONTEXT' && base === 'HIGH' ? 'MEDIUM' as const : base
   }
 
   return Object.entries(categoryEvidence).map(([category, evidenceSet]) => {
-    const canonicalProfile = canonicalProfileFor(evidenceSet)
+    const canonicalProfile = canonicalProfileFor(category, evidenceSet)
     const rankedSourceEvidence = [...evidenceSet.sourceEvidence]
       .sort((a, b) => contextRelevance(b) - contextRelevance(a) || a.sourceSentenceIndex - b.sourceSentenceIndex)
       .slice(0, 5)
