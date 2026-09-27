@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-06-09T13:42:06.770Z",
-  "manifestHash": "cd66cae2a9c63a78f18ddf425830cc9ae703a5c7ca48ee741575b32879b1a207",
+  "generatedAt": "2026-09-27T01:21:20.793Z",
+  "manifestHash": "b1010553970909d2a283a60f4053dfc16c09cbe6b58488e6d3019dca7ee4a4ae",
   "existingRegressionCases": 39,
   "v02Cases": 64,
   "caseResults": [
@@ -9,7 +9,7 @@
       "group": "existing_regression",
       "expected": "REGRESSION_GUARDRAIL_ONLY",
       "actual": {
-        "perception": "P-B",
+        "perception": null,
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -22,7 +22,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -50,7 +53,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -65,9 +71,9 @@
       "group": "existing_regression",
       "expected": "REGRESSION_GUARDRAIL_ONLY",
       "actual": {
-        "perception": "P-B",
+        "perception": null,
         "objective": null,
-        "action": "A-C",
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -78,7 +84,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -95,7 +104,7 @@
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-C",
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -106,7 +115,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -134,7 +146,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -162,7 +177,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -190,7 +208,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -218,7 +239,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -246,7 +270,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -274,7 +301,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -302,7 +332,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -330,7 +363,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -358,7 +394,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -378,7 +417,7 @@
         "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
-          "consequenceUsedAsCause": true,
+          "consequenceUsedAsCause": false,
           "postEscapeHuntingDetected": false,
           "postEscapeEvidenceUsed": false,
           "oeUsed": false,
@@ -386,7 +425,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -401,7 +443,7 @@
       "group": "existing_regression",
       "expected": "REGRESSION_GUARDRAIL_ONLY",
       "actual": {
-        "perception": "P-B",
+        "perception": null,
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -414,7 +456,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -442,7 +487,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -470,7 +518,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -498,7 +549,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -513,9 +567,9 @@
       "group": "existing_regression",
       "expected": "REGRESSION_GUARDRAIL_ONLY",
       "actual": {
-        "perception": "P-A",
-        "objective": "O-A",
-        "action": "A-A",
+        "perception": null,
+        "objective": null,
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -526,7 +580,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -543,7 +600,7 @@
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-C",
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -554,7 +611,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -571,7 +631,7 @@
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-C",
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -582,7 +642,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -610,7 +673,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -627,7 +693,7 @@
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-C",
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -638,7 +704,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -666,7 +735,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -694,7 +766,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -717,12 +792,15 @@
           "consequenceUsedAsCause": false,
           "postEscapeHuntingDetected": false,
           "postEscapeEvidenceUsed": false,
-          "oeUsed": true,
+          "oeUsed": false,
           "inventedQuestionDetected": false,
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -750,7 +828,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -778,7 +859,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -806,7 +890,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -834,7 +921,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -849,9 +939,9 @@
       "group": "existing_regression",
       "expected": "REGRESSION_GUARDRAIL_ONLY",
       "actual": {
-        "perception": "P-A",
-        "objective": "O-A",
-        "action": "A-A",
+        "perception": null,
+        "objective": null,
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -862,7 +952,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -890,7 +983,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -918,7 +1014,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -946,7 +1045,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -961,9 +1063,9 @@
       "group": "existing_regression",
       "expected": "REGRESSION_GUARDRAIL_ONLY",
       "actual": {
-        "perception": "P-A",
-        "objective": "O-A",
-        "action": "A-A",
+        "perception": null,
+        "objective": null,
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -974,7 +1076,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -1002,7 +1107,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -1030,7 +1138,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -1045,7 +1156,7 @@
       "group": "existing_regression",
       "expected": "REGRESSION_GUARDRAIL_ONLY",
       "actual": {
-        "perception": "P-A",
+        "perception": null,
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -1058,7 +1169,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -1086,7 +1200,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -1107,7 +1224,7 @@
       "actual": {
         "perception": "P-D",
         "objective": null,
-        "action": null,
+        "action": "A-A",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -1118,7 +1235,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_CODE",
@@ -1139,8 +1259,8 @@
       },
       "actual": {
         "perception": null,
-        "objective": "O-A",
-        "action": "A-A",
+        "objective": null,
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -1151,12 +1271,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected objective=O-A, actual=null"
+      ],
       "tags": [
         "pt-BR",
         "offshore-helicopter",
@@ -1172,7 +1297,7 @@
         "code": "P-H"
       },
       "actual": {
-        "perception": "P-H",
+        "perception": null,
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -1185,12 +1310,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected perception=P-H, actual=null"
+      ],
       "tags": [
         "pt-BR",
         "technical-dominant"
@@ -1206,7 +1336,7 @@
       },
       "actual": {
         "perception": null,
-        "objective": "O-B",
+        "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
@@ -1218,12 +1348,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected objective=O-B, actual=null"
+      ],
       "tags": [
         "pt-BR",
         "violation-awareness"
@@ -1249,7 +1384,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -1267,12 +1405,12 @@
       "expected": {
         "kind": "code",
         "axis": "action",
-        "code": "A-C"
+        "code": "A-B"
       },
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-C",
+        "action": "A-B",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -1283,7 +1421,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_CODE",
@@ -1291,7 +1432,7 @@
       "findings": [],
       "tags": [
         "pt-BR",
-        "A-A/A-C-boundary"
+        "slip-lapse"
       ]
     },
     {
@@ -1304,8 +1445,8 @@
       },
       "actual": {
         "perception": null,
-        "objective": "O-A",
-        "action": "A-A",
+        "objective": null,
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -1316,12 +1457,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected action=A-A, actual=null"
+      ],
       "tags": [
         "pt-BR",
         "A-A/A-C-boundary",
@@ -1348,7 +1494,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -1381,7 +1530,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -1399,12 +1551,12 @@
       "expected": {
         "kind": "code",
         "axis": "action",
-        "code": "A-J"
+        "code": "A-G"
       },
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-J",
+        "action": "A-G",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -1415,7 +1567,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_CODE",
@@ -1436,7 +1591,7 @@
         "code": "P-F"
       },
       "actual": {
-        "perception": "P-F",
+        "perception": null,
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -1449,12 +1604,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected perception=P-F, actual=null"
+      ],
       "tags": [
         "en",
         "offshore-helicopter"
@@ -1469,7 +1629,7 @@
         "code": "P-G"
       },
       "actual": {
-        "perception": "P-G",
+        "perception": null,
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -1482,12 +1642,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected perception=P-G, actual=null"
+      ],
       "tags": [
         "en",
         "technical-dominant"
@@ -1499,12 +1664,12 @@
       "expected": {
         "kind": "code",
         "axis": "action",
-        "code": "A-B"
+        "code": "A-C"
       },
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-B",
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -1515,16 +1680,21 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected action=A-C, actual=null"
+      ],
       "tags": [
         "en",
         "technical-dominant",
-        "feedback"
+        "own-action-feedback"
       ]
     },
     {
@@ -1537,7 +1707,7 @@
       },
       "actual": {
         "perception": null,
-        "objective": "O-D",
+        "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
@@ -1549,12 +1719,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected objective=O-D, actual=null"
+      ],
       "tags": [
         "en"
       ]
@@ -1579,7 +1754,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -1611,7 +1789,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -1644,7 +1825,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -1662,12 +1846,12 @@
       "expected": {
         "kind": "code",
         "axis": "action",
-        "code": "A-F"
+        "code": "A-I"
       },
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-F",
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -1678,12 +1862,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected action=A-I, actual=null"
+      ],
       "tags": [
         "en"
       ]
@@ -1698,8 +1887,8 @@
       },
       "actual": {
         "perception": null,
-        "objective": "O-A",
-        "action": "A-A",
+        "objective": null,
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -1710,12 +1899,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected objective=O-A, actual=null"
+      ],
       "tags": [
         "en",
         "no-failure"
@@ -1727,12 +1921,12 @@
       "expected": {
         "kind": "code",
         "axis": "action",
-        "code": "A-G"
+        "code": "A-J"
       },
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-G",
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -1743,12 +1937,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected action=A-J, actual=null"
+      ],
       "tags": [
         "en",
         "offshore-helicopter",
@@ -1764,7 +1963,7 @@
         "code": "P-A"
       },
       "actual": {
-        "perception": "P-A",
+        "perception": null,
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -1777,12 +1976,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected perception=P-A, actual=null"
+      ],
       "tags": [
         "leaf:P-A",
         "en",
@@ -1798,7 +2002,7 @@
         "code": "P-B"
       },
       "actual": {
-        "perception": "P-B",
+        "perception": null,
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -1811,12 +2015,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected perception=P-B, actual=null"
+      ],
       "tags": [
         "leaf:P-B",
         "en"
@@ -1833,7 +2042,7 @@
       "actual": {
         "perception": "P-C",
         "objective": null,
-        "action": null,
+        "action": "A-A",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -1844,7 +2053,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_CODE",
@@ -1866,7 +2078,7 @@
       "actual": {
         "perception": "P-D",
         "objective": null,
-        "action": null,
+        "action": "A-A",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -1877,7 +2089,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_CODE",
@@ -1897,8 +2112,8 @@
         "code": "P-E"
       },
       "actual": {
-        "perception": "P-E",
-        "objective": "O-D",
+        "perception": null,
+        "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
@@ -1910,12 +2125,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected perception=P-E, actual=null"
+      ],
       "tags": [
         "leaf:P-E",
         "en"
@@ -1930,7 +2150,7 @@
         "code": "P-F"
       },
       "actual": {
-        "perception": "P-F",
+        "perception": null,
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -1943,12 +2163,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected perception=P-F, actual=null"
+      ],
       "tags": [
         "leaf:P-F",
         "en"
@@ -1963,7 +2188,7 @@
         "code": "P-G"
       },
       "actual": {
-        "perception": "P-G",
+        "perception": null,
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -1976,12 +2201,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected perception=P-G, actual=null"
+      ],
       "tags": [
         "leaf:P-G",
         "en"
@@ -1996,7 +2226,7 @@
         "code": "P-H"
       },
       "actual": {
-        "perception": "P-H",
+        "perception": null,
         "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
@@ -2009,12 +2239,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected perception=P-H, actual=null"
+      ],
       "tags": [
         "leaf:P-H",
         "en"
@@ -2030,8 +2265,8 @@
       },
       "actual": {
         "perception": null,
-        "objective": "O-A",
-        "action": "A-A",
+        "objective": null,
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -2042,12 +2277,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected objective=O-A, actual=null"
+      ],
       "tags": [
         "leaf:O-A",
         "pt-BR",
@@ -2064,7 +2304,7 @@
       },
       "actual": {
         "perception": null,
-        "objective": "O-B",
+        "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
@@ -2076,12 +2316,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected objective=O-B, actual=null"
+      ],
       "tags": [
         "leaf:O-B",
         "pt-BR",
@@ -2097,8 +2342,8 @@
         "code": "O-C"
       },
       "actual": {
-        "perception": "P-A",
-        "objective": "O-C",
+        "perception": null,
+        "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
@@ -2110,12 +2355,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected objective=O-C, actual=null"
+      ],
       "tags": [
         "leaf:O-C",
         "en",
@@ -2132,7 +2382,7 @@
       },
       "actual": {
         "perception": null,
-        "objective": "O-D",
+        "objective": null,
         "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
@@ -2144,12 +2394,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected objective=O-D, actual=null"
+      ],
       "tags": [
         "leaf:O-D",
         "en"
@@ -2165,8 +2420,8 @@
       },
       "actual": {
         "perception": null,
-        "objective": "O-A",
-        "action": "A-A",
+        "objective": null,
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -2177,12 +2432,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected action=A-A, actual=null"
+      ],
       "tags": [
         "leaf:A-A",
         "pt-BR",
@@ -2200,7 +2460,7 @@
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-B",
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -2211,16 +2471,21 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected action=A-B, actual=null"
+      ],
       "tags": [
         "leaf:A-B",
         "en",
-        "feedback"
+        "slip-lapse"
       ]
     },
     {
@@ -2234,7 +2499,7 @@
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-C",
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -2245,16 +2510,21 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected action=A-C, actual=null"
+      ],
       "tags": [
         "leaf:A-C",
         "pt-BR",
-        "A-A/A-C-boundary"
+        "own-action-feedback"
       ]
     },
     {
@@ -2279,7 +2549,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_CODE",
@@ -2312,7 +2585,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_CODE",
@@ -2334,7 +2610,7 @@
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-F",
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -2345,12 +2621,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected action=A-F, actual=null"
+      ],
       "tags": [
         "leaf:A-F",
         "en"
@@ -2362,12 +2643,12 @@
       "expected": {
         "kind": "code",
         "axis": "action",
-        "code": "A-G"
+        "code": "A-J"
       },
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-G",
+        "action": "A-J",
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -2378,14 +2659,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_CODE",
       "passed": true,
       "findings": [],
       "tags": [
-        "leaf:A-G",
+        "leaf:A-J",
         "pt-BR"
       ]
     },
@@ -2400,7 +2684,7 @@
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-H",
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -2411,12 +2695,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected action=A-H, actual=null"
+      ],
       "tags": [
         "leaf:A-H",
         "en"
@@ -2444,7 +2733,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_CODE",
@@ -2461,12 +2753,12 @@
       "expected": {
         "kind": "code",
         "axis": "action",
-        "code": "A-J"
+        "code": "A-G"
       },
       "actual": {
         "perception": null,
         "objective": null,
-        "action": "A-J",
+        "action": null,
         "finalOutputsBlocked": true,
         "guardrails": {
           "consequenceUsedAsCause": false,
@@ -2477,14 +2769,19 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
-      "outcome": "CORRECT_CODE",
-      "passed": true,
-      "findings": [],
+      "outcome": "INCORRECT_ABSTENTION",
+      "passed": false,
+      "findings": [
+        "expected action=A-G, actual=null"
+      ],
       "tags": [
-        "leaf:A-J",
+        "leaf:A-G",
         "en"
       ]
     },
@@ -2510,7 +2807,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -2543,7 +2843,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -2576,7 +2879,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -2609,7 +2915,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -2642,7 +2951,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -2675,7 +2987,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -2708,7 +3023,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -2741,7 +3059,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -2774,7 +3095,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -2807,7 +3131,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -2840,7 +3167,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -2873,7 +3203,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -2906,7 +3239,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -2939,7 +3275,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -2972,7 +3311,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -3005,7 +3347,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -3038,7 +3383,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -3071,7 +3419,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -3088,7 +3439,7 @@
       "expected": {
         "kind": "notCode",
         "axis": "action",
-        "code": "A-G"
+        "code": "A-J"
       },
       "actual": {
         "perception": null,
@@ -3104,14 +3455,17 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
       "passed": true,
       "findings": [],
       "tags": [
-        "negative:A-G",
+        "negative:A-J",
         "pt-BR"
       ]
     },
@@ -3137,7 +3491,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -3170,7 +3527,10 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
@@ -3187,7 +3547,7 @@
       "expected": {
         "kind": "notCode",
         "axis": "action",
-        "code": "A-J"
+        "code": "A-G"
       },
       "actual": {
         "perception": null,
@@ -3203,33 +3563,36 @@
           "actorMigrationDetected": false,
           "preconditionUsedAsEscapePoint": false,
           "codeFirstPathDetected": false,
-          "awarenessMissingForViolation": false
+          "awarenessMissingForViolation": false,
+          "nonCausalEvidenceUsed": false,
+          "escapePointReferenceContamination": false,
+          "candidateEvidenceMinimumMissing": false
         }
       },
       "outcome": "CORRECT_ABSTENTION",
       "passed": true,
       "findings": [],
       "tags": [
-        "negative:A-J",
+        "negative:A-G",
         "en"
       ]
     }
   ],
   "metrics": {
-    "classification_accuracy": 1,
-    "abstention_precision": 0.2143,
+    "classification_accuracy": 0.25,
+    "abstention_precision": 0.1091,
     "abstention_recall": 1,
     "guardrail_detection_rate": 1,
-    "leaf_coverage": 1,
+    "leaf_coverage": 0.2727,
     "language_parity": {
-      "pt-BR": 1,
-      "en": 1
+      "pt-BR": 0.6923,
+      "en": 0.5
     },
     "determinism": 1,
-    "critical_boundary_pass_rate": 1,
+    "critical_boundary_pass_rate": 0.5,
     "product_parity": 1
   },
-  "finalDecision": "SERA_VNEXT_ENGINE_V02_PASS_WITH_LIMITATIONS",
+  "finalDecision": "SERA_VNEXT_ENGINE_V02_NOT_READY",
   "limitations": [
     "v02 validation is deterministic technical validation, not scientific or human inter-rater validation.",
     "existing 39-case regression is retained as boundary/final-output guardrail coverage, not accuracy proof."

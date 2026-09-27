@@ -101,6 +101,19 @@ function canonicalQuestionLabel(nodeId: string, fallback: string, englishAnchor:
   return SERA_PT_V1_TREE.nodes.find((node) => node.nodeId === nodeId)?.question ?? fallback
 }
 
+function legacyRootResponse(output: SeraVNextEngineOutput, axis: string): string | null {
+  const statement = axis === 'P'
+    ? output.axes.perception.statementAtEscapePoint
+    : axis === 'O'
+      ? output.axes.objective.statementAtEscapePoint
+      : output.axes.action.statementAtEscapePoint
+  if (!statement) return null
+  const colon = statement.indexOf(':')
+  return colon > 0 && /ponto de fuga|escape point/i.test(statement.slice(0, colon))
+    ? statement.slice(colon + 1).trim() || null
+    : statement.trim() || null
+}
+
 function preconditionCategoryLabel(value: string, pt: boolean): string {
   const map: Record<string, [string, string]> = {
     PHYSICAL_CAPABILITY: ['Capacidade física / ergonomia', 'Physical capability / ergonomics'],
@@ -544,12 +557,12 @@ export default function EventReportPage() {
         {vnextOutput && (
           <section className="report-section">
             <h3 className="report-title">8. {L('Como o sistema chegou à classificação', 'How the system reached the classification')}</h3>
-            <p className="report-note mb-3">{L('A árvore preserva o desenho canônico do SERA. Cada losango percorrido mostra o mesmo número da explicação abaixo e a resposta do ramo aparece no próprio fluxo; os ramos não seguidos permanecem visíveis.', 'The tree preserves the canonical SERA design. Each traversed decision diamond shows the same number as its explanation below and the branch answer appears in the flow; paths not taken remain visible.')}</p>
+            <p className="report-note mb-3">{L('A árvore preserva a topologia canônica do SERA. Os nós usam rótulos curtos e dimensões padronizadas; a pergunta canônica completa e a resposta aparecem logo abaixo com o mesmo número da etapa. A resposta da Etapa 1 é descritiva e alimenta a avaliação das etapas seguintes.', 'The tree preserves the canonical SERA topology. Nodes use short labels and standardized dimensions; the full canonical question and answer appear immediately below with the same step number. Step 1 produces a descriptive answer that feeds the subsequent evaluation.')}</p>
             <div className="space-y-4">
               {vnextOutput.canonicalTraversal.paths.map((path) => (
                 <div key={path.axis} className="report-box">
                   <p><strong>{path.axis === 'P' ? L('Percepção', 'Perception') : path.axis === 'O' ? L('Objetivo', 'Objective') : L('Ação', 'Action')} — {L('resultado', 'result')} {path.candidateCode ?? L('não resolvido', 'unresolved')}</strong></p>
-                  <div className="mt-3 rounded-xl bg-slate-950 p-3">
+                  <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
                     <CanonicalTreeDiagram path={path} pt={pt} />
                   </div>
                   <div className="mt-4 space-y-3">
@@ -557,7 +570,7 @@ export default function EventReportPage() {
                       <div key={`${path.axis}-${node.nodeId}-detail`} className={index > 0 ? 'border-t border-slate-200 pt-3' : ''}>
                         <p><strong>{L('Etapa', 'Step')} {index + 1} — {friendlyNodeLabel(node.nodeId, pt)}</strong></p>
                         <p className="mt-1 text-sm">{canonicalQuestionLabel(node.nodeId, node.question, node.exactQuestionTextENAnchor, pt)}</p>
-                        <p className="mt-1 text-sm"><strong>{L('Resposta', 'Answer')}:</strong> {friendlyAnswerLabel(node.answer, pt)}</p>
+                        <p className="mt-1 text-sm"><strong>{L('Resposta', 'Answer')}:</strong> {node.responseText ?? (node.answer === 'START' ? legacyRootResponse(vnextOutput, path.axis) ?? friendlyAnswerLabel(node.answer, pt) : friendlyAnswerLabel(node.answer, pt))}</p>
                         {node.rationale ? <p className="mt-1 text-sm text-slate-700"><strong>{L('Por que', 'Why')}:</strong> {localizeRationale(node.rationale, locale)}</p> : null}
                       </div>
                     ))}

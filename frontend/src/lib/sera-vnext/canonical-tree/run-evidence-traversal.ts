@@ -39,6 +39,7 @@ export function runEvidenceTraversal(args: {
   const trace: SeraCanonicalPath['answers'] = []
   let currentNodeId: string | null = ROOT_BY_AXIS[args.axis]
   let terminalCode: string | null = null
+  let rootResponseText: string | null = null
 
   while (currentNodeId) {
     const node = nodes.get(currentNodeId)
@@ -49,8 +50,10 @@ export function runEvidenceTraversal(args: {
       node,
       evidence: args.evidence,
       statementAtEscapePoint: args.statementAtEscapePoint,
+      rootResponseText,
     })
     trace.push(answer)
+    if (answer.nodeId.endsWith('_ROOT') && answer.responseText) rootResponseText = answer.responseText
 
     if (answer.terminalCode) {
       terminalCode = assertCanonicalSeraLeafCode(args.axis, answer.terminalCode)

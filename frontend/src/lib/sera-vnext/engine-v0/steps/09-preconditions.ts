@@ -140,7 +140,7 @@ export function runStep09Preconditions(input: {
     item.sourceSection === 'REPORT_ANALYSIS' &&
     item.assertionStatus === 'AFFIRMED' &&
     item.supports.includes('PRECONDITION') &&
-    /\b(contribuiu|contribuinte|contributed|contributory|aus[eê]ncia da reconfirma[cç][aã]o|n[aã]o havendo a reconfirma[cç][aã]o)\b/i.test(item.statement),
+    /\b(contribuiu|contribuinte|contributed|contributory|falha na barreira|aus[eê]ncia da reconfirma[cç][aã]o|n[aã]o havendo a reconfirma[cç][aã]o)\b/i.test(item.statement),
   )
   const investigationIndicatedEvidence = input.factualExtraction.evidence.filter((item) =>
     item.sourceSection === 'REPORT_ANALYSIS' &&
@@ -162,8 +162,12 @@ export function runStep09Preconditions(input: {
   for (const item of explicitContributorEvidence) {
     const category = classifyPreconditionCategory({ text: item.statement, proposedCode: null })
     if (!category) continue
+    const existing = categoryEvidence[category]
+    const independentlySupported = existing?.sourceEvidence.some((candidate) => isEvidenceUsableFor(candidate, 'PRECONDITION')) ?? false
     categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true, explicitInvestigationSupport: false, rejectedByInvestigation: false }
-    categoryEvidence[category].explicitInvestigationSupport = true
+    // Investigator labels may corroborate independently observed event facts, but
+    // they never create a causal precondition on their own.
+    if (independentlySupported) categoryEvidence[category].explicitInvestigationSupport = true
     pushUnique(categoryEvidence[category].texts, item.statement)
     pushEvidence(categoryEvidence[category].sourceEvidence, item)
   }
@@ -183,7 +187,9 @@ export function runStep09Preconditions(input: {
 
   const canonicalProfileFor = (category: string, evidenceSet: (typeof categoryEvidence)[string]) => {
     const canonicalCounts = new Map<SeraCanonicalPreconditionCategory, number>()
-    for (const item of evidenceSet.sourceEvidence) {
+    const causalEvidence = evidenceSet.sourceEvidence.filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
+    const evidenceForCanonicalization = causalEvidence.length ? causalEvidence : evidenceSet.sourceEvidence
+    for (const item of evidenceForCanonicalization) {
       const canonical = classifyCanonicalPrecondition(item.statement)
       if (canonical) canonicalCounts.set(canonical, (canonicalCounts.get(canonical) ?? 0) + 1)
     }
@@ -197,20 +203,35 @@ export function runStep09Preconditions(input: {
   }
 
   const confidenceFor = (category: string, evidenceSet: (typeof categoryEvidence)[string]) => {
+    const capAtEscape = <T extends 'LOW' | 'MEDIUM' | 'HIGH'>(value: T): T | 'LOW' | 'MEDIUM' | 'HIGH' => {
+      const rank = { LOW: 0, MEDIUM: 1, HIGH: 2 } as const
+      return rank[value] <= rank[input.escapePoint.confidence] ? value : input.escapePoint.confidence
+    }
     if (!causalBoundaryResolved) return 'LOW' as const
     if (evidenceSet.rejectedByInvestigation && !evidenceSet.explicitInvestigationSupport) return 'LOW' as const
-    if (evidenceSet.explicitInvestigationSupport) return evidenceSet.sourceEvidence.length >= 2 ? 'HIGH' as const : 'MEDIUM' as const
+    if (evidenceSet.explicitInvestigationSupport) return capAtEscape(evidenceSet.sourceEvidence.length >= 2 ? 'HIGH' as const : 'MEDIUM' as const)
     if (evidenceSet.investigationOnly) return 'LOW' as const
     const base = confidenceFromCount(evidenceSet.texts.length)
     const canonical = canonicalProfileFor(category, evidenceSet).canonicalCategory
     const outsideLikely = canonical && activeFailureCodes.length > 0 && !mostLikelyCanonical.has(canonical)
-    if (outsideLikely && base === 'HIGH') return 'MEDIUM' as const
-    return category === 'ATTENTION_WORKLOAD_CONTEXT' && base === 'HIGH' ? 'MEDIUM' as const : base
+    if (outsideLikely && base === 'HIGH') return capAtEscape('MEDIUM' as const)
+    return capAtEscape(category === 'ATTENTION_WORKLOAD_CONTEXT' && base === 'HIGH' ? 'MEDIUM' as const : base)
   }
 
   return Object.entries(categoryEvidence).map(([category, evidenceSet]) => {
     const canonicalProfile = canonicalProfileFor(category, evidenceSet)
-    const rankedSourceEvidence = [...evidenceSet.sourceEvidence]
+    const usableCausalEvidence = evidenceSet.sourceEvidence.filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
+    const evidenceForDisplay = usableCausalEvidence.length ? usableCausalEvidence : evidenceSet.sourceEvidence
+    const resolvedRelationship: SeraEvidenceRelationshipToFailure = !causalBoundaryResolved
+      ? 'UNRELATED_OR_UNSUPPORTED'
+      : evidenceSet.rejectedByInvestigation && !evidenceSet.explicitInvestigationSupport
+        ? 'UNRELATED_OR_UNSUPPORTED'
+        : evidenceSet.explicitInvestigationSupport
+          ? 'CONTEXTUAL_PRECONDITION'
+          : evidenceSet.investigationOnly
+            ? 'UNRELATED_OR_UNSUPPORTED'
+            : relationshipForEvidence(usableCausalEvidence.length ? usableCausalEvidence : evidenceSet.sourceEvidence)
+    const rankedSourceEvidence = [...evidenceForDisplay]
       .sort((a, b) => contextRelevance(b) - contextRelevance(a) || a.sourceSentenceIndex - b.sourceSentenceIndex)
       .slice(0, 5)
     const rankedTexts = rankedSourceEvidence.length
@@ -240,13 +261,7 @@ export function runStep09Preconditions(input: {
               : (CATEGORY_DESCRIPTION_EN[category] ?? 'Candidate precondition supported by evidence and kept separate from the escape point and active failure.')),
     category: category as SeraPreconditionCandidate['category'],
     evidence: rankedTexts,
-    relationship: !causalBoundaryResolved
-      ? 'UNRELATED_OR_UNSUPPORTED'
-      : evidenceSet.rejectedByInvestigation && !evidenceSet.explicitInvestigationSupport
-        ? 'UNRELATED_OR_UNSUPPORTED'
-        : evidenceSet.explicitInvestigationSupport
-          ? 'CONTEXTUAL_PRECONDITION'
-          : evidenceSet.investigationOnly ? 'UNRELATED_OR_UNSUPPORTED' : relationshipForEvidence(evidenceSet.sourceEvidence),
+    relationship: resolvedRelationship,
     sourceEvidence: rankedSourceEvidence,
     sourceRuleIds: canonicalProfile.canonicalCategory
       ? [
@@ -264,7 +279,10 @@ export function runStep09Preconditions(input: {
     canonicalCategory: canonicalProfile.canonicalCategory,
     canonicalLevel: canonicalProfile.canonicalCategory ? SERA_PRECONDITION_META[canonicalProfile.canonicalCategory].level : null,
     likelyForActiveFailureCodes: canonicalProfile.likelyForActiveFailureCodes,
-    methodologyMatch: !causalBoundaryResolved || !canonicalProfile.canonicalCategory
+    methodologyMatch: !causalBoundaryResolved
+      || !canonicalProfile.canonicalCategory
+      || usableCausalEvidence.length === 0
+      || resolvedRelationship === 'UNRELATED_OR_UNSUPPORTED'
       ? 'HYPOTHESIS_ONLY'
       : canonicalProfile.likelyForActiveFailureCodes.length > 0
         ? 'MOST_LIKELY_AND_EVIDENCED'

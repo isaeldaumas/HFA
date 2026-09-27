@@ -18,10 +18,6 @@ function question(node: SeraCanonicalPath['answers'][number], pt: boolean): stri
   return SERA_PT_V1_TREE.nodes.find((item) => item.nodeId === node.nodeId)?.question ?? node.question
 }
 
-function answerText(node: SeraCanonicalPath['answers'][number], pt: boolean): string {
-  return node.responseText?.trim() || friendlyAnswerLabel(node.answer, pt)
-}
-
 export function CanonicalDecisionJourney({ paths }: { paths: SeraCanonicalPath[] }) {
   const { locale } = useI18n()
   const pt = locale === 'pt-BR'
@@ -52,7 +48,7 @@ export function CanonicalDecisionJourney({ paths }: { paths: SeraCanonicalPath[]
                     </div>
                   </div>
                   <div className="mt-3 rounded-lg bg-cyan-950/20 px-3 py-2 text-xs text-cyan-200">
-                    <strong>{pt ? 'Resposta' : 'Answer'}:</strong> {answerText(node, pt)}
+                    <strong>{pt ? 'Resposta' : 'Answer'}:</strong> {friendlyAnswerLabel(node.answer, pt)}
                   </div>
                   {node.rationale && (
                     <p className="mt-3 text-xs leading-relaxed text-slate-400"><strong className="text-slate-300">{pt ? 'Por que' : 'Why'}:</strong> {didacticNodeReason(node.nodeId, node.answer, localizeRationale(node.rationale, locale), pt)}</p>
