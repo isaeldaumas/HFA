@@ -225,6 +225,8 @@ export function VNextEventAnalysisPanel({ output }: { output: SeraVNextEngineOut
         {axes.map((axis) => {
           const unresolved = !axis.proposedCode || axis.status === 'UNRESOLVED' || axis.status === 'INSUFFICIENT_EVIDENCE'
           const conditionalAlternatives = axis.alternativesConsidered.filter((item) => /^[POA]-[A-Z]$/.test(item))
+          const rootResponse = output.canonicalTraversal.paths
+            .find((path) => path.axis === axis.axis)?.answers[0]?.responseText ?? null
           return (
             <div key={axis.axis} className="rounded-xl border border-slate-700 bg-slate-900/70 p-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-cyan-300">{axisTitle(axis.axis, pt)}</p>
@@ -237,8 +239,13 @@ export function VNextEventAnalysisPanel({ output }: { output: SeraVNextEngineOut
                   : `${pt ? 'confiança' : 'confidence'} ${confidenceLabel(axis.confidence, pt)}`}
               </p>
               <p className="mt-3 text-sm leading-relaxed text-slate-300">
-                {axis.statementAtEscapePoint ?? (pt ? 'Eixo não resolvido pela evidência disponível.' : 'Axis unresolved by the available evidence.')}
+                {axis.statementAtEscapePoint ?? rootResponse ?? (pt ? 'Eixo não resolvido pela evidência disponível.' : 'Axis unresolved by the available evidence.')}
               </p>
+              {axis.statementAtEscapePoint && rootResponse && rootResponse !== axis.statementAtEscapePoint && (
+                <p className="mt-2 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs leading-relaxed text-slate-400">
+                  <strong className="text-slate-300">{pt ? 'Resposta inicial SERA' : 'Initial SERA answer'}:</strong> {rootResponse}
+                </p>
+              )}
               {unresolved && conditionalAlternatives.length > 0 && (
                 <div className="mt-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3">
                   <p className="text-xs font-semibold text-slate-400">

@@ -3,8 +3,10 @@ import {
   buildCanonicalEventAnalysisInput,
   buildCanonicalEventClientRequestId,
   canonicalAnalyzeResponse,
+  mergeCanonicalReanalysisNarrative,
   createCanonicalEventAnalysis,
 } from '../../frontend/src/lib/sera-vnext-product/canonical-event-analysis'
+import { runSeraVNextEngineV0 } from '../../frontend/src/lib/sera-vnext/engine-v0/run-engine'
 
 async function main() {
   assert.equal(
@@ -26,8 +28,60 @@ async function main() {
   assert.equal(reanalysisInput.sourceReference, 'event-1')
   assert.equal(reanalysisInput.sourceFlowOverride, 'VNEXT_CANONICAL')
   assert.equal(reanalysisInput.metadata.eventId, 'event-1')
-  assert.equal(reanalysisInput.metadata.source, 'canonical_reanalysis')
+  assert.equal(reanalysisInput.metadata.source, 'primary_sera_reanalysis')
   assert.equal(reanalysisInput.metadata.candidateOnly, true)
+
+
+  const mergedAdditional = mergeCanonicalReanalysisNarrative({
+    baseNarrative: 'Relato original do evento.',
+    additionalInformation: 'Nova evidência documental: o operador declarou que pretendia manter a aproximação.',
+  })
+  assert.match(mergedAdditional, /Relato original do evento/)
+  assert.match(mergedAdditional, /INFORMAÇÕES ADICIONAIS PARA REANÁLISE/)
+  assert.match(mergedAdditional, /pretendia manter a aproximação/)
+  const mergedAgain = mergeCanonicalReanalysisNarrative({
+    baseNarrative: mergedAdditional,
+    additionalInformation: 'Nova evidência documental: o operador declarou que pretendia manter a aproximação.',
+  })
+  assert.equal(mergedAgain, mergedAdditional, 'repeated additional information must be deduplicated')
+  const fullResubmission = mergeCanonicalReanalysisNarrative({
+    baseNarrative: 'Relato original do evento.',
+    submittedNarrative: `Relato original do evento.\n\nComplemento já anexado pelo cliente.`,
+    originalNarrative: 'Relato original do evento.',
+  })
+  assert.match(fullResubmission, /Complemento já anexado pelo cliente/)
+
+
+  const successiveFullResubmission = mergeCanonicalReanalysisNarrative({
+    baseNarrative: mergedAdditional,
+    submittedNarrative: `Relato original do evento.
+
+Segundo complemento factual.`,
+    originalNarrative: 'Relato original do evento.',
+  })
+  assert.equal((successiveFullResubmission.match(/Relato original do evento/g) ?? []).length, 1)
+  assert.match(successiveFullResubmission, /pretendia manter a aproximação/)
+  assert.match(successiveFullResubmission, /Segundo complemento factual/)
+
+  const baseForAdditionalEvidence = 'Durante a atuação do stick pusher, o SIC aplicou esforço NOSE UP na coluna de comando, em oposição ao stick pusher, contrariando o QRH. Como consequência, a aeronave perdeu o controle e colidiu contra o solo.'
+  const beforeAdditional = runSeraVNextEngineV0({
+    inputId: 'REANALYSIS-BEFORE', narrative: baseForAdditionalEvidence, locale: 'pt-BR', sourceType: 'real_event', requestId: 'before', mode: 'CANDIDATE_ONLY', options: { allowLlm: false, requireHumanReview: true },
+  })
+  assert.equal(beforeAdditional.canonicalTraversal.paths.find((path) => path.axis === 'O')?.answers[0]?.answer, 'INSUFFICIENT_EVIDENCE')
+  const reanalysisNarrative = mergeCanonicalReanalysisNarrative({
+    baseNarrative: baseForAdditionalEvidence,
+    additionalInformation: 'O SIC declarou que, naquele momento, seu objetivo era reduzir a razão de descida para recuperar a trajetória.',
+  })
+  const afterAdditional = runSeraVNextEngineV0({
+    inputId: 'REANALYSIS-AFTER', narrative: reanalysisNarrative, locale: 'pt-BR', sourceType: 'real_event', requestId: 'after', mode: 'CANDIDATE_ONLY', options: { allowLlm: false, requireHumanReview: true },
+  })
+  const addedEvidence = afterAdditional.factualExtraction.evidence.find((item) => /seu objetivo era reduzir a razão de descida/i.test(item.statement))
+  assert.ok(addedEvidence, 'free-form reanalysis information must reach factual evidence extraction')
+  assert.equal(addedEvidence?.occurrenceScope, 'CURRENT_EVENT')
+  assert.notEqual(addedEvidence?.temporalRelation, 'POST_ESCAPE', 'appended reanalysis evidence must not become post-escape merely because it is appended to the document')
+  const afterObjectiveRoot = afterAdditional.canonicalTraversal.paths.find((path) => path.axis === 'O')?.answers[0]
+  assert.equal(afterObjectiveRoot?.answer, 'START', 'new factual objective evidence must change O_ROOT on reanalysis')
+  assert.match(afterObjectiveRoot?.responseText ?? '', /objetivo do operador|operador pretendia|reduzir a razão de descida/i)
 
   let captured: any = null
   const fakeResult: any = {
@@ -37,6 +91,7 @@ async function main() {
       engine_runtime_version: 'runtime-test',
       canonical_tree_version: 'tree-test',
       warnings: ['NON_FINAL_OUTPUT_ONLY'],
+      engine_input: { locale: 'pt-BR' },
       limitations: ['test limitation'],
       engine_output: {
         guardrails: { consequenceUsedAsCause: false },
@@ -48,6 +103,7 @@ async function main() {
           action: { proposedCode: 'A-A' },
         },
         preconditions: [],
+        evidenceSufficiency: { status: 'SUFFICIENT', questions: [] },
       },
     },
     revision: {},

@@ -48,7 +48,7 @@ export function CanonicalDecisionJourney({ paths }: { paths: SeraCanonicalPath[]
                     </div>
                   </div>
                   <div className="mt-3 rounded-lg bg-cyan-950/20 px-3 py-2 text-xs text-cyan-200">
-                    <strong>{pt ? 'Resposta' : 'Answer'}:</strong> {friendlyAnswerLabel(node.answer, pt)}
+                    <strong>{pt ? 'Resposta' : 'Answer'}:</strong> {node.responseText ?? friendlyAnswerLabel(node.answer, pt)}
                   </div>
                   {node.rationale && (
                     <p className="mt-3 text-xs leading-relaxed text-slate-400"><strong className="text-slate-300">{pt ? 'Por que' : 'Why'}:</strong> {didacticNodeReason(node.nodeId, node.answer, localizeRationale(node.rationale, locale), pt)}</p>

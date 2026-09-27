@@ -38,6 +38,26 @@ function main() {
     'The EN anchor must retain the negative polarity of the exact PT question.'
   )
 
+
+  // Hendy Step 2 roots must answer the actual descriptive question before any ladder branch.
+  const pRoot = runEvidenceTraversal({ axis: 'P', evidence: [], statementAtEscapePoint: 'O copiloto acreditava que a aeronave estava alta na trajetória.' })
+  assert.equal(pRoot.path.nodeIds[0], 'P_ROOT')
+  assert.match(pRoot.path.answers[0]?.responseText ?? '', /O operador acreditava que .*aeronave estava alta/i)
+
+  const oRoot = runEvidenceTraversal({ axis: 'O', evidence: [], statementAtEscapePoint: 'O objetivo era recuperar a trajetória de voo.' })
+  assert.equal(oRoot.path.nodeIds[0], 'O_ROOT')
+  assert.match(oRoot.path.answers[0]?.responseText ?? '', /objetivo do operador era recuperar a trajetória/i)
+
+  const aObservedOnly = runEvidenceTraversal({ axis: 'A', evidence: [], statementAtEscapePoint: 'O copiloto aplicou esforço NOSE UP na coluna de comando.' })
+  assert.deepEqual(aObservedOnly.path.nodeIds, ['A_ROOT'])
+  assert.equal(aObservedOnly.path.answers[0]?.answer, 'INSUFFICIENT_EVIDENCE')
+  assert.match(aObservedOnly.path.answers[0]?.responseText ?? '', /plano|estrat[eé]gia/i)
+
+  const aStrategy = runEvidenceTraversal({ axis: 'A', evidence: [], statementAtEscapePoint: 'O copiloto decidiu usar o modo vertical para recuperar a trajetória.' })
+  assert.equal(aStrategy.path.nodeIds[0], 'A_ROOT')
+  assert.equal(aStrategy.path.answers[0]?.answer, 'START')
+  assert.match(aStrategy.path.answers[0]?.responseText ?? '', /tentava atingir o objetivo/i)
+
   // PT/EN polarity and branch targets: the question asks whether risk was not managed.
   const unmanaged = evaluate('O', 'O_MANAGED_RISK', 'A equipe aceitou risco e não limitou o risco.')
   assert.equal(unmanaged.answer, 'INSUFFICIENT_EVIDENCE')

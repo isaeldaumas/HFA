@@ -370,6 +370,7 @@ export default function EventDetailPage() {
   const [vnextPdfState, setVnextPdfState] = useState<PdfState>('idle')
   const [vnextReanalyzeState, setVnextReanalyzeState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [vnextReanalyzeError, setVnextReanalyzeError] = useState<string | null>(null)
+  const [vnextAdditionalInformation, setVnextAdditionalInformation] = useState('')
   const [actionStates, setActionStates] = useState<Record<number, 'idle' | 'loading' | 'done' | 'error'>>({})
   const [canManageDelete, setCanManageDelete] = useState(false)
   const [showLegacyHistorical, setShowLegacyHistorical] = useState(false)
@@ -461,7 +462,7 @@ export default function EventDetailPage() {
       const res = await fetch(`/api/events/${event.id}/reanalyze-vnext`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ locale }),
+        body: JSON.stringify({ locale, additionalInformation: vnextAdditionalInformation.trim() || undefined }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -471,13 +472,14 @@ export default function EventDetailPage() {
       const refreshed = await apiCall(`/events/${event.id}?scope=${scope}`, {}, token) as EventPayload
       setEvent(refreshed)
       if (refreshed?.analyses) setAnalysis(refreshed.analyses)
+      setVnextAdditionalInformation('')
       setVnextReanalyzeState('done')
       setTimeout(() => setVnextReanalyzeState('idle'), 3000)
     } catch (error) {
       setVnextReanalyzeError(error instanceof Error ? error.message : 'Falha ao executar a análise SERA.')
       setVnextReanalyzeState('error')
     }
-  }, [event, token, searchParams, locale])
+  }, [event, token, searchParams, locale, vnextAdditionalInformation])
 
   const downloadVNextPdf = useCallback(async () => {
     if (!event?.vnext_analysis?.id || !token) return
@@ -853,7 +855,20 @@ export default function EventDetailPage() {
             </p>
           )}
           {!event.deleted_at && (
-            <div className="flex flex-wrap gap-2 pt-1">
+            <div className="space-y-2 pt-1">
+              <label className="block text-xs font-medium text-slate-300">
+                {locale === 'pt-BR' ? 'Novas informações para reanálise' : 'New information for reanalysis'}
+              </label>
+              <textarea
+                rows={4}
+                value={vnextAdditionalInformation}
+                onChange={(e) => setVnextAdditionalInformation(e.target.value)}
+                placeholder={locale === 'pt-BR'
+                  ? 'Acrescente somente fatos, documentos ou informações novas. O relato original será preservado.'
+                  : 'Add only new facts, documents, or information. The original narrative will be preserved.'}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-500"
+              />
+              <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => void reanalyzeWithVNext()}
@@ -866,9 +881,16 @@ export default function EventDetailPage() {
               </button>
               <span className="self-center text-[11px] text-slate-500">
                 {locale === 'pt-BR'
-                  ? 'Use após atualização metodológica para recalcular pré-condições e apresentação com o motor vigente.'
-                  : 'Use after a methodological update to recalculate preconditions and presentation with the current engine.'}
+                  ? 'Sem texto novo, apenas reaplica a versão atual do motor. Com texto novo, incorpora a evidência à nova análise sem substituir o relato original.'
+                  : 'With no new text, this only reapplies the current engine. With new text, the evidence is incorporated without replacing the original narrative.'}
               </span>
+              </div>
+              {vnextReanalyzeError && <p className="text-xs text-red-300">{vnextReanalyzeError}</p>}
+              {vnextReanalyzeState === 'done' && (
+                <p className="text-xs text-emerald-300">
+                  {locale === 'pt-BR' ? 'Análise atualizada. As novas informações foram incorporadas à reanálise.' : 'Analysis updated. New information was incorporated into the reanalysis.'}
+                </p>
+              )}
             </div>
           )}
         </div>

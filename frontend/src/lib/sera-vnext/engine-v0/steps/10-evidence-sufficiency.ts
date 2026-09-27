@@ -63,8 +63,8 @@ function questionForNode(nodeId: string, canonicalQuestion: string, locale: 'pt-
     },
     A_ROOT: {
       stage: 'ACTION',
-      question: 'Qual ação ou omissão concreta o ator executou para tentar atingir o objetivo no ponto de fuga?',
-      requestedEvidence: ['comando/ação/omissão observável', 'vínculo entre ator e ação'],
+      question: 'Como o operador estava tentando atingir o objetivo? Qual era o plano, a estratégia ou o meio que pretendia usar naquele momento?',
+      requestedEvidence: ['plano/estratégia declarado ou observável', 'meio escolhido para atingir o objetivo', 'vínculo entre a estratégia e o ator'],
     },
     A_IMPLEMENTED: {
       stage: 'ACTION',

@@ -8,7 +8,7 @@ import {
 } from '@/lib/server/tenant-user'
 import { getOrCreateRequestId } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
-import { canonicalAnalyzeResponse, createCanonicalEventAnalysis } from '@/lib/sera-vnext-product/canonical-event-analysis'
+import { canonicalAnalyzeResponse, createCanonicalEventAnalysis, mergeCanonicalReanalysisNarrative } from '@/lib/sera-vnext-product/canonical-event-analysis'
 import { inferOccurrenceDateFromNarrative } from '@/lib/sera-vnext/occurrence-date'
 
 export const maxDuration = 300
@@ -168,6 +168,21 @@ export async function POST(req: Request) {
         .maybeSingle()
       if (evErr || !ev) return buildErrorResponse('ANALYZE_FORBIDDEN', requestId, 403)
 
+      const { data: latestVNext } = await admin
+        .from('sera_vnext_analyses')
+        .select('narrative')
+        .eq('tenant_id', user.tenantId)
+        .eq('source_reference', body.eventId)
+        .is('deleted_at', null)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const reanalysisNarrative = mergeCanonicalReanalysisNarrative({
+        baseNarrative: String(latestVNext?.narrative ?? ev.raw_input ?? ''),
+        submittedNarrative: rawInput,
+        originalNarrative: String(ev.raw_input ?? ''),
+      })
+
       await admin
         .from('events')
         .update({ status: 'processing' })
@@ -186,7 +201,7 @@ export async function POST(req: Request) {
           admin,
           eventId: body.eventId,
           title: String(ev.title ?? body.title ?? `SERA ${body.eventId}`),
-          narrative: String(ev.raw_input ?? rawInput),
+          narrative: reanalysisNarrative,
           mode: 'REANALYSIS',
           tenantId: user.tenantId,
           publicUserId: submittedById,

@@ -12,6 +12,7 @@ export type SeraNodeEvidenceContext = {
   statementAtEscapePoint: string | null
   /** Substantive answer produced at the descriptive root and carried to later nodes. */
   rootResponseText?: string | null
+  locale?: 'pt-BR' | 'en'
 }
 
 export type SeraNodeAnswer = {
@@ -92,9 +93,11 @@ function conciseRootResponse(axis: CanonicalSeraAxis, raw: string): string {
       const article = (firstLanding[1] ?? '').toLowerCase() === 'o' ? 'o' : 'a'
       return `O operador acreditava que ${article} ${firstLanding[2]} era a unidade prevista para o primeiro pouso.`
     }
+    const identifiedAsIf = text.match(/(?:identificou|tratou|interpretou)\s+(.{1,70}?)\s+como se fosse\s+(.{1,100}?)(?:[.;,]|\s+e\s+passou|\s+devido\b|\s+porque\b|$)/i)
+    if (identifiedAsIf) return `O operador acreditava que ${identifiedAsIf[1].trim()} era ${identifiedAsIf[2].trim()}.`
     const identifiedAs = text.match(/(?:identificou|tratou|interpretou)\s+(.{1,70}?)\s+como\s+(.{1,100}?)(?:[.;,]|\s+devido\b|\s+porque\b|$)/i)
     if (identifiedAs) return `O operador acreditava que ${identifiedAs[1].trim()} correspondia a ${identifiedAs[2].trim()}.`
-    const believed = text.match(/(?:acreditava|entendeu|entendia|percebia)\s+que\s+(.{1,180}?)(?:[.;]|$)/i)
+    const believed = text.match(/(?:acreditava|achava|entendeu|entendia|percebia)\s+que\s+(.{1,180}?)(?:[.;]|$)/i)
     if (believed) return `O operador acreditava que ${believed[1].trim()}.`
     const enIdentified = text.match(/identified\s+(.{1,70}?)\s+as\s+(?:the\s+)?(.{1,100}?)(?:[.;,]|\s+because\b|$)/i)
     if (enIdentified) return `The operator believed ${enIdentified[1].trim()} was the ${enIdentified[2].trim()}.`
@@ -104,8 +107,15 @@ function conciseRootResponse(axis: CanonicalSeraAxis, raw: string): string {
     if (/pouso\s+seria\s+nessa?\s+primeira\s+unidade/i.test(text)) {
       return 'O operador pretendia realizar o primeiro pouso na unidade que acreditava ser o destino previsto.'
     }
+    const preparedApproach = text.match(/passou a (?:preparar|conduzir|planejar)\s+(?:a\s+)?aproxima[cç][aã]o\s+para\s+(.{1,90}?)(?:[.;]|$)/i)
+    if (preparedApproach) return `O operador pretendia realizar a aproximação para ${preparedApproach[1].trim()}.`
+    if (/called for (?:the )?go-around|chamou (?:pela |a )?arremetida|solicitou (?:a )?arremetida/i.test(text)) {
+      return /called for/i.test(text) ? 'The operator intended to execute a go-around.' : 'O operador pretendia executar uma arremetida.'
+    }
     const goal = text.match(/(?:objetivo|inten[cç][aã]o|meta)\s+(?:era|foi|consistia em)?\s*:?[\s]*(.{1,180}?)(?:[.;]|$)/i)
     if (goal) return `O objetivo do operador era ${goal[1].trim()}.`
+    const desired = text.match(/(?:desejava|queria|pretendia|buscava|visava)\s+(.{1,180}?)(?:[.;]|$)/i)
+    if (desired) return `O operador pretendia ${desired[1].trim()}.`
     if (/planned\s+(?:route|destination)|intended\s+(?:route|destination)/i.test(text)) {
       return 'The operator intended to complete the route or destination believed to be planned.'
     }
@@ -114,20 +124,48 @@ function conciseRootResponse(axis: CanonicalSeraAxis, raw: string): string {
   if (axis === 'A') {
     const pcp = text.match(/passou a tratar\s+([A-Z0-9-]+)\s+como\s+o destino previsto para o primeiro pouso/i)
     if (pcp) return `O operador passou a planejar e conduzir a aproximação para ${pcp[1]}, que tratava como o destino previsto para o primeiro pouso.`
+    const wrongAlternativeEn = text.match(/(?:pulled|pushed)\s+(.{1,100}?)\s+instead of\s+(.{1,100}?)(?:[.;]|$)/i)
+    if (wrongAlternativeEn) return `The operator was trying to respond by ${text.match(/(pulled|pushed)/i)?.[1]?.toLowerCase()}ing ${wrongAlternativeEn[1].trim()} instead of ${wrongAlternativeEn[2].trim()}.`
+    const wrongAlternativePt = text.match(/(?:puxou|empurrou)\s+(.{1,100}?)\s+(?:em vez de|ao inv[eé]s de)\s+(.{1,100}?)(?:[.;]|$)/i)
+    if (wrongAlternativePt) return `O operador tentava responder por meio do comando ${wrongAlternativePt[1].trim()}, em vez de ${wrongAlternativePt[2].trim()}.`
+    const insertedSelection = text.match(/(?:inseriu|programou|selecionou|ajustou)\s+(.{1,180}?)(?:[.;]|$)/i)
+    if (insertedSelection) return `O operador tentava atingir o objetivo por meio da seleção/configuração de ${insertedSelection[1].trim()}.`
+    if (/did not initiate a go-around/i.test(text)) return 'The operator was trying to continue the approach without initiating a go-around.'
+    if (/n[aã]o (?:iniciou|executou|realizou) (?:uma |a )?arremetida/i.test(text)) return 'O operador tentava prosseguir a aproximação sem iniciar a arremetida.'
+    const hesitation = text.match(/(?:hesitou|demorou|esperou).{0,80}?antes de (executar|iniciar|realizar)\s+(.{1,100}?)(?:[.;]|$)/i)
+    if (hesitation) return `O operador pretendia atingir o objetivo por meio da execução de ${hesitation[2].trim()}, mas hesitou antes de executá-la.`
+    const prepared = text.match(/passou a (?:preparar|conduzir|planejar)\s+(?:a\s+)?aproxima[cç][aã]o\s+para\s+(.{1,90}?)(?:[.;]|$)/i)
+    if (prepared) return `O operador tentava atingir o objetivo preparando e conduzindo a aproximação para ${prepared[1].trim()}.`
+    const plannedMeans = text.match(/(?:decidiu|optou|planejava|pretendia|tentava)\s+(?:por\s+)?(?:usar|utilizar|empregar|executar|realizar|conduzir)\s+(.{1,180}?)(?:[.;]|$)/i)
+    if (plannedMeans) return `O operador tentava atingir o objetivo usando ${plannedMeans[1].trim()}.`
     const approach = text.match(/(?:planej|conduz|inici|prosseg|continu)\w*\s+(.{1,180}?)(?:[.;]|$)/i)
     if (approach) return `O operador tentou alcançar o objetivo por meio de ${approach[1].trim()}.`
   }
 
-  return text
+  const isEnglish = /\b(the|operator|crew|pilot|planned|intended|believed|identified|used|selected|approach)\b/i.test(text)
+  if (axis === 'P') return isEnglish ? `The operator believed that ${text.replace(/[.]$/, '')}.` : `O operador acreditava que ${text.replace(/[.]$/, '')}.`
+  if (axis === 'O') return isEnglish ? `The operator intended to ${text.replace(/[.]$/, '')}.` : `O operador pretendia ${text.replace(/[.]$/, '')}.`
+  return isEnglish ? `The operator was trying to achieve the goal by ${text.replace(/[.]$/, '')}.` : `O operador tentava atingir o objetivo por meio de ${text.replace(/[.]$/, '')}.`
+}
+
+function insufficientRootResponse(axis: CanonicalSeraAxis, locale: 'pt-BR' | 'en' = 'pt-BR'): string {
+  if (locale === 'en') {
+    if (axis === 'P') return 'The available evidence does not establish what the operator believed was happening in relation to the goal.'
+    if (axis === 'O') return 'The available evidence does not establish the intent or goal the operator was trying to achieve.'
+    return 'The available evidence does not establish the plan or strategy by which the operator was trying to achieve the goal.'
+  }
+  if (axis === 'P') return 'Não é possível determinar, com a evidência disponível, o que o operador acreditava estar acontecendo em relação ao objetivo.'
+  if (axis === 'O') return 'Não é possível determinar, com a evidência disponível, qual era a intenção ou o objetivo que o operador pretendia alcançar.'
+  return 'Não é possível determinar, com a evidência disponível, qual era o plano ou a estratégia pela qual o operador tentava atingir o objetivo.'
 }
 
 function rootResponseText(ctx: SeraNodeEvidenceContext, supportingEvidence: string[]): string | null {
-  // The root asks a descriptive question. START is only the internal branch token;
-  // the user-facing answer must state what was perceived/intended/done.
+  // Hendy Step 2 asks for substantive P/O/A statements before the ladders. START is only
+  // an internal branch token; the user-facing answer must directly answer the root question.
+  const support = supportingEvidence[0]?.trim()
+  if (support) return conciseRootResponse(ctx.axis, support)
   const fromStatement = stripAxisStatementPrefix(ctx.statementAtEscapePoint)
-  if (fromStatement) return conciseRootResponse(ctx.axis, fromStatement)
-  const fallback = supportingEvidence[0]?.trim()
-  return fallback ? conciseRootResponse(ctx.axis, fallback) : null
+  return fromStatement ? conciseRootResponse(ctx.axis, fromStatement) : null
 }
 
 function decideP(nodeId: string, statements: string[]): Decision {
@@ -136,7 +174,7 @@ function decideP(nodeId: string, statements: string[]): Decision {
       const perceivedState = unique([
         ...concept(statements, 'inadequateAssessment'),
         ...concept(statements, 'adequateAssessment'),
-        ...matching(statements, [/\b(acreditava|entendia|percebia|identificou|interpretou|reconheceu|believed|understood|perceived|identified|interpreted|recognized)\b/i]),
+        ...matching(statements, [/\b(acreditava|achava|entendia|percebia|identificou|interpretou|reconheceu|believed|understood|perceived|identified|interpreted|recognized)\b/i]),
       ])
       if (!perceivedState.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of what the operator believed or perceived; environmental/system state alone cannot substitute for that belief.' }
       return { answer: 'START', supportingEvidence: perceivedState.slice(0, 2), rationale: 'Root node establishes the operator perceived state before that assessment is tested.' }
@@ -200,13 +238,15 @@ function decideO(nodeId: string, statements: string[]): Decision {
   switch (nodeId) {
     case 'O_ROOT': {
       const intendedGoal = unique([
-        ...concept(statements, 'safeGoal'),
+        // The root must answer Hendy's explicit goal/intention question. A procedure that
+        // should have been executed (safeGoal) is not evidence of what this actor intended.
         ...concept(statements, 'efficiencyObjective'),
         ...matching(statements, [
-          /\b(objetiv|inten[cç][aã]o|pretend|planej|meta|queria|buscava|visava|goal|intent|planned|planning)\w*/i,
+          /\b(objetiv|inten[cç][aã]o|pretend|planej|meta|queria|desej|buscava|visava|goal|intent|planned|planning)\w*/i,
           /\b(decidiu|optou|escolheu|decided|chose|opted)\b.{0,120}\b(continuar|continuou|prosseguir|prosseguiu|decolar|decolou|pousar|pousou|aproximar|aproximou|descer|desceu|subir|subiu|continue|continued|proceed|proceeded|take off|took off|land|landed|approach|approached|descend|descended|climb|climbed)\b/i,
           /\b(decidiu|resolveu|decided|resolved)\b.{0,80}\b(violar|descumprir|desrespeitar|violate|breach|disregard)\b.{0,100}\b(continuar|continuou|prosseguir|prosseguiu|seguir|seguiu|continue|continued|proceed|proceeded|press on|pressed on)\b/i,
           /\b((?:passou|come[cç]ou) a (?:preparar|conduzir|planejar)|iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|preparou|conduziu)\b.{0,90}\b(aproxima[cç][aã]o|approach|pouso|landing|destino|destination|unidade|unit-|plataforma|helideck)\b/i,
+          /\b(called for|requested|solicitou|chamou (?:pela |a )?)\b.{0,60}\b(go-around|go around|arremetida)\b/i,
         ]),
       ])
       if (!intendedGoal.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of the actor intended objective. The observed unsafe action, a rule deviation, or the outcome cannot substitute for intent.' }
@@ -326,17 +366,24 @@ function decideA(nodeId: string, statements: string[]): Decision {
   switch (nodeId) {
     case 'A_ROOT': {
       const actionStrategy = unique([
-        ...concept(statements, 'implementedAction'),
-        ...concept(statements, 'safeAction'),
-        ...concept(statements, 'incorrectAction'),
-        ...concept(statements, 'selectionSubtype'),
-        ...concept(statements, 'timeManagementAction'),
-        ...matching(statements, [/\b(esfor[cç]o|puxou|empurrou|moveu|selecionou|acionou|executou|aplicou|pulled|pushed|moved|selected|activated|executed|applied)\b/i]),
-        ...matching(statements, [/\b((?:passou|come[cç]ou) a (?:trat[aá](?:-l[ao])?|planejar|conduzir|preparar)|iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|conduziu a aproxima[cç][aã]o|preparou a aproxima[cç][aã]o|compromet(?:eu|endo).*aproxima[cç][aã]o)\b/i]),
-        ...matching(statements, [/\b(inspe[cç][aã]o (?:de )?pr[eé][ -]?voo|preflight inspection|inspe[cç][aã]o visual)\b.{0,100}\b(conclu[ií]d[ao]|realizad[ao]|completed|performed|sem detectar|without detecting)\b/i, /\b(aeronave|aircraft)\b.{0,80}\b(liberad[ao]|released|considerada apta|considered fit)\b/i]),
+        // Hendy asks HOW the actor was trying to achieve the goal — the plan/means.
+        // A bare observed control movement is not sufficient to establish that strategy.
+        ...matching(statements, [
+          /\b(pretendia|intencionava|planejava|decidiu|optou|escolheu|tentava|buscava|visava|intended|planned|decided|opted|chose|was trying|sought|aimed)\b.{0,180}\b(usar|utilizar|executar|realizar|conduzir|prosseguir|continuar|selecionar|acionar|aproximar|pousar|use|using|execute|perform|conduct|proceed|continue|select|activate|approach|land)\b/i,
+          /\b(passou|come[cç]ou) a (?:tratar|planejar|conduzir|preparar|executar|usar|utilizar)\b/i,
+          /\b(iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|conduziu a aproxima[cç][aã]o|preparou a aproxima[cç][aã]o|planejou a aproxima[cç][aã]o)\b/i,
+          /\b(usou|utilizou|selecionou|acionou|configurou|programou|inseriu)\b.{0,120}\b(para|a fim de|com o objetivo de|visando|to|in order to|so as to)\b/i,
+          /\b(inseriu|programou|selecionou|ajustou)\b.{0,140}\b(n[ií]vel|altitude|modo|mode|valor|value|setting|flight level|painel|panel)\b/i,
+          /\b(pulled|pushed)\b.{0,100}\binstead of\b|\b(puxou|empurrou)\b.{0,100}\b(em vez de|ao inv[eé]s de)\b/i,
+          /\b(did not initiate|did not execute|failed to initiate|failed to execute)\b.{0,80}\b(go-around|go around)\b/i,
+          /\b(n[aã]o iniciou|n[aã]o executou|falhou em iniciar|falhou em executar)\b.{0,80}\b(arremetida|go-around)\b/i,
+          /\b(hesitou|demorou|esperou|hesitated|delayed|waited)\b.{0,100}\b(antes de|before)\b.{0,100}\b(executar|iniciar|realizar|execute|initiate|perform)\b/i,
+          /\b(por meio de|atrav[eé]s de|by means of|by using|using)\b.{0,160}/i,
+          /\b(inspe[cç][aã]o (?:de )?pr[eé][ -]?voo|preflight inspection|inspe[cç][aã]o visual)\b.{0,100}\b(conclu[ií]d[ao]|realizad[ao]|completed|performed)\b/i,
+        ]),
       ])
-      if (!actionStrategy.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires an observable action, omission, command, or action strategy linked to the actor.' }
-      return { answer: 'START', supportingEvidence: actionStrategy.slice(0, 2), rationale: 'Root node establishes the observed action strategy before implementation/adequacy is tested.' }
+      if (!actionStrategy.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of the actor plan, strategy, or means for achieving the goal; an observed movement or control input alone cannot substitute for that plan.' }
+      return { answer: 'START', supportingEvidence: actionStrategy.slice(0, 2), rationale: 'Root node establishes how the operator was trying to achieve the goal before implementation and adequacy are tested.' }
     }
     case 'A_IMPLEMENTED': {
       const safeAction = concept(statements, 'safeAction')
@@ -451,8 +498,8 @@ export function evaluateCanonicalNode(ctx: SeraNodeEvidenceContext): SeraNodeAns
     question: ctx.node.question,
     exactQuestionTextENAnchor: ctx.node.exactQuestionTextENAnchor,
     answer: branchTarget ? decision.answer : 'INSUFFICIENT_EVIDENCE',
-    responseText: ctx.node.nodeId.endsWith('_ROOT') && branchTarget
-      ? rootResponseText(ctx, supportingEvidence)
+    responseText: ctx.node.nodeId.endsWith('_ROOT')
+      ? (branchTarget ? rootResponseText(ctx, supportingEvidence) : insufficientRootResponse(ctx.axis, ctx.locale))
       : null,
     nextNodeId,
     terminalCode,

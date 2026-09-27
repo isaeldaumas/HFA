@@ -46,16 +46,22 @@ function evidenceFor(
       // isEvidenceUsableFor intentionally blocks CONTEXT_ACTOR for P/O/A. The only exception
       // considered here is a locally communicated perception cue that the direct actor explicitly
       // acknowledged at the critical anchor; the next filter enforces that linkage.
-      return use === 'PERCEPTION'
-        && item.actorRelation === 'CONTEXT_ACTOR'
-        && item.assertionStatus === 'AFFIRMED'
+      const admissibleContext = item.assertionStatus === 'AFFIRMED'
         && item.temporalRelation !== 'POST_ESCAPE'
         && item.sourceSection !== 'REPORT_ANALYSIS'
         && item.sourceSection !== 'RECOMMENDATION'
         && item.sourceSection !== 'ADMINISTRATIVE'
         && !['NON_CAUSAL_DOCUMENT', 'REFERENCE_PROCEDURE', 'SYSTEM_DESCRIPTION'].includes(item.evidenceType)
-        && !item.prohibitedFor.includes(use)
-        && item.supports.includes(use)
+      if (use === 'PERCEPTION') {
+        return item.actorRelation === 'CONTEXT_ACTOR'
+          && admissibleContext
+          && !item.prohibitedFor.includes(use)
+          && item.supports.includes(use)
+      }
+      if (use === 'OBJECTIVE' && item.actorRelation === 'SYSTEM_ENVIRONMENT' && admissibleContext) {
+        return /\b(destino|destination|rota|route|gps|fms|autorizad|authorized|planned|planejad|previst)\w*/i.test(item.statement)
+      }
+      return false
     })
     .filter((item) => !['HISTORICAL_COMPARATOR', 'PRE_EVENT_CAUSAL_HISTORY'].includes(item.occurrenceScope ?? 'UNKNOWN'))
     .filter((item) => {
@@ -68,6 +74,11 @@ function evidenceFor(
       // system/environment cue (e.g. missing annunciation, degraded visibility) is therefore
       // legitimate P evidence even though the system is not the direct human actor.
       if (use === 'PERCEPTION' && item.actorRelation === 'SYSTEM_ENVIRONMENT' && distance <= 16) return true
+      // Planned/authorized target or route data is legitimate O_RULES context once O_ROOT
+      // is independently established. It cannot create the objective by itself because the
+      // descriptive root is filtered separately by hasObjectiveRootEvidence.
+      if (use === 'OBJECTIVE' && ['SYSTEM_ENVIRONMENT', 'UNKNOWN'].includes(item.actorRelation) && distance <= 16 &&
+          /\b(destino|destination|rota|route|gps|fms|autorizad|authorized|planned|planejad|previst)\w*/i.test(item.statement)) return true
       // A cue voiced by the other crewmember may support the direct actor's perception only
       // when the critical-anchor sentence explicitly establishes that the direct actor
       // acknowledged/recognized that cue. This is a local communication link, not actor migration.

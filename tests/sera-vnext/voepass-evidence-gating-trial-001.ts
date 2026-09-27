@@ -210,6 +210,8 @@ assert.match(terminalControlAct.escapePoint.statement ?? '', /SIC.*NOSE UP.*stic
 assert.doesNotMatch(terminalControlAct.escapePoint.statement ?? '', /provocou.*pitch uncoupling/i)
 assert.match(terminalControlAct.escapePoint.irreversibilityBoundaryCandidate ?? '', /n[aã]o era mais poss[ií]vel|irrevers[ií]vel/i)
 assert.equal(terminalControlAct.escapePoint.anchorBasis, 'CRITICAL_UNSAFE_ACT')
+assert.ok((terminalControlAct.escapePoint.firstDepartureSupportingEvidence ?? []).some((text) => /despachada.*MEL/i.test(text)))
+assert.ok((terminalControlAct.escapePoint.criticalUnsafeActSupportingEvidence ?? []).some((text) => /SIC.*NOSE UP.*stick pusher/i.test(text)))
 assert.equal(terminalControlAct.directActor.status, 'IDENTIFIED')
 assert.match(terminalControlAct.directActor.actor ?? '', /copiloto|first officer/i)
 assert.equal(terminalControlAct.guardrails.consequenceUsedAsCause, false)
@@ -228,13 +230,16 @@ const terminalOPath = terminalControlAct.canonicalTraversal.paths.find((path) =>
 const terminalAPath = terminalControlAct.canonicalTraversal.paths.find((path) => path.axis === 'A')
 assert.deepEqual(terminalPPath?.nodeIds, ['P_ROOT'])
 assert.deepEqual(terminalOPath?.nodeIds, ['O_ROOT'])
-assert.deepEqual(terminalAPath?.nodeIds, ['A_ROOT', 'A_IMPLEMENTED'])
+assert.deepEqual(terminalAPath?.nodeIds, ['A_ROOT'])
 assert.equal(terminalPPath?.answers[0]?.answer, 'INSUFFICIENT_EVIDENCE')
 assert.equal(terminalOPath?.answers[0]?.answer, 'INSUFFICIENT_EVIDENCE')
 assert.equal(terminalAPath?.answers.at(-1)?.answer, 'INSUFFICIENT_EVIDENCE')
+assert.match(terminalPPath?.answers[0]?.responseText ?? '', /n[aã]o [eé] poss[ií]vel determinar.*acreditava/i)
+assert.match(terminalOPath?.answers[0]?.responseText ?? '', /n[aã]o [eé] poss[ií]vel determinar.*objetivo/i)
+assert.match(terminalAPath?.answers[0]?.responseText ?? '', /n[aã]o [eé] poss[ií]vel determinar.*plano|estrat[eé]gia/i)
 assert.ok(terminalControlAct.evidenceSufficiency.questions.some((question) => question.linkedNodeId === 'P_ROOT'))
 assert.ok(terminalControlAct.evidenceSufficiency.questions.some((question) => question.linkedNodeId === 'O_ROOT'))
-assert.ok(terminalControlAct.evidenceSufficiency.questions.some((question) => question.linkedNodeId === 'A_IMPLEMENTED'))
+assert.ok(terminalControlAct.evidenceSufficiency.questions.some((question) => question.linkedNodeId === 'A_ROOT'))
 
 const candidateRoleSeparation = run('VOEPASS-CANDIDATE-ROLE-SEPARATION', `
 Durante a atuação do stick pusher, não deveria ser aplicada qualquer ação contrária.

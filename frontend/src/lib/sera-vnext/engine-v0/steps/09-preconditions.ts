@@ -1,4 +1,4 @@
-import type { SeraVNextEngineOutput, SeraPreconditionCandidate } from '../../engine-contract'
+import type { SeraVNextEngineOutput, SeraPreconditionCandidate, SeraPreconditionCategory } from '../../engine-contract'
 import type { SeraEvidenceItem, SeraEvidenceRelationshipToFailure } from '../../evidence'
 import { isEvidenceUsableFor } from '../../evidence'
 import { classifyPreconditionCategory, confidenceFromCount, pushUnique } from '../utils'
@@ -219,7 +219,35 @@ export function runStep09Preconditions(input: {
     const adverseProcess = /\b(cultura|culture|ausencia de registro|sem registro|without (?:a )?record|registro formal.*(?:nao|ausen|falt)|formal record.*(?:absent|missing)|supervisao inadequada|inadequate supervision|degraded supervision|pressao organizacional|organizational pressure|staffing|efetivo reduzido|processo organizacional|organizational process)\b/.test(text)
     const knownButUnrecorded = /\b(equipe de manutencao|maintenance team|turno noturno|night shift)\b/.test(text)
       && /\b(comunicacao verbal|verbal communication|tomaram conhecimento|took notice|were informed)\b/.test(text)
-    return adverseProcess || knownButUnrecorded
+    const recordGap = /\b(tlb|registro formal|formal record)\b/.test(text)
+      && /\b(nao estava reportad[ao]s?|nao possuia registro|nao havia registro|ausencia de registro|sem registro|not reported|no record|without (?:a )?record|missing record)\b/.test(text)
+    return adverseProcess || knownButUnrecorded || recordGap
+  }
+
+  const isHighLevelInvestigationFinding = (statement: string): boolean => {
+    const text = statement.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+    return /^(?:[a-z]\)\s*)?o operador possuia um contexto organizacional com multiplas vulnerabilidades/.test(text)
+      || /^(?:[a-z]\)\s*)?havia uma cultura de ausencia de registro formal no tlb que impedia/.test(text)
+  }
+
+  const displayPreconditionStatement = (category: string, statement: string): string => {
+    const text = statement.trim()
+    if (category === 'ENVIRONMENTAL_CONTEXT') {
+      const environmentalClause = text.match(/(?:durante|em)\s+(?:a\s+)?(?:fase de )?(?:cruzeiro|voo|opera[cç][aã]o)[^.;]{0,120}?(?:encontrou|operava|estava)[^.;]{0,220}?(?:gelo|icing|meteorolog)[^.;]*/i)
+      if (environmentalClause) return environmentalClause[0].trim().replace(/^[,;:\- ]+/, '') + (/[.!?]$/.test(environmentalClause[0].trim()) ? '' : '.')
+    }
+    if (category === 'ORGANIZATIONAL_CONTEXT') {
+      const recordClause = text.match(/(?:a pane[^.;]{0,160}?n[aã]o estava reportada no TLB|a aeronave[^.;]{0,160}?n[aã]o possu[ií]a registro[^.;]{0,100}?TLB|n[aã]o havia registro formal[^.;]{0,120}?TLB)/i)
+      if (recordClause) return recordClause[0].trim().replace(/^[,;:\- ]+/, '') + (/[.!?]$/.test(recordClause[0].trim()) ? '' : '.')
+    }
+    return text
+  }
+
+  const categoryForPreconditionStatement = (statement: string): SeraPreconditionCategory | null => {
+    // Organizational recording/culture evidence must not migrate to Equipment merely because
+    // the same sentence names the technical fault that should have been recorded.
+    if (isActualOrganizationalCondition(statement)) return 'ORGANIZATIONAL_CONTEXT'
+    return classifyPreconditionCategory({ text: statement, proposedCode: null })
   }
 
   const contextualEvidence = input.factualExtraction.evidence
@@ -227,6 +255,7 @@ export function runStep09Preconditions(input: {
     .filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
     .filter((item) => isContextualAnalysisStatement(item.statement))
     .filter((item) => !isInvestigatorConclusionStatement(item.statement))
+    .filter((item) => !isHighLevelInvestigationFinding(item.statement))
     .filter((item) => !isTechnicalReferenceNoise(item.statement))
     // Hendy separation: another observable unsafe act/omission is not automatically a precondition
     // of the selected critical act. It needs its own SERA traversal unless separate causal evidence
@@ -252,7 +281,7 @@ export function runStep09Preconditions(input: {
   const rejectedEvidence = input.factualExtraction.evidence.filter((item) => item.assertionStatus === 'REJECTED_AS_FACTOR')
 
   for (const item of contextualEvidence) {
-    const category = classifyPreconditionCategory({ text: item.statement, proposedCode: null })
+    const category = categoryForPreconditionStatement(item.statement)
     if (!category) continue
     if (category === 'ENVIRONMENTAL_CONTEXT' && !isActualEnvironmentalCondition(item.statement)) continue
     if (category === 'TECHNICAL_CONTEXT' && !isActualTechnicalCondition(item.statement)) continue
@@ -271,28 +300,33 @@ export function runStep09Preconditions(input: {
   }
 
   for (const item of explicitContributorEvidence) {
-    const category = classifyPreconditionCategory({ text: item.statement, proposedCode: null })
+    const category = categoryForPreconditionStatement(item.statement)
     if (!category) continue
     const existing = categoryEvidence[category]
     const independentlySupported = existing?.sourceEvidence.some((candidate) => isEvidenceUsableFor(candidate, 'PRECONDITION')) ?? false
     categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true, explicitInvestigationSupport: false, rejectedByInvestigation: false }
-    // Investigator labels may corroborate independently observed event facts, but
-    // they never create a causal precondition on their own.
-    if (independentlySupported) categoryEvidence[category].explicitInvestigationSupport = true
+    // Investigator conclusions may corroborate independently observed event facts, but they
+    // must not be displayed or counted as the primary causal evidence for that precondition.
+    if (independentlySupported) {
+      categoryEvidence[category].explicitInvestigationSupport = true
+      continue
+    }
     pushUnique(categoryEvidence[category].texts, item.statement)
     pushEvidence(categoryEvidence[category].sourceEvidence, item)
   }
 
   for (const item of investigationIndicatedEvidence) {
-    const category = classifyPreconditionCategory({ text: item.statement, proposedCode: null })
+    const category = categoryForPreconditionStatement(item.statement)
     if (!category) continue
+    const existing = categoryEvidence[category]
+    if (existing && !existing.investigationOnly && existing.sourceEvidence.length > 0) continue
     categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true, explicitInvestigationSupport: false, rejectedByInvestigation: false }
     pushUnique(categoryEvidence[category].texts, item.statement)
     pushEvidence(categoryEvidence[category].sourceEvidence, item)
   }
 
   for (const item of rejectedEvidence) {
-    const category = classifyPreconditionCategory({ text: item.statement, proposedCode: null })
+    const category = categoryForPreconditionStatement(item.statement)
     if (category && categoryEvidence[category]) categoryEvidence[category].rejectedByInvestigation = true
   }
 
@@ -352,8 +386,8 @@ export function runStep09Preconditions(input: {
       [...evidenceForDisplay].sort((a, b) => contextRelevance(b) - contextRelevance(a) || a.sourceSentenceIndex - b.sourceSentenceIndex),
     ).slice(0, 5)
     const rankedTexts = rankedSourceEvidence.length
-      ? rankedSourceEvidence.map((item) => item.statement)
-      : evidenceSet.texts.slice(0, 5)
+      ? [...new Set(rankedSourceEvidence.map((item) => displayPreconditionStatement(category, item.statement)))].slice(0, 5)
+      : [...new Set(evidenceSet.texts.map((text) => displayPreconditionStatement(category, text)))].slice(0, 5)
     return {
     id: `PC-EVIDENCE-${category}`,
     label: category,

@@ -4,6 +4,43 @@ import { createSeraVNextAnalysis } from '@/lib/sera-vnext-product/persistence/cr
 type CanonicalEventMode = 'INITIAL' | 'REANALYSIS'
 
 
+export function mergeCanonicalReanalysisNarrative(args: {
+  baseNarrative: string
+  submittedNarrative?: string | null
+  additionalInformation?: string | null
+  originalNarrative?: string | null
+}): string {
+  const base = args.baseNarrative.trim()
+  const submitted = args.submittedNarrative?.trim() ?? ''
+  const additional = args.additionalInformation?.trim() ?? ''
+  const original = args.originalNarrative?.trim() ?? ''
+  let merged = base
+
+  const append = (text: string) => {
+    const value = text.trim()
+    if (!value || merged.includes(value)) return
+    merged = `${merged}
+
+[INFORMAÇÕES ADICIONAIS PARA REANÁLISE]
+${value}`.trim()
+  }
+
+  if (submitted && submitted !== base) {
+    // Some clients resend the full original narrative with appended evidence; others send
+    // only the newly entered text. Preserve prior additions already stored in `base`.
+    if (submitted.includes(base)) merged = submitted
+    else if (!base.includes(submitted)) {
+      const submittedDelta = original && submitted.includes(original)
+        ? submitted.replace(original, '').trim()
+        : submitted
+      append(submittedDelta)
+    }
+  }
+  append(additional)
+  return merged
+}
+
+
 export function isSeraVNextCanonicalAnalyzeEnabled(): boolean {
   return process.env.SERA_VNEXT_CANONICAL_ANALYZE_ENABLED?.trim().toLowerCase() === 'true'
 }

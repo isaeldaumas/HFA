@@ -134,6 +134,9 @@ export function isOperationalEventStatement(statement: string): boolean {
 
 function detectSection(line: string, current: SeraEvidenceSourceSection): SeraEvidenceSourceSection {
   const text = normalize(line)
+  // Free-form evidence added during reanalysis is a factual supplement. Its position at the
+  // end of the document must not turn it into report analysis or post-occurrence material.
+  if (/informacoes adicionais para reanalise|additional information for reanalysis/.test(text)) return 'FACTUAL'
   const sectionPrefix = /^(?:\d+(?:\.\d+)*\.?\s*)?/
   const body = text.replace(sectionPrefix, '')
   if (/^(recomendacoes?|recomendacoes de seguranca operacional|safety recommendations?|acoes? corretivas?|acoes? preventivas?|licoes? aprendidas?)/.test(body)) return 'RECOMMENDATION'
@@ -147,6 +150,7 @@ function detectSection(line: string, current: SeraEvidenceSourceSection): SeraEv
 
 function detectOccurrenceScope(line: string, current: SeraOccurrenceScope): SeraOccurrenceScope {
   const text = normalize(line)
+  if (/informacoes adicionais para reanalise|additional information for reanalysis/.test(text)) return 'CURRENT_EVENT'
   if (/\b(voo do acidente|accident flight|flight of the accident)\b/.test(text)) return 'CURRENT_EVENT'
   // Numbered prior legs of the same occurrence aircraft ("voo -1/-2/-3") are causal
   // pre-event history, not external comparators. They may support preconditions only.
@@ -273,6 +277,7 @@ function splitCompoundTemporalBoundary(statement: string): string[] {
 
 function isPureHeading(statement: string): boolean {
   const text = normalize(statement)
+  if (/^\[?informacoes adicionais para reanalise\]?$/i.test(text) || /^\[?additional information for reanalysis\]?$/i.test(text)) return true
   return /^(investigacao de ocorrencia|relatorio de investigacao de ocorrencia|form-sso-|\d+(?:\.\d+)+\.?\s+[a-z]|entrevista com|transcricao do relato|experiencia do)/.test(text)
 }
 

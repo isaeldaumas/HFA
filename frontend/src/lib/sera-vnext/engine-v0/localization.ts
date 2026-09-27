@@ -8,6 +8,8 @@ export function isPt(locale: SeraEngineLocale): boolean {
 
 const RATIONALE_PT: Record<string, string> = {
   'Root node starts canonical perception traversal.': 'O nó raiz inicia a travessia canônica de Percepção.',
+  'The descriptive root requires evidence of what the operator believed or perceived; environmental/system state alone cannot substitute for that belief.': 'O nó descritivo inicial exige evidência do que o operador acreditava ou percebia; o estado do ambiente ou do sistema, isoladamente, não substitui essa crença/percepção.',
+  'Root node establishes the operator perceived state before that assessment is tested.': 'O nó inicial estabelece o estado percebido pelo operador antes de testar a adequação dessa percepção.',
   'Pre-escape evidence supports inaccurate or inadequate situation assessment.': 'A evidência anterior ao ponto de fuga sustenta uma avaliação imprecisa ou inadequada da situação.',
   'Pre-escape evidence supports adequate perception or timely recognition.': 'A evidência anterior ao ponto de fuga sustenta percepção adequada ou reconhecimento em tempo hábil.',
   'No pre-escape evidence answers whether assessment was adequate.': 'Não há evidência anterior ao ponto de fuga suficiente para determinar se a avaliação da situação foi adequada.',
@@ -26,6 +28,8 @@ const RATIONALE_PT: Record<string, string> = {
   'Evidence supports missing or unavailable information.': 'A evidência sustenta informação ausente ou indisponível.',
   'Available/correct information is not established strongly enough for a P-G/P-H leaf.': 'A disponibilidade/correção da informação não está suficientemente estabelecida para fechar um ramo P-G/P-H.',
   'Root node starts canonical objective traversal.': 'O nó raiz inicia a travessia canônica de Objetivo.',
+  'The descriptive root requires evidence of the actor intended objective. The observed unsafe action, a rule deviation, or the outcome cannot substitute for intent.': 'O nó descritivo inicial exige evidência do objetivo pretendido pelo ator. A ação insegura observada, um desvio de regra ou o desfecho não substituem a intenção.',
+  'Root node establishes the operator intended goal before rule/risk consistency is tested.': 'O nó inicial estabelece o objetivo pretendido pelo operador antes de testar sua compatibilidade com regras e gerenciamento do risco.',
   'Objective evidence supports a safe or rule-consistent goal.': 'A evidência do objetivo sustenta uma meta segura ou compatível com as regras.',
   'Violation path opened by known-rule, awareness, and conscious-deviation evidence within contextual proximity.': 'O ramo de violação foi aberto por evidência próxima de regra conhecida, consciência e desvio consciente.',
   'Violation path opened by known-rule, awareness, and conscious-deviation evidence (all three present without negation).': 'O ramo de violação foi aberto por evidência de regra conhecida, consciência e desvio consciente, sem negação.',
@@ -40,6 +44,8 @@ const RATIONALE_PT: Record<string, string> = {
   'Positive evidence supports a nominal rule-consistent operational goal; no independent unsafe objective is established.': 'Há evidência positiva de objetivo operacional nominal e compatível com as regras; não foi estabelecido objetivo inseguro independente.',
   'Managed-risk status is not established.': 'Não há evidência suficiente para estabelecer a condição de gerenciamento do risco.',
   'Root node starts canonical action traversal.': 'O nó raiz inicia a travessia canônica de Ação.',
+  'The descriptive root requires evidence of the actor plan, strategy, or means for achieving the goal; an observed movement or control input alone cannot substitute for that plan.': 'O nó descritivo inicial exige evidência do plano, da estratégia ou do meio pelo qual o ator pretendia atingir o objetivo; um movimento ou comando observado, isoladamente, não substitui esse plano.',
+  'Root node establishes how the operator was trying to achieve the goal before implementation and adequacy are tested.': 'O nó inicial estabelece como o operador estava tentando atingir o objetivo antes de avaliar implementação e adequação da ação.',
   'Evidence supports an independent failure in feedback/verification of the actor own action.': 'A evidência sustenta falha independente de feedback/verificação da própria ação do ator.',
   'Evidence supports an independent slip/lapse/error in action implementation before the consequence.': 'A evidência sustenta deslize/lapso/erro independente na implementação da ação antes da consequência.',
   'Evidence supports that an action was implemented and can be tested for adequacy.': 'A evidência sustenta que uma ação foi implementada e pode ser avaliada quanto à adequação.',
