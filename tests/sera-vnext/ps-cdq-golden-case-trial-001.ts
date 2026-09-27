@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { runSeraVNextEngineV0 } from '../../frontend/src/lib/sera-vnext/engine-v0/run-engine'
+import { buildSeraHfacsBridge } from '../../frontend/src/lib/sera-vnext/hfacs-bridge'
 
 const filler = Array.from({ length: 24 }, (_, i) =>
   `Registro administrativo ${i + 1}: item documental sem conteúdo causal.`
@@ -102,6 +103,16 @@ const environmentPc = output.preconditions.find((p) => p.category === 'ENVIRONME
 const attentionPc = output.preconditions.find((p) => p.category === 'ATTENTION_WORKLOAD_CONTEXT')
 assert.equal(environmentPc?.relationship, 'CONTEXTUAL_PRECONDITION')
 assert.equal(environmentPc?.confidence, 'HIGH')
+assert.equal(environmentPc?.canonicalCategory, 'ENVIRONMENT')
+assert.equal(environmentPc?.canonicalLevel, 'IMMEDIATE')
+assert.deepEqual(environmentPc?.likelyForActiveFailureCodes, ['P-G'])
+assert.equal(environmentPc?.methodologyMatch, 'MOST_LIKELY_AND_EVIDENCED')
+
+const hfacsBridge = buildSeraHfacsBridge(
+  [output.axes.perception.proposedCode, output.axes.objective.proposedCode, output.axes.action.proposedCode],
+  output.preconditions.map((p) => p.canonicalCategory ?? null),
+)
+assert.equal(hfacsBridge.preconditions.some((item) => item.hfacs === 'Environment'), true)
 assert.equal(attentionPc?.relationship, 'UNRELATED_OR_UNSUPPORTED')
 assert.equal(attentionPc?.confidence, 'LOW')
 assert.match(attentionPc?.description ?? '', /não contribuinte|non-contributory/i)
