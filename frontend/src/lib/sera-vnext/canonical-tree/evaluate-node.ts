@@ -136,9 +136,10 @@ function decideP(nodeId: string, statements: string[]): Decision {
       const perceivedState = unique([
         ...concept(statements, 'inadequateAssessment'),
         ...concept(statements, 'adequateAssessment'),
-        ...concept(statements, 'informationAvailableCorrect'),
+        ...matching(statements, [/\b(acreditava|entendia|percebia|identificou|interpretou|reconheceu|believed|understood|perceived|identified|interpreted|recognized)\b/i]),
       ])
-      return { answer: 'START', supportingEvidence: (perceivedState.length ? perceivedState : statements).slice(0, 2), rationale: 'Root node establishes the operator perceived state before that assessment is tested.' }
+      if (!perceivedState.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of what the operator believed or perceived; environmental/system state alone cannot substitute for that belief.' }
+      return { answer: 'START', supportingEvidence: perceivedState.slice(0, 2), rationale: 'Root node establishes the operator perceived state before that assessment is tested.' }
     }
     case 'P_ASSESSMENT': {
       const positive = concept(statements, 'adequateAssessment')
@@ -201,10 +202,15 @@ function decideO(nodeId: string, statements: string[]): Decision {
       const intendedGoal = unique([
         ...concept(statements, 'safeGoal'),
         ...concept(statements, 'efficiencyObjective'),
-        ...matchingConceptStatementsWithoutNegation(statements, 'consciousDeviation'),
-        ...concept(statements, 'unmanagedRisk'),
+        ...matching(statements, [
+          /\b(objetiv|inten[cç][aã]o|pretend|planej|meta|queria|buscava|visava|goal|intent|planned|planning)\w*/i,
+          /\b(decidiu|optou|escolheu|decided|chose|opted)\b.{0,120}\b(continuar|continuou|prosseguir|prosseguiu|decolar|decolou|pousar|pousou|aproximar|aproximou|descer|desceu|subir|subiu|continue|continued|proceed|proceeded|take off|took off|land|landed|approach|approached|descend|descended|climb|climbed)\b/i,
+          /\b(decidiu|resolveu|decided|resolved)\b.{0,80}\b(violar|descumprir|desrespeitar|violate|breach|disregard)\b.{0,100}\b(continuar|continuou|prosseguir|prosseguiu|seguir|seguiu|continue|continued|proceed|proceeded|press on|pressed on)\b/i,
+          /\b((?:passou|come[cç]ou) a (?:preparar|conduzir|planejar)|iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|preparou|conduziu)\b.{0,90}\b(aproxima[cç][aã]o|approach|pouso|landing|destino|destination|unidade|unit-|plataforma|helideck)\b/i,
+        ]),
       ])
-      return { answer: 'START', supportingEvidence: (intendedGoal.length ? intendedGoal : statements).slice(0, 2), rationale: 'Root node establishes the operator intended goal before rule/risk consistency is tested.' }
+      if (!intendedGoal.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of the actor intended objective. The observed unsafe action, a rule deviation, or the outcome cannot substitute for intent.' }
+      return { answer: 'START', supportingEvidence: intendedGoal.slice(0, 2), rationale: 'Root node establishes the operator intended goal before rule/risk consistency is tested.' }
     }
     case 'O_RULES': {
       const safeGoal = concept(statements, 'safeGoal')
@@ -325,8 +331,12 @@ function decideA(nodeId: string, statements: string[]): Decision {
         ...concept(statements, 'incorrectAction'),
         ...concept(statements, 'selectionSubtype'),
         ...concept(statements, 'timeManagementAction'),
+        ...matching(statements, [/\b(esfor[cç]o|puxou|empurrou|moveu|selecionou|acionou|executou|aplicou|pulled|pushed|moved|selected|activated|executed|applied)\b/i]),
+        ...matching(statements, [/\b((?:passou|come[cç]ou) a (?:trat[aá](?:-l[ao])?|planejar|conduzir|preparar)|iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|conduziu a aproxima[cç][aã]o|preparou a aproxima[cç][aã]o|compromet(?:eu|endo).*aproxima[cç][aã]o)\b/i]),
+        ...matching(statements, [/\b(inspe[cç][aã]o (?:de )?pr[eé][ -]?voo|preflight inspection|inspe[cç][aã]o visual)\b.{0,100}\b(conclu[ií]d[ao]|realizad[ao]|completed|performed|sem detectar|without detecting)\b/i, /\b(aeronave|aircraft)\b.{0,80}\b(liberad[ao]|released|considerada apta|considered fit)\b/i]),
       ])
-      return { answer: 'START', supportingEvidence: (actionStrategy.length ? actionStrategy : statements).slice(0, 2), rationale: 'Root node establishes how the operator was trying to achieve the goal before implementation/adequacy is tested.' }
+      if (!actionStrategy.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires an observable action, omission, command, or action strategy linked to the actor.' }
+      return { answer: 'START', supportingEvidence: actionStrategy.slice(0, 2), rationale: 'Root node establishes the observed action strategy before implementation/adequacy is tested.' }
     }
     case 'A_IMPLEMENTED': {
       const safeAction = concept(statements, 'safeAction')
@@ -338,10 +348,32 @@ function decideA(nodeId: string, statements: string[]): Decision {
       const slipOrLapse = concept(statements, 'slipLapse')
       const selected = concept(statements, 'selectionSubtype')
       const timed = concept(statements, 'timeManagementAction')
+      const intendedAction = matching(statements, [
+        /\b(pretendia|intencionava|queria|tentava|planejava|decidiu|optou|escolheu|selecionou|prosseguiu|continuou|intended|wanted|was trying|planned to|decided|opted|chose|selected|proceeded|continued)\b/i,
+        /\b((?:passou|come[cç]ou) a (?:trat[aá](?:-l[ao])?|planejar|conduzir|preparar)|iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|conduziu a aproxima[cç][aã]o|preparou a aproxima[cç][aã]o|comprometeu(?:-se)?|tratava .* como (?:o )?destino)\b/i,
+        /\b(a[cç][aã]o pretendida|comando pretendido|intended action|intended command)\b/i,
+      ])
+      const observedDeliberateAction = matching(statements, [
+        /\b((?:passou|come[cç]ou) a (?:planejar|conduzir|aproximar|preparar)|iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|conduziu a aproxima[cç][aã]o|preparou a aproxima[cç][aã]o|conduzindo (?:o )?pouso|associou .* unidade|compromet(?:eu|endo).*aproxima[cç][aã]o)\b/i,
+      ])
+      const explicitCorrespondence = matching(statements, [
+        /\b(como pretendia|conforme pretendia|correspondeu ao que pretendia|implementad[ao] como pretendid[ao]|as intended|matched the intended|corresponded to the intended)\b/i,
+      ])
       if (feedbackFailure.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: feedbackFailure, rationale: 'Evidence supports an independent failure in feedback/verification of the actor own action.' }
       if (slipOrLapse.length > 0 && perceptionDriven.length === 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: slipOrLapse, rationale: 'Evidence supports an independent slip/lapse/error in action implementation before the consequence.' }
-      if (safeAction.length > 0 || selected.length > 0 || timed.length > 0 || implemented.length > 0 || perceptionDriven.length > 0) return { answer: 'SIM', supportingEvidence: unique([...safeAction, ...selected, ...timed, ...implemented, ...perceptionDriven]), rationale: perceptionDriven.length > 0 ? 'An action was implemented consistently with the actor perceived state; perception-linked wording is not double-counted as an independent implementation failure.' : 'Evidence supports that an action was implemented and can be tested for adequacy.' }
-      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'No pre-escape action implementation evidence is sufficient.' }
+      if (explicitCorrespondence.length > 0 || selected.length > 0 || timed.length > 0 || safeAction.length > 0 || (intendedAction.length > 0 && (implemented.length > 0 || perceptionDriven.length > 0 || observedDeliberateAction.length > 0))) {
+        return {
+          answer: 'SIM',
+          supportingEvidence: unique([...explicitCorrespondence, ...intendedAction, ...observedDeliberateAction, ...safeAction, ...selected, ...timed, ...implemented, ...perceptionDriven]),
+          rationale: perceptionDriven.length > 0
+            ? 'Evidence establishes an intended action and an implemented action consistent with the actor perceived state; perception-linked wording is not double-counted as an independent implementation failure.'
+            : 'Evidence establishes both the intended action and an implemented action, allowing implementation-as-intended to be tested.',
+        }
+      }
+      if (implemented.length > 0 || safeAction.length > 0 || selected.length > 0 || timed.length > 0 || observedDeliberateAction.length > 0) {
+        return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: unique([...implemented, ...observedDeliberateAction, ...safeAction, ...selected, ...timed]), rationale: 'An observed action is supported, but the actor intended action is not established; implementation cannot be judged against intention.' }
+      }
+      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'No pre-escape evidence establishes both the intended and implemented action.' }
     }
     case 'A_CORRECT': {
       const correct = concept(statements, 'correctAction')

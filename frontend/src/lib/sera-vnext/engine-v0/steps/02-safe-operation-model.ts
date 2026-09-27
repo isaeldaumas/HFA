@@ -1,9 +1,20 @@
 import type { SeraVNextEngineInput, SeraVNextEngineOutput } from '../../engine-contract'
 import { hasAny, normalizeText } from '../utils'
 
+function normalized(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+function isNormativeSafeReference(statement: string): boolean {
+  const text = normalized(statement)
+  return /\b(qrh|afm|fcom|mel|manual|procedimento|procedure|checklist|orientacao|orientacao do qrh|limite|limitacao|restriction)\b/.test(text)
+    && /\b(deveria|nao deveria|devia|era necessario|era obrigatorio|estabelecia|determinava|previa|exigia|requeria|required|mandated|specified|stated|should|must|must not|proibia|proibido)\b/.test(text)
+}
+
 export function runStep02SafeOperationModel(input: {
   engineInput: SeraVNextEngineInput
   factualExtraction: SeraVNextEngineOutput['factualExtraction']
+  escapePoint?: SeraVNextEngineOutput['escapePoint']
 }): SeraVNextEngineOutput['safeOperationModel'] {
   const eligibleEvidence = input.factualExtraction.evidence.filter((item) =>
     item.assertionStatus === 'AFFIRMED' &&
@@ -13,23 +24,27 @@ export function runStep02SafeOperationModel(input: {
     item.sourceSection !== 'ADMINISTRATIVE' &&
     !['OUTCOME', 'UNSUPPORTED_REPORT_ANALYSIS', 'NON_CAUSAL_DOCUMENT'].includes(item.evidenceType),
   )
-  const text = normalizeText(eligibleEvidence.map((item) => item.statement).join(' '))
-  const candidateEvidence = [...new Set(
-    eligibleEvidence
-      .filter((item) =>
-        item.evidenceType === 'REFERENCE_PROCEDURE' ||
-        item.evidenceType === 'ACTION_OR_DECISION' ||
-        item.evidenceType === 'REPORTED_CUE' ||
-        ['decision', 'warning', 'cue', 'condition', 'action'].includes(item.category),
-      )
-      .map((item) => item.statement),
-  )].slice(0, 4)
+  const anchor = normalized(input.escapePoint?.criticalUnsafeActCandidate ?? input.escapePoint?.statement ?? input.escapePoint?.latestCandidate ?? '')
+  const corpus = normalizeText(eligibleEvidence.map((item) => item.statement).join(' '))
+  const text = `${anchor} ${corpus}`
 
   let expectedSafeState: string | null = null
   let expectedSafeAction: string | null = null
   let evidenceTheme: RegExp | null = null
 
-  if (hasAny(text, ['wrong deck', 'wrong destination', 'plataforma nao prevista', 'plataforma não prevista', 'unidade nao prevista', 'unidade não prevista', 'pouso nao autorizado', 'pouso não autorizado'])) {
+  if (/\b(stick pusher|stall warning|stall protection|nose up|nose down|cabrar|picar|aoa)\b/.test(anchor)) {
+    expectedSafeState = 'A aeronave deveria permanecer com o ângulo de ataque sob controle, sem oposição aos comandos automáticos de proteção contra stall e dentro da trajetória de recuperação prevista.'
+    expectedSafeAction = 'Durante a atuação do stick pusher, não aplicar comando contrário; reduzir o ângulo de ataque e executar a recuperação de stall prevista no QRH/procedimento aplicável.'
+    evidenceTheme = /stick pusher|stall|nose up|nose down|cabrar|picar|aoa|recupera[cç][aã]o|recovery/i
+  } else if (/\b(despach|dispatch|mel|operational release|liberacao operacional)\b/.test(anchor)) {
+    expectedSafeState = 'A aeronave somente deveria ser liberada para o voo dentro das condições de aeronavegabilidade e das restrições operacionais aplicáveis.'
+    expectedSafeAction = 'Efetuar o despacho/liberação somente em conformidade com a MEL aplicável, incluindo as restrições, ações de manutenção e condições operacionais requeridas.'
+    evidenceTheme = /mel|despach|dispatch|libera[cç][aã]o|operational release|restri[cç][aã]o|restriction/i
+  } else if (/\b(preflight|pre-voo|inspecao|maintenance|manutencao)\b/.test(anchor)) {
+    expectedSafeState = 'A aeronave deveria ser liberada apenas após a condição inspecionada estar verificada e compatível com o procedimento de manutenção/pré-voo aplicável.'
+    expectedSafeAction = 'Executar e confirmar os passos de inspeção, fechamento, travamento ou verificação previstos antes da liberação da aeronave.'
+    evidenceTheme = /pre[- ]?voo|preflight|inspe[cç][aã]o|maintenance|manuten[cç][aã]o|verifica[cç][aã]o|travamento|latch/i
+  } else if (hasAny(text, ['wrong deck', 'wrong destination', 'plataforma nao prevista', 'plataforma não prevista', 'unidade nao prevista', 'unidade não prevista', 'pouso nao autorizado', 'pouso não autorizado'])) {
     expectedSafeState = 'A operação deveria permanecer orientada para o destino planejado, com identificação positiva da unidade antes de comprometer a aproximação final.'
     expectedSafeAction = 'Prosseguir para a unidade planejada e reconfirmar visualmente a identificação do destino antes da aproximação/pouso.'
     evidenceTheme = /destino|unidade|plataforma|pista|helideck|gps|rota|autoriza[cç][aã]o/i
@@ -54,17 +69,20 @@ export function runStep02SafeOperationModel(input: {
     expectedSafeAction = 'Manter o curso seguro esperado e interromper a progressão ao primeiro desvio relevante.'
   }
 
-  const themedEvidence = evidenceTheme ? candidateEvidence.filter((statement) => evidenceTheme!.test(statement)) : candidateEvidence
-  const evidence = (themedEvidence.length ? themedEvidence : candidateEvidence).slice(0, 4)
+  const proceduralEvidence = eligibleEvidence.filter((item) =>
+    item.evidenceType === 'REFERENCE_PROCEDURE' || isNormativeSafeReference(item.statement),
+  )
+  const themedProcedural = evidenceTheme ? proceduralEvidence.filter((item) => evidenceTheme!.test(item.statement)) : proceduralEvidence
+  const anchorCorroboration = eligibleEvidence.filter((item) =>
+    evidenceTheme?.test(item.statement) &&
+    /\b(contrariando|oposi[cç][aã]o|opposing|against|n[aã]o deveria|should not|deveria|should)\b/i.test(item.statement) &&
+    !/\b(uprt|treinamento|training)\b/i.test(item.statement),
+  )
+  const evidence = [...new Set([...themedProcedural, ...anchorCorroboration].map((item) => item.statement))].slice(0, 4)
 
-  const referenceCount = eligibleEvidence.filter((item) => item.evidenceType === 'REFERENCE_PROCEDURE').length
-  const eventCount = eligibleEvidence.filter((item) => ['ACTION_OR_DECISION', 'REPORTED_CUE'].includes(item.evidenceType)).length
-  const confidence = referenceCount > 0 && eventCount > 0 ? 'HIGH' : referenceCount > 0 || eventCount > 0 ? 'MEDIUM' : 'LOW'
+  const hasProceduralReference = themedProcedural.length > 0
+  const hasEventCorroboration = anchorCorroboration.length > 0
+  const confidence = hasProceduralReference && hasEventCorroboration ? 'HIGH' : hasProceduralReference || hasEventCorroboration ? 'MEDIUM' : 'LOW'
 
-  return {
-    expectedSafeState,
-    expectedSafeAction,
-    evidence,
-    confidence,
-  }
+  return { expectedSafeState, expectedSafeAction, evidence, confidence }
 }

@@ -86,9 +86,13 @@ export function classifyPreconditionCategory(args: {
     /\b(?:pr[oó]xim[oa]s?|adjacent|nearby)\b.{0,100}\b(?:unidades?|plataformas?|pistas?|destinos?|aer[oó]dromos?|helipontos?)\b/i.test(args.text)
   if (spatialEnvironmentContext) return 'ENVIRONMENTAL_CONTEXT'
 
+  const organizationalRecordContext = /\b(tlb|registro formal|formal record|equipe de manuten[cç][aã]o|maintenance team|turno noturno|night shift)\b/i.test(args.text)
+    && /\b(comunica[cç][aã]o verbal|verbal communication|tomaram conhecimento|took notice|were informed|aus[eê]ncia de registro|sem registro|without (?:a )?record)\b/i.test(args.text)
+  if (organizationalRecordContext) return 'ORGANIZATIONAL_CONTEXT'
+
   const technicalFailure =
-    /\b(fault|malfunction|pane|de-icing|airframe|technical failure|falha t[eé]cnica)\b/i.test(args.text) ||
-    (/\b(failure|falha)\b/i.test(args.text) && /\b(system|sistema|equipment|equipamento|sensor|display|automation|automacao|motor|engine|hydraulic|hidraul|electrical|eletric|de-icing|airframe|fmc|dafcs|rudder|trim)\b/i.test(args.text))
+    /\b(fault|malfunction|pane|technical failure|falha t[eé]cnica|inoperante|inoperative|avaria)\b/i.test(args.text)
+      && /\b(system|sistema|equipment|equipamento|sensor|display|automation|automacao|motor|engine|hydraulic|hidraul|electrical|eletric|de-icing|airframe|fmc|dafcs|rudder|leme|trim)\b/i.test(args.text)
   if (technicalFailure && !/\b(weather|meteorolog|condi[cç][oõ]es? meteorol[oó]gicas|severe icing|sev ice)\b/i.test(args.text)) {
     return 'TECHNICAL_CONTEXT'
   }

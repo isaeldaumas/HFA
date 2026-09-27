@@ -203,6 +203,71 @@ assert.equal(terminalControlAct.guardrails.postEscapeEvidenceUsed, false)
 assert.equal(terminalControlAct.axes.perception.supportingEvidence.some((text) => /Roselawn|Lombardia/i.test(text)), false)
 assert.equal(terminalControlAct.axes.objective.supportingEvidence.some((text) => /Roselawn|Lombardia/i.test(text)), false)
 assert.equal(terminalControlAct.axes.action.supportingEvidence.some((text) => /Roselawn|Lombardia/i.test(text)), false)
+assert.match(terminalControlAct.safeOperationModel.expectedSafeAction ?? '', /stick pusher/i)
+assert.match(terminalControlAct.safeOperationModel.expectedSafeAction ?? '', /reduzir o ângulo de ataque|recupera[cç][aã]o/i)
+assert.doesNotMatch(terminalControlAct.safeOperationModel.expectedSafeAction ?? '', /abandonar ou evitar a condi[cç][aã]o/i)
+assert.equal(terminalControlAct.axes.perception.statementAtEscapePoint, null)
+assert.equal(terminalControlAct.axes.objective.statementAtEscapePoint, null)
+assert.match(terminalControlAct.axes.action.statementAtEscapePoint ?? '', /A[cç][aã]o observada.*copiloto/i)
+const terminalPPath = terminalControlAct.canonicalTraversal.paths.find((path) => path.axis === 'P')
+const terminalOPath = terminalControlAct.canonicalTraversal.paths.find((path) => path.axis === 'O')
+const terminalAPath = terminalControlAct.canonicalTraversal.paths.find((path) => path.axis === 'A')
+assert.deepEqual(terminalPPath?.nodeIds, ['P_ROOT'])
+assert.deepEqual(terminalOPath?.nodeIds, ['O_ROOT'])
+assert.deepEqual(terminalAPath?.nodeIds, ['A_ROOT', 'A_IMPLEMENTED'])
+assert.equal(terminalPPath?.answers[0]?.answer, 'INSUFFICIENT_EVIDENCE')
+assert.equal(terminalOPath?.answers[0]?.answer, 'INSUFFICIENT_EVIDENCE')
+assert.equal(terminalAPath?.answers.at(-1)?.answer, 'INSUFFICIENT_EVIDENCE')
+assert.ok(terminalControlAct.evidenceSufficiency.questions.some((question) => question.linkedNodeId === 'P_ROOT'))
+assert.ok(terminalControlAct.evidenceSufficiency.questions.some((question) => question.linkedNodeId === 'O_ROOT'))
+assert.ok(terminalControlAct.evidenceSufficiency.questions.some((question) => question.linkedNodeId === 'A_IMPLEMENTED'))
+
+const candidateRoleSeparation = run('VOEPASS-CANDIDATE-ROLE-SEPARATION', `
+Durante a atuação do stick pusher, não deveria ser aplicada qualquer ação contrária.
+Com o AOA próximo de 30º, o profundor esquerdo reverteu abruptamente da posição NOSE DOWN para NOSE UP, próximo ao batente.
+Durante a atuação do stick pusher, os dados registrados mostraram que o SIC voltou a fazer esforço acima de 10 daN no sentido NOSE UP, em oposição ao stick pusher.
+Como consequência, a aeronave perdeu o controle e colidiu contra o solo.
+`)
+const roleEpisodes = candidateRoleSeparation.escapePoint.episodeCandidates ?? []
+const proceduralRole = roleEpisodes.find((item) => /n[aã]o deveria ser aplicada/i.test(item.anchorStatement))?.seraRole
+const elevatorRole = roleEpisodes.find((item) => /profundor esquerdo reverteu/i.test(item.anchorStatement))?.seraRole
+assert.notEqual(proceduralRole, 'HUMAN_FACTOR_CANDIDATE')
+assert.notEqual(elevatorRole, 'HUMAN_FACTOR_CANDIDATE')
+assert.equal(roleEpisodes.find((item) => /SIC voltou a fazer esfor[cç]o/i.test(item.anchorStatement))?.seraRole, 'HUMAN_FACTOR_CANDIDATE')
+
+const technicalModality = run('VOEPASS-TECHNICAL-MODALITY-NOT-UNCERTAIN', `
+O AFM informava que uma aeronave somente poderia ser considerada livre da condição de acúmulo de gelo quando o IEP estivesse livre de gelo.
+O alerta INCREASE SPEED poderia ser apresentado durante as fases de subida, cruzeiro ou descida.
+A trimagem da aeronave em arfagem poderia ser realizada manualmente pelos pilotos ou automaticamente pelo AUTO TRIM.
+A velocidade calculada pelo APM poderia atingir 10 kt abaixo da velocidade de cruzeiro pré-selecionada antes do alerta.
+O PIC comentou que poderia ligar todos os sistemas De-Icing.
+Durante a atuação do stick pusher, os dados mostraram que o SIC aplicou esforço NOSE UP em oposição ao stick pusher.
+`)
+for (const pattern of [/AFM informava/i, /INCREASE SPEED poderia/i, /trimagem.*poderia/i, /APM poderia atingir/i]) {
+  const item = technicalModality.factualExtraction.evidence.find((candidate) => pattern.test(candidate.statement))
+  assert.ok(item)
+  assert.equal(item?.assertionStatus, 'AFFIRMED')
+  assert.ok(['REFERENCE_PROCEDURE', 'SYSTEM_DESCRIPTION'].includes(item?.evidenceType ?? ''))
+}
+const recordedUtterance = technicalModality.factualExtraction.evidence.find((candidate) => /PIC comentou que poderia/i.test(candidate.statement))
+assert.ok(recordedUtterance)
+assert.equal(recordedUtterance?.assertionStatus, 'AFFIRMED')
+
+const separatedPreconditions = run('VOEPASS-PRECONDITION-SEPARATION', `
+A aeronave encontrou condições de formação de gelo severo, com acúmulo de gelo e degradação de desempenho.
+O sistema Airframe De-Icing apresentou falha e permaneceu com a mensagem AIRFRAME FAULT.
+Havia uma cultura de ausência de registro formal no TLB, impedindo tratamento adequado das falhas conhecidas.
+Durante a atuação do stick pusher, os dados registrados mostraram que o SIC aplicou esforço NOSE UP em oposição ao stick pusher.
+Como consequência, a aeronave entrou em stall e colidiu contra o solo.
+`)
+const separatedCanonical = new Set(separatedPreconditions.preconditions.map((item) => item.canonicalCategory))
+assert.ok(separatedCanonical.has('ENVIRONMENT'))
+assert.ok(separatedCanonical.has('EQUIPMENT'))
+assert.ok(separatedCanonical.has('ORGANIZATIONAL_CLIMATE'))
+const envPc = separatedPreconditions.preconditions.find((item) => item.canonicalCategory === 'ENVIRONMENT')
+const equipPc = separatedPreconditions.preconditions.find((item) => item.canonicalCategory === 'EQUIPMENT')
+assert.equal(envPc?.evidence.some((text) => /AIRFRAME FAULT|sistema Airframe.*falha/i.test(text)), false)
+assert.ok(equipPc?.evidence.some((text) => /AIRFRAME FAULT|sistema Airframe.*falha/i.test(text)))
 
 // A purely technical failure can be important context, but it cannot by itself start SERA P/O/A.
 const technicalOnly = run('SERA-HUMAN-FACTOR-GATE-TECHNICAL-ONLY', `

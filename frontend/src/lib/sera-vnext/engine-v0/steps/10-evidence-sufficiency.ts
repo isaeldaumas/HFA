@@ -263,7 +263,7 @@ export function runStep10EvidenceSufficiency(input: {
     const last = [...path.answers].reverse().find((answer) => answer.answer === 'INSUFFICIENT_EVIDENCE') ?? path.answers[path.answers.length - 1]
     if (!last) continue
     const q = questionForNode(last.nodeId, last.question, input.locale)
-    if (maintenancePreflightContext && last.nodeId === 'P_ASSESSMENT') {
+    if (maintenancePreflightContext && ['P_ROOT', 'P_ASSESSMENT'].includes(last.nodeId)) {
       q.question = input.locale === 'pt-BR'
         ? 'Na inspeção pré-voo, o executor acreditava que a condição de fechamento/travamento estava correta? A confirmação foi apenas visual ou incluiu uma verificação física/tátil do dispositivo?'
         : 'During the preflight inspection, did the person performing the check believe the closure/locking condition was correct? Was confirmation visual only, or did it include a physical/tactile check of the device?'

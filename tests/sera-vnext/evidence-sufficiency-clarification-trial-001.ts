@@ -44,9 +44,9 @@ const partial = run(
 
 assert.equal(partial.escapePoint.status, 'CANDIDATE')
 assert.equal(partial.evidenceSufficiency.status, 'NEEDS_CLARIFICATION')
-assert.ok(partial.evidenceSufficiency.questions.some((q) => q.linkedNodeId === 'P_ASSESSMENT'))
+assert.ok(partial.evidenceSufficiency.questions.some((q) => q.linkedNodeId === 'P_ROOT'))
 assert.ok(partial.evidenceSufficiency.questions.some((q) => q.linkedNodeId === 'O_RULES'))
-assert.ok(partial.evidenceSufficiency.questions.some((q) => q.linkedNodeId === 'A_IMPLEMENTED'))
+assert.ok(partial.evidenceSufficiency.questions.some((q) => q.linkedNodeId === 'A_CORRECT'))
 assert.equal(partial.axes.perception.proposedCode, null)
 assert.equal(partial.axes.objective.proposedCode, null)
 assert.equal(partial.axes.action.proposedCode, null)

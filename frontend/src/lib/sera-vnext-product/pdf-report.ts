@@ -371,7 +371,7 @@ function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, output: Sera
     const isTerminal = node.kind === 'terminal'
     const isRoot = node.sourceId.endsWith('_ROOT')
     const w = isTerminal ? Math.min(54, Math.max(38, leafStep - 5)) : isRoot ? 96 : 80
-    const h = isTerminal ? 28 : isRoot ? 30 : 44
+    const h = isTerminal ? 40 : isRoot ? 30 : 44
     const cx = resolveX(node.id)
     const y = nodeTop + d * levelGap
     geom.set(node.id, { x: cx - w / 2, y, w, h })
@@ -422,8 +422,9 @@ function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, output: Sera
     if (node.kind === 'terminal') {
       doc.font('Helvetica-Bold').fontSize(6.7).fillColor(node.selected ? '#166534' : '#334155')
         .text(node.code ?? '', g.x + 3, g.y + 4, { width: g.w - 6, align: 'center', lineBreak: false })
-      doc.font('Helvetica').fontSize(4.8).fillColor(node.selected ? '#166534' : '#64748b')
-        .text(node.label, g.x + 2, g.y + 14, { width: g.w - 4, align: 'center', height: 11 })
+      const terminalFont = node.label.length > 24 ? 4.1 : node.label.length > 18 ? 4.4 : 4.7
+      doc.font('Helvetica').fontSize(terminalFont).fillColor(node.selected ? '#166534' : '#64748b')
+        .text(node.label, g.x + 2, g.y + 14, { width: g.w - 4, align: 'center', height: 23, lineGap: 0.2 })
       continue
     }
 
@@ -850,12 +851,12 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       .filter((item, index, all) => all.indexOf(item) === index)
       .slice(0, 6)
 
-    heading(doc, '9. ' + L('Barreiras e observações operacionais', 'Operational barriers and observations'))
+    heading(doc, '9. ' + L('Outros fatores contribuintes e observações operacionais', 'Other contributory factors and operational observations'))
     body(doc, L(
       'Itens explicitamente registrados pela investigação e preservados para revisão humana, sem convertê-los automaticamente em pré-condições causais.',
       'Items explicitly recorded by the investigation and retained for human review without automatically converting them into causal preconditions.',
     ), 'justify')
-    bullets(doc, operationalObservations, L('Nenhuma barreira ou observação operacional adicional foi identificada nesta análise.', 'No additional operational barrier or observation was identified in this analysis.'))
+    bullets(doc, operationalObservations, L('Nenhum outro fator contribuinte ou observação operacional adicional foi identificado nesta análise.', 'No additional contributory factor or operational observation was identified in this analysis.'))
 
     heading(doc, '10. ' + L('Conclusão e próximos passos', 'Conclusion and next steps'))
     const analysisReady = output.evidenceSufficiency.status === 'SUFFICIENT_FOR_CANDIDATE_ANALYSIS' && !Object.values(output.guardrails).some(Boolean)

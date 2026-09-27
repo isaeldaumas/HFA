@@ -141,6 +141,26 @@ function primaryEvidence(use: 'PERCEPTION' | 'OBJECTIVE' | 'ACTION', evidence: s
     .sort((a, b) => b.score - a.score || a.index - b.index)[0]?.text ?? evidence[0]
 }
 
+
+function hasPerceptionRootEvidence(text: string, criticalAnchor: string): boolean {
+  const t = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const anchor = criticalAnchor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  if (/\b(acredit|entend|perceb|reconhec|identific|interpret|confund|notou|observou|believ|understood|perceiv|recogniz|identif|interpret|misidentif|noticed|observed)\w*/.test(t)) return true
+  const anchorAcknowledgesCue = /\b(acknowledg\w*|recognized|noted|confirmed|reconheceu|confirmou|acusou recebimento|ciente)\b/.test(anchor)
+  const communicatedCue = /\b(mentioned|said|called out|noted|commented|informed|reported|mencionou|disse|comentou|informou|reportou|alertou)\b/.test(t)
+  const perceptualContent = /\b(horizonte|horizon|visibilidade|visibility|refer[eê]ncia visual|visual reference|warning|alerta|mensagem|message|modo|mode|pista|runway|destino|destination)\b/.test(t)
+  return anchorAcknowledgesCue && communicatedCue && perceptualContent
+}
+
+function hasObjectiveRootEvidence(text: string): boolean {
+  const t = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  return /\b(objetiv|intenc|pretend|planej|meta|goal|intent|planned|planning|queria|buscava|visava)\w*/.test(t)
+    || /\b(decidiu|optou|escolheu|decided|chose|opted)\b.{0,100}\b(continuar|prosseguir|decolar|pousar|aproximar|descer|subir|continue|proceed|take off|land|approach|descend|climb)\b/.test(t)
+    || /\b(decidiu|resolveu|decided|resolved)\b.{0,80}\b(violar|descumprir|desrespeitar|violate|breach|disregard)\b.{0,100}\b(continuar|continuou|prosseguir|prosseguiu|seguir|seguiu|continue|continued|proceed|proceeded|press on|pressed on)\b/.test(t)
+    || /\b(destino (?:inicial )?(?:previsto|planejado|programado)|planned (?:initial )?destination|rota prevista|planned route)\b/.test(t)
+    || /\b((?:passou|come[cç]ou) a (?:preparar|conduzir|planejar)|iniciou (?:o )?planejamento|iniciou (?:a )?aproximacao|preparou|conduziu)\b.{0,90}\b(aproximacao|approach|pouso|landing|destino|destination|unidade|unit-|plataforma|helideck)\b/.test(t)
+}
+
 function genericStatement(label: string, evidence: string[], use: 'PERCEPTION' | 'OBJECTIVE' | 'ACTION', override?: string | null): string | null {
   const primary = override?.trim() || primaryEvidence(use, evidence)
   if (!primary) return null
@@ -178,18 +198,21 @@ export function runStep07AxisStatements(input: {
   const locale = input.engineInput.locale
   const actor = actorLabel(input.directActor.actor, locale)
 
+  const criticalAnchor = input.escapePoint.criticalUnsafeActCandidate ?? input.escapePoint.statement ?? input.escapePoint.latestCandidate ?? input.escapePoint.earliestCandidate ?? ''
+  const perceptionRootEvidence = perceptionEvidence.filter((text) => hasPerceptionRootEvidence(text, criticalAnchor))
   const perceptionStatement = genericStatement(
     isPt(locale) ? `Estado perceptivo de ${actor} no ponto de fuga` : `Perceptual state of ${actor} at the escape point`,
-    perceptionEvidence,
+    perceptionRootEvidence,
     'PERCEPTION',
   )
+  const objectiveRootEvidence = objectiveEvidence.filter(hasObjectiveRootEvidence)
   const objectiveStatement = genericStatement(
     isPt(locale) ? `Objetivo operacional de ${actor} no ponto de fuga` : `Operational objective of ${actor} at the escape point`,
-    objectiveEvidence,
+    objectiveRootEvidence,
     'OBJECTIVE',
   )
   const actionStatement = genericStatement(
-    isPt(locale) ? `Ação de ${actor} no ponto de fuga` : `Action of ${actor} at the escape point`,
+    isPt(locale) ? `Ação observada de ${actor} no ponto de fuga` : `Observed action of ${actor} at the escape point`,
     actionEvidence,
     'ACTION',
     input.unsafeActOrCondition.type === 'UNSAFE_ACT' ? input.unsafeActOrCondition.statement : null,
