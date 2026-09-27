@@ -110,7 +110,16 @@ function isOperatorControlledUnsafeCondition(statement: string): boolean {
 
 function hasObservableHumanAct(statement: string): boolean {
   const text = normalized(statement)
-  if (isDirectControlResponseStatement(statement) || isExplicitOperationalOmissionStatement(statement) || isExplicitOperationalDeviationStatement(statement)) return true
+  if (isDirectControlResponseStatement(statement)) {
+    const normativeOnly = /\b(n[aã]o deveria|deveria|should not|should|must not|must)\b/.test(text)
+      && !/\b(dados registrados|recorded data|mostraram|showed|sic|pic|pilotos?|pilots?|tripula[cç][aã]o|crew|comandante|captain|copiloto|first officer|pf|pm)\b/.test(text)
+    if (normativeOnly) return false
+    // A control-surface/system movement is technical context unless the statement links the
+    // input to a human actor. This prevents elevator reversal from becoming a human act.
+    if (!hasExplicitHumanActor(statement)) return false
+    return true
+  }
+  if (isExplicitOperationalOmissionStatement(statement) || isExplicitOperationalDeviationStatement(statement)) return true
 
   // Maintenance/preflight is a human operational act even when the report uses passive grammar.
   if (/\b(inspecao (?:de )?pre[- ]?voo|preflight inspection|inspecao visual|visual inspection)\b.*\b(concluida|completed|nao detectou|nada de anormal|nenhuma anormalidade|fora detectad[oa]|no abnormality|nothing abnormal|had been detected)\b/.test(text)) return true

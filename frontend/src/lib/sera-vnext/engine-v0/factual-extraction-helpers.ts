@@ -77,7 +77,7 @@ export function isNonCausalDocumentStatement(statement: string): boolean {
 export function isProcedureReferenceStatement(statement: string): boolean {
   const text = normalize(statement)
   const source = /\b(fcom|qrh|afm|mel|manual|procedimento|procedure|checklist|regulamento|norma)\b/.test(text)
-  const normative = /\b(estabelecia|determinava|previa|previsto|prevista|exigia|requeria|deveria|devia|era necessario|era obrigatorio|required|mandated|specified|stated|should|must)\b/.test(text)
+  const normative = /\b(estabelecia|determinava|previa|previsto|prevista|exigia|requeria|deveria|devia|poderia|era necessario|era obrigatorio|required|mandated|specified|stated|should|must|could)\b/.test(text)
   const occurred = /\b(nao executou|nao realizou|deixou de|falhou em|executou|realizou|cumpriu|descumpriu|foi executado|foi realizado|nao foi executad[oa]|nao foi realizad[oa]|nao foram executad[oa]s|nao foram realizad[oa]s|nao foram cumprid[oa]s|were not executed|were not performed|was not executed|was not performed)\b/.test(text)
   const actorAwareness = /\b(captain|first officer|pilot|crew|comandante|copiloto|piloto|tripulacao)\b.*\b(said|stated|knew|was aware|recognized|noted|commented|disse|afirmou|sabia|conhecia|ciente|reconheceu|comentou)\b/.test(text)
   return source && normative && !occurred && !actorAwareness
@@ -86,8 +86,8 @@ export function isProcedureReferenceStatement(statement: string): boolean {
 export function isSystemDescriptionStatement(statement: string): boolean {
   const text = normalize(statement)
   if (isNonCausalDocumentStatement(statement)) return false
-  const definition = /\b(era responsavel|responsavel por|responsavel pelo|responsaveis|responsaveis por|responsaveis pelo|tinha a funcao|era composto|era constituido|possuia|permitia|armava|ativava|correspondia|provia|indicava|apresentava|fornecia|servia para|ficava localizado|rotacionava livremente|poderia prover|poderia ser|deveria ser testado|deveria ser mantido|deveriam ser mantidos|ficaria acesa|ficariam acesas|comecaria a piscar|comecariam a piscar|atuava|atuavam|funcionava|funcionavam|realizava|realizavam|utilizava|utilizavam|monitorava|monitoravam|emitia|emitiam|compreendia|compreendiam|consistia|consistiam|permanecia|permaneciam|com o objetivo de|era ligado|era desligado|eram ligados|eram desligados)\b/.test(text)
-  const technicalSubject = /\b(sistema|sistemas|system|systems|modo|painel|luz|luzes|alerta|sensor|apm|afcs|ccas|sps|autopilot|piloto automatico|de-icing|anti-icing|boots?|stick pusher|stick shaker|approach \(app|app - aproximacao)\b/.test(text)
+  const definition = /\b(era responsavel|responsavel por|responsavel pelo|responsaveis|responsaveis por|responsaveis pelo|tinha a funcao|era composto|era constituido|possuia|permitia|armava|ativava|correspondia|provia|indicava|apresentava|fornecia|servia para|ficava localizado|rotacionava livremente|poderia prover|poderia ser|poderia inibir|poderia realizar|poderia ocorrer|poderia atingir|could be|could inhibit|could perform|could reach|deveria ser testado|deveria ser mantido|deveriam ser mantidos|ficaria acesa|ficariam acesas|comecaria a piscar|comecariam a piscar|atuava|atuavam|funcionava|funcionavam|realizava|realizavam|utilizava|utilizavam|monitorava|monitoravam|emitia|emitiam|compreendia|compreendiam|consistia|consistiam|permanecia|permaneciam|com o objetivo de|era ligado|era desligado|eram ligados|eram desligados)\b/.test(text)
+  const technicalSubject = /\b(sistema|sistemas|system|systems|modo|painel|luz|luzes|alerta|aviso|warning|sensor|atuador|actuator|trimagem|trim|desacoplamento|uncoupling|pitch uncoupling|rolamento|roll|profundor|elevator|apm|afcs|ccas|sps|autopilot|piloto automatico|de-icing|anti-icing|boots?|stick pusher|stick shaker|approach \(app|app - aproximacao)\b/.test(text)
   const temporalEventAnchor = /\b(as \d{1,2}h\d{2}|\d{1,2}:\d{2}|naquele voo|no voo do acidente)\b/.test(text) || /^(durante o voo|during the flight)\b/.test(text)
   const actorEventAnchor = /\b(a tripulacao|o comandante|o copiloto|o pic|o sic)\b.{0,100}\b(decidiu|manteve|executou|acionou|desligou|ligou|comentou|informou|observou|percebeu|reconheceu|falhou|deixou de|continuou|prosseguiu)\b/.test(text)
   return definition && technicalSubject && !temporalEventAnchor && !actorEventAnchor
@@ -116,7 +116,7 @@ export function isExplicitOperationalDeviationStatement(statement: string): bool
   const text = normalize(statement)
   return /\b(aeronave|aircraft)\b.*\b(foi despachad[ao]|was dispatched)\b.*\b(sem|without|apesar|despite)\b.*\b(mel|restri[cç][oõ]es?|restriction|falha|fault|pane)\b/.test(text)
     || /\b(condi[cç][oõ]es?|weather|meteorolog)\b.*\b(nao foram avaliadas adequadamente|n[aã]o foram avaliadas adequadamente|were not adequately assessed)\b.*\b(cco|dov|pic|dispatch|dispatcher|pilot)\b/.test(text)
-    || /\b(manteve|mantiveram|permaneceu|permaneceram|continued|remained)\b.*\b(condi[cç][aã]o|gelo|icing|falha|fault|degradad|unsafe|insegur)\b/.test(text)
+    || /\b(tripulacao|tripula[cç][aã]o|crew|pilotos?|pilots?|comandante|captain|copiloto|first officer|pic|sic|pf|pm|operador|operator)\b.{0,100}\b(manteve|mantiveram|permaneceu|permaneceram|continued|remained)\b.*\b(condi[cç][aã]o|gelo|icing|falha|fault|degradad|unsafe|insegur)\b/.test(text)
 }
 
 export function isOperationalEventStatement(statement: string): boolean {
@@ -158,8 +158,17 @@ function detectOccurrenceScope(line: string, current: SeraOccurrenceScope): Sera
 function assertionStatus(statement: string): SeraAssertionStatus {
   const text = normalize(statement)
   if (/\b(nao interferiu|nao contribuiu|nao observado|nao observada|nao evidenciado|nao evidenciada|sem evidencia|foi descartad[oa]|fator descartad[oa]|nao aplicavel)\b/.test(text)) return 'REJECTED_AS_FACTOR'
+  // Explicit investigative hypotheses remain epistemically uncertain even when they contain
+  // technical vocabulary. This check precedes modal/system-description handling.
+  if (/\b(levantou-se a hipotese|sob essa hipotese|segundo essa hipotese|foi considerada.*hipotese|segunda hipotese|possibilidade de|nao foi possivel estabelecer qual hipotese|hipoteticamente|supostamente|possivelmente|talvez|pode ter sido|pode ter causado|podem ter causado)\b/.test(text)) return 'UNCERTAIN'
+  // A recorded utterance is an affirmed event fact (what was said), even when the quoted
+  // content uses “poderia/could”. Its truth-content can still be assessed separately.
+  if (/\b(pic|sic|comandante|copiloto|piloto|captain|first officer|pilot)\b.{0,100}\b(comentou|disse|afirmou|informou|mencionou|said|commented|stated|reported|mentioned)\b/.test(text)) return 'AFFIRMED'
+  // Documentary, procedural and system-description modality describes what a reference/system
+  // allows or requires; words such as “poderia/could” are not epistemic uncertainty about the event.
+  if (isNonCausalDocumentStatement(statement) || isProcedureReferenceStatement(statement) || isSystemDescriptionStatement(statement)) return 'AFFIRMED'
   if (/\b(ficaram muito focados|estavam muito focados|estava muito focado|estavam focados|estava focado|concentrados? em)\b/.test(text)) return 'AFFIRMED'
-  if (/\b(manual|procedimento|regra|norma|regulamento|sop|procedure|rule|regulation|manual)\b.*\b(poderia|deveria|devia|exigia|estabelecia|determinava|required|mandated|stated|specified|could not|must not)\b/.test(text)) return 'AFFIRMED'
+  if (/\b(manual|afm|fcom|qrh|procedimento|regra|norma|regulamento|sop|procedure|rule|regulation)\b.*\b(poderia|deveria|devia|exigia|estabelecia|determinava|required|mandated|stated|specified|could|could not|must|must not)\b/.test(text)) return 'AFFIRMED'
   if (/\b(poderia|pode ter|podem ter|supostamente|possivelmente|talvez|hipotese|hipoteticamente|sugere-se|sugere que|pode ter sido)\b/.test(text)) return 'UNCERTAIN'
   return 'AFFIRMED'
 }

@@ -87,7 +87,7 @@ export function classifyCanonicalPrecondition(text: string): SeraCanonicalPrecon
     ['PROVISION_RESOURCES', /\b(provisao de recursos|provision of resources|falta de recursos|resource shortage|staffing|efetivo reduzido)\b/],
     ['RULES_REGULATIONS', /\b(regras? e regulamentos?|rules? and regulations?|regulament|regulation|norma|rule)\b/],
     ['ORGANIZATIONAL_PROCESS_PRACTICES', /\b(processos? e praticas organizacionais|organizational process|procedimentos? organizacionais|change management|gestao de mudanca)\b/],
-    ['ORGANIZATIONAL_CLIMATE', /\b(clima organizacional|organizational climate|cultura de seguranca|safety culture|normalizacao do desvio|normalization of deviation)\b/],
+    ['ORGANIZATIONAL_CLIMATE', /\b(clima organizacional|organizational climate|cultura(?: de seguranca)?|safety culture|normalizacao do desvio|normalization of deviation)\b/],
     ['OVERSIGHT', /\b(vigilancia|oversight|problema sistemico|systemic problem|acao corretiva|corrective action)\b/],
   ]
   return rules.find(([, rule]) => rule.test(x))?.[0] ?? null

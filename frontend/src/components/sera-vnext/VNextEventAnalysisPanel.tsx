@@ -291,7 +291,7 @@ export function VNextEventAnalysisPanel({ output }: { output: SeraVNextEngineOut
 
       {operationalObservations.length > 0 && (
         <section className="rounded-xl border border-blue-800/50 bg-blue-950/15 p-5">
-          <h2 className="text-base font-semibold text-white">{pt ? 'Barreiras e observações operacionais do relatório-fonte' : 'Source-report operational barriers and observations'}</h2>
+          <h2 className="text-base font-semibold text-white">{pt ? 'Outros fatores contribuintes e observações operacionais do relatório-fonte' : 'Other source-report contributory factors and operational observations'}</h2>
           <p className="mt-1 text-xs leading-relaxed text-slate-500">
             {pt
               ? 'Itens explicitamente registrados pela investigação e úteis para revisão humana. Eles são preservados separadamente das pré-condições para evitar transformar conclusão/recomendação do relatório em causalidade automática.'

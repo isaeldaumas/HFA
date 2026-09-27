@@ -40,6 +40,8 @@ const CATEGORY_DESCRIPTION: Record<string, string> = {
 
 const CANONICAL_FALLBACK_BY_OPERATIONAL_CATEGORY: Partial<Record<string, SeraCanonicalPreconditionCategory>> = {
   ENVIRONMENTAL_CONTEXT: 'ENVIRONMENT',
+  TECHNICAL_CONTEXT: 'EQUIPMENT',
+  ORGANIZATIONAL_CONTEXT: 'ORGANIZATIONAL_CLIMATE',
 }
 
 const CATEGORY_DESCRIPTION_EN: Record<string, string> = {
@@ -154,9 +156,37 @@ export function runStep09Preconditions(input: {
       || /^(?:o|a) (?:seu|sua) \b(comandamento|acionamento|funcionamento|opera[cç][aã]o)\b.*\b(era realizado|era efetuado|ocorria|funcionava)\b/.test(text)
       || (/\b(quando|whenever)\b/.test(text) && /\b(fosse|fossem|would be|would remain|would illuminate)\b/.test(text) && /\b(sistema|luz|alerta|de-icing|anti-icing|boots?)\b/.test(text))
   }
+  const isInvestigatorConclusionStatement = (statement: string): boolean =>
+    /\b(a comiss[aã]o (?:de investiga[cç][aã]o )?(?:sipaer )?(?:considerou|concluiu|entendeu|avaliou)|a investiga[cç][aã]o (?:considerou|concluiu|entendeu)|the (?:investigation|commission) (?:considered|concluded|assessed))\b/i.test(statement)
+
+  const isActualEnvironmentalCondition = (statement: string): boolean => {
+    const text = statement.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    const hazardousCondition = /\b(condi[cç][oõ]es? meteorolog|weather|severe icing|sev ice|gelo severo|forma[cç][aã]o de gelo|ac[uú]mulo de gelo|vento|wind|chuva|rain|nevoa|fog|visibilidade|visibility|nuvem|cloud)\b/.test(text)
+    const spatialCondition = /\b(proximidade|dist[aâ]ncia)\b.{0,80}\b(unidades?|plataformas?|pistas?|destinos?|aer[oó]dromos?|helipontos?)\b/.test(text)
+      || /\b(unidades?|plataformas?|pistas?|destinos?|aer[oó]dromos?|helipontos?)\b.{0,80}\b(pr[oó]xim[oa]s?|adjacent|nearby)\b/.test(text)
+    const negatedHazard = /\b(n[aã]o houve|sem|livre de|aus[eê]ncia de|no |without )\b.{0,45}\b(ac[uú]mulo de gelo|gelo|icing|weather|vento|wind|chuva|rain|nevoa|fog|nuvem|cloud)\b/.test(text)
+    const hypotheticalOnly = /\b(eventual|hipot[eé]tic|se .* fosse|caso .* ocorresse|would|could)\b/.test(text)
+    return (spatialCondition || (hazardousCondition && !negatedHazard && !hypotheticalOnly))
+      && !/\b(luz|painel|sensor|detector|stick pusher|stick shaker|aoa|manual|afm|qrh|fcom|procedimento|procedure)\b/.test(text)
+  }
+  const isActualTechnicalCondition = (statement: string): boolean => {
+    const text = statement.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    return /\b(fault|malfunction|pane|falha t[eé]cnica|inoperante|inoperative|avaria|airframe fault|de-icing.*falh|falh.*de-icing)\b/.test(text)
+      && /\b(system|sistema|equipment|equipamento|de-icing|airframe|sensor|motor|engine|rudder|leme|trim|automation|automacao)\b/.test(text)
+  }
+
+  const isActualOrganizationalCondition = (statement: string): boolean => {
+    const text = statement.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    const adverseProcess = /\b(cultura|culture|ausencia de registro|sem registro|without (?:a )?record|registro formal.*(?:nao|ausen|falt)|formal record.*(?:absent|missing)|supervisao inadequada|inadequate supervision|degraded supervision|pressao organizacional|organizational pressure|staffing|efetivo reduzido|processo organizacional|organizational process)\b/.test(text)
+    const knownButUnrecorded = /\b(equipe de manutencao|maintenance team|turno noturno|night shift)\b/.test(text)
+      && /\b(comunicacao verbal|verbal communication|tomaram conhecimento|took notice|were informed)\b/.test(text)
+    return adverseProcess || knownButUnrecorded
+  }
+
   const contextualEvidence = input.factualExtraction.evidence
     .filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
     .filter((item) => isContextualAnalysisStatement(item.statement))
+    .filter((item) => !isInvestigatorConclusionStatement(item.statement))
     .filter((item) => !isTechnicalReferenceNoise(item.statement))
     // Hendy separation: another observable unsafe act/omission is not automatically a precondition
     // of the selected critical act. It needs its own SERA traversal unless separate causal evidence
@@ -184,6 +214,9 @@ export function runStep09Preconditions(input: {
   for (const item of contextualEvidence) {
     const category = classifyPreconditionCategory({ text: item.statement, proposedCode: null })
     if (!category) continue
+    if (category === 'ENVIRONMENTAL_CONTEXT' && !isActualEnvironmentalCondition(item.statement)) continue
+    if (category === 'TECHNICAL_CONTEXT' && !isActualTechnicalCondition(item.statement)) continue
+    if (category === 'ORGANIZATIONAL_CONTEXT' && !isActualOrganizationalCondition(item.statement)) continue
     categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true, explicitInvestigationSupport: false, rejectedByInvestigation: false }
     categoryEvidence[category].investigationOnly = false
     pushUnique(categoryEvidence[category].texts, item.statement)
@@ -224,9 +257,15 @@ export function runStep09Preconditions(input: {
       const canonical = classifyCanonicalPrecondition(item.statement)
       if (canonical) canonicalCounts.set(canonical, (canonicalCounts.get(canonical) ?? 0) + 1)
     }
-    const canonicalCategory = [...canonicalCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
-      ?? CANONICAL_FALLBACK_BY_OPERATIONAL_CATEGORY[category]
-      ?? null
+    const fallbackCanonical = CANONICAL_FALLBACK_BY_OPERATIONAL_CATEGORY[category] ?? null
+    const countedCanonical = [...canonicalCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+    const incompatibleWithOperationalCategory =
+      (category === 'TECHNICAL_CONTEXT' && countedCanonical === 'ENVIRONMENT') ||
+      (category === 'ENVIRONMENTAL_CONTEXT' && countedCanonical === 'EQUIPMENT') ||
+      (category === 'ORGANIZATIONAL_CONTEXT' && ['ENVIRONMENT', 'EQUIPMENT'].includes(countedCanonical ?? ''))
+    const canonicalCategory = incompatibleWithOperationalCategory
+      ? fallbackCanonical
+      : countedCanonical ?? fallbackCanonical
     const likelyForActiveFailureCodes = canonicalCategory
       ? activeFailureCodes.filter((code) => (SERA_MOST_LIKELY_PRECONDITIONS[code] ?? []).includes(canonicalCategory))
       : []

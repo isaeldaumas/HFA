@@ -25,8 +25,8 @@ export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngi
     timeline: factualExtraction.timeline,
   })
   const factualExtractionWithInitialEvidence = { ...factualExtraction, evidence: initialEvidence }
-  const safeOperationModel = runStep02SafeOperationModel({ engineInput: input, factualExtraction: factualExtractionWithInitialEvidence })
   const escapePoint = runStep03EscapePoint({ factualExtraction: factualExtractionWithInitialEvidence, supplementalEvidence: input.supplementalEvidence, locale: input.locale })
+  const safeOperationModel = runStep02SafeOperationModel({ engineInput: input, factualExtraction: factualExtractionWithInitialEvidence, escapePoint })
   const unsafeState = runStep04UnsafeState({ engineInput: input, factualExtraction })
   const unsafeActOrCondition = runStep05UnsafeActCondition({ engineInput: input, unsafeState, escapePoint })
   const directActor = runStep06DirectActor({ engineInput: input, unsafeActOrCondition, escapePoint })

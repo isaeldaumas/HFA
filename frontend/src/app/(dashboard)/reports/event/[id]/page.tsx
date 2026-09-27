@@ -532,10 +532,10 @@ export default function EventReportPage() {
 
         {vnextOutput && (
           <section className="report-section">
-            <h3 className="report-title">6. {L('Barreiras e observações operacionais', 'Operational barriers and observations')}</h3>
+            <h3 className="report-title">6. {L('Outros fatores contribuintes e observações operacionais', 'Other contributory factors and operational observations')}</h3>
             <div className="report-box">
               <p className="text-sm text-slate-700">{L('Itens explicitamente registrados pela investigação e preservados para revisão humana, sem transformá-los automaticamente em pré-condições causais.', 'Items explicitly recorded by the investigation and retained for human review without automatically converting them into causal preconditions.')}</p>
-              {operationalObservations.length ? <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">{operationalObservations.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="report-note mt-2">{L('Nenhuma barreira ou observação operacional adicional foi identificada nesta análise.', 'No additional operational barrier or observation was identified in this analysis.')}</p>}
+              {operationalObservations.length ? <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">{operationalObservations.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="report-note mt-2">{L('Nenhum outro fator contribuinte ou observação operacional adicional foi identificado nesta análise.', 'No additional contributory factor or operational observation was identified in this analysis.')}</p>}
             </div>
           </section>
         )}
