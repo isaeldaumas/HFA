@@ -45,7 +45,7 @@ function classifySupportedUses(statement: string, category: SeraFact['category']
   if (statementHasAnyConcept(statement, ['adequateAssessment', 'inadequateAssessment', 'sensoryLimitation', 'knowledgeLimitation', 'perceptionCapabilityPresent', 'attentionPressure', 'timeManagementPressure', 'informationAmbiguous', 'informationAvailableCorrect', 'informationUnavailable'])) pushUnique(supports, 'PERCEPTION')
   if (statementHasAnyConcept(statement, ['safeGoal', 'knownRule', 'explicitAwareness', 'consciousDeviation', 'routineDeviation', 'exceptionalDeviation', 'managedRisk', 'unmanagedRisk'])) pushUnique(supports, 'OBJECTIVE')
   if (statementHasAnyConcept(statement, ['safeAction', 'implementedAction', 'feedbackImplementationFailure', 'slipLapse', 'correctAction', 'incorrectAction', 'physicalActionLimitation', 'actionKnowledgeLimitation', 'actionCapabilityPresent', 'selectionUnderPressureFailed', 'feedbackUnderPressureFailed', 'selectionSubtype', 'feedbackSubtype', 'timeManagementAction'])) pushUnique(supports, 'ACTION')
-  if (!normalState && /\b(visibility|fog|cloud|weather|wind|night|system|automation|warning|failure|fault|rudder|technical|training|knowledge|time pressure|rushed|dispatch|organizational|staffing|supervision|maintenance|coordination|intent|decided|decision|conscious|physical|fatigue|ergonomic|fmc|autothrottle|dafcs|trim|control law|visibilidade|nevoeiro|nuvem|tempo|vento|meteorolog|noite|sistema|automa[cç][aã]o|alerta|falha|leme|t[eé]cnic[ao]|treinamento|conhecimento|press[aã]o de tempo|apressad[ao]|despacho|organizacional|equipe|supervis[aã]o|manuten[cç][aã]o|coordena[cç][aã]o|inten[cç][aã]o|decis[aã]o|consciente|f[ií]sic[ao]|fadiga|ergon[oô]mic[ao]|distra[cç][aã]o|vis[aã]o de t[uú]nel|focad[oa]s?|proximidade|pr[oó]xim[oa]s?)\b/i.test(statement)) pushUnique(supports, 'PRECONDITION')
+  if (!normalState && /\b(visibility|fog|cloud|weather|wind|night|system|automation|warning|failure|fault|rudder|technical|training|knowledge|time pressure|rushed|dispatch|organizational|staffing|supervision|maintenance|coordination|intent|decided|decision|conscious|physical|fatigue|ergonomic|fmc|autothrottle|dafcs|trim|control law|visibilidade|nevoeiro|nuvem|tempo|vento|meteorolog\w*|icing|gelo|sev ice|severe icing|noite|sistema|automa[cç][aã]o|alerta|falha|leme|t[eé]cnic[ao]|treinamento|conhecimento|press[aã]o de tempo|apressad[ao]|despacho|organizacional|equipe|supervis[aã]o|manuten[cç][aã]o|coordena[cç][aã]o|inten[cç][aã]o|decis[aã]o|consciente|f[ií]sic[ao]|fadiga|ergon[oô]mic[ao]|distra[cç][aã]o|vis[aã]o de t[uú]nel|focad[oa]s?|proximidade|pr[oó]xim[oa]s?)\b/i.test(statement)) pushUnique(supports, 'PRECONDITION')
   if (category === 'outcome') pushUnique(supports, 'LIMITATION')
   if (normalState) {
     return supports.filter((use) => !['PERCEPTION', 'OBJECTIVE', 'ACTION', 'PRECONDITION'].includes(use))
@@ -56,8 +56,14 @@ function classifySupportedUses(statement: string, category: SeraFact['category']
   return supports
 }
 
-function classifyProhibitedUses(statement: string, temporalRelation: SeraEvidenceItem['temporalRelation'], evidenceType: SeraEvidenceItem['evidenceType'], assertionStatus: SeraEvidenceItem['assertionStatus']): SeraEvidenceUse[] {
+function classifyProhibitedUses(statement: string, temporalRelation: SeraEvidenceItem['temporalRelation'], evidenceType: SeraEvidenceItem['evidenceType'], assertionStatus: SeraEvidenceItem['assertionStatus'], occurrenceScope?: SeraEvidenceItem['occurrenceScope']): SeraEvidenceUse[] {
   const prohibited: SeraEvidenceUse[] = []
+  if (occurrenceScope === 'HISTORICAL_COMPARATOR') {
+    pushUnique(prohibited, 'ESCAPE_POINT')
+    pushUnique(prohibited, 'PERCEPTION')
+    pushUnique(prohibited, 'OBJECTIVE')
+    pushUnique(prohibited, 'ACTION')
+  }
   if (temporalRelation === 'POST_ESCAPE') {
     pushUnique(prohibited, 'ESCAPE_POINT')
     pushUnique(prohibited, 'PERCEPTION')
@@ -123,12 +129,14 @@ export function extractEvidenceItems(args: {
     const timelineItem = timelineByStatement.get(fact.statement)
     const sourceSentenceIndex = timelineItem?.sourceSentenceIndex ?? fact.sourceSentenceIndex
     const sourceSection = fact.sourceSection ?? timelineItem?.sourceSection ?? 'UNKNOWN'
-    const temporalRelation = classifyTemporalRelation({
+    const occurrenceScope = fact.occurrenceScope ?? timelineItem?.occurrenceScope ?? 'UNKNOWN'
+    const inferredTemporalRelation = classifyTemporalRelation({
       statement: fact.statement,
       sourceSentenceIndex,
       latestEscapeSentenceIndex: args.latestEscapeSentenceIndex,
       sourceSection,
     })
+    const temporalRelation = occurrenceScope === 'HISTORICAL_COMPARATOR' ? 'UNKNOWN' as const : inferredTemporalRelation
     const actor = inferredActorFor(fact.statement, sourceSentenceIndex)
     const actorRelation = actor
       ? classifyActorRelationForActor(actor, args.directActor ?? null)
@@ -136,7 +144,7 @@ export function extractEvidenceItems(args: {
     const assertionStatus = fact.assertionStatus ?? timelineItem?.assertionStatus ?? 'AFFIRMED'
     const evidenceType = classifyEvidenceType(fact.statement, fact.category, sourceSection)
     const supports = classifySupportedUses(fact.statement, fact.category, evidenceType)
-    const prohibitedFor = classifyProhibitedUses(fact.statement, temporalRelation, evidenceType, assertionStatus)
+    const prohibitedFor = classifyProhibitedUses(fact.statement, temporalRelation, evidenceType, assertionStatus, occurrenceScope)
     const base = {
       evidenceId: `EVID-${index + 1}`,
       statement: fact.statement,
@@ -144,6 +152,7 @@ export function extractEvidenceItems(args: {
       sourceSentenceIndex,
       sourceSection,
       assertionStatus,
+      occurrenceScope,
       temporalRelation,
       actorRelation,
       actor,
@@ -158,6 +167,7 @@ export function extractEvidenceItems(args: {
         `evidenceType=${evidenceType}`,
         `sourceSection=${sourceSection}`,
         `assertionStatus=${assertionStatus}`,
+        `occurrenceScope=${occurrenceScope}`,
       ],
     } satisfies Omit<SeraEvidenceItem, 'relationshipToFailure'>
 
@@ -189,7 +199,8 @@ export function extractSupplementalEvidenceItems(args: {
     const temporalRelation = inferredTemporalRelation === 'POST_ESCAPE' || inferredTemporalRelation === 'PRE_ESCAPE'
       ? inferredTemporalRelation
       : item.temporalRelation
-    const prohibitedFor = classifyProhibitedUses(item.statement, temporalRelation, evidenceType, assertionStatus)
+    const occurrenceScope = 'CURRENT_EVENT' as const
+    const prohibitedFor = classifyProhibitedUses(item.statement, temporalRelation, evidenceType, assertionStatus, occurrenceScope)
     const base = {
       evidenceId: item.evidenceId || `SUP-EVID-${index + 1}`,
       statement: item.statement,
@@ -197,6 +208,7 @@ export function extractSupplementalEvidenceItems(args: {
       sourceSentenceIndex: args.sourceSentenceIndex,
       sourceSection,
       assertionStatus,
+      occurrenceScope,
       temporalRelation,
       actorRelation,
       actor,

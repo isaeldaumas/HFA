@@ -14,6 +14,8 @@ import { localizeActor, localizeRationale } from '@/lib/sera-vnext/engine-v0/loc
 import { SERA_PT_V1_TREE } from '@/lib/sera-vnext/canonical-tree/sera-pt-v1'
 import { buildExecutiveSummary, computeCandidateAttention, friendlyAnswerLabel, friendlyNodeLabel } from '@/lib/sera-vnext/presentation'
 import { CanonicalTreeDiagram } from '@/components/sera-vnext/CanonicalTreeDiagram'
+import { SERA_PRECONDITION_META } from '@/lib/sera-vnext/precondition-taxonomy'
+import { buildSeraHfacsBridge } from '@/lib/sera-vnext/hfacs-bridge'
 
 type Recommendation = {
   related_code?: string | null
@@ -213,6 +215,12 @@ export default function EventReportPage() {
   const hypothesisVnextPreconditions = vnextPreconditions.filter((item) =>
     item.relationship !== 'CONTEXTUAL_PRECONDITION' && item.relationship !== 'ENABLING_PRECONDITION',
   )
+  const hfacsBridge = vnextOutput
+    ? buildSeraHfacsBridge(
+        [vnextOutput.axes.perception.proposedCode, vnextOutput.axes.objective.proposedCode, vnextOutput.axes.action.proposedCode],
+        vnextPreconditions.map((item) => item.canonicalCategory ?? null),
+      )
+    : null
   const recommendations = analysis?.recommendations ?? []
   const operationalObservations = (vnextOutput?.factualExtraction.evidence ?? [])
     .filter((item) =>
@@ -324,7 +332,7 @@ export default function EventReportPage() {
             </div>
             {vnextOutput && vnextOutput.escapePoint.supportingEvidence.length > 0 && (
               <div className="mt-3">
-                <p><strong>{L('Fatos-chave considerados', 'Key facts considered')}:</strong></p>
+                <p><strong>{L('Episódio operacional reconstruído', 'Reconstructed operational episode')}:</strong></p>
                 <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
                   {vnextOutput.escapePoint.supportingEvidence.slice(0, 3).map((item) => <li key={item}>{item}</li>)}
                 </ul>
@@ -344,6 +352,24 @@ export default function EventReportPage() {
                 <p><strong>{L('Objetivo', 'Objective')}:</strong> {vnextOutput.axes.objective.proposedCode ?? L('Não resolvido', 'Unresolved')}</p>
                 <p><strong>{L('Ação', 'Action')}:</strong> {vnextOutput.axes.action.proposedCode ?? L('Não resolvida', 'Unresolved')}</p>
               </div>
+              {vnextOutput.escapePoint.humanFactorGate && (
+                <div className="report-box mt-3">
+                  <p><strong>{L('Gate de âncora de Fatores Humanos', 'Human-Factor anchor gate')}:</strong> {vnextOutput.escapePoint.humanFactorGate.status}</p>
+                  <p className="text-sm">{L('Tipo', 'Type')}: {vnextOutput.escapePoint.humanFactorGate.anchorType ?? L('não estabelecida', 'not established')}</p>
+                  <p className="report-note">{L('A visão global organiza o acidente; somente um ato/inação observável ou condição insegura sob controle operacional pode iniciar P/O/A.', 'The global view organizes the accident; only an observable act/inaction or operator-controlled unsafe condition can start P/O/A.')}</p>
+                </div>
+              )}
+              {(vnextOutput.escapePoint.episodeCandidates ?? []).filter((episode) => !episode.selected).length > 0 && (
+                <div className="report-box mt-3">
+                  <p><strong>{L('Outras sequências detectadas — não são pontos de fuga automáticos', 'Other detected sequences — not automatic escape points')}:</strong></p>
+                  <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
+                    {(vnextOutput.escapePoint.episodeCandidates ?? []).filter((episode) => !episode.selected).slice(0, 5).map((episode) => (
+                      <li key={`${episode.phase}:${episode.anchorStatement}`}>{episode.phase} / {episode.seraRole ?? 'UNRESOLVED'}: {episode.anchorStatement}</li>
+                    ))}
+                  </ul>
+                  <p className="report-note">{L('O SERA analisa um ato inseguro por vez. Outra sequência humana exige sua própria âncora, ator e travessia canônica; condições técnicas, ambientais e organizacionais permanecem contexto ou pré-condições.', 'SERA analyses one unsafe act at a time. Another human sequence requires its own anchor, actor, and canonical traversal; technical, environmental, and organizational conditions remain context or preconditions.')}</p>
+                </div>
+              )}
               <p className="report-note">
                 {L('Análise produzida pelo motor SERA 0.3. A liberação formal dos códigos permanece condicionada à revisão humana.', 'Analysis produced by SERA engine 0.3. Formal code release remains subject to human review.')}
               </p>
@@ -415,6 +441,7 @@ export default function EventReportPage() {
 
         <section className="report-section">
           <h3 className="report-title">4. {L('Pré-condições e hipóteses contextuais', 'Preconditions and contextual hypotheses')}</h3>
+          {vnextOutput ? <p className="report-note mb-3">{L('A Tabela 1 de Hendy e o Anexo B, aplicado por Daumas, orientam quais pré-condições são mais prováveis para cada falha ativa. O HFA só confirma uma pré-condição quando encontra evidência do evento; a tabela não cria causa por si só.', 'Hendy Table 1 and Annex B, as applied by Daumas, guide which preconditions are most likely for each active failure. HFA confirms a precondition only when event evidence supports it; the table does not create causality by itself.')}</p> : null}
           {vnextOutput && vnextPreconditions.length > 0 ? (
             <div className="space-y-4">
               {supportedVnextPreconditions.length > 0 && (
@@ -422,9 +449,12 @@ export default function EventReportPage() {
                   <p className="text-sm font-semibold text-slate-800">{L('Pré-condições sustentadas pela evidência', 'Preconditions supported by the evidence')}</p>
                   {supportedVnextPreconditions.map((item) => (
                     <div key={item.id} className="report-box">
-                      <p><strong>{preconditionCategoryLabel(item.category, pt)}:</strong> {item.description}</p>
+                      <p><strong>{item.canonicalCategory ? (pt ? SERA_PRECONDITION_META[item.canonicalCategory].pt : SERA_PRECONDITION_META[item.canonicalCategory].en) : preconditionCategoryLabel(item.category, pt)}:</strong> {item.description}</p>
+                      {item.canonicalLevel ? <p className="text-xs text-slate-500 mt-1">{L('Nível SERA', 'SERA level')}: {item.canonicalLevel}</p> : null}
+                      {item.methodologyMatch ? <p className="text-xs text-slate-500 mt-1">{L('Tabela de pré-condições', 'Precondition table')}: {item.methodologyMatch}</p> : null}
+                      {item.likelyForActiveFailureCodes?.length ? <p className="text-xs text-slate-500 mt-1">{L('Mais provável para', 'Most likely for')}: {item.likelyForActiveFailureCodes.join(', ')}</p> : null}
                       <p className="text-sm text-slate-700 mt-1">{L('Relação', 'Relationship')}: {preconditionRelationshipLabel(item.relationship, pt)}</p>
-                      {item.evidence.length > 0 ? <p className="text-sm text-slate-700 mt-1">{L('Evidência', 'Evidence')}: {item.evidence.join(' | ')}</p> : null}
+                      {item.evidence.length > 0 ? <p className="text-sm text-slate-700 mt-1">{L('Evidência', 'Evidence')}: {item.evidence.slice(0, 3).join(' | ')}</p> : null}
                     </div>
                   ))}
                 </div>
@@ -435,9 +465,11 @@ export default function EventReportPage() {
                   <p className="text-xs text-slate-600">{L('Estes itens aparecem porque foram mencionados ou sugeridos no material-fonte, mas não entram como pré-condições confirmadas nem no Perfil de Risco.', 'These items appear because they were mentioned or suggested in the source material, but they do not count as confirmed preconditions or enter the Risk Profile.')}</p>
                   {hypothesisVnextPreconditions.map((item) => (
                     <div key={item.id} className="report-box bg-amber-50">
-                      <p><strong>{preconditionCategoryLabel(item.category, pt)}:</strong> {item.description}</p>
+                      <p><strong>{item.canonicalCategory ? (pt ? SERA_PRECONDITION_META[item.canonicalCategory].pt : SERA_PRECONDITION_META[item.canonicalCategory].en) : preconditionCategoryLabel(item.category, pt)}:</strong> {item.description}</p>
+                      {item.canonicalLevel ? <p className="text-xs text-slate-500 mt-1">{L('Nível SERA', 'SERA level')}: {item.canonicalLevel}</p> : null}
+                      {item.methodologyMatch ? <p className="text-xs text-slate-500 mt-1">{L('Tabela de pré-condições', 'Precondition table')}: {item.methodologyMatch}</p> : null}
                       <p className="text-sm text-slate-700 mt-1">{L('Relação', 'Relationship')}: {preconditionRelationshipLabel(item.relationship, pt)}</p>
-                      {item.evidence.length > 0 ? <p className="text-sm text-slate-700 mt-1">{L('Evidência contextual', 'Contextual evidence')}: {item.evidence.join(' | ')}</p> : null}
+                      {item.evidence.length > 0 ? <p className="text-sm text-slate-700 mt-1">{L('Evidência contextual', 'Contextual evidence')}: {item.evidence.slice(0, 3).join(' | ')}</p> : null}
                     </div>
                   ))}
                 </div>
@@ -459,20 +491,35 @@ export default function EventReportPage() {
           )}
         </section>
 
-        {vnextOutput && operationalObservations.length > 0 && (
+        {vnextOutput && hfacsBridge && (
           <section className="report-section">
-            <h3 className="report-title">5. {L('Barreiras e observações operacionais', 'Operational barriers and observations')}</h3>
+            <h3 className="report-title">5. {L('Correspondência SERA / HFACS', 'SERA / HFACS correspondence')}</h3>
+            <p className="report-note mb-3">{L('Correspondência posterior à análise SERA, baseada nas Tabelas 3 a 6 de Hendy. Ela não escolhe códigos SERA e pode ser um-para-muitos; o contexto do ato inseguro continua necessário.', 'Post-SERA correspondence based on Hendy Tables 3–6. It does not select SERA codes and may be one-to-many; unsafe-act context remains necessary.')}</p>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="report-box">
+                <p className="font-semibold">{L('Falhas ativas', 'Active failures')}</p>
+                {hfacsBridge.activeFailures.length ? <ul className="mt-2 list-disc pl-5 text-sm space-y-1">{hfacsBridge.activeFailures.map((item) => <li key={`${item.level}-${item.hfacs}`}>{item.level}: {item.hfacs}</li>)}</ul> : <p className="report-note mt-2">{L('Aguardando fechamento P/O/A.', 'Awaiting P/O/A closure.')}</p>}
+              </div>
+              <div className="report-box">
+                <p className="font-semibold">{L('Pré-condições', 'Preconditions')}</p>
+                {hfacsBridge.preconditions.length ? <ul className="mt-2 list-disc pl-5 text-sm space-y-1">{hfacsBridge.preconditions.map((item) => <li key={`${item.level}-${item.hfacs}`}>{item.level}: {item.hfacs}</li>)}</ul> : <p className="report-note mt-2">{L('Nenhuma pré-condição confirmada para mapeamento.', 'No confirmed precondition available for mapping.')}</p>}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {vnextOutput && (
+          <section className="report-section">
+            <h3 className="report-title">6. {L('Barreiras e observações operacionais', 'Operational barriers and observations')}</h3>
             <div className="report-box">
               <p className="text-sm text-slate-700">{L('Itens explicitamente registrados pela investigação e preservados para revisão humana, sem transformá-los automaticamente em pré-condições causais.', 'Items explicitly recorded by the investigation and retained for human review without automatically converting them into causal preconditions.')}</p>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-                {operationalObservations.map((item) => <li key={item}>{item}</li>)}
-              </ul>
+              {operationalObservations.length ? <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">{operationalObservations.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="report-note mt-2">{L('Nenhuma barreira ou observação operacional adicional foi identificada nesta análise.', 'No additional operational barrier or observation was identified in this analysis.')}</p>}
             </div>
           </section>
         )}
 
         <section className="report-section">
-          <h3 className="report-title">{vnextOutput ? '6' : '5'}. {L('Recomendações e ações sugeridas', 'Recommendations and suggested actions')}</h3>
+          <h3 className="report-title">{vnextOutput ? '7' : '5'}. {L('Recomendações e ações sugeridas', 'Recommendations and suggested actions')}</h3>
           {vnextOutput ? (
             <div className="report-box">
               <p>{L('Recomendações automáticas não são liberadas pela análise SERA antes da revisão humana. Ações devem ser definidas após validação do ponto de fuga e dos eixos P/O/A.', 'Automatic recommendations are not released by SERA analysis before human review. Actions should be defined after validation of the escape point and P/O/A axes.')}</p>
@@ -496,8 +543,8 @@ export default function EventReportPage() {
 
         {vnextOutput && (
           <section className="report-section">
-            <h3 className="report-title">7. {L('Como o sistema chegou à classificação', 'How the system reached the classification')}</h3>
-            <p className="report-note mb-3">{L('A árvore mostra todos os caminhos possíveis do SERA. O percurso usado nesta análise aparece destacado e os ramos não seguidos permanecem visíveis; abaixo ficam pergunta, resposta e justificativa.', 'The tree shows every possible SERA path. The route used in this analysis is highlighted while paths not taken remain visible; question, answer, and rationale follow below.')}</p>
+            <h3 className="report-title">8. {L('Como o sistema chegou à classificação', 'How the system reached the classification')}</h3>
+            <p className="report-note mb-3">{L('A árvore preserva o desenho canônico do SERA. Cada losango percorrido mostra o mesmo número da explicação abaixo e a resposta do ramo aparece no próprio fluxo; os ramos não seguidos permanecem visíveis.', 'The tree preserves the canonical SERA design. Each traversed decision diamond shows the same number as its explanation below and the branch answer appears in the flow; paths not taken remain visible.')}</p>
             <div className="space-y-4">
               {vnextOutput.canonicalTraversal.paths.map((path) => (
                 <div key={path.axis} className="report-box">
@@ -522,7 +569,7 @@ export default function EventReportPage() {
         )}
 
         <section className="report-section">
-          <h3 className="report-title">{vnextOutput ? '8' : '6'}. {L('Limitações da análise', 'Analysis limitations')}</h3>
+          <h3 className="report-title">{vnextOutput ? '9' : '6'}. {L('Limitações da análise', 'Analysis limitations')}</h3>
           <ul className="report-list">
             <li>{L('A análise depende da qualidade e completude da evidência registrada.', 'The analysis depends on the quality and completeness of the recorded evidence.')}</li>
             <li>{L('Ausência de informação pode reduzir a precisão classificatória.', 'Missing information may reduce classification precision.')}</li>
@@ -532,7 +579,7 @@ export default function EventReportPage() {
         </section>
 
         <section className="report-section">
-          <h3 className="report-title">{vnextOutput ? '9' : '7'}. {L('Próximos passos sugeridos', 'Suggested next steps')}</h3>
+          <h3 className="report-title">{vnextOutput ? '10' : '7'}. {L('Próximos passos sugeridos', 'Suggested next steps')}</h3>
           <ul className="report-list">
             <li>{L('Revisar evidências e complementar informações faltantes.', 'Review evidence and complete missing information.')}</li>
             <li>{L('Transformar recomendações em ações corretivas rastreáveis.', 'Convert recommendations into traceable corrective actions.')}</li>

@@ -1,5 +1,6 @@
 import type { SeraVNextEngineInput, SeraVNextEngineOutput } from '../../engine-contract'
 import { runStep04DirectActor as runLegacyDirectActor } from '../../steps/04-direct-actor'
+import { isExplicitOperationalDeviationStatement, isExplicitOperationalOmissionStatement } from '../factual-extraction-helpers'
 
 function normalizeText(input: string): string {
   return input.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
@@ -39,6 +40,7 @@ export function runStep06DirectActor(input: {
   const captainPm = roleAssigned(text, 'captain', 'pm')
   const copilotPm = roleAssigned(text, 'copilot', 'pm')
   const escapeText = normalizeText(input.escapePoint.earliestCandidate ?? input.escapePoint.statement ?? '')
+  const escapeSupportText = normalizeText(input.escapePoint.supportingEvidence.join(' '))
   const escapeHasCopilot = /\b(copiloto|first officer)\b/.test(escapeText)
   const escapeHasCaptain = /\b(comandante|captain|training captain)\b/.test(escapeText)
   const escapeHasCollectiveCrew = /\b(tripulacao|tripulação|flight crew|crew|ambos os pilotos|dois pilotos|nenhum piloto|nenhum dos pilotos|both pilots|neither pilot)\b/.test(escapeText)
@@ -113,6 +115,38 @@ export function runStep06DirectActor(input: {
           ? 'O ponto de fuga está ancorado na atividade de pré-voo/manutenção, mas o responsável individual não foi identificado; não migre a atribuição para a tripulação de voo que detectou ou recuperou a condição posteriormente.'
           : 'The escape point is anchored to preflight/maintenance activity, but the responsible maintenance actor is not identified; do not migrate attribution to post-escape flight-crew detection or recovery.'],
       }
+    }
+    const passiveOperationalDeparture = isExplicitOperationalOmissionStatement(input.escapePoint.earliestCandidate ?? '')
+      || isExplicitOperationalDeviationStatement(input.escapePoint.earliestCandidate ?? '')
+    if (passiveOperationalDeparture && !escapeHasCopilot && !escapeHasCaptain && !escapeHasMaintenance) {
+      const supportMentionsFlightCrew = /\b(tripulacao|flight crew|crew|comandante|copiloto|pilotos?|captain|first officer)\b/.test(escapeSupportText)
+      const supportMentionsDispatch = /\b(cco|dov|dispatch|dispatcher|despachante|pic)\b/.test(escapeSupportText)
+      const escapeIsDispatchDecision = /\b(despach\w*|dispatch\w*|mel)\b/.test(escapeText)
+      if (supportMentionsDispatch || escapeIsDispatchDecision) {
+        return {
+          actor: 'operational decision actors (collective)',
+          status: 'AMBIGUOUS',
+          alternatives: ['CCO', 'DOV', 'PIC'],
+          actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
+            ? 'O ponto de fuga operacional está sustentado, mas a frase factual atribui a decisão/omissão a múltiplos atores de planejamento/despacho; P/O/A permanecem bloqueados até decomposição por ator.'
+            : 'The operational escape point is supported, but the factual statement attributes the decision/omission to multiple planning/dispatch actors; P/O/A remains blocked until actor decomposition.'],
+        }
+      }
+      if (supportMentionsFlightCrew || /\b(checklist|qrh|de-icing|airframe|icing|gelo|cruise speed|degraded performance|increase speed)\b/.test(escapeText)) {
+        return {
+          actor: 'flight crew (collective)',
+          status: 'AMBIGUOUS',
+          alternatives: ['comandante', 'copiloto', 'PF', 'PM'],
+          actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
+            ? 'A omissão/decisão operacional no ponto de fuga está sustentada, mas o registro não identifica qual tripulante a executou; P/O/A permanecem bloqueados até decomposição por ator.'
+            : 'The operational omission/decision at the escape point is supported, but the record does not identify which crewmember executed it; P/O/A remains blocked until actor decomposition.'],
+        }
+      }
+    }
+    const genericPilotUnsafeAction = /\bpiloto\b.{0,120}\b(iniciou|iniciado|iniciada|executou|continuou|prosseguiu|manteve|selecionou|moveu|desceu|subiu|initiated|executed|continued|proceeded|maintained|selected|moved|descended|climbed)\b/.test(escapeText)
+      || /\bpiloto\b.{0,120}\b(nao notou|nao percebeu|nao processou|nao monitorou|nao verificou|did not notice|did not perceive|did not process|did not monitor|did not verify)\b/.test(escapeText)
+    if (genericPilotUnsafeAction && !escapeHasCaptain && !escapeHasCollectiveCrew) {
+      return { actor: 'piloto', status: 'IDENTIFIED', alternatives: ['tripulação'], actorMigrationWarnings: [] }
     }
     if (escapeHasCopilot && escapeHasCaptain) {
       return {

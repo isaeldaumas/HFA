@@ -2,6 +2,7 @@ import type { SeraVNextEngineOutput, SeraPreconditionCandidate } from '../../eng
 import type { SeraEvidenceItem, SeraEvidenceRelationshipToFailure } from '../../evidence'
 import { isEvidenceUsableFor } from '../../evidence'
 import { classifyPreconditionCategory, confidenceFromCount, pushUnique } from '../utils'
+import { classifyCanonicalPrecondition, mostLikelyPreconditionsForCodes, SERA_MOST_LIKELY_PRECONDITIONS, SERA_PRECONDITION_META, type SeraCanonicalPreconditionCategory } from '../../precondition-taxonomy'
 
 const CATEGORY_RULE_ID: Record<string, string> = {
   PHYSICAL_CAPABILITY: 'PC-RULE-PHYSICAL_CAPABILITY',
@@ -24,7 +25,7 @@ const CATEGORY_DESCRIPTION: Record<string, string> = {
   PHYSICAL_CAPABILITY: 'Condição física ou ergonômica potencialmente relevante para a execução da tarefa.',
   SENSORY_LIMITATION: 'Condição sensorial potencialmente relevante para a percepção da situação.',
   KNOWLEDGE_TRAINING: 'Contexto de conhecimento, treinamento, qualificação ou familiaridade sustentado por evidência positiva.',
-  TIME_PRESSURE: 'Pressão de tempo ou urgência operacional que pode ter aumentado a probabilidade da falha ativa.',
+  TIME_PRESSURE: 'Restrição temporal operacional explicitamente demonstrada que pode ter aumentado a probabilidade da falha ativa.',
   ATTENTION_WORKLOAD_CONTEXT: 'Captura de atenção, foco concorrente ou carga de trabalho que pode ter aumentado a probabilidade da falha ativa.',
   COMMUNICATION_INFORMATION: 'Condição de comunicação ou disponibilidade/qualidade da informação relevante ao evento.',
   PROCEDURAL_MONITORING: 'Condição de monitoramento ou aplicação procedimental que pode ter favorecido a falha ativa.',
@@ -40,7 +41,7 @@ const CATEGORY_DESCRIPTION_EN: Record<string, string> = {
   PHYSICAL_CAPABILITY: 'Physical or ergonomic condition potentially relevant to task execution.',
   SENSORY_LIMITATION: 'Sensory condition potentially relevant to situation perception.',
   KNOWLEDGE_TRAINING: 'Knowledge, training, qualification, or familiarity context supported by positive evidence.',
-  TIME_PRESSURE: 'Time pressure or operational urgency that may have increased the likelihood of the active failure.',
+  TIME_PRESSURE: 'Explicitly demonstrated operational time constraint that may have increased the likelihood of the active failure.',
   ATTENTION_WORKLOAD_CONTEXT: 'Attention capture, competing focus, or workload that may have increased the likelihood of the active failure.',
   COMMUNICATION_INFORMATION: 'Communication or information availability/quality condition relevant to the event.',
   PROCEDURAL_MONITORING: 'Monitoring or procedural-application condition that may have contributed to the active failure.',
@@ -63,6 +64,40 @@ function pushEvidence(target: SeraEvidenceItem[], item: SeraEvidenceItem): void 
   if (!target.some((candidate) => candidate.evidenceId === item.evidenceId)) target.push(item)
 }
 
+function normalizedTokens(text: string): Set<string> {
+  const stop = new Set(['aeronave', 'aircraft', 'tripulacao', 'tripulação', 'crew', 'piloto', 'pilot', 'sistema', 'system', 'durante', 'during', 'após', 'apos', 'after', 'foram', 'foi', 'com', 'sem', 'para'])
+  return new Set(text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9-]+/g, ' ').split(/\s+/).filter((token) => token.length >= 4 && !stop.has(token)))
+}
+
+function lexicalOverlap(a: string, b: string): number {
+  const left = normalizedTokens(a)
+  const right = normalizedTokens(b)
+  let count = 0
+  for (const token of left) if (right.has(token)) count += 1
+  return count
+}
+
+type OperationalPhase = 'DISPATCH' | 'MAINTENANCE' | 'INFLIGHT' | 'APPROACH' | 'GROUND' | 'GENERIC'
+
+function operationalPhase(text: string): OperationalPhase {
+  const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  if (/\b(despach\w*|dispatch\w*|mel|cco|dov|planejamento|flight planning|antes do despacho|before dispatch)\b/.test(normalized)) return 'DISPATCH'
+  if (/\b(manutenc\w*|maintenance|mecan\w*|mechanic|inspecao pre-voo|preflight inspection|tlb)\b/.test(normalized)) return 'MAINTENANCE'
+  if (/\b(aproximacao|approach|final|pouso|landing|go-around|arremet)\b/.test(normalized)) return 'APPROACH'
+  if (/\b(subida|climb|cruzeiro|cruise|descida|descent|durante o voo|during the flight|fl\d{2,3}|nivelamento|levelled|leveling|de-icing|anti-icing|airframe|cruise speed|degraded performance|increase speed|gelo|icing)\b/.test(normalized)) return 'INFLIGHT'
+  if (/\b(taxi|solo|ground|pushback|estacionamento)\b/.test(normalized)) return 'GROUND'
+  return 'GENERIC'
+}
+
+function phaseCompatible(anchor: string, candidate: string): boolean {
+  const a = operationalPhase(anchor)
+  const b = operationalPhase(candidate)
+  if (a === 'GENERIC' || b === 'GENERIC') return true
+  const rank: Record<OperationalPhase, number> = { MAINTENANCE: 0, DISPATCH: 1, GROUND: 2, INFLIGHT: 3, APPROACH: 4, GENERIC: 99 }
+  return rank[b] <= rank[a]
+}
+
 export function runStep09Preconditions(input: {
   factualExtraction: SeraVNextEngineOutput['factualExtraction']
   escapePoint: SeraVNextEngineOutput['escapePoint']
@@ -75,8 +110,28 @@ export function runStep09Preconditions(input: {
     input.escapePoint.status !== 'NO_HUMAN_ESCAPE_POINT' &&
     input.escapePoint.confidence !== 'LOW' &&
     input.directActor.status === 'IDENTIFIED'
+  const activeFailureCodes = [input.axes.perception.proposedCode, input.axes.objective.proposedCode, input.axes.action.proposedCode]
+    .filter((code): code is string => Boolean(code) && !['P-A', 'O-A', 'A-A'].includes(code as string))
+  const mostLikelyCanonical = mostLikelyPreconditionsForCodes(activeFailureCodes)
   const categoryEvidence: Record<string, { texts: string[]; sourceEvidence: SeraEvidenceItem[]; investigationOnly: boolean; explicitInvestigationSupport: boolean; rejectedByInvestigation: boolean }> = {}
-  const contextualEvidence = input.factualExtraction.evidence.filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
+  const escapeAnchorText = [input.escapePoint.statement, ...input.escapePoint.supportingEvidence].filter(Boolean).join(' ')
+  const escapeIndexes = input.factualExtraction.evidence
+    .filter((item) => input.escapePoint.supportingEvidence.includes(item.statement))
+    .map((item) => item.sourceSentenceIndex)
+  const contextRelevance = (item: SeraEvidenceItem): number => {
+    let score = item.sourceSection === 'FACTUAL' ? 2 : 0
+    if (item.temporalRelation === 'PRE_ESCAPE' || item.temporalRelation === 'AT_ESCAPE') score += 2
+    const overlap = escapeAnchorText ? lexicalOverlap(item.statement, escapeAnchorText) : 0
+    score += Math.min(overlap, 3) * 2
+    if (escapeIndexes.some((index) => Math.abs(index - item.sourceSentenceIndex) <= 10)) score += 3
+    return score
+  }
+  const hasResolvedEscapeAnchor = input.escapePoint.status !== 'INSUFFICIENT_EVIDENCE' && Boolean(input.escapePoint.statement)
+  const contextualEvidence = input.factualExtraction.evidence
+    .filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
+    .filter((item) => !hasResolvedEscapeAnchor || phaseCompatible(input.escapePoint.earliestCandidate ?? input.escapePoint.statement ?? '', item.statement))
+    .filter((item) => !hasResolvedEscapeAnchor || contextRelevance(item) >= 3)
+    .sort((a, b) => contextRelevance(b) - contextRelevance(a) || a.sourceSentenceIndex - b.sourceSentenceIndex)
   const explicitContributorEvidence = input.factualExtraction.evidence.filter((item) =>
     item.sourceSection === 'REPORT_ANALYSIS' &&
     item.assertionStatus === 'AFFIRMED' &&
@@ -122,16 +177,40 @@ export function runStep09Preconditions(input: {
     if (category && categoryEvidence[category]) categoryEvidence[category].rejectedByInvestigation = true
   }
 
+  const canonicalProfileFor = (evidenceSet: (typeof categoryEvidence)[string]) => {
+    const canonicalCounts = new Map<SeraCanonicalPreconditionCategory, number>()
+    for (const item of evidenceSet.sourceEvidence) {
+      const canonical = classifyCanonicalPrecondition(item.statement)
+      if (canonical) canonicalCounts.set(canonical, (canonicalCounts.get(canonical) ?? 0) + 1)
+    }
+    const canonicalCategory = [...canonicalCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+    const likelyForActiveFailureCodes = canonicalCategory
+      ? activeFailureCodes.filter((code) => (SERA_MOST_LIKELY_PRECONDITIONS[code] ?? []).includes(canonicalCategory))
+      : []
+    return { canonicalCategory, likelyForActiveFailureCodes }
+  }
+
   const confidenceFor = (category: string, evidenceSet: (typeof categoryEvidence)[string]) => {
     if (!causalBoundaryResolved) return 'LOW' as const
     if (evidenceSet.rejectedByInvestigation && !evidenceSet.explicitInvestigationSupport) return 'LOW' as const
     if (evidenceSet.explicitInvestigationSupport) return evidenceSet.sourceEvidence.length >= 2 ? 'HIGH' as const : 'MEDIUM' as const
     if (evidenceSet.investigationOnly) return 'LOW' as const
     const base = confidenceFromCount(evidenceSet.texts.length)
+    const canonical = canonicalProfileFor(evidenceSet).canonicalCategory
+    const outsideLikely = canonical && activeFailureCodes.length > 0 && !mostLikelyCanonical.has(canonical)
+    if (outsideLikely && base === 'HIGH') return 'MEDIUM' as const
     return category === 'ATTENTION_WORKLOAD_CONTEXT' && base === 'HIGH' ? 'MEDIUM' as const : base
   }
 
-  return Object.entries(categoryEvidence).map(([category, evidenceSet]) => ({
+  return Object.entries(categoryEvidence).map(([category, evidenceSet]) => {
+    const canonicalProfile = canonicalProfileFor(evidenceSet)
+    const rankedSourceEvidence = [...evidenceSet.sourceEvidence]
+      .sort((a, b) => contextRelevance(b) - contextRelevance(a) || a.sourceSentenceIndex - b.sourceSentenceIndex)
+      .slice(0, 5)
+    const rankedTexts = rankedSourceEvidence.length
+      ? rankedSourceEvidence.map((item) => item.statement)
+      : evidenceSet.texts.slice(0, 5)
+    return {
     id: `PC-EVIDENCE-${category}`,
     label: category,
     description: !causalBoundaryResolved
@@ -146,11 +225,15 @@ export function runStep09Preconditions(input: {
         ? (input.locale === 'pt-BR'
             ? 'Fator indicado pela investigação, preservado como hipótese contextual e não confirmado como pré-condição causal.'
             : 'Factor indicated by the investigation, retained as a contextual hypothesis and not confirmed as a causal precondition.')
-        : (input.locale === 'pt-BR'
-            ? (CATEGORY_DESCRIPTION[category] ?? 'Pré-condição candidata sustentada por evidência e mantida separada do ponto de fuga e da falha ativa.')
-            : (CATEGORY_DESCRIPTION_EN[category] ?? 'Candidate precondition supported by evidence and kept separate from the escape point and active failure.')),
+        : canonicalProfile.canonicalCategory
+          ? (input.locale === 'pt-BR'
+              ? SERA_PRECONDITION_META[canonicalProfile.canonicalCategory].definitionPt
+              : SERA_PRECONDITION_META[canonicalProfile.canonicalCategory].definitionEn)
+          : (input.locale === 'pt-BR'
+              ? (CATEGORY_DESCRIPTION[category] ?? 'Pré-condição candidata sustentada por evidência e mantida separada do ponto de fuga e da falha ativa.')
+              : (CATEGORY_DESCRIPTION_EN[category] ?? 'Candidate precondition supported by evidence and kept separate from the escape point and active failure.')),
     category: category as SeraPreconditionCandidate['category'],
-    evidence: evidenceSet.texts,
+    evidence: rankedTexts,
     relationship: !causalBoundaryResolved
       ? 'UNRELATED_OR_UNSUPPORTED'
       : evidenceSet.rejectedByInvestigation && !evidenceSet.explicitInvestigationSupport
@@ -158,12 +241,28 @@ export function runStep09Preconditions(input: {
         : evidenceSet.explicitInvestigationSupport
           ? 'CONTEXTUAL_PRECONDITION'
           : evidenceSet.investigationOnly ? 'UNRELATED_OR_UNSUPPORTED' : relationshipForEvidence(evidenceSet.sourceEvidence),
-    sourceEvidence: evidenceSet.sourceEvidence,
-    sourceRuleIds: [CATEGORY_RULE_ID[category]],
+    sourceEvidence: rankedSourceEvidence,
+    sourceRuleIds: canonicalProfile.canonicalCategory
+      ? [
+          `SERA-HENDY-ANNEX-B-${canonicalProfile.canonicalCategory}`,
+          ...(canonicalProfile.likelyForActiveFailureCodes.length
+            ? canonicalProfile.likelyForActiveFailureCodes.map((code) => `SERA-HENDY-TABLE1-${code}-${canonicalProfile.canonicalCategory}`)
+            : []),
+        ]
+      : [CATEGORY_RULE_ID[category]],
     linkedActor: causalBoundaryResolved ? input.directActor.actor : null,
     explicitlyNotEscapePoint: true,
     basedOnCandidateCode: false,
     nonFinal: true,
-    confidence: confidenceFor(category, evidenceSet),
-  }))
+    confidence: confidenceFor(category, { ...evidenceSet, texts: rankedTexts, sourceEvidence: rankedSourceEvidence }),
+    canonicalCategory: canonicalProfile.canonicalCategory,
+    canonicalLevel: canonicalProfile.canonicalCategory ? SERA_PRECONDITION_META[canonicalProfile.canonicalCategory].level : null,
+    likelyForActiveFailureCodes: canonicalProfile.likelyForActiveFailureCodes,
+    methodologyMatch: !causalBoundaryResolved || !canonicalProfile.canonicalCategory
+      ? 'HYPOTHESIS_ONLY'
+      : canonicalProfile.likelyForActiveFailureCodes.length > 0
+        ? 'MOST_LIKELY_AND_EVIDENCED'
+        : 'EVIDENCED_OUTSIDE_MOST_LIKELY_SET',
+    }
+  })
 }

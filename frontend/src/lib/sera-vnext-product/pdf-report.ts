@@ -6,6 +6,8 @@ import { localizeActor, localizeAssuranceText, localizeRationale } from '@/lib/s
 import { SERA_PT_V1_TREE } from '@/lib/sera-vnext/canonical-tree/sera-pt-v1'
 import { buildExecutiveSummary, computeCandidateAttention, friendlyAnswerLabel, friendlyNodeLabel } from '@/lib/sera-vnext/presentation'
 import { buildCanonicalFlowVisualModel } from '@/lib/sera-vnext/canonical-flow-visual'
+import { SERA_PRECONDITION_META } from '@/lib/sera-vnext/precondition-taxonomy'
+import { buildSeraHfacsBridge } from '@/lib/sera-vnext/hfacs-bridge'
 import type {
   SeraVNextAnalysisRecord,
   SeraVNextReviewRecord,
@@ -262,7 +264,7 @@ function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, pt: boolean)
   for (const leaf of leaves) if (!leafOrder.includes(leaf.id)) leafOrder.push(leaf.id)
 
   const treeTop = legendY + 31
-  const treeBottom = doc.page.height - doc.page.margins.bottom - 16
+  const treeBottom = doc.page.height - doc.page.margins.bottom - 118
   const maxDepth = Math.max(...depth.values(), 1)
   const levelGap = (treeBottom - treeTop - 38) / maxDepth
   const leafStep = width / Math.max(leafOrder.length, 1)
@@ -284,8 +286,9 @@ function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, pt: boolean)
     const d = depth.get(node.id)
     if (d === undefined) continue
     const isTerminal = node.kind === 'terminal'
-    const w = isTerminal ? Math.min(67, Math.max(52, leafStep - 7)) : 93
-    const h = isTerminal ? 34 : 32
+    const isRoot = node.sourceId.endsWith('_ROOT')
+    const w = isTerminal ? Math.min(64, Math.max(50, leafStep - 8)) : isRoot ? 170 : 126
+    const h = isTerminal ? 32 : isRoot ? 66 : 72
     const cx = resolveX(node.id)
     const y = treeTop + d * levelGap
     geom.set(node.id, { x: cx - w / 2, y, w, h })
@@ -317,21 +320,65 @@ function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, pt: boolean)
     if (!g) continue
     const fill = node.selected ? '#15803d' : node.active ? accentLight : '#f8fafc'
     const stroke = node.selected ? '#166534' : node.active ? activeStroke : '#94a3b8'
-    doc.roundedRect(g.x, g.y, g.w, g.h, node.kind === 'terminal' ? 10 : 4)
-      .lineWidth(node.active || node.selected ? 1.8 : 0.8)
-      .fillAndStroke(fill, stroke)
+    const isRoot = node.sourceId.endsWith('_ROOT')
+    doc.lineWidth(node.active || node.selected ? 1.8 : 0.8)
+    if (node.kind === 'terminal') {
+      doc.roundedRect(g.x, g.y, g.w, g.h, 10).fillAndStroke(fill, stroke)
+    } else if (isRoot) {
+      doc.roundedRect(g.x, g.y, g.w, g.h, 8).fillAndStroke(fill, stroke)
+    } else {
+      doc.polygon(
+        [g.x + g.w / 2, g.y],
+        [g.x + g.w, g.y + g.h / 2],
+        [g.x + g.w / 2, g.y + g.h],
+        [g.x, g.y + g.h / 2],
+      ).fillAndStroke(fill, stroke)
+    }
     if (node.kind === 'terminal') {
       doc.font('Helvetica-Bold').fontSize(7).fillColor(node.selected ? '#ffffff' : '#334155')
-        .text(node.code ?? '', g.x + 4, g.y + 6, { width: g.w - 8, align: 'center', lineBreak: false })
-      doc.font('Helvetica').fontSize(5.6).fillColor(node.selected ? '#dcfce7' : '#64748b')
-        .text(node.label, g.x + 3, g.y + 17, { width: g.w - 6, align: 'center', height: 14, ellipsis: true })
+        .text(node.code ?? '', g.x + 4, g.y + 5, { width: g.w - 8, align: 'center', lineBreak: false })
+      doc.font('Helvetica').fontSize(5.3).fillColor(node.selected ? '#dcfce7' : '#64748b')
+        .text(node.label, g.x + 3, g.y + 16, { width: g.w - 6, align: 'center', height: 13, ellipsis: true })
     } else {
-      doc.font('Helvetica-Bold').fontSize(6.4).fillColor(node.active ? activeStroke : '#475569')
-        .text(node.label, g.x + 5, g.y + 8, { width: g.w - 10, align: 'center', height: 18, ellipsis: true })
+      if (node.stepNumber) {
+        doc.circle(g.x + 9, g.y + 8, 6).fill(activeStroke)
+        doc.font('Helvetica-Bold').fontSize(6.2).fillColor('#ffffff')
+          .text(String(node.stepNumber), g.x + 5.5, g.y + 4.6, { width: 7, align: 'center', lineBreak: false })
+      }
+      const questionTop = g.y + (isRoot ? 8 : 12)
+      const questionHeight = node.activeAnswer ? (isRoot ? 38 : 43) : (isRoot ? 50 : 54)
+      const questionFont = node.label.length > 135 ? 4.15 : node.label.length > 95 ? 4.5 : isRoot ? 4.9 : 4.7
+      doc.font('Helvetica-Bold').fontSize(questionFont).fillColor(node.active ? activeStroke : '#475569')
+        .text(node.label, g.x + 12, questionTop, { width: g.w - 24, align: 'center', height: questionHeight })
+      if (node.activeAnswer) {
+        doc.font('Helvetica-Bold').fontSize(4.9).fillColor(node.active ? activeStroke : '#64748b')
+          .text((pt ? 'Resposta: ' : 'Answer: ') + node.activeAnswer, g.x + 12, g.y + g.h - 16, { width: g.w - 24, align: 'center', height: 10 })
+      }
     }
   }
 
-
+  // Didactic reading strip: same numbers as the highlighted flow, with question + answer on the same page.
+  const summaryTop = treeBottom + 18
+  doc.font('Helvetica-Bold').fontSize(8).fillColor('#31485e')
+    .text(pt ? 'Leitura da trajetória destacada' : 'Reading the highlighted route', left, summaryTop, { width })
+  const cardsTop = summaryTop + 13
+  const cols = 3
+  const gap = 8
+  const cardW = (width - gap * (cols - 1)) / cols
+  const cardH = 38
+  path.answers.slice(0, 6).forEach((answer, index) => {
+    const col = index % cols
+    const row = Math.floor(index / cols)
+    const x = left + col * (cardW + gap)
+    const y = cardsTop + row * (cardH + 5)
+    doc.roundedRect(x, y, cardW, cardH, 4).fillAndStroke('#f8fafc', answer.terminalCode ? '#15803d' : '#b8c6d3')
+    doc.circle(x + 12, y + 12, 7).fill(accent)
+    doc.font('Helvetica-Bold').fontSize(7).fillColor('#ffffff').text(String(index + 1), x + 8, y + 8.2, { width: 8, align: 'center', lineBreak: false })
+    doc.font('Helvetica-Bold').fontSize(6.6).fillColor('#31485e')
+      .text(friendlyNodeLabel(answer.nodeId, pt), x + 23, y + 5, { width: cardW - 29, height: 13, ellipsis: true })
+    doc.font('Helvetica').fontSize(6.2).fillColor('#536676')
+      .text((pt ? 'Resposta: ' : 'Answer: ') + friendlyAnswerLabel(answer.answer, pt), x + 23, y + 19, { width: cardW - 29, height: 13, ellipsis: true })
+  })
 }
 
 function renderPath(
@@ -556,7 +603,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     }
 
     heading(doc, '2. ' + L('Fatos-chave utilizados na análise', 'Key facts used in the analysis'))
-    subheading(doc, L('Evidências centrais do ponto de fuga', 'Core escape-point evidence'))
+    subheading(doc, L('Episódio operacional reconstruído ao redor do ponto de fuga', 'Operational episode reconstructed around the escape point'))
     bullets(doc, output.escapePoint.supportingEvidence.slice(0, 5), L('Nenhuma evidência central registrada.', 'No core evidence recorded.'))
     if (output.escapePoint.excludedPostEscapeEvidence.length) {
       subheading(doc, L('Fatos posteriores preservados, mas não usados como causa', 'Later facts retained but not used as causes'))
@@ -587,6 +634,20 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     }
     subheading(doc, L('Evidência de suporte ao ponto de fuga', 'Escape-point supporting evidence'))
     bullets(doc, output.escapePoint.supportingEvidence.slice(0, 6), L('Nenhuma evidência registrada.', 'No evidence recorded.'))
+    if (output.escapePoint.humanFactorGate) {
+      meta(doc, L('Gate de âncora de Fatores Humanos', 'Human-Factor anchor gate'), output.escapePoint.humanFactorGate.status)
+      meta(doc, L('Tipo de âncora SERA', 'SERA anchor type'), value(output.escapePoint.humanFactorGate.anchorType, L('não estabelecida', 'not established')))
+      bullets(doc, output.escapePoint.humanFactorGate.rationale)
+    }
+    const alternativeEpisodes = (output.escapePoint.episodeCandidates ?? []).filter((episode) => !episode.selected)
+    if (alternativeEpisodes.length) {
+      subheading(doc, L('Outras sequências humanas/contextuais detectadas — não são pontos de fuga automáticos', 'Other human/contextual sequences detected — not automatic escape points'))
+      bullets(doc, alternativeEpisodes.slice(0, 5).map((episode) => `${episode.phase} / ${episode.seraRole ?? 'UNRESOLVED'}: ${episode.anchorStatement}`))
+      body(doc, L(
+        'A visão global serve para localizar o ato/condição humana relevante e suas pré-condições. O SERA analisa um ato inseguro por vez: outra sequência só pode receber P/O/A após estabelecer sua própria âncora humana, ator direto e travessia canônica completa. Falhas técnicas, meteorologia e condições organizacionais permanecem contexto/pré-condições quando não constituem essa âncora.',
+        'The global view is used to locate the relevant human act/condition and its preconditions. SERA analyses one unsafe act at a time: another sequence can receive P/O/A only after establishing its own human-factor anchor, direct actor, and complete canonical traversal. Technical failures, weather, and organizational conditions remain context/preconditions when they do not constitute that anchor.',
+      ))
+    }
     subheading(doc, L('Contraevidência / incertezas do limite', 'Counter-evidence / boundary uncertainty'))
     bullets(doc, output.escapePoint.counterEvidence.slice(0, 6), L('Nenhuma contraevidência registrada.', 'No counter-evidence recorded.'))
     subheading(doc, L('Evidência posterior excluída da cadeia causal', 'Post-escape evidence excluded from the causal chain'))
@@ -640,6 +701,11 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     }
 
     heading(doc, '7. ' + L('Pré-condições e hipóteses contextuais', 'Preconditions and contextual hypotheses'))
+    body(doc, L(
+      'No SERA, as pré-condições explicam por que a falha ativa se tornou mais provável. A Tabela 1 de Hendy e o Anexo B, aplicado por Daumas, indicam as pré-condições mais prováveis para cada tipo de falha. Essa lista orienta a investigação, mas não cria uma pré-condição automaticamente: cada item abaixo continua exigindo evidência do evento.',
+      'In SERA, preconditions explain why the active failure became more likely. Hendy Table 1 and Annex B, as applied by Daumas, identify the most likely preconditions for each failure type. The list guides the investigation but does not create a precondition automatically: every item below still requires event evidence.',
+    ), 'justify')
+    doc.moveDown(0.35)
     const supportedPreconditions = output.preconditions.filter((pc) =>
       pc.relationship === 'CONTEXTUAL_PRECONDITION' || pc.relationship === 'ENABLING_PRECONDITION',
     )
@@ -649,9 +715,14 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     const renderPrecondition = (pc: typeof output.preconditions[number], hypothesis: boolean) => {
       keepTogether(doc, 110)
       const reviewCard = reviewerOutput.preconditionReview.cards.find((card) => card.category === pc.category)
+      const canonicalMeta = pc.canonicalCategory ? SERA_PRECONDITION_META[pc.canonicalCategory] : null
+      const canonicalName = canonicalMeta ? (pt ? canonicalMeta.pt : canonicalMeta.en) : categoryLabel(pc.category)
       doc.font('Helvetica-Bold').fontSize(9.5).fillColor(hypothesis ? '#8a5a00' : '#1d4f73')
-        .text(categoryLabel(pc.category) + ' - ' + confidenceLabel(pc.confidence, pt))
+        .text(canonicalName + ' - ' + confidenceLabel(pc.confidence, pt))
       body(doc, pc.description)
+      if (canonicalMeta) meta(doc, L('Nível SERA', 'SERA level'), canonicalMeta.level)
+      if (pc.methodologyMatch) meta(doc, L('Relação com a tabela de pré-condições prováveis', 'Relationship to the most-likely preconditions table'), pc.methodologyMatch)
+      if (pc.likelyForActiveFailureCodes?.length) meta(doc, L('Pré-condição provável para', 'Most likely for'), pc.likelyForActiveFailureCodes.join(', '))
       meta(doc, L('Relação com a falha', 'Relationship to the failure'), relationshipLabel(pc.relationship))
       meta(doc, L('Ator associado', 'Associated actor'), value(localizeActor(pc.linkedActor, locale)))
       meta(doc, L('Regra(s) de origem', 'Source rule(s)'), pc.sourceRuleIds.join(', '))
@@ -680,6 +751,21 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       }
     }
 
+    heading(doc, '8. ' + L('Correspondência SERA / HFACS', 'SERA / HFACS correspondence'))
+    const hfacsBridge = buildSeraHfacsBridge(
+      [output.axes.perception.proposedCode, output.axes.objective.proposedCode, output.axes.action.proposedCode],
+      output.preconditions.map((pc) => pc.canonicalCategory ?? null),
+    )
+    body(doc, L(
+      'Esta é uma ponte de classificação posterior ao SERA, baseada nas Tabelas 3 a 6 de Hendy. Ela não altera o caminho da árvore nem serve para escolher códigos SERA. O próprio Hendy ressalta que a correspondência não é um-para-um e deve ser resolvida pelo contexto do ato inseguro.',
+      'This is a post-SERA classification bridge based on Hendy Tables 3–6. It does not alter the tree path or select SERA codes. Hendy explicitly notes that the correspondence is not one-to-one and must be resolved from the unsafe-act context.',
+    ), 'justify')
+    doc.moveDown(0.25)
+    subheading(doc, L('Falhas ativas SERA — melhor correspondência HFACS/AGA135', 'SERA active failures — best-fit HFACS/AGA135 correspondence'))
+    bullets(doc, hfacsBridge.activeFailures.map((item) => `${item.level}: ${item.hfacs}`), L('Nenhuma correspondência disponível enquanto P/O/A permanecer não resolvido.', 'No correspondence is available while P/O/A remains unresolved.'))
+    subheading(doc, L('Pré-condições SERA — melhor correspondência HFACS/AGA135', 'SERA preconditions — best-fit HFACS/AGA135 correspondence'))
+    bullets(doc, hfacsBridge.preconditions.map((item) => `${item.level}: ${item.hfacs}`), L('Nenhuma pré-condição confirmada para mapeamento.', 'No confirmed precondition available for mapping.'))
+
     const operationalObservations = output.factualExtraction.evidence
       .filter((item) =>
         item.sourceSection === 'REPORT_ANALYSIS' &&
@@ -690,16 +776,14 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       .filter((item, index, all) => all.indexOf(item) === index)
       .slice(0, 6)
 
-    if (operationalObservations.length) {
-      heading(doc, '8. ' + L('Barreiras e observações operacionais', 'Operational barriers and observations'))
-      body(doc, L(
-        'Itens explicitamente registrados pela investigação e preservados para revisão humana, sem convertê-los automaticamente em pré-condições causais.',
-        'Items explicitly recorded by the investigation and retained for human review without automatically converting them into causal preconditions.',
-      ), 'justify')
-      bullets(doc, operationalObservations)
-    }
+    heading(doc, '9. ' + L('Barreiras e observações operacionais', 'Operational barriers and observations'))
+    body(doc, L(
+      'Itens explicitamente registrados pela investigação e preservados para revisão humana, sem convertê-los automaticamente em pré-condições causais.',
+      'Items explicitly recorded by the investigation and retained for human review without automatically converting them into causal preconditions.',
+    ), 'justify')
+    bullets(doc, operationalObservations, L('Nenhuma barreira ou observação operacional adicional foi identificada nesta análise.', 'No additional operational barrier or observation was identified in this analysis.'))
 
-    heading(doc, '9. ' + L('Conclusão e próximos passos', 'Conclusion and next steps'))
+    heading(doc, '10. ' + L('Conclusão e próximos passos', 'Conclusion and next steps'))
     const analysisReady = output.evidenceSufficiency.status === 'SUFFICIENT_FOR_CANDIDATE_ANALYSIS' && !Object.values(output.guardrails).some(Boolean)
     body(doc, analysisReady
       ? L(
@@ -743,12 +827,16 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     const postEscape = evidenceItems.filter((item) => item.temporalRelation === 'POST_ESCAPE')
     const analysisOnly = evidenceItems.filter((item) => item.sourceSection === 'REPORT_ANALYSIS' || item.sourceSection === 'RECOMMENDATION')
     const referenceOnly = evidenceItems.filter((item) => ['NON_CAUSAL_DOCUMENT', 'REFERENCE_PROCEDURE', 'SYSTEM_DESCRIPTION'].includes(item.evidenceType))
+    const historicalComparators = evidenceItems.filter((item) => item.occurrenceScope === 'HISTORICAL_COMPARATOR')
+    const currentEventItems = evidenceItems.filter((item) => item.occurrenceScope === 'CURRENT_EVENT')
     meta(doc, L('Itens de evidência indexados', 'Indexed evidence items'), String(evidenceItems.length))
     meta(doc, L('Fatores explicitamente rejeitados no relatório-fonte', 'Factors explicitly rejected by the source report'), String(rejected.length))
     meta(doc, L('Afirmações incertas/hipotéticas', 'Uncertain/hypothetical statements'), String(uncertain.length))
     meta(doc, L('Itens pós-ponto de fuga', 'Post-escape items'), String(postEscape.length))
     meta(doc, L('Itens de análise/recomendação não usados como fato causal', 'Analysis/recommendation items not used as causal facts'), String(analysisOnly.length))
     meta(doc, L('Material documental/de referência excluído da causalidade', 'Document/reference material excluded from causality'), String(referenceOnly.length))
+    meta(doc, L('Itens do evento atual', 'Current-event items'), String(currentEventItems.length))
+    meta(doc, L('Itens históricos/comparadores proibidos como causa direta', 'Historical/comparator items prohibited as direct causes'), String(historicalComparators.length))
     subheading(doc, L('Fatores que o relatório-fonte declarou como não contribuintes', 'Factors the source report declared non-contributory'))
     bullets(doc, rejected.slice(0, 8).map((item) => item.statement))
     subheading(doc, L('Hipóteses ou formulações incertas preservadas como incerteza', 'Hypotheses or uncertain formulations retained as uncertainty'))

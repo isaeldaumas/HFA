@@ -11,8 +11,10 @@ export function normalizeRiskProfileVNextPreconditions(engineOutput: unknown): s
   return value
     .map((item) => {
       if (!item || typeof item !== 'object') return null
-      const candidate = item as { category?: unknown; relationship?: unknown }
+      const candidate = item as { category?: unknown; canonicalCategory?: unknown; relationship?: unknown; methodologyMatch?: unknown }
       if (typeof candidate.relationship !== 'string' || !RISK_PROFILE_RELATIONSHIPS.has(candidate.relationship)) return null
+      if (candidate.methodologyMatch === 'HYPOTHESIS_ONLY') return null
+      if (typeof candidate.canonicalCategory === 'string' && candidate.canonicalCategory.trim().length > 0) return candidate.canonicalCategory
       return typeof candidate.category === 'string' && candidate.category.trim().length > 0 ? candidate.category : null
     })
     .filter((category): category is string => !!category)

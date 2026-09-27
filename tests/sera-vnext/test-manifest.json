@@ -2193,5 +2193,45 @@
     "expectedExit": 0,
     "expectedStatus": "PASS",
     "runtimeScope": "CURRENT"
+  },
+  {
+    "path": "tests/sera-vnext/sera-canonical-preconditions-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT",
+    "dataAccess": "NONE"
+  },
+  {
+    "path": "tests/sera-vnext/sera-hendy-risk-management-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT",
+    "dataAccess": "NONE"
+  },
+  {
+    "path": "tests/sera-vnext/sera-hfacs-bridge-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT",
+    "dataAccess": "NONE"
+  },
+  {
+    "path": "tests/sera-vnext/risk-profile-sera-methodology-ui-contract-trial-001.ts",
+    "type": "STATIC",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT",
+    "dataAccess": "NONE"
   }
 ]

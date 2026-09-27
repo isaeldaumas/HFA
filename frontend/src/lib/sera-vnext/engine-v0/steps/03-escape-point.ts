@@ -1,5 +1,5 @@
 import type { SeraSupplementalEvidenceInput, SeraTimelineItem, SeraVNextEngineInput, SeraVNextEngineOutput } from '../../engine-contract'
-import { buildCandidateEscapeWindow } from '../candidate-escape-window'
+import { buildCandidateEscapeWindow, classifyHumanFactorEscapeStatement } from '../candidate-escape-window'
 import { isOperationalEventStatement } from '../factual-extraction-helpers'
 import { excludedPostEscapeEvidence } from '../utils'
 
@@ -8,12 +8,20 @@ function formatEscapeStatement(candidate: string | null, locale: SeraVNextEngine
   const clean = candidate
     .replace(/^\s*(?:ponto de fuga\s*[:\-–—]?\s*)?/i, '')
     .replace(/^\s*\d+(?:\.\d+)*\s*/, '')
+    .replace(/^\s*(?:[a-z]\)|[-•▪])\s*/i, '')
     .replace(/^[\s“"']*(por[eé]m|contudo|entretanto|todavia)[,;:]?\s*/i, '')
     .replace(/\b(?:numa|em uma) vis[aã]o de t[uú]nel,?\s*/i, '')
     .replace(/[\s”"']+$/g, '')
     .trim()
 
   if (/^(quando|when)\b/i.test(clean)) return clean.charAt(0).toUpperCase() + clean.slice(1)
+
+  const dispatchDespite = clean.replace(/[.;,\s]+$/g, '').match(/^a despeito d[aeo] (.+?),\s*(a aeronave foi despachada .+)$/i)
+  if (dispatchDespite?.[1] && dispatchDespite?.[2]) {
+    return locale === 'pt-BR'
+      ? `Quando ${dispatchDespite[2]}, apesar de ${dispatchDespite[1]}.`
+      : `When ${dispatchDespite[2]}, despite ${dispatchDespite[1]}.`
+  }
 
   if (
     /\b(inspe[cç][aã]o (?:de )?pr[eé][ -]?voo|pr[eé][ -]?voo|preflight inspection)\b/i.test(clean) &&
@@ -44,8 +52,7 @@ function usableDirectEscapeClarification(statement: string): boolean {
   const text = statement.trim()
   if (!text) return false
   if (/^(n[aã]o sei|desconhecido|n[aã]o informado|n[aã]o foi poss[ií]vel|indeterminado|unknown|not known|not determined)\b/i.test(text)) return false
-  return /^\s*(?:(?:ponto de fuga|escape point)\s*[:\-–—]?\s*)?(?:quando|when)\b/i.test(text)
-    || /\b(decidiu|iniciou|concluiu|liberou|considerou|executou|omitiu|deixou de|prosseguiu|selecionou|acionou|inspe[cç][aã]o|pre[- ]?voo|decided|initiated|completed|released|considered|executed|omitted|failed to|continued|selected|preflight)\b/i.test(text)
+  return classifyHumanFactorEscapeStatement(text) !== null
 }
 
 function escapeConfidence(args: {
@@ -87,6 +94,8 @@ export function runStep03EscapePoint(input: {
         latestCandidate: directClarification.statement,
         supportingEvidence: [directClarification.statement],
         counterEvidence: [],
+        episodeCandidates: [{ phase: 'GENERIC' as const, anchorStatement: directClarification.statement, supportingEvidence: [directClarification.statement], occurrenceScope: 'CURRENT_EVENT' as const, seraRole: 'HUMAN_FACTOR_CANDIDATE' as const, humanFactorEligible: true, selected: true }],
+        humanFactorGate: { status: 'PASSED' as const, anchorType: classifyHumanFactorEscapeStatement(directClarification.statement), rationale: ['Human clarification identifies an observable unsafe act/inaction or operator-controlled unsafe condition.'] },
       }
     : null
   const selectedWindow = clarificationWindow.statement
@@ -115,11 +124,13 @@ export function runStep03EscapePoint(input: {
     supportingEvidence: selectedWindow.supportingEvidence,
     counterEvidence: selectedWindow.counterEvidence,
     excludedPostEscapeEvidence: excludedPostEscapeEvidence(input.factualExtraction.timeline, latestSentenceIndex),
+    episodeCandidates: selectedWindow.episodeCandidates,
     confidence: escapeConfidence({
       candidate: selectedWindow.earliestCandidate,
       supportCount: selectedWindow.supportingEvidence.length,
       counterCount: selectedWindow.counterEvidence.length,
       fromDirectClarification: selectedWindow === directClarificationWindow || selectedWindow === clarificationWindow,
     }),
+    humanFactorGate: selectedWindow.humanFactorGate,
   }
 }

@@ -1,4 +1,4 @@
-import type { SeraAssertionStatus, SeraEvidenceSourceSection } from '../engine-contract'
+import type { SeraAssertionStatus, SeraEvidenceSourceSection, SeraOccurrenceScope } from '../engine-contract'
 
 export const OUTCOME_KEYWORDS = [
   'crash',
@@ -11,7 +11,6 @@ export const OUTCOME_KEYWORDS = [
   'fell',
   'hit',
   'strike',
-  'acidente',
   'impacto',
   'colisão',
   'colisao',
@@ -29,6 +28,7 @@ type SourceSentence = {
   sourceSentenceIndex: number
   sourceSection: SeraEvidenceSourceSection
   assertionStatus: SeraAssertionStatus
+  occurrenceScope: SeraOccurrenceScope
 }
 
 type ExtractedFact = SourceSentence & { category: ExtractedFactCategory }
@@ -66,7 +66,7 @@ function normalize(input: string): string {
 export function isNonCausalDocumentStatement(statement: string): boolean {
   const text = normalize(statement)
   if (!text) return true
-  if (/^(comando da aeronautica|centro de investigacao e prevencao de acidentes aeronauticos|relatorio final|advertencia|glossario|sumario|indice)\b/.test(text)) return true
+  if (/^(comando da aeronautica|centro de investigacao e prevencao de acidentes aeronauticos|relatorio final|advertencia|glossario|sumario|indice)\b/.test(text) || /^fonte\s*:/.test(text) || /^figura\s+\d+\b/.test(text)) return true
   if (/^\d+\s+de\s+\d+\b/.test(text) || /\.{5,}/.test(statement)) return true
   if (/\bobjetivo unico deste trabalho\b|\bcompete ao sistema de investigacao e prevencao de acidentes aeronauticos\b|\bnao e foco da investigacao sipaer\b/.test(text)) return true
   if (/\beste relatorio final foi disponibilizado\b|\bpresidente, diretor, chefe\b.*\bprovidencias\b/.test(text)) return true
@@ -78,7 +78,7 @@ export function isProcedureReferenceStatement(statement: string): boolean {
   const text = normalize(statement)
   const source = /\b(fcom|qrh|afm|mel|manual|procedimento|procedure|checklist|regulamento|norma)\b/.test(text)
   const normative = /\b(estabelecia|determinava|previa|exigia|requeria|deveria|devia|era necessario|era obrigatorio|required|mandated|specified|stated|should|must)\b/.test(text)
-  const occurred = /\b(nao executou|nao realizou|deixou de|falhou em|executou|realizou|cumpriu|descumpriu|foi executado|foi realizado)\b/.test(text)
+  const occurred = /\b(nao executou|nao realizou|deixou de|falhou em|executou|realizou|cumpriu|descumpriu|foi executado|foi realizado|nao foi executad[oa]|nao foi realizad[oa]|nao foram executad[oa]s|nao foram realizad[oa]s|nao foram cumprid[oa]s|were not executed|were not performed|was not executed|was not performed)\b/.test(text)
   const actorAwareness = /\b(captain|first officer|pilot|crew|comandante|copiloto|piloto|tripulacao)\b.*\b(said|stated|knew|was aware|recognized|noted|commented|disse|afirmou|sabia|conhecia|ciente|reconheceu|comentou)\b/.test(text)
   return source && normative && !occurred && !actorAwareness
 }
@@ -86,28 +86,58 @@ export function isProcedureReferenceStatement(statement: string): boolean {
 export function isSystemDescriptionStatement(statement: string): boolean {
   const text = normalize(statement)
   if (isNonCausalDocumentStatement(statement)) return false
-  const definition = /\b(era responsavel|tinha a funcao|era composto|era constituido|possuia|permitia|armava|ativava|correspondia|provia|indicava|servia para|poderia prover|poderia ser|deveria ser testado)\b/.test(text)
+  const definition = /\b(era responsavel|tinha a funcao|era composto|era constituido|possuia|permitia|armava|ativava|correspondia|provia|indicava|apresentava|fornecia|servia para|ficava localizado|rotacionava livremente|poderia prover|poderia ser|deveria ser testado)\b/.test(text)
   const technicalSubject = /\b(sistema|modo|painel|luz|alerta|sensor|apm|afcs|ccas|sps|autopilot|piloto automatico|de-icing|anti-icing|stick pusher|stick shaker|approach \(app|app - aproximacao)\b/.test(text)
   const eventAnchor = /\b(as \d{1,2}h\d{2}|\d{1,2}:\d{2}|durante o voo|naquele voo|no voo do acidente|a tripulacao|o comandante|o copiloto|o pic|o sic)\b/.test(text)
   return definition && technicalSubject && !eventAnchor
 }
 
+export function isExplicitOperationalOmissionStatement(statement: string): boolean {
+  const text = normalize(statement)
+  return /\b(procedimentos?|checklists?|acoes?|itens?|steps?|procedures?)\b.*\b(nao (?:foi|foram) (?:executad[oa]s?|realizad[oa]s?|cumprid[oa]s?|aplicad[oa]s?)|were not (?:executed|performed|completed|followed)|was not (?:executed|performed|completed|followed))\b/.test(text)
+    || /\b(nao executou|nao realizou|nao cumpriu|deixou de executar|deixou de realizar|failed to execute|failed to perform|did not execute|did not perform)\b/.test(text)
+}
+
+export function isExplicitOperationalDeviationStatement(statement: string): boolean {
+  const text = normalize(statement)
+  return /\b(aeronave|aircraft)\b.*\b(foi despachad[ao]|was dispatched)\b.*\b(sem|without|apesar|despite)\b.*\b(mel|restri[cç][oõ]es?|restriction|falha|fault|pane)\b/.test(text)
+    || /\b(condi[cç][oõ]es?|weather|meteorolog)\b.*\b(nao foram avaliadas adequadamente|n[aã]o foram avaliadas adequadamente|were not adequately assessed)\b.*\b(cco|dov|pic|dispatch|dispatcher|pilot)\b/.test(text)
+    || /\b(manteve|mantiveram|permaneceu|permaneceram|continued|remained)\b.*\b(condi[cç][aã]o|gelo|icing|falha|fault|degradad|unsafe|insegur)\b/.test(text)
+}
+
 export function isOperationalEventStatement(statement: string): boolean {
   if (isNonCausalDocumentStatement(statement) || isProcedureReferenceStatement(statement) || isSystemDescriptionStatement(statement)) return false
+  if (isExplicitOperationalOmissionStatement(statement) || isExplicitOperationalDeviationStatement(statement)) return true
   const text = normalize(statement)
   const actorAction = /\b(tripulacao|comandante|copiloto|pic|sic|piloto|pilot|crew|captain|first officer|eles|they|maintenance|manutencao|despachante|dov|cco)\b.*\b(decidiu|decidiram|continuou|continuaram|prosseguiu|prosseguiram|manteve|mantiveram|selecionou|acionou|desligou|ligou|executou|omitiu|deixou de|falhou|iniciou|iniciado|iniciada|inseriu|programou|ajustou|configurou|verbalizou|informou|comentou|observou|notou|percebeu|reconheceu|processou|perdeu|interpretou|interpretaram|identificou|identificaram|confundiu|confundiram|associou|associaram|tratou|trataram|conduziu|conduziram|preparou|prepararam|passou|passaram|tomou|tomaram|hesitou|hesitaram|demorou|demoraram|esperou|esperaram|desceu|desceram|subiu|subiram|moveu|moveram|alinhou|alinharam|permitiu|permitiram|continued|decided|selected|executed|failed to|did not|descended|climbed|moved|lined up|allowed|initiated|started|inserted|programmed|configured|noticed|perceived|recognized|processed|lost|interpreted|identified|misidentified|mistook|treated|conducted|prepared|proceeded|treated|hesitated|delayed|waited)\b/.test(text)
-  const eventTime = /\b(as \d{1,2}h\d{2}|\d{1,2}:\d{2}|apos|depois|durante o voo|em seguida|logo apos|na sequencia|when|after|during the flight|then)\b/.test(text)
-  const eventVerb = /\b(foi apresentada|foi detectad|detectou|atingiu|reduziu|aumentou|entrou em|recebeu|apresentou|ocorreu|ativou|desativou|reconheceu|identified|detected|received|entered|activated)\b/.test(text)
-  const preflight = /\b(inspecao (?:de )?pre[- ]?voo|preflight inspection|inspecao visual|visual inspection)\b.*\b(concluida|completed|nao detectou|nada de anormal|nenhuma anormalidade|no abnormality|nothing abnormal)\b/.test(text)
-  return actorAction || preflight || (eventTime && eventVerb)
+  const eventTime = /\b(as \d{1,2}h\d{2}|\d{1,2}:\d{2}|apos|depois|durante o voo|durante a aproximacao|durante a descida|em seguida|logo apos|na sequencia|when|after|during the flight|during approach|during descent|then)\b/.test(text)
+  const eventVerb = /\b(foi apresentada|foi detectad|detectou|atingiu|reduziu|aumentou|entrou em|recebeu|apresentou|ocorreu|ativou|desativou|reconheceu|desceu|descendeu|permaneceu|alinhou|pousou|identified|detected|received|entered|activated|descended|remained|lined up|landed)\b/.test(text)
+  const preflight = /\b(inspecao (?:de )?pre[- ]?voo|preflight inspection|inspecao visual|visual inspection)\b.*\b(concluida|completed|nao detectou|nada de anormal|nenhuma anormalidade|fora detectad[oa]|no abnormality|nothing abnormal|had been detected)\b/.test(text)
+  const preflightRelease = /\b(aeronave|aircraft|inspecao|inspection)\b.*\b(pre[- ]?voo|preflight)\b.*\b(liberad[ao]|released|considerada apta|considered fit|sem travamento|not secured|unlatched|latches?|fechos?)\b/.test(text)
+    || /\b(pre[- ]?voo|preflight)\b.*\b(aeronave|aircraft)\b.*\b(liberad[ao]|released|considerada apta|considered fit)\b/.test(text)
+  return actorAction || preflight || preflightRelease || (eventTime && eventVerb)
 }
 
 function detectSection(line: string, current: SeraEvidenceSourceSection): SeraEvidenceSourceSection {
   const text = normalize(line)
-  if (/^(?:\d+(?:\.\d+)*\s*)?(recomendacoes?|recomendacoes de seguranca operacional|safety recommendations?|acoes? corretivas?|acoes? preventivas?|licoes? aprendidas?)/.test(text)) return 'RECOMMENDATION'
-  if (/^(?:\d+(?:\.\d+)*\s*)?(informacoes? factuais?|informacoes? sobre o evento|historico|aeronave|tripulacao|relatos?\/registros?|relato do|relato da|entrevista|transcricao)/.test(text)) return 'FACTUAL'
-  if (/^(?:\d+(?:\.\d+)*\s*)?(conclusao|fatores? contribuintes?|atos? ou condicoes? inseguras?|fatores? de supervisao|influencias? organizacionais?|gerenciamento das barreiras|falha na gestao|analise do evento)/.test(text)) return 'REPORT_ANALYSIS'
-  if (/^(?:\d+(?:\.\d+)*\s*)?(objetivo da investigacao|composicao da comissao|classificacao do evento|classificacao do risco|experiencia do|horas totais|validade do|dados da aeronave|advertencia|glossario|sumario|indice|sinopse)/.test(text)) return 'ADMINISTRATIVE'
+  const sectionPrefix = /^(?:\d+(?:\.\d+)*\.?\s*)?/
+  const body = text.replace(sectionPrefix, '')
+  if (/^(recomendacoes?|recomendacoes de seguranca operacional|safety recommendations?|acoes? corretivas?|acoes? preventivas?|licoes? aprendidas?)/.test(body)) return 'RECOMMENDATION'
+  // A report may enter a conclusions section and then explicitly reopen a factual subsection
+  // (for example, "3.1. Fatos"). That subsection must regain factual provenance.
+  if (/^(fatos(?:\s|$)|sumario|sinopse|informacoes? factuais?|informacoes? sobre o evento|historico|aeronave|tripulacao|relatos?\/registros?|relato do|relato da|entrevista|transcricao)/.test(body)) return 'FACTUAL'
+  if (/^(conclusao|fatores? contribuintes?|atos? ou condicoes? inseguras?|fatores? de supervisao|influencias? organizacionais?|gerenciamento das barreiras|falha na gestao|analise do evento)/.test(body)) return 'REPORT_ANALYSIS'
+  if (/^(objetivo da investigacao|composicao da comissao|classificacao do evento|classificacao do risco|experiencia do|horas totais|validade do|dados da aeronave|advertencia|glossario|indice)/.test(body)) return 'ADMINISTRATIVE'
+  return current
+}
+
+function detectOccurrenceScope(line: string, current: SeraOccurrenceScope): SeraOccurrenceScope {
+  const text = normalize(line)
+  if (/\b(voo do acidente|accident flight|flight of the accident)\b/.test(text)) return 'CURRENT_EVENT'
+  if (/\b(voo\s*[-–—]?\s*[123]\b|flight\s*[-–—]?\s*[123]\b|casos especificos com aeronaves da frota|outros? voos? da frota|em outro voo|another flight)\b/.test(text)) return 'HISTORICAL_COMPARATOR'
+  const body = text.replace(/^(?:\d+(?:\.\d+)*\.?\s*)?/, '')
+  if (/^fatos(?:\s|$)/.test(body)) return 'CURRENT_EVENT'
+  if (/^(descricao do sistema|system description|manual|procedimentos?|procedure|informacoes meteorologicas gerais|general information)/.test(body)) return 'GENERAL_CONTEXT'
   return current
 }
 
@@ -124,10 +154,10 @@ function classifyFactCategory(sentence: string): ExtractedFactCategory {
   const text = sentence.toLowerCase()
   if (/\b(crew|pilot|captain|first officer|operator|maintenance|controller|tripula|comandante|copiloto|piloto)\b/.test(text)) return 'actor'
   if (/\b(before|after|during|then|when|while|antes|depois|durante|ent[aã]o|quando|enquanto)\b/.test(text)) return 'timeline'
-  if (/\b(cloud|visibility|weather|wind|rain|fog|night|wx|nuvem|visibilidade|tempo|chuva|nevoeiro|vento|meteorolog)\b/.test(text)) return 'environment'
+  if (/\b(cloud|visibility|weather|wind|rain|fog|night|wx|nuvem|visibilidade|tempo|chuva|nevoeiro|vento|meteorolog\w*|icing|gelo|sev ice|severe icing)\b/.test(text)) return 'environment'
   if (/\b(alert|warning|system|failure|fault|degraded|condition|unsafe|alerta|falha|condi[cç][aã]o|degradad)\b/.test(text)) return 'condition'
   if (/\b(crash|impact|collision|injury|fatal|damage|acidente|impacto|colis[aã]o|ferid|fatal|dano)\b/.test(text)) return 'outcome'
-  if (/\b(did|failed|continued|descended|climbed|turned|landed|executed|applied|fez|falhou|continuou|desceu|subiu|virou|pousou|pouso|executou|aplicou|inseriu|programou|selecionou|ajustou|configurou|acionou|digitou|identificou|confundiu|associou|prosseguiu|aproximou)\b/.test(text)) return 'action'
+  if (/\b(did|failed|continued|descended|climbed|turned|landed|executed|applied|fez|falhou|continuou|desceu|subiu|virou|pousou|pouso|executou|aplicou|inseriu|programou|selecionou|ajustou|configurou|acionou|digitou|identificou|confundiu|associou|prosseguiu|aproximou|nao foram executad|nao foram realizad|nao foi executad|nao foi realizad|foi despachad)\b/.test(text)) return 'action'
   return 'other'
 }
 
@@ -217,16 +247,18 @@ function splitCompoundTemporalBoundary(statement: string): string[] {
 
 function isPureHeading(statement: string): boolean {
   const text = normalize(statement)
-  return /^(investigacao de ocorrencia|relatorio de investigacao de ocorrencia|form-sso-|\d+(?:\.\d+)+\s+[a-z]|entrevista com|transcricao do relato|experiencia do)/.test(text)
+  return /^(investigacao de ocorrencia|relatorio de investigacao de ocorrencia|form-sso-|\d+(?:\.\d+)+\.?\s+[a-z]|entrevista com|transcricao do relato|experiencia do)/.test(text)
 }
 
 export function splitNarrativeIntoSentenceRecords(input: string): SourceSentence[] {
   const records: SourceSentence[] = []
   let currentSection: SeraEvidenceSourceSection = 'UNKNOWN'
+  let currentOccurrenceScope: SeraOccurrenceScope = 'UNKNOWN'
   let sourceSentenceIndex = 0
 
   for (const logicalLine of reflowNarrativeLines(input)) {
     currentSection = detectSection(logicalLine, currentSection)
+    currentOccurrenceScope = detectOccurrenceScope(logicalLine, currentOccurrenceScope)
     const statements = logicalLine
       .split(/(?<=[.!?])\s+/)
       .map((item) => item.trim())
@@ -239,6 +271,7 @@ export function splitNarrativeIntoSentenceRecords(input: string): SourceSentence
         sourceSentenceIndex: sourceSentenceIndex++,
         sourceSection: currentSection,
         assertionStatus: assertionStatus(statement),
+        occurrenceScope: currentOccurrenceScope,
       })
       if (records.length >= 800) return records
     }
@@ -271,6 +304,7 @@ export function buildCandidateTimeline(sentences: string[], input?: string): Ext
         sourceSentenceIndex,
         sourceSection: 'UNKNOWN' as SeraEvidenceSourceSection,
         assertionStatus: assertionStatus(statement),
+        occurrenceScope: 'UNKNOWN' as SeraOccurrenceScope,
       }))
 
   return records.map((record, index) => ({

@@ -1,6 +1,6 @@
 import type { SeraVNextEngineInput, SeraVNextEngineOutput } from '../../engine-contract'
 import { extractEvidenceItems } from '../../evidence'
-import { buildCandidateTimeline, extractCandidateFacts, OUTCOME_KEYWORDS } from '../factual-extraction-helpers'
+import { buildCandidateTimeline, extractCandidateFacts, isExplicitOperationalDeviationStatement, isExplicitOperationalOmissionStatement, OUTCOME_KEYWORDS } from '../factual-extraction-helpers'
 import { pushUnique } from '../utils'
 
 function normalizeCategory(value: string): SeraVNextEngineOutput['factualExtraction']['facts'][number]['category'] {
@@ -21,7 +21,11 @@ export function runStep01FactualExtraction(input: SeraVNextEngineInput): SeraVNe
     const statement = fact.statement
     const lower = statement.toLowerCase()
     let category = normalizeCategory(fact.category)
-    if (/\b(decided|decision|chose|continue(?:d)?|abort(?:ed)?|go-around|decidiu|decisão)\b/i.test(statement)) {
+    if (isExplicitOperationalDeviationStatement(statement)) {
+      category = 'decision'
+    } else if (isExplicitOperationalOmissionStatement(statement)) {
+      category = 'action'
+    } else if (/\b(decided|decision|chose|continue(?:d)?|abort(?:ed)?|go-around|decidiu|decisão)\b/i.test(statement)) {
       category = 'decision'
     } else if (/\b(input|control|throttle|pitch|bank|configured|flap|gear|controle|manche|potência)\b/i.test(statement)) {
       category = 'control_input'
@@ -38,6 +42,7 @@ export function runStep01FactualExtraction(input: SeraVNextEngineInput): SeraVNe
       sourceSentenceIndex: fact.sourceSentenceIndex,
       sourceSection: fact.sourceSection,
       assertionStatus: fact.assertionStatus,
+      occurrenceScope: fact.occurrenceScope,
     }
   })
 
@@ -64,6 +69,7 @@ export function runStep01FactualExtraction(input: SeraVNextEngineInput): SeraVNe
     sourceSentenceIndex: item.sourceSentenceIndex,
     sourceSection: item.sourceSection,
     assertionStatus: item.assertionStatus,
+    occurrenceScope: item.occurrenceScope,
   }))
 
   return {

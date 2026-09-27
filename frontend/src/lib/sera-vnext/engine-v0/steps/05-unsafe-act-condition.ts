@@ -1,5 +1,6 @@
 import type { SeraVNextEngineInput, SeraVNextEngineOutput } from '../../engine-contract'
 import { runStep03UnsafeActCondition as runLegacyUnsafeActCondition } from '../../steps/03-unsafe-act-condition'
+import { classifyHumanFactorEscapeStatement } from '../candidate-escape-window'
 
 export function runStep05UnsafeActCondition(input: {
   engineInput: SeraVNextEngineInput
@@ -7,11 +8,10 @@ export function runStep05UnsafeActCondition(input: {
   escapePoint: SeraVNextEngineOutput['escapePoint']
 }): SeraVNextEngineOutput['unsafeActOrCondition'] {
   const escapeSource = input.escapePoint.earliestCandidate ?? ''
-  const humanEscape = /\b(crew|pilot|captain|first officer|copilot|tripula[cç][aã]o|piloto|comandante|copiloto|maintenance|mechanic|inspector|manuten[cç][aã]o|mec[aâ]nic[oa]s?|inspetor(?:es)?)\b/i.test(escapeSource)
-    || /\b(inspe[cç][aã]o (?:de )?pr[eé][ -]?voo|pr[eé][ -]?voo|preflight inspection)\b/i.test(escapeSource)
-  if (humanEscape && input.escapePoint.statement) {
+  const humanAnchor = classifyHumanFactorEscapeStatement(escapeSource)
+  if (humanAnchor && input.escapePoint.statement) {
     return {
-      type: 'UNSAFE_ACT',
+      type: humanAnchor === 'UNSAFE_ACT' ? 'UNSAFE_ACT' : 'UNSAFE_CONDITION',
       statement: input.escapePoint.statement.replace(/^Quando\s+/i, ''),
       evidence: input.escapePoint.supportingEvidence,
     }

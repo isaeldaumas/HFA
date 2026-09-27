@@ -27,6 +27,7 @@ function directActorMatches(actor: string, directActor: string): boolean {
   if (a === 'flight crew (collective)' && (d.includes('captain') || d.includes('comandante') || d.includes('copiloto') || d.includes('first officer') || d.includes('pilot') || d.includes('piloto'))) return true
   if (d.includes('copiloto') || d.includes('first officer')) return a === 'first officer'
   if (d.includes('comandante') || d.includes('captain')) return a === 'captain'
+  if (d === 'piloto' || d === 'pilot' || d.startsWith('piloto ')) return a === 'pilot'
   if (d.includes('tripulacao') || d.includes('flight crew') || d.includes('multiple crew actors')) return ['captain', 'first officer', 'pilot', 'flight crew (collective)'].includes(a)
   if (d.includes('maintenance') || d.includes('manutencao') || d.includes('mecanico') || d.includes('inspetor')) return a === 'maintenance'
   return false
