@@ -2,9 +2,10 @@
 const PDFDocument = require('pdfkit/js/pdfkit.standalone.js') as typeof import('pdfkit')
 
 import type { SeraCanonicalPath, SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
-import { localizeActor } from '@/lib/sera-vnext/engine-v0/localization'
+import { localizeActor, localizeRationale } from '@/lib/sera-vnext/engine-v0/localization'
 import { SERA_PT_V1_TREE } from '@/lib/sera-vnext/canonical-tree/sera-pt-v1'
-import { buildExecutiveSummary, friendlyAnswerLabel, hfacsBridgeLevelLabel, preconditionLevelLabel, preconditionMethodologyMatchLabel } from '@/lib/sera-vnext/presentation'
+import { buildCanonicalFlowVisualModel } from '@/lib/sera-vnext/canonical-flow-visual'
+import { buildExecutiveSummary, friendlyAnswerLabel, friendlyNodeLabel, hfacsBridgeLevelLabel, preconditionLevelLabel, preconditionMethodologyMatchLabel } from '@/lib/sera-vnext/presentation'
 import { SERA_PRECONDITION_META } from '@/lib/sera-vnext/precondition-taxonomy'
 import { buildSeraHfacsBridge } from '@/lib/sera-vnext/hfacs-bridge'
 import type {
@@ -346,148 +347,258 @@ function canonicalQuestion(answer: SeraCanonicalPath['answers'][number], pt: boo
     : (answer.exactQuestionTextENAnchor ?? answer.question)
 }
 
+function didacticReason(nodeId: string, answer: string, fallback: string | undefined, pt: boolean): string {
+  if (!pt) return fallback ?? 'The answer was determined by the usable evidence available at this node.'
+  const key = nodeId + ':' + answer
+  const map: Record<string, string> = {
+    'P_ROOT:START': 'A primeira etapa registra o estado que o operador acreditava existir. As etapas seguintes verificam se essa percepção correspondia adequadamente à situação real.',
+    'P_ASSESSMENT:NÃO': 'A avaliação da situação não correspondia ao estado real; por isso a árvore segue para identificar o mecanismo perceptivo associado.',
+    'P_ASSESSMENT:SIM': 'A evidência sustenta avaliação adequada da situação; não há falha perceptiva independente neste eixo.',
+    'P_CAPABILITY:SIM': 'Havia capacidade e meios para perceber a situação; a análise segue para pressão temporal e qualidade da informação.',
+    'P_CAPABILITY:NÃO_SENSORIAL': 'A evidência localiza a falha em limitação sensorial ou perceptiva.',
+    'P_CAPABILITY:NÃO_CONHECIMENTO': 'A evidência localiza a falha em conhecimento necessário para interpretar a situação.',
+    'P_TIME_PRESSURE:NÃO': 'Não há evidência de pressão de tempo excessiva dominante; a análise segue para ambiguidade e disponibilidade da informação.',
+    'P_TIME_PRESSURE:SIM_ATENCAO': 'A pressão de tempo afetou principalmente a atenção disponível para a tarefa.',
+    'P_TIME_PRESSURE:SIM_GERENCIAMENTO': 'A pressão de tempo afetou principalmente o gerenciamento temporal da tarefa.',
+    'P_INFORMATION_AMBIGUOUS:NÃO': 'A informação relevante não era ilusória ou ambígua; resta verificar se estava disponível e correta.',
+    'P_INFORMATION_AMBIGUOUS:SIM': 'A evidência sustenta que a informação era ilusória ou ambígua.',
+    'P_INFORMATION_AVAILABLE:SIM': 'A informação necessária estava disponível e correta, mas não foi monitorada ou integrada adequadamente; isso conduz a P-G.',
+    'P_INFORMATION_AVAILABLE:NÃO': 'A informação necessária não estava disponível ou correta; isso conduz ao ramo de comunicação/informação.',
+    'O_ROOT:START': 'A primeira etapa explicita o objetivo pretendido pelo operador; os nós seguintes verificam compatibilidade com regras, procedimentos e gerenciamento do risco.',
+    'O_RULES:SIM': 'O objetivo pretendido era compatível com regras e procedimentos; a árvore segue para verificar se havia uma meta insegura independente.',
+    'O_RULES:NÃO': 'Há evidência de objetivo incompatível com regras ou procedimentos; a árvore distingue o padrão de violação aplicável.',
+    'O_MANAGED_RISK:NÃO': 'Não foi demonstrado objetivo inseguro independente; mantém-se O-A, sem falha própria de objetivo.',
+    'O_MANAGED_RISK:SIM': 'Há evidência de objetivo que, embora compatível com regras gerais, não gerenciava adequadamente o risco operacional.',
+    'A_ROOT:START': 'A primeira etapa explicita como o operador tentou alcançar o objetivo; os nós seguintes avaliam a execução e a adequação da ação.',
+    'A_IMPLEMENTED:SIM': 'A ação foi implementada como pretendida; a árvore então verifica se existia falha de ação independente.',
+    'A_IMPLEMENTED:NÃO_DESLIZE_LAPSO_ERRO': 'Há evidência de deslize, omissão ou lapso específico na execução da ação.',
+    'A_IMPLEMENTED:NÃO_FEEDBACK': 'Há evidência de falha de feedback ou verificação durante a própria execução.',
+    'A_CORRECT:SIM': 'Não foi demonstrado mecanismo independente de ação inadequada; a ação permaneceu coerente com a percepção e o objetivo do ator, conduzindo a A-A.',
+    'A_CORRECT:NÃO': 'A ação implementada era inadequada por mecanismo próprio; a árvore segue para capacidade, seleção e feedback da resposta.',
+  }
+  return map[key] ?? fallback ?? 'A resposta foi determinada pela evidência utilizável disponível neste nó.'
+}
+
 function renderAxisDidacticPage(
   doc: Doc,
   path: SeraCanonicalPath,
   output: SeraVNextEngineOutput,
   pt: boolean,
-  meaning: string | null,
 ): void {
   const axis = axisOutput(output, path.axis)
   const L = (ptText: string, enText: string) => pt ? ptText : enText
-  const { accent, fill } = axisAccent(path.axis)
+  const { accent } = axisAccent(path.axis)
   const code = axis.proposedCode ?? L('Não resolvido', 'Unresolved')
   const title = axisLabel(path.axis, pt)
+
+  doc.addPage({ size: 'A4', layout: 'portrait', margin: 44 })
   const x = doc.page.margins.left
   const w = pageContentWidth(doc)
+  doc.font('Helvetica-Bold').fontSize(9).fillColor(accent).text(L('ANÁLISE SERA', 'SERA ANALYSIS'))
+  doc.moveDown(0.35)
+  doc.font('Helvetica-Bold').fontSize(20).fillColor(PDF_COLORS.navy).text(`${title} - ${code}`)
+  doc.font('Helvetica').fontSize(10).fillColor(PDF_COLORS.muted)
+    .text(L('Leitura do caminho destacado na árvore completa da página anterior. Cada etapa apresenta a pergunta canônica, a resposta deste evento e o motivo do ramo seguido.', 'Reading of the path highlighted in the complete tree on the previous page. Each step shows the canonical question, this event answer, and why that branch was followed.'), { lineGap: 2 })
+  doc.moveDown(0.55)
 
-  const addAxisPage = (continued = false) => {
-    doc.addPage({ size: 'A4', layout: 'portrait', margin: 44 })
-    doc.font('Helvetica-Bold').fontSize(9).fillColor(accent)
-      .text(continued ? `${title} - ${code} | ${L('continuação', 'continued')}` : L('ANÁLISE SERA', 'SERA ANALYSIS'))
-    if (!continued) {
-      doc.moveDown(0.35)
-      doc.font('Helvetica-Bold').fontSize(20).fillColor(PDF_COLORS.navy).text(`${title} - ${code}`)
-      doc.font('Helvetica').fontSize(10).fillColor(PDF_COLORS.muted)
-        .text(L('Fluxograma com as perguntas canônicas da metodologia e as respostas deste evento.', 'Flowchart with the canonical methodology questions and this event responses.'), { lineGap: 2 })
-      doc.moveDown(0.6)
-    } else {
-      doc.moveDown(0.55)
-    }
-  }
+  // The axis result and meaning are already summarized on the cover and in the tree title.
+  // Do not repeat them here; use this page only to explain the traversed path.
 
-  addAxisPage(false)
-
-  const rootAnswer = path.answers[0] ? pathAnswerText(path.answers[0], path, output, pt) : L('Não estabelecido pela evidência disponível.', 'Not established by the available evidence.')
-  const resultText = meaning ? `${rootAnswer}\n\n${meaning}` : rootAnswer
-  doc.font('Helvetica').fontSize(10.4)
-  const resultH = Math.max(112, doc.heightOfString(resultText, { width: w - 32, lineGap: 2.8 }) + 74)
-  const resultY = doc.y
-  doc.roundedRect(x, resultY, w, resultH, 9).fillAndStroke(fill, '#D5DEE6')
-  doc.font('Helvetica-Bold').fontSize(8.8).fillColor(accent).text(L('RESULTADO DO EIXO', 'AXIS RESULT'), x + 16, resultY + 13)
-  doc.font('Helvetica-Bold').fontSize(23).fillColor(PDF_COLORS.navy).text(code, x + 16, resultY + 31, { width: 90 })
-  doc.font('Helvetica-Bold').fontSize(10.8).fillColor(PDF_COLORS.ink)
-    .text(candidateStatusLabel(axis.status, pt), x + 108, resultY + 35, { width: w - 124 })
-  let resultTextY = resultY + 62
-  doc.font('Helvetica-Bold').fontSize(9.2).fillColor(accent).text(L('Resposta inicial', 'Initial answer'), x + 16, resultTextY)
-  resultTextY += 15
-  doc.font('Helvetica').fontSize(10.4).fillColor(PDF_COLORS.ink).text(rootAnswer, x + 16, resultTextY, { width: w - 32, lineGap: 2.8 })
-  resultTextY += doc.heightOfString(rootAnswer, { width: w - 32, lineGap: 2.8 }) + 7
-  if (meaning) doc.font('Helvetica').fontSize(9.4).fillColor(PDF_COLORS.muted).text(meaning, x + 16, resultTextY, { width: w - 32, lineGap: 2.3 })
-  doc.y = resultY + resultH + 15
-
-  doc.font('Helvetica-Bold').fontSize(12).fillColor(PDF_COLORS.navy).text(L('Fluxograma da análise', 'Analysis flowchart'))
-  doc.moveDown(0.2)
-  doc.font('Helvetica').fontSize(9.5).fillColor(PDF_COLORS.muted)
-    .text(L('Os losangos reproduzem integralmente as perguntas canônicas. As respostas indicam o ramo seguido neste evento.', 'Diamonds reproduce the canonical questions in full. Responses indicate the branch followed in this event.'), { lineGap: 2.2 })
-  doc.moveDown(0.5)
-
-  const flowCenter = x + w / 2
-  const nodeW = Math.min(430, w - 42)
-  const textW = nodeW - 110
-  let previousBottom: number | null = null
 
   for (let index = 0; index < path.answers.length; index += 1) {
     const answer = path.answers[index]
     const q = canonicalQuestion(answer, pt)
     const response = pathAnswerText(answer, path, output, pt)
-    const isRoot = index === 0
-    doc.font('Helvetica-Bold').fontSize(9.5)
-    const qH = doc.heightOfString(q, { width: isRoot ? nodeW - 34 : textW, lineGap: 1.6 })
-    doc.font('Helvetica').fontSize(9.4)
-    const aH = doc.heightOfString(`${L('Resposta', 'Answer')}: ${response}`, { width: isRoot ? nodeW - 34 : textW, lineGap: 1.5 })
-    const nodeH = Math.max(isRoot ? 82 : 92, qH + aH + (isRoot ? 32 : 42))
-    const totalNeeded = nodeH + 42
-    if (doc.y + totalNeeded > pageBottom(doc)) {
-      addAxisPage(true)
-      previousBottom = null
+    const rationale = didacticReason(
+      answer.nodeId,
+      answer.answer,
+      localizeRationale(answer.rationale ?? '', pt ? 'pt-BR' : 'en'),
+      pt,
+    )
+    const cardW = w - 38
+    doc.font('Helvetica').fontSize(9.5)
+    const qH = doc.heightOfString(q, { width: cardW - 28, lineGap: 2.1 })
+    doc.font('Helvetica-Bold').fontSize(9.8)
+    const aH = doc.heightOfString(`${L('Resposta', 'Answer')}: ${response}`, { width: cardW - 28, lineGap: 2.2 })
+    doc.font('Helvetica').fontSize(9.1)
+    const rH = doc.heightOfString(`${L('Por que', 'Why')}: ${rationale}`, { width: cardW - 28, lineGap: 2 })
+    const h = Math.max(82, 45 + qH + aH + rH)
+    if (doc.y + h + 10 > pageBottom(doc)) {
+      doc.addPage({ size: 'A4', layout: 'portrait', margin: 44 })
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(accent).text(`${title} - ${code} | ${L('continuação', 'continued')}`)
+      doc.moveDown(0.6)
     }
-
     const y = doc.y
-    const left = flowCenter - nodeW / 2
-    if (previousBottom !== null) {
-      const arrowTop = previousBottom + 3
-      const arrowBottom = y - 4
-      doc.strokeColor(accent).lineWidth(1.8).moveTo(flowCenter, arrowTop).lineTo(flowCenter, arrowBottom).stroke()
-      doc.fillColor(accent).polygon([flowCenter - 4, arrowBottom - 6], [flowCenter + 4, arrowBottom - 6], [flowCenter, arrowBottom]).fill()
-      const prior = path.answers[index - 1]
-      if (prior.answer !== 'START') {
-        const branch = friendlyAnswerLabel(prior.answer, pt)
-        doc.font('Helvetica-Bold').fontSize(8.3).fillColor(accent)
-          .text(branch, flowCenter + 9, arrowTop + Math.max(2, (arrowBottom - arrowTop) / 2 - 5), { width: 95, lineBreak: false })
-      }
-    }
+    doc.circle(x + 13, y + 17, 10).fill(accent)
+    doc.font('Helvetica-Bold').fontSize(8.8).fillColor(PDF_COLORS.white)
+      .text(String(index + 1), x + 6.5, y + 11.5, { width: 13, align: 'center', lineBreak: false })
+    const cx = x + 34
+    doc.roundedRect(cx, y, cardW, h, 8).fillAndStroke(PDF_COLORS.white, '#D5DEE6')
+    doc.font('Helvetica-Bold').fontSize(10.6).fillColor(PDF_COLORS.navy)
+      .text(friendlyNodeLabel(answer.nodeId, pt), cx + 14, y + 10, { width: cardW - 28 })
+    let ty = y + 27
+    doc.font('Helvetica').fontSize(9.5).fillColor(PDF_COLORS.muted)
+      .text(q, cx + 14, ty, { width: cardW - 28, lineGap: 2.1 })
+    ty += qH + 6
+    doc.font('Helvetica-Bold').fontSize(9.8).fillColor(PDF_COLORS.ink)
+      .text(`${L('Resposta', 'Answer')}: ${response}`, cx + 14, ty, { width: cardW - 28, lineGap: 2.2 })
+    ty += aH + 6
+    doc.font('Helvetica').fontSize(9.1).fillColor('#536676')
+      .text(`${L('Por que', 'Why')}: ${rationale}`, cx + 14, ty, { width: cardW - 28, lineGap: 2 })
+    doc.y = y + h + 10
+  }
+}
 
-    if (isRoot) {
-      doc.roundedRect(left, y, nodeW, nodeH, 10).fillAndStroke(fill, accent)
-    } else {
-      doc.polygon(
-        [flowCenter, y],
-        [left + nodeW, y + nodeH / 2],
-        [flowCenter, y + nodeH],
-        [left, y + nodeH / 2],
-      ).fillAndStroke(fill, accent)
-    }
+function renderCanonicalTreePage(doc: Doc, path: SeraCanonicalPath, pt: boolean): void {
+  const model = buildCanonicalFlowVisualModel(path, pt)
+  const title = axisLabel(path.axis, pt)
+  const { accent, fill: accentLight } = axisAccent(path.axis)
+  const code = path.candidateCode ?? (pt ? 'não resolvido' : 'unresolved')
+  doc.addPage({ size: 'A4', layout: 'landscape', margin: 34 })
+  const left = doc.page.margins.left
+  const right = doc.page.width - doc.page.margins.right
+  const width = right - left
+  const top = 42
+  const bottom = doc.page.height - doc.page.margins.bottom - 34
 
-    doc.circle(left + 15, y + 15, 9).fill(accent)
-    doc.font('Helvetica-Bold').fontSize(8).fillColor('#FFFFFF')
-      .text(String(index + 1), left + 10, y + 10, { width: 10, align: 'center', lineBreak: false })
+  doc.font('Helvetica-Bold').fontSize(18).fillColor(PDF_COLORS.navy)
+    .text(`${pt ? 'Árvore SERA completa' : 'Complete SERA tree'} - ${title} - ${code}`, left, top, { width })
+  doc.font('Helvetica').fontSize(9.4).fillColor(PDF_COLORS.muted)
+    .text(pt
+      ? 'A topologia canônica completa é preservada. Ramos não percorridos permanecem visíveis em cinza; o caminho deste evento é destacado e a classificação alcançada aparece em verde. As perguntas completas, respostas e justificativas usam a mesma numeração na página seguinte.'
+      : 'The complete canonical topology is preserved. Branches not taken remain visible in gray; this event path is highlighted and the reached classification appears in green. Full questions, answers, and rationales use the same numbering on the next page.', left, top + 25, { width, lineGap: 2 })
 
-    const tx = isRoot ? left + 17 : flowCenter - textW / 2
-    const tw = isRoot ? nodeW - 34 : textW
-    let ty = y + (isRoot ? 17 : 19)
-    doc.font('Helvetica-Bold').fontSize(9.5).fillColor(accent)
-      .text(q, tx, ty, { width: tw, align: 'center', lineGap: 1.6 })
-    ty += qH + 7
-    doc.font('Helvetica').fontSize(9.4).fillColor(PDF_COLORS.ink)
-      .text(`${L('Resposta', 'Answer')}: ${response}`, tx, ty, { width: tw, align: 'center', lineGap: 1.5 })
-
-    previousBottom = y + nodeH
-    doc.y = y + nodeH + 30
+  const legendY = top + 60
+  const legendItems = [
+    { fill: accentLight, stroke: accent, label: pt ? 'Caminho seguido' : 'Traversed path' },
+    { fill: '#FFFFFF', stroke: '#A8B3BF', label: pt ? 'Caminho não seguido' : 'Path not taken' },
+    { fill: PDF_COLORS.greenSoft, stroke: PDF_COLORS.green, label: pt ? 'Classificação alcançada' : 'Reached classification' },
+  ]
+  let lx = left
+  for (const item of legendItems) {
+    doc.roundedRect(lx, legendY, 22, 10, 2).fillAndStroke(item.fill, item.stroke)
+    doc.font('Helvetica').fontSize(8).fillColor(PDF_COLORS.muted)
+      .text(item.label, lx + 29, legendY + 1, { width: 132, lineBreak: false })
+    lx += 176
   }
 
-  if (path.candidateCode && previousBottom !== null) {
-    if (doc.y + 82 > pageBottom(doc)) {
-      addAxisPage(true)
-      previousBottom = null
+  const treeTop = legendY + 30
+  const treeBottom = bottom
+  const children = new Map<string, typeof model.edges>()
+  const incoming = new Set<string>()
+  for (const edge of model.edges) {
+    children.set(edge.from, [...(children.get(edge.from) ?? []), edge])
+    incoming.add(edge.to)
+  }
+  const root = model.nodes.find((node) => node.kind === 'question' && !incoming.has(node.id))
+  if (!root) return
+
+  const depth = new Map<string, number>()
+  const visitDepth = (id: string, level: number) => {
+    if ((depth.get(id) ?? -1) >= level) return
+    depth.set(id, level)
+    for (const edge of children.get(id) ?? []) visitDepth(edge.to, level + 1)
+  }
+  visitDepth(root.id, 0)
+
+  const leaves = model.nodes.filter((node) => (children.get(node.id) ?? []).length === 0)
+  const leafOrder: string[] = []
+  const collectLeaves = (id: string) => {
+    const outgoing = children.get(id) ?? []
+    if (!outgoing.length) {
+      if (!leafOrder.includes(id)) leafOrder.push(id)
+      return
     }
-    const terminalY = doc.y
-    if (previousBottom !== null) {
-      doc.strokeColor(PDF_COLORS.green).lineWidth(1.8).moveTo(flowCenter, previousBottom + 3).lineTo(flowCenter, terminalY - 4).stroke()
-      doc.fillColor(PDF_COLORS.green).polygon([flowCenter - 4, terminalY - 10], [flowCenter + 4, terminalY - 10], [flowCenter, terminalY - 4]).fill()
-      const last = path.answers[path.answers.length - 1]
-      if (last.answer !== 'START') {
-        doc.font('Helvetica-Bold').fontSize(8.3).fillColor(PDF_COLORS.green)
-          .text(friendlyAnswerLabel(last.answer, pt), flowCenter + 9, previousBottom + 11, { width: 95, lineBreak: false })
+    for (const edge of outgoing) collectLeaves(edge.to)
+  }
+  collectLeaves(root.id)
+  for (const leaf of leaves) if (!leafOrder.includes(leaf.id)) leafOrder.push(leaf.id)
+
+  const maxDepth = Math.max(...depth.values(), 1)
+  const nodeTop = treeTop + 8
+  const nodeBottom = treeBottom - 4
+  const levelGap = Math.max(50, (nodeBottom - nodeTop - 50) / maxDepth)
+  const leafStep = width / Math.max(leafOrder.length, 1)
+  const xCenter = new Map<string, number>()
+  leafOrder.forEach((id, index) => xCenter.set(id, left + leafStep * (index + 0.5)))
+  const resolveX = (id: string): number => {
+    const cached = xCenter.get(id)
+    if (cached !== undefined) return cached
+    const xs = (children.get(id) ?? []).map((edge) => resolveX(edge.to))
+    const v = xs.length ? xs.reduce((sum, x) => sum + x, 0) / xs.length : left + width / 2
+    xCenter.set(id, v)
+    return v
+  }
+  resolveX(root.id)
+
+  const geom = new Map<string, { x: number; y: number; w: number; h: number }>()
+  for (const node of model.nodes) {
+    const d = depth.get(node.id)
+    if (d === undefined) continue
+    const terminal = node.kind === 'terminal'
+    const rootNode = node.sourceId.endsWith('_ROOT')
+    const nodeW = terminal ? Math.min(84, Math.max(58, leafStep - 7)) : rootNode ? 126 : 106
+    const nodeH = terminal ? 46 : rootNode ? 38 : 54
+    geom.set(node.id, { x: resolveX(node.id) - nodeW / 2, y: nodeTop + d * levelGap, w: nodeW, h: nodeH })
+  }
+
+  for (const edge of model.edges) {
+    const a = geom.get(edge.from)
+    const b = geom.get(edge.to)
+    if (!a || !b) continue
+    const x1 = a.x + a.w / 2
+    const y1 = a.y + a.h
+    const x2 = b.x + b.w / 2
+    const y2 = b.y
+    const color = edge.active ? accent : '#B7C1CB'
+    doc.strokeColor(color).lineWidth(edge.active ? 2.5 : 1)
+      .moveTo(x1, y1).lineTo(x1, y1 + 9).lineTo(x2, y2 - 9).lineTo(x2, y2).stroke()
+    doc.fillColor(color).polygon([x2 - 3, y2 - 5], [x2 + 3, y2 - 5], [x2, y2]).fill()
+    if (edge.label) {
+      const labelX = x1 + (x2 - x1) * 0.67 - 28
+      const labelY = y1 + (y2 - y1) * 0.54 - 4
+      doc.font(edge.active ? 'Helvetica-Bold' : 'Helvetica').fontSize(7)
+        .fillColor(edge.active ? accent : '#71808D')
+        .text(edge.label, labelX, labelY, { width: 56, align: 'center', lineBreak: false })
+    }
+  }
+
+  for (const node of model.nodes) {
+    const g = geom.get(node.id)
+    if (!g) continue
+    const rootNode = node.sourceId.endsWith('_ROOT')
+    const fill = node.selected ? PDF_COLORS.greenSoft : node.active ? accentLight : '#FFFFFF'
+    const stroke = node.selected ? PDF_COLORS.green : node.active ? accent : '#A8B3BF'
+    doc.lineWidth(node.active || node.selected ? 2 : 1)
+    if (node.kind === 'terminal') {
+      doc.roundedRect(g.x, g.y, g.w, g.h, 9).fillAndStroke(fill, stroke)
+    } else if (rootNode) {
+      doc.roundedRect(g.x, g.y, g.w, g.h, 8).fillAndStroke(fill, stroke)
+    } else {
+      doc.polygon(
+        [g.x + g.w / 2, g.y],
+        [g.x + g.w, g.y + g.h / 2],
+        [g.x + g.w / 2, g.y + g.h],
+        [g.x, g.y + g.h / 2],
+      ).fillAndStroke(fill, stroke)
+    }
+
+    if (node.kind === 'terminal') {
+      doc.font('Helvetica-Bold').fontSize(8.2).fillColor(node.selected ? PDF_COLORS.green : '#334155')
+        .text(node.code ?? '', g.x + 4, g.y + 6, { width: g.w - 8, align: 'center', lineBreak: false })
+      doc.font('Helvetica').fontSize(node.label.length > 24 ? 6.5 : 7.1)
+        .fillColor(node.selected ? PDF_COLORS.green : '#596B79')
+        .text(node.label, g.x + 4, g.y + 20, { width: g.w - 8, height: 22, align: 'center', lineGap: 0.5 })
+    } else {
+      if (node.stepNumber) {
+        doc.circle(g.x + 10, g.y + 9, 6).fill(accent)
+        doc.font('Helvetica-Bold').fontSize(6.5).fillColor(PDF_COLORS.white)
+          .text(String(node.stepNumber), g.x + 6, g.y + 5.2, { width: 8, align: 'center', lineBreak: false })
       }
+      doc.font('Helvetica-Bold').fontSize(node.label.length > 28 ? 7.1 : 7.9)
+        .fillColor(node.active ? accent : '#475569')
+        .text(node.label, g.x + 12, g.y + (rootNode ? 12 : 16), { width: g.w - 24, align: 'center', height: rootNode ? 18 : 25, lineGap: 0.5 })
     }
-    const terminalW = 230
-    doc.roundedRect(flowCenter - terminalW / 2, terminalY, terminalW, 58, 10).fillAndStroke(PDF_COLORS.greenSoft, PDF_COLORS.green)
-    doc.font('Helvetica-Bold').fontSize(15).fillColor(PDF_COLORS.green)
-      .text(path.candidateCode, flowCenter - terminalW / 2 + 12, terminalY + 9, { width: terminalW - 24, align: 'center' })
-    doc.font('Helvetica').fontSize(9.2).fillColor(PDF_COLORS.green)
-      .text(candidateStatusLabel(axis.status, pt), flowCenter - terminalW / 2 + 12, terminalY + 31, { width: terminalW - 24, align: 'center' })
-    doc.y = terminalY + 70
   }
 }
 
@@ -640,12 +751,8 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       ), { accent: PDF_COLORS.amber, fill: PDF_COLORS.amberSoft })
     } else {
       for (const path of output.canonicalTraversal.paths) {
-        const reviewCard = path.axis === 'P'
-          ? reviewerOutput.axisReviews.perception
-          : path.axis === 'O'
-            ? reviewerOutput.axisReviews.objective
-            : reviewerOutput.axisReviews.action
-        renderAxisDidacticPage(doc, path, output, pt, reviewCard.candidateMeaning ?? null)
+        renderCanonicalTreePage(doc, path, pt)
+        renderAxisDidacticPage(doc, path, output, pt)
       }
     }
 
