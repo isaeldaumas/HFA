@@ -3,6 +3,7 @@ import { notFound, SeraVNextProductError } from '../errors'
 import { hashJson } from '../hashing'
 import { assertValidAnalysisTransition } from '../transitions'
 import type { SeraVNextClarificationResponse, SeraVNextProductContext } from '../types'
+import type { SeraVNextEngineInput } from '@/lib/sera-vnext/engine-contract'
 import { getSeraVNextProductVersionSet } from '../versioning'
 import { createAuditEvent } from './create-audit-event'
 import { createSeraVNextProductRepository, type SeraVNextProductRepository } from './repositories'
@@ -11,6 +12,7 @@ export async function reanalyzeSeraVNextAnalysis(args: {
   analysisId: string
   reason?: string
   clarificationResponses?: SeraVNextClarificationResponse[]
+  carriedSupplementalEvidence?: SeraVNextEngineInput['supplementalEvidence']
   locale?: 'pt-BR' | 'en'
   context: SeraVNextProductContext
   repository?: SeraVNextProductRepository
@@ -64,11 +66,34 @@ export async function reanalyzeSeraVNextAnalysis(args: {
       temporalRelation: question.stage === 'SAFE_OPERATION' ? 'PRE_ESCAPE' as const : 'AT_ESCAPE' as const,
     }
   })
+  const supplementalEvidence = [] as NonNullable<SeraVNextEngineInput['supplementalEvidence']>
+  const seenSupplemental = new Set<string>()
+  const usedEvidenceIds = new Set<string>()
+  const carried = args.carriedSupplementalEvidence?.length
+    ? args.carriedSupplementalEvidence
+    : (analysis.engine_input.supplementalEvidence ?? [])
+  for (const [index, item] of [...carried, ...newSupplementalEvidence].entries()) {
+    const normalized = item.statement.trim().toLocaleLowerCase().replace(/\s+/g, ' ')
+    const key = `${item.linkedQuestionId}\u0000${normalized}`
+    if (seenSupplemental.has(key)) continue
+    seenSupplemental.add(key)
+    let evidenceId = item.evidenceId
+    if (usedEvidenceIds.has(evidenceId)) {
+      evidenceId = `${evidenceId}-M${index}`
+      let suffix = 2
+      while (usedEvidenceIds.has(evidenceId)) {
+        evidenceId = `${item.evidenceId}-M${index}-${suffix}`
+        suffix += 1
+      }
+    }
+    usedEvidenceIds.add(evidenceId)
+    supplementalEvidence.push({ ...item, evidenceId })
+  }
   const engineInput = {
     ...analysis.engine_input,
     narrative: analysis.narrative,
     locale: args.locale ?? analysis.engine_input.locale ?? 'pt-BR',
-    supplementalEvidence: [...(analysis.engine_input.supplementalEvidence ?? []), ...newSupplementalEvidence],
+    supplementalEvidence,
     requestId: args.context.requestId,
     inputId: `${analysis.client_request_id}:rev:${nextRevision}`,
   }

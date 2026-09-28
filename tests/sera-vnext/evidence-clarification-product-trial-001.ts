@@ -90,17 +90,27 @@ async function main() {
     return { questionId: question.id, response: 'A primeira saída controlável ocorreu quando a tripulação passou a tratar UNIT-A como o destino planejado e iniciou a aproximação para ela.' }
   })
 
+  const perceptionQuestion = questions.find((question) => question.stage === 'PERCEPTION')
+  assert.ok(perceptionQuestion)
   const reanalyzed = await reanalyzeSeraVNextAnalysis({
     analysisId: created.analysis.id,
     reason: 'clarification_evidence',
     clarificationResponses: responses,
+    carriedSupplementalEvidence: [{
+      evidenceId: 'SUP-HISTORICAL-P-ROOT',
+      statement: 'No ponto de fuga, o copiloto acreditava que UNIT-A correspondia ao primeiro destino planejado.',
+      linkedQuestionId: perceptionQuestion!.id,
+      stage: 'PERCEPTION',
+      temporalRelation: 'AT_ESCAPE',
+    }],
     context: { ...context, requestId: 'clarify-reanalyze' },
     repository: repo,
   })
 
   assert.equal(reanalyzed.analysis.narrative, originalNarrative, 'original narrative must remain immutable')
   assert.equal(reanalyzed.analysis.engine_input.narrative, originalNarrative)
-  assert.equal(reanalyzed.analysis.engine_input.supplementalEvidence?.length, responses.length)
+  assert.equal(reanalyzed.analysis.engine_input.supplementalEvidence?.length, responses.length + 1)
+  assert.ok(reanalyzed.analysis.engine_input.supplementalEvidence?.some((item) => item.evidenceId === 'SUP-HISTORICAL-P-ROOT'))
   assert.ok(reanalyzed.analysis.engine_input.supplementalEvidence?.every((item) => item.linkedQuestionId.startsWith('CLARIFY-')))
   assert.equal(reanalyzed.analysis.current_revision, 2)
   assert.equal(repo.revisions.length, 2)

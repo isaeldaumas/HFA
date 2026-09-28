@@ -41,6 +41,60 @@ ${value}`.trim()
 }
 
 
+
+export function mergeCanonicalSupplementalEvidence(
+  engineInputsNewestFirst: unknown[],
+): NonNullable<SeraVNextCreateAnalysisInput['supplementalEvidence']> {
+  const merged: NonNullable<SeraVNextCreateAnalysisInput['supplementalEvidence']> = []
+  const seenStatements = new Set<string>()
+  const usedEvidenceIds = new Set<string>()
+
+  // Clarification is additive: a later answer may complement an earlier answer to
+  // the same canonical question. Preserve every distinct factual statement across
+  // revisions instead of letting the newest revision erase older evidence.
+  for (const [historyIndex, rawInput] of engineInputsNewestFirst.entries()) {
+    if (!rawInput || typeof rawInput !== 'object') continue
+    const rawEvidence = (rawInput as { supplementalEvidence?: unknown }).supplementalEvidence
+    if (!Array.isArray(rawEvidence)) continue
+    for (const rawItem of rawEvidence) {
+      if (!rawItem || typeof rawItem !== 'object') continue
+      const item = rawItem as Record<string, unknown>
+      const evidenceId = typeof item.evidenceId === 'string' ? item.evidenceId.trim() : ''
+      const statement = typeof item.statement === 'string' ? item.statement.trim() : ''
+      const linkedQuestionId = typeof item.linkedQuestionId === 'string' ? item.linkedQuestionId.trim() : ''
+      const stage = item.stage
+      const temporalRelation = item.temporalRelation
+      if (!evidenceId || !statement || !linkedQuestionId) continue
+      if (!['SAFE_OPERATION', 'ESCAPE_POINT', 'DIRECT_ACTOR', 'PERCEPTION', 'OBJECTIVE', 'ACTION'].includes(String(stage))) continue
+      if (temporalRelation !== 'PRE_ESCAPE' && temporalRelation !== 'AT_ESCAPE') continue
+
+      const normalizedStatement = statement.toLocaleLowerCase().replace(/\s+/g, ' ').trim()
+      const statementKey = `${linkedQuestionId}\u0000${normalizedStatement}`
+      if (seenStatements.has(statementKey)) continue
+      seenStatements.add(statementKey)
+
+      let uniqueEvidenceId = evidenceId
+      if (usedEvidenceIds.has(uniqueEvidenceId)) {
+        uniqueEvidenceId = `${evidenceId}-H${historyIndex}`
+        let collisionIndex = 2
+        while (usedEvidenceIds.has(uniqueEvidenceId)) {
+          uniqueEvidenceId = `${evidenceId}-H${historyIndex}-${collisionIndex}`
+          collisionIndex += 1
+        }
+      }
+      usedEvidenceIds.add(uniqueEvidenceId)
+      merged.push({
+        evidenceId: uniqueEvidenceId,
+        statement,
+        linkedQuestionId,
+        stage: stage as NonNullable<SeraVNextCreateAnalysisInput['supplementalEvidence']>[number]['stage'],
+        temporalRelation,
+      })
+    }
+  }
+  return merged
+}
+
 export function isSeraVNextCanonicalAnalyzeEnabled(): boolean {
   return process.env.SERA_VNEXT_CANONICAL_ANALYZE_ENABLED?.trim().toLowerCase() === 'true'
 }
@@ -65,6 +119,7 @@ export function buildCanonicalEventAnalysisInput(args: {
   requestId: string
   mode: CanonicalEventMode
   locale?: 'pt-BR' | 'en'
+  supplementalEvidence?: SeraVNextCreateAnalysisInput['supplementalEvidence']
 }): SeraVNextCreateAnalysisInput & { sourceFlowOverride: 'VNEXT_CANONICAL'; metadata: Record<string, unknown> } {
   return {
     title: args.title,
@@ -73,6 +128,7 @@ export function buildCanonicalEventAnalysisInput(args: {
     sourceReference: args.eventId,
     clientRequestId: buildCanonicalEventClientRequestId(args),
     locale: args.locale ?? 'pt-BR',
+    supplementalEvidence: args.supplementalEvidence,
     sourceFlowOverride: 'VNEXT_CANONICAL',
     metadata: {
       eventId: args.eventId,
@@ -90,6 +146,7 @@ export async function createCanonicalEventAnalysis(args: {
   narrative: string
   mode: CanonicalEventMode
   locale?: 'pt-BR' | 'en'
+  supplementalEvidence?: SeraVNextCreateAnalysisInput['supplementalEvidence']
   context: SeraVNextProductContext
   create?: typeof createSeraVNextAnalysis
 }): Promise<SeraVNextCreateAnalysisResult> {
@@ -102,6 +159,7 @@ export async function createCanonicalEventAnalysis(args: {
       requestId: args.context.requestId,
       mode: args.mode,
       locale: args.locale,
+      supplementalEvidence: args.supplementalEvidence,
     }),
     context: args.context,
   })

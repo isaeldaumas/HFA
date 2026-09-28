@@ -50,7 +50,7 @@ const LEGACY_PRECONDITION_NAMES: Record<string, string> = {
   O4: 'Influências Organizacionais - Gestão',
 }
 
-const RISK_PROFILE_ACTION_SELECT = 'id, status, due_date, responsible, analysis_id, sera_vnext_analysis_id, created_at, completed_at'
+const RISK_PROFILE_ACTION_SELECT = 'id, status, due_date, responsible, related_failure, analysis_id, sera_vnext_analysis_id, created_at, completed_at, effectiveness_status, effectiveness_review_due_date, effectiveness_reviewed_at'
 
 const VNEXT_PRECONDITION_NAMES: Record<string, string> = {
   PHYSICAL_CAPABILITY: 'Capacidade física',
@@ -92,10 +92,14 @@ type ActionRow = {
   status: string
   due_date: string | null
   responsible: string | null
+  related_failure: string | null
   analysis_id: string | null
   sera_vnext_analysis_id: string | null
   created_at: string | null
   completed_at: string | null
+  effectiveness_status?: string | null
+  effectiveness_review_due_date?: string | null
+  effectiveness_reviewed_at?: string | null
   source_event_id?: string | null
 }
 
@@ -557,7 +561,8 @@ export async function getRiskProfileSummaryForTenant(
       .filter((id): id is string => typeof id === 'string' && id.length > 0),
   )
   const profileActions = actions.filter((action) =>
-    action.source_event_id ? includedEventIds.has(action.source_event_id) : false,
+    (action.source_event_id ? includedEventIds.has(action.source_event_id) : false)
+    && !String(action.related_failure ?? '').startsWith('INVESTIGATE:'),
   )
 
   const openStatuses = new Set(['pending', 'in_progress'])
@@ -573,6 +578,18 @@ export async function getRiskProfileSummaryForTenant(
     closedTotal + openTotal > 0
       ? Math.round((closedTotal / (closedTotal + openTotal)) * 100)
       : 0
+  const completedActions = profileActions.filter((action) => action.status === 'completed')
+  const effectivenessPending = completedActions.filter((action) =>
+    !action.effectiveness_status || ['NOT_ASSESSED', 'PENDING_VERIFICATION'].includes(action.effectiveness_status),
+  ).length
+  const effectivenessEffective = completedActions.filter((action) => action.effectiveness_status === 'EFFECTIVE').length
+  const effectivenessPartial = completedActions.filter((action) => action.effectiveness_status === 'PARTIALLY_EFFECTIVE').length
+  const effectivenessIneffective = completedActions.filter((action) => action.effectiveness_status === 'INEFFECTIVE').length
+  const effectivenessOverdue = completedActions.filter((action) =>
+    (!action.effectiveness_status || ['NOT_ASSESSED', 'PENDING_VERIFICATION'].includes(action.effectiveness_status))
+    && action.effectiveness_review_due_date
+    && new Date(action.effectiveness_review_due_date) < today,
+  ).length
 
   const actionsResult = {
     total: profileActions.length,
@@ -581,6 +598,11 @@ export async function getRiskProfileSummaryForTenant(
     open_no_owner: openNoOwner,
     closed_last_30d: closedLast30d,
     resolution_rate: resolutionRate,
+    effectiveness_pending: effectivenessPending,
+    effectiveness_overdue: effectivenessOverdue,
+    effectiveness_effective: effectivenessEffective,
+    effectiveness_partial: effectivenessPartial,
+    effectiveness_ineffective: effectivenessIneffective,
   }
 
   const trendCounts: Record<string, number> = {}

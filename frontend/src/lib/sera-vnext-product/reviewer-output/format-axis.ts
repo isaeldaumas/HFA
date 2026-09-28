@@ -16,7 +16,7 @@ const SERA_CODE_MEANINGS: Record<string, string> = {
   'O-B': 'Violação rotineira/normalizada — o objetivo envolvia um desvio habitual, culturalmente tolerado ou normalizado',
   'O-C': 'Violação excepcional/consciente — há evidência de conhecimento da regra/limite e decisão consciente de prosseguir; também cobre objetivo humano/protetivo explícito quando aplicável',
   'O-D': 'Objetivo operacional inadequado apesar de compatível com regras gerais — a meta perseguida era incompatível com procedimento operacional estabelecido ou não gerenciava/limitava adequadamente o risco',
-  'A-A': 'Nenhuma falha de ação independente — a ação executada foi coerente com a percepção e o objetivo do ator, sem outro mecanismo específico de falha de ação',
+  'A-A': 'Nenhuma falha independente de seleção ou execução da ação — a ação foi executada de acordo com a intenção do ator, mas isso não significa que estivesse correta em relação ao estado real; quando há falha perceptiva, a ação pode ser coerente com uma percepção incorreta sem constituir uma segunda falha de Ação',
   'A-B': 'Deslize, lapso ou omissão procedural — falha específica de implementação distinta da falha perceptiva',
   'A-C': 'Falha de feedback da própria execução — o resultado da própria ação não foi verificado ou confirmado adequadamente',
   'A-D': 'Inabilidade para responder — limitação física, ergonômica, de alcance, força ou execução impediu a resposta apropriada',

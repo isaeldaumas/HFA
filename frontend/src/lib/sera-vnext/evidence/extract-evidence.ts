@@ -204,6 +204,21 @@ export function extractSupplementalEvidenceItems(args: {
     const actorRelation = classifyActorRelation({ statement: item.statement, directActor: args.directActor ?? null })
     const evidenceType = classifyEvidenceType(item.statement, category, sourceSection)
     const supports = classifySupportedUses(item.statement, category, evidenceType)
+    const clarificationUse: SeraEvidenceUse | null = item.stage === 'PERCEPTION'
+      ? 'PERCEPTION'
+      : item.stage === 'OBJECTIVE'
+        ? 'OBJECTIVE'
+        : item.stage === 'ACTION'
+          ? 'ACTION'
+          : null
+    // A clarification response is collected in direct answer to a stage-specific
+    // question. Preserve that provenance even when the short answer itself does not
+    // repeat lexical markers such as "objective" or "intention". This only admits
+    // the response to the requested P/O/A lane; node evaluation still decides whether
+    // the content is sufficient to take a canonical branch.
+    if (clarificationUse && !['NON_CAUSAL_DOCUMENT', 'REFERENCE_PROCEDURE', 'SYSTEM_DESCRIPTION', 'UNSUPPORTED_REPORT_ANALYSIS', 'OUTCOME'].includes(evidenceType)) {
+      pushUnique(supports, clarificationUse)
+    }
     const inferredTemporalRelation = classifyTemporalRelation({
       statement: item.statement,
       sourceSentenceIndex: args.sourceSentenceIndex,

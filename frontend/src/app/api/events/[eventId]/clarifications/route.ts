@@ -7,6 +7,7 @@ import { writeAuditLog } from '@/lib/observability/audit'
 import { validateClarificationResponses } from '@/lib/sera-vnext-product/schemas'
 import { reanalyzeSeraVNextAnalysis } from '@/lib/sera-vnext-product/persistence/reanalyze-analysis'
 import { SeraVNextProductError } from '@/lib/sera-vnext-product/errors'
+import { mergeCanonicalSupplementalEvidence } from '@/lib/sera-vnext-product/canonical-event-analysis'
 
 export async function POST(req: Request, ctx: { params: Promise<{ eventId: string }> }) {
   const requestId = getOrCreateRequestId(req)
@@ -24,16 +25,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
       .maybeSingle()
     if (!event) return NextResponse.json({ detail: 'Evento não encontrado.' }, { status: 404 })
 
-    const { data: analysis, error: analysisError } = await admin
+    const { data: analysisHistory, error: analysisError } = await admin
       .from('sera_vnext_analyses')
-      .select('id')
+      .select('id, engine_input')
       .eq('tenant_id', user.tenantId)
       .eq('source_reference', eventId)
       .is('deleted_at', null)
       .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+      .limit(20)
+    const analysis = analysisHistory?.[0] ?? null
     if (analysisError || !analysis) return NextResponse.json({ detail: 'Análise SERA atual não encontrada.' }, { status: 404 })
+    const carriedSupplementalEvidence = mergeCanonicalSupplementalEvidence(
+      (analysisHistory ?? []).map((item) => item.engine_input),
+    )
 
     const raw = await req.json().catch(() => ({})) as Record<string, unknown>
     const clarificationResponses = validateClarificationResponses(raw.clarificationResponses)
@@ -43,6 +47,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
       analysisId: analysis.id,
       reason: 'event_clarification_evidence',
       clarificationResponses,
+      carriedSupplementalEvidence,
       locale,
       context: {
         tenantId: user.tenantId,

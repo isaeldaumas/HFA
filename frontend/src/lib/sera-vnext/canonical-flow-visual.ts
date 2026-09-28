@@ -34,7 +34,7 @@ const TERMINAL_LABELS_PT: Record<string, string> = {
   'P-D': 'Atenção + pressão de tempo', 'P-E': 'Gerenciamento de tempo', 'P-F': 'Falha de percepção',
   'P-G': 'Falha de atenção', 'P-H': 'Falha de comunicação',
   'O-A': 'Nenhuma falha', 'O-B': 'Violação rotineira', 'O-C': 'Violação excepcional', 'O-D': 'Intenção sem violação',
-  'A-A': 'Nenhuma falha', 'A-B': 'Deslize, omissão ou lapso', 'A-C': 'Feedback na execução',
+  'A-A': 'Sem falha independente', 'A-B': 'Deslize, omissão ou lapso', 'A-C': 'Feedback na execução',
   'A-D': 'Inabilidade para resposta', 'A-E': 'Conhecimento / decisão', 'A-F': 'Seleção da ação',
   'A-G': 'Falha de feedback', 'A-H': 'Gerenciamento do tempo', 'A-I': 'Seleção sob pressão', 'A-J': 'Feedback sob pressão',
 }

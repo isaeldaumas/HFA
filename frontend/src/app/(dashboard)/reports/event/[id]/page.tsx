@@ -16,6 +16,8 @@ import { buildExecutiveSummary, computeCandidateAttention, directActorStatusLabe
 import { CanonicalTreeDiagram } from '@/components/sera-vnext/CanonicalTreeDiagram'
 import { SERA_PRECONDITION_META } from '@/lib/sera-vnext/precondition-taxonomy'
 import { buildSeraHfacsBridge } from '@/lib/sera-vnext/hfacs-bridge'
+import { buildSeraActionSuggestions } from '@/lib/corrective-actions/sera-suggestions'
+import { buildPreconditionContextReadout } from '@/lib/sera-vnext/precondition-presentation'
 
 type Recommendation = {
   related_code?: string | null
@@ -193,6 +195,16 @@ export default function EventReportPage() {
   const analysis = eventData?.analyses ?? null
   const vnextAnalysis = eventData?.vnext_analysis ?? null
   const vnextOutput = vnextAnalysis?.engine_output ?? null
+  const treatmentSuggestions = vnextOutput && vnextAnalysis?.id
+    ? buildSeraActionSuggestions({
+        analysisId: vnextAnalysis.id,
+        eventId: eventData?.id ?? null,
+        analysisTitle: eventData?.title ?? 'Análise SERA',
+        output: vnextOutput,
+      })
+    : []
+  const correctiveTreatmentSuggestions = treatmentSuggestions.filter((item) => item.kind === 'CORRECTIVE_PREVENTIVE')
+  const investigationTreatmentSuggestions = treatmentSuggestions.filter((item) => item.kind === 'INVESTIGATION')
 
   const emittedAt = useMemo(() => new Date().toLocaleDateString(pt ? 'pt-BR' : 'en-US'), [pt])
   // Contenção F-04 (docs/auditoria-hfa/segunda-etapa/08-decisao-d3-erc.md): os dois valores
@@ -375,6 +387,19 @@ export default function EventReportPage() {
                 <p><strong>{L('Objetivo', 'Objective')}:</strong> {vnextOutput.axes.objective.proposedCode ?? L('Não resolvido', 'Unresolved')}</p>
                 <p><strong>{L('Ação', 'Action')}:</strong> {vnextOutput.axes.action.proposedCode ?? L('Não resolvida', 'Unresolved')}</p>
               </div>
+              {vnextOutput.directActor.actorMigrationWarnings.length > 0 && (
+                <div className="report-box mt-3">
+                  <p><strong>{L('Atribuição do ator e barreiras complementares', 'Actor attribution and complementary barriers')}:</strong></p>
+                  <p className="text-sm text-slate-700 mt-1">{L(
+                    'O P/O/A principal é atribuído ao ator que executa ou decide o ato no ponto de fuga. Papéis de monitoramento, cross-check ou última barreira permanecem registrados separadamente para não transformar um evento de equipe em erro individual.',
+                    'Primary P/O/A is attributed to the actor who performs or decides the act at the escape point. Monitoring, cross-check, or last-barrier roles remain separately recorded so a crew event is not reduced to an individual error.',
+                  )}</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                    {vnextOutput.directActor.actorMigrationWarnings.map((warning) => <li key={warning}>{warning}</li>)}
+                  </ul>
+                  {vnextOutput.directActor.alternatives.length > 0 && <p className="text-xs text-slate-600 mt-2">{L('Atores/papéis relacionados preservados', 'Related actors/roles retained')}: {vnextOutput.directActor.alternatives.join(' · ')}</p>}
+                </div>
+              )}
               {vnextOutput.escapePoint.humanFactorGate && (
                 <div className="report-box mt-3">
                   <p><strong>{L('Gate de âncora de Fatores Humanos', 'Human-Factor anchor gate')}:</strong> {vnextOutput.escapePoint.humanFactorGate.status}</p>
@@ -470,16 +495,27 @@ export default function EventReportPage() {
               {supportedVnextPreconditions.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-sm font-semibold text-slate-800">{L('Pré-condições sustentadas pela evidência', 'Preconditions supported by the evidence')}</p>
-                  {supportedVnextPreconditions.map((item) => (
-                    <div key={item.id} className="report-box">
-                      <p><strong>{item.canonicalCategory ? (pt ? SERA_PRECONDITION_META[item.canonicalCategory].pt : SERA_PRECONDITION_META[item.canonicalCategory].en) : preconditionCategoryLabel(item.category, pt)}:</strong> {item.description}</p>
-                      {item.canonicalLevel ? <p className="text-xs text-slate-500 mt-1">{L('Nível SERA', 'SERA level')}: {item.canonicalLevel}</p> : null}
-                      {item.methodologyMatch ? <p className="text-xs text-slate-500 mt-1">{L('Tabela de pré-condições', 'Precondition table')}: {preconditionMethodologyMatchLabel(item.methodologyMatch, locale === 'pt-BR')}</p> : null}
-                      {item.likelyForActiveFailureCodes?.length ? <p className="text-xs text-slate-500 mt-1">{L('Mais provável para', 'Most likely for')}: {item.likelyForActiveFailureCodes.join(', ')}</p> : null}
-                      <p className="text-sm text-slate-700 mt-1">{L('Relação', 'Relationship')}: {preconditionRelationshipLabel(item.relationship, pt)}</p>
-                      {item.evidence.length > 0 ? <p className="text-sm text-slate-700 mt-1">{L('Evidência', 'Evidence')}: {item.evidence.slice(0, 3).join(' | ')}</p> : null}
-                    </div>
-                  ))}
+                  {supportedVnextPreconditions.map((item) => {
+                    const contextReadout = buildPreconditionContextReadout(vnextOutput, item, pt)
+                    return (
+                      <div key={item.id} className="report-box">
+                        <p><strong>{item.canonicalCategory ? (pt ? SERA_PRECONDITION_META[item.canonicalCategory].pt : SERA_PRECONDITION_META[item.canonicalCategory].en) : preconditionCategoryLabel(item.category, pt)}:</strong> {item.description}</p>
+                        {item.canonicalLevel ? <p className="text-xs text-slate-500 mt-1">{L('Nível SERA', 'SERA level')}: {item.canonicalLevel}</p> : null}
+                        {item.methodologyMatch ? <p className="text-xs text-slate-500 mt-1">{L('Tabela de pré-condições', 'Precondition table')}: {preconditionMethodologyMatchLabel(item.methodologyMatch, locale === 'pt-BR')}</p> : null}
+                        {item.likelyForActiveFailureCodes?.length ? <p className="text-xs text-slate-500 mt-1">{L('Mais provável para', 'Most likely for')}: {item.likelyForActiveFailureCodes.join(', ')}</p> : null}
+                        <p className="text-sm text-slate-700 mt-1">{L('Relação', 'Relationship')}: {preconditionRelationshipLabel(item.relationship, pt)}</p>
+                        {contextReadout && (
+                          <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                            <p className="font-semibold">{L('Decomposição do contexto', 'Context decomposition')}</p>
+                            {contextReadout.supported.map((text) => <p key={text} className="mt-1">✓ {text}</p>)}
+                            {contextReadout.contextual.map((text) => <p key={text} className="mt-1">△ {text}</p>)}
+                            {contextReadout.rejected.map((text) => <p key={text} className="mt-1">× {text}</p>)}
+                          </div>
+                        )}
+                        {item.evidence.length > 0 ? <p className="text-sm text-slate-700 mt-2">{L('Evidência', 'Evidence')}: {item.evidence.slice(0, 3).join(' | ')}</p> : null}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
               {hypothesisVnextPreconditions.length > 0 && (
@@ -544,8 +580,26 @@ export default function EventReportPage() {
         <section className="report-section">
           <h3 className="report-title">{vnextOutput ? '7' : '5'}. {L('Recomendações e ações sugeridas', 'Recommendations and suggested actions')}</h3>
           {vnextOutput ? (
-            <div className="report-box">
-              <p>{L('Recomendações automáticas não são liberadas pela análise SERA antes da revisão humana. Ações devem ser definidas após validação do ponto de fuga e dos eixos P/O/A.', 'Automatic recommendations are not released by SERA analysis before human review. Actions should be defined after validation of the escape point and P/O/A axes.')}</p>
+            <div className="space-y-3">
+              <div className="report-box">
+                <p>{L('O tratamento é ligado às pré-condições. Achados sustentados geram propostas de controle para validação humana; hipóteses ainda abertas geram tarefas de investigação e não são apresentadas como causas confirmadas. Depois da implementação, a ação deve ter sua eficácia verificada e o risco residual acompanhado no Perfil de Risco.', 'Treatment is linked to preconditions. Supported findings generate control proposals for human validation; open hypotheses generate investigation tasks and are not presented as confirmed causes. After implementation, action effectiveness must be verified and residual risk followed in the Risk Profile.')}</p>
+              </div>
+              {correctiveTreatmentSuggestions.map((item) => (
+                <div key={item.id} className="report-box">
+                  <p><strong>{item.title}</strong></p>
+                  <p className="text-sm text-slate-700 mt-1">{item.description}</p>
+                  {item.linkedCodes.length ? <p className="text-xs text-slate-600 mt-1">{L('Falha ativa relacionada', 'Related active failure')}: {item.linkedCodes.join(', ')}</p> : null}
+                </div>
+              ))}
+              {investigationTreatmentSuggestions.length > 0 && (
+                <div className="report-box bg-amber-50">
+                  <p><strong>{L('Lacunas de investigação antes de definir ação', 'Investigation gaps before defining action')}</strong></p>
+                  <ul className="mt-2 list-disc pl-5 text-sm space-y-1">
+                    {investigationTreatmentSuggestions.map((item) => <li key={item.id}>{item.title}: {item.description}</li>)}
+                  </ul>
+                </div>
+              )}
+              {treatmentSuggestions.length === 0 && <div className="report-box"><p>{L('Nenhuma proposta de tratamento é liberada com a evidência atual.', 'No treatment proposal is released with the current evidence.')}</p></div>}
             </div>
           ) : recommendations.length > 0 ? (
             <div className="space-y-2">

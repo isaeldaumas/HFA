@@ -14,7 +14,7 @@ export async function GET(req: Request) {
 
     const { data, error } = await admin
       .from('corrective_actions')
-      .select('id, title, description, related_failure, status, responsible, due_date, completed_at, created_at, analysis_id, sera_vnext_analysis_id')
+      .select('id, title, description, related_failure, status, responsible, due_date, completed_at, effectiveness_status, effectiveness_notes, effectiveness_review_due_date, effectiveness_reviewed_at, created_at, analysis_id, sera_vnext_analysis_id')
       .eq('tenant_id', user.tenantId)
       .order('created_at', { ascending: false })
     if (error) return jsonError(error.message, 500)
@@ -47,6 +47,10 @@ export async function GET(req: Request) {
         responsible: row.responsible,
         due_date: row.due_date,
         completed_at: row.completed_at,
+        effectiveness_status: row.effectiveness_status,
+        effectiveness_notes: row.effectiveness_notes,
+        effectiveness_review_due_date: row.effectiveness_review_due_date,
+        effectiveness_reviewed_at: row.effectiveness_reviewed_at,
         created_at: row.created_at,
         analysis_id: currentId ?? legacyId,
         analysis_engine: currentId ? 'SERA_ENGINE_0_3' : 'LEGACY_HISTORICAL',
@@ -98,6 +102,32 @@ export async function POST(req: Request) {
     }
     if (!currentAnalysis && !legacyAnalysis) return jsonError('Análise não encontrada ou acesso negado', 404)
 
+    if (related_failure?.trim()) {
+      let duplicateQuery = admin
+        .from('corrective_actions')
+        .select('id, title, status, related_failure, analysis_id, sera_vnext_analysis_id')
+        .eq('tenant_id', user.tenantId)
+        .eq('related_failure', related_failure.trim())
+        .neq('status', 'cancelled')
+        .limit(1)
+      duplicateQuery = currentAnalysis
+        ? duplicateQuery.eq('sera_vnext_analysis_id', currentAnalysis.id)
+        : duplicateQuery.eq('analysis_id', legacyAnalysis!.id)
+      const duplicate = await duplicateQuery.maybeSingle()
+      if (duplicate.error) return jsonError('Não foi possível verificar ação existente.', 500)
+      if (duplicate.data) {
+        return NextResponse.json({
+          id: duplicate.data.id,
+          title: duplicate.data.title,
+          status: duplicate.data.status,
+          related_failure: duplicate.data.related_failure,
+          analysis_id,
+          analysis_engine: currentAnalysis ? 'SERA_ENGINE_0_3' : 'LEGACY_HISTORICAL',
+          idempotent: true,
+        }, { status: 200, headers: { 'x-request-id': requestId } })
+      }
+    }
+
     const { data, error } = await admin
       .from('corrective_actions')
       .insert({
@@ -106,7 +136,7 @@ export async function POST(req: Request) {
         tenant_id: user.tenantId,
         title: title.trim(),
         description: description?.trim() || null,
-        related_failure: related_failure || null,
+        related_failure: related_failure?.trim() || null,
         status: 'pending',
       })
       .select('id, title, status, related_failure, analysis_id, sera_vnext_analysis_id')

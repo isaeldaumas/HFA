@@ -6,6 +6,7 @@ import { localizeActor, localizeAssuranceText } from '@/lib/sera-vnext/engine-v0
 import { directActorStatusLabel } from '@/lib/sera-vnext/presentation'
 import { CanonicalDecisionJourney } from './CanonicalDecisionJourney'
 import { CandidateRiskCard } from './CandidateRiskCard'
+import { SERA_PRECONDITION_META } from '@/lib/sera-vnext/precondition-taxonomy'
 
 function statusLabel(value: string, pt: boolean): string {
   const ptLabels: Record<string, string> = {
@@ -117,6 +118,14 @@ export function VNextEventAnalysisPanel({ output }: { output: SeraVNextEngineOut
   const pt = locale === 'pt-BR'
   const axes = [output.axes.perception, output.axes.objective, output.axes.action]
   const actor = localizeActor(output.directActor.actor, locale)
+  const supportedPreconditions = output.preconditions.filter((item) =>
+    item.methodologyMatch !== 'HYPOTHESIS_ONLY'
+    && (item.relationship === 'ENABLING_PRECONDITION' || item.relationship === 'CONTEXTUAL_PRECONDITION'),
+  )
+  const preconditionHypotheses = output.preconditions.filter((item) =>
+    item.methodologyMatch === 'HYPOTHESIS_ONLY' || item.relationship === 'UNRELATED_OR_UNSUPPORTED',
+  )
+
   const operationalObservations = output.factualExtraction.evidence
     .filter((item) =>
       item.sourceSection === 'REPORT_ANALYSIS' &&
@@ -271,29 +280,68 @@ export function VNextEventAnalysisPanel({ output }: { output: SeraVNextEngineOut
       <CanonicalDecisionJourney paths={output.canonicalTraversal.paths} />
 
       <section className="rounded-xl border border-slate-700 bg-slate-900/70 p-5">
-        <h2 className="text-base font-semibold text-white">{pt ? 'Pré-condições' : 'Preconditions'}</h2>
-        {output.preconditions.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-500">
-            {pt ? 'Nenhuma pré-condição causal sustentada pela evidência disponível.' : 'No causal precondition is supported by the available evidence.'}
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold text-white">{pt ? 'Pré-condições' : 'Preconditions'}</h2>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+              {pt
+                ? 'A evidência confirmada fica separada das hipóteses de investigação sugeridas pela Tabela 1 de Hendy.'
+                : 'Evidence-supported preconditions are kept separate from investigation hypotheses suggested by Hendy Table 1.'}
+            </p>
+          </div>
+          <a href="/actions" className="text-xs font-medium text-blue-400 hover:text-blue-300">{pt ? 'Ir para ações →' : 'Go to actions →'}</a>
+        </div>
+
+        {supportedPreconditions.length === 0 && preconditionHypotheses.length === 0 ? (
+          <p className="mt-3 text-sm text-slate-500">
+            {pt ? 'Nenhuma pré-condição causal sustentada ou hipótese prioritária foi identificada com a evidência atual.' : 'No supported causal precondition or priority investigation hypothesis was identified with the current evidence.'}
           </p>
         ) : (
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {output.preconditions.map((item) => (
-              <div key={item.id} className="rounded-lg border border-slate-800 bg-slate-950/70 p-4">
-                <p className="text-sm font-semibold text-slate-200">{categoryLabel(item.category, pt)}</p>
-                <p className="mt-1 text-xs leading-relaxed text-slate-400">{item.description}</p>
-                <p className="mt-2 text-xs text-slate-500">
-                  {pt ? 'Relação' : 'Relationship'}: {relationshipLabel(item.relationship, pt)}
-                  {' · '}
-                  {pt ? 'confiança' : 'confidence'} {confidenceLabel(item.confidence, pt)}
-                </p>
-                {item.evidence.length > 0 && (
-                  <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-slate-500">
-                    {item.evidence.map((evidence) => <li key={evidence}>{evidence}</li>)}
-                  </ul>
-                )}
+          <div className="mt-4 space-y-5">
+            {supportedPreconditions.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300">{pt ? 'Sustentadas pela evidência' : 'Supported by evidence'}</p>
+                <div className="mt-2 grid gap-3 md:grid-cols-2">
+                  {supportedPreconditions.map((item) => {
+                    const canonical = item.canonicalCategory ? SERA_PRECONDITION_META[item.canonicalCategory] : null
+                    return (
+                      <div key={item.id} className="rounded-lg border border-emerald-900/60 bg-emerald-950/10 p-4">
+                        <p className="text-sm font-semibold text-slate-100">{canonical ? (pt ? canonical.pt : canonical.en) : categoryLabel(item.category, pt)}</p>
+                        <p className="mt-1 text-xs leading-relaxed text-slate-400">{item.description}</p>
+                        <p className="mt-2 text-xs text-slate-500">
+                          {pt ? 'Relação' : 'Relationship'}: {relationshipLabel(item.relationship, pt)} · {pt ? 'confiança' : 'confidence'} {confidenceLabel(item.confidence, pt)}
+                        </p>
+                        {item.likelyForActiveFailureCodes?.length ? <p className="mt-1 text-xs text-slate-500">{pt ? 'Associada a' : 'Linked to'}: {item.likelyForActiveFailureCodes.join(' / ')}</p> : null}
+                        {item.evidence.length > 0 && (
+                          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-slate-500">
+                            {item.evidence.map((evidence) => <li key={evidence}>{evidence}</li>)}
+                          </ul>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-            ))}
+            )}
+
+            {preconditionHypotheses.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">{pt ? 'Hipóteses a investigar — não confirmadas causalmente' : 'Investigation hypotheses — not causally confirmed'}</p>
+                <div className="mt-2 grid gap-3 md:grid-cols-2">
+                  {preconditionHypotheses.map((item) => {
+                    const canonical = item.canonicalCategory ? SERA_PRECONDITION_META[item.canonicalCategory] : null
+                    return (
+                      <div key={item.id} className="rounded-lg border border-amber-900/50 bg-amber-950/10 p-4">
+                        <p className="text-sm font-semibold text-slate-100">{canonical ? (pt ? canonical.pt : canonical.en) : categoryLabel(item.category, pt)}</p>
+                        <p className="mt-1 text-xs leading-relaxed text-slate-400">{item.description}</p>
+                        {item.likelyForActiveFailureCodes?.length ? <p className="mt-2 text-xs text-amber-200/70">{pt ? 'Tabela 1 — mais provável para' : 'Table 1 — most likely for'}: {item.likelyForActiveFailureCodes.join(' / ')}</p> : null}
+                        {item.evidence.length > 0 && <p className="mt-2 text-xs leading-relaxed text-slate-500">{pt ? 'Evidência contextual' : 'Contextual evidence'}: {item.evidence.join(' | ')}</p>}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </section>

@@ -10,6 +10,11 @@ interface OrgScoreCardProps {
     open_overdue: number
     open_no_owner: number
     resolution_rate: number
+    effectiveness_pending: number
+    effectiveness_overdue: number
+    effectiveness_effective: number
+    effectiveness_partial: number
+    effectiveness_ineffective: number
   }
 }
 
@@ -60,9 +65,18 @@ export function OrgScoreCard({ score, level, actions }: OrgScoreCardProps) {
             ? 'Combina a proporção ponderada de eixos P/O/A com falha ativa, pendências de ações corretivas e, quando há histórico suficiente, aumento recente do volume de eventos. É um indicador de priorização, não uma probabilidade de acidente nem ERC/ARMS canônico.'
             : 'O índice considera os padrões P/O/A dos eventos elegíveis. Nenhuma ação corretiva está vinculada aos eventos atualmente considerados, portanto não existe penalidade por ações pendentes neste momento. É um indicador de priorização, não uma probabilidade de acidente nem ERC/ARMS canônico.'}
         </p>
+        {actions.total > 0 && (
+          <p className="text-xs text-slate-500 mt-2">
+            Verificação de eficácia: <span className="text-emerald-300">{actions.effectiveness_effective} eficaz(es)</span> ·{' '}
+            <span className="text-amber-300">{actions.effectiveness_partial} parcial(is)</span> ·{' '}
+            <span className="text-red-300">{actions.effectiveness_ineffective} ineficaz(es)</span> ·{' '}
+            <span className="text-violet-300">{actions.effectiveness_pending} pendente(s)</span>
+            {actions.effectiveness_overdue > 0 ? ` · ${actions.effectiveness_overdue} verificação(ões) vencida(s)` : ''}.
+          </p>
+        )}
       </div>
 
-      {/* 3 métricas */}
+      {/* 4 métricas */}
       <div className="flex gap-5 flex-shrink-0 pl-6
         border-l border-slate-800">
         {[

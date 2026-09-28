@@ -7,7 +7,8 @@ const DOES = [
   'Classifica mecanismos humanos em Percepcao, Objetivo e Acao (P/O/A).',
   'Exige base textual suficiente antes de aceitar classificacao.',
   'Separa analise causal de avaliacao de risco.',
-  'Gera recomendacoes e permite acompanhar acoes corretivas.',
+  'Identifica pre-condicoes sustentadas e separa-as de hipoteses a investigar.',
+  'Converte achados validados em propostas de tratamento rastreaveis, com decisao humana.',
   'Constroi um perfil organizacional progressivo, com caveats.',
 ]
 
@@ -23,9 +24,11 @@ const DOES_NOT = [
 const FLOW = [
   { step: '1', title: 'Registrar evento', href: '/events/new', cta: 'Novo evento' },
   { step: '2', title: 'Complementar evidencias', href: '/sera/interview', cta: 'Usar entrevista' },
-  { step: '3', title: 'Rodar e revisar analise SERA', href: '/events', cta: 'Ver analises' },
-  { step: '4', title: 'Transformar recomendacoes em acoes', href: '/actions', cta: 'Ver acoes' },
-  { step: '5', title: 'Acompanhar padroes organizacionais', href: '/risk-profile', cta: 'Ver Risk Profile' },
+  { step: '3', title: 'Fechar ponto de fuga e P/O/A', href: '/events', cta: 'Ver analises' },
+  { step: '4', title: 'Validar pre-condicoes', href: '/events', cta: 'Revisar evidencias' },
+  { step: '5', title: 'Criar e acompanhar acoes', href: '/actions', cta: 'Ver acoes' },
+  { step: '6', title: 'Verificar eficacia e risco residual', href: '/actions', cta: 'Ver eficacia' },
+  { step: '7', title: 'Gerenciar risco e recorrencia', href: '/risk-profile', cta: 'Ver Risk Profile' },
 ]
 
 export default function MethodologyPage() {
@@ -130,6 +133,31 @@ export default function MethodologyPage() {
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
+        <h2 className="text-white font-semibold">Pre-condicoes e fechamento do ciclo de tratamento</h2>
+        <p className="text-slate-300 text-sm leading-relaxed">
+          Depois de estabelecer ponto de fuga, ator direto e P/O/A, o sistema procura evidencias de pre-condicoes. A Tabela 1 de Hendy orienta onde investigar, mas nao cria causa automaticamente.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
+            <h3 className="text-white text-sm font-semibold">1. Evidencia sustentada</h3>
+            <p className="text-slate-400 text-sm mt-2 leading-relaxed">A pre-condicao so entra como achado causal quando existe evidencia do evento e vinculo com a cadeia analisada.</p>
+          </div>
+          <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
+            <h3 className="text-white text-sm font-semibold">2. Hipotese a investigar</h3>
+            <p className="text-slate-400 text-sm mt-2 leading-relaxed">Categorias provaveis pela taxonomia aparecem como lacunas de investigacao, claramente separadas de causas confirmadas.</p>
+          </div>
+          <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
+            <h3 className="text-white text-sm font-semibold">3. Tratamento e assurance</h3>
+            <p className="text-slate-400 text-sm mt-2 leading-relaxed">Achados sustentados geram propostas de controle para validacao humana; depois, a acao recebe responsavel, prazo e status. A conclusao da acao abre a verificacao de eficacia e de risco residual antes de o ciclo ser considerado fechado no Perfil de Risco.</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/actions" className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">Abrir Acoes Corretivas</Link>
+          <Link href="/risk-profile" className="inline-flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">Abrir Perfil de Risco</Link>
+        </div>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
         <h2 className="text-white font-semibold">Analise causal vs avaliacao de risco</h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
@@ -180,7 +208,7 @@ export default function MethodologyPage() {
 
       <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-6 space-y-4">
         <h2 className="text-white font-semibold">Fluxo recomendado</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-3">
           {FLOW.map((item) => (
             <div key={item.step} className="bg-slate-900/70 border border-slate-700 rounded-lg p-4 flex flex-col gap-3">
               <div className="flex items-center gap-2">

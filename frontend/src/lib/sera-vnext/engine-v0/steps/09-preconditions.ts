@@ -44,6 +44,54 @@ const CANONICAL_FALLBACK_BY_OPERATIONAL_CATEGORY: Partial<Record<string, SeraCan
   ORGANIZATIONAL_CONTEXT: 'ORGANIZATIONAL_CLIMATE',
 }
 
+const OPERATIONAL_CATEGORY_BY_CANONICAL: Record<SeraCanonicalPreconditionCategory, SeraPreconditionCategory> = {
+  PHYSIOLOGICAL: 'PHYSICAL_CAPABILITY',
+  PSYCHOLOGICAL: 'ATTENTION_WORKLOAD_CONTEXT',
+  SOCIAL: 'TEAM_COORDINATION',
+  PHYSICAL_CAPABILITY: 'PHYSICAL_CAPABILITY',
+  PERSONAL_READINESS: 'PHYSICAL_CAPABILITY',
+  TRAINING_SELECTION: 'KNOWLEDGE_TRAINING',
+  QUALIFICATION_AUTHORIZATION: 'KNOWLEDGE_TRAINING',
+  TIME_PRESSURE: 'TIME_PRESSURE',
+  OBJECTIVES: 'INTENT_AWARENESS',
+  EQUIPMENT: 'TECHNICAL_CONTEXT',
+  WORKSPACE: 'ENVIRONMENTAL_CONTEXT',
+  ENVIRONMENT: 'ENVIRONMENTAL_CONTEXT',
+  FORMING_INTENT: 'INTENT_AWARENESS',
+  COMMUNICATING_INTENT: 'COMMUNICATION_INFORMATION',
+  MONITORING_SUPERVISION: 'PROCEDURAL_MONITORING',
+  MISSION: 'ORGANIZATIONAL_CONTEXT',
+  PROVISION_RESOURCES: 'ORGANIZATIONAL_CONTEXT',
+  RULES_REGULATIONS: 'ORGANIZATIONAL_CONTEXT',
+  ORGANIZATIONAL_PROCESS_PRACTICES: 'ORGANIZATIONAL_CONTEXT',
+  ORGANIZATIONAL_CLIMATE: 'ORGANIZATIONAL_CONTEXT',
+  OVERSIGHT: 'ORGANIZATIONAL_CONTEXT',
+}
+
+const PRECONDITION_INVESTIGATION_PROMPT_PT: Record<SeraCanonicalPreconditionCategory, string> = {
+  PHYSIOLOGICAL: 'Investigar fadiga, condição fisiológica e fatores de prontidão que poderiam ter afetado o desempenho no ponto de fuga.',
+  PSYCHOLOGICAL: 'Investigar distração, fixação, complacência, estresse ou vieses de processamento presentes antes do ponto de fuga.',
+  SOCIAL: 'Investigar liderança, gradiente de autoridade, assertividade, pressão social e dinâmica de equipe relevantes ao evento.',
+  PHYSICAL_CAPABILITY: 'Investigar limitações físicas, sensoriais ou ergonômicas que poderiam restringir a execução da tarefa.',
+  PERSONAL_READINESS: 'Investigar descanso, prontidão, condição física e mental e demais fatores pessoais anteriores à tarefa.',
+  TRAINING_SELECTION: 'Verificar treinamento, familiaridade, proficiência e experiência específica para a tarefa e situação encontradas.',
+  QUALIFICATION_AUTHORIZATION: 'Verificar qualificação, habilitação e autorização formal aplicáveis à atividade executada.',
+  TIME_PRESSURE: 'Verificar se havia urgência, atraso, janela operacional ou pressão temporal concreta e como ela afetou a tarefa.',
+  OBJECTIVES: 'Verificar clareza, compatibilidade e prioridade dos objetivos da tarefa em relação à operação segura.',
+  EQUIPMENT: 'Verificar condição, confiabilidade, ergonomia e feedback fornecido pelos equipamentos, controles e interfaces usados.',
+  WORKSPACE: 'Verificar acesso, visibilidade, layout e restrições físicas do posto ou espaço de trabalho.',
+  ENVIRONMENT: 'Verificar condições ambientais relevantes, incluindo iluminação, meteorologia, ruído, vibração e outras exposições.',
+  FORMING_INTENT: 'Verificar como objetivos, responsabilidades e prioridades da tarefa foram definidos pela supervisão/gestão.',
+  COMMUNICATING_INTENT: 'Verificar como intenção, objetivos, responsabilidades e alterações foram comunicados e confirmados.',
+  MONITORING_SUPERVISION: 'Verificar quem supervisionava a atividade, quais checagens independentes eram requeridas e se foram executadas e registradas.',
+  MISSION: 'Verificar se a missão/tarefa estava claramente definida, aprovada e compatível com os recursos disponíveis.',
+  PROVISION_RESOURCES: 'Verificar suficiência de pessoal, tempo, ferramentas, informações e demais recursos necessários à tarefa.',
+  RULES_REGULATIONS: 'Verificar adequação, clareza, disponibilidade e aplicação das regras e procedimentos que deveriam atuar como barreira.',
+  ORGANIZATIONAL_PROCESS_PRACTICES: 'Verificar processos, rotinas e práticas organizacionais que estruturavam a execução da atividade.',
+  ORGANIZATIONAL_CLIMATE: 'Investigar cultura, prioridades, tolerância a desvios, reporte e condições organizacionais que moldavam o comportamento.',
+  OVERSIGHT: 'Verificar mecanismos de auditoria, monitoramento, gerenciamento de risco e correção de problemas sistêmicos existentes antes do evento.',
+}
+
 const CATEGORY_DESCRIPTION_EN: Record<string, string> = {
   PHYSICAL_CAPABILITY: 'Physical or ergonomic condition potentially relevant to task execution.',
   SENSORY_LIMITATION: 'Sensory condition potentially relevant to situation perception.',
@@ -369,7 +417,7 @@ export function runStep09Preconditions(input: {
     return capAtEscape(category === 'ATTENTION_WORKLOAD_CONTEXT' && base === 'HIGH' ? 'MEDIUM' as const : base)
   }
 
-  return Object.entries(categoryEvidence).map(([category, evidenceSet]) => {
+  const evidencedCandidates = Object.entries(categoryEvidence).map(([category, evidenceSet]): SeraPreconditionCandidate => {
     const canonicalProfile = canonicalProfileFor(category, evidenceSet)
     const usableCausalEvidence = evidenceSet.sourceEvidence.filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
     const evidenceForDisplay = usableCausalEvidence.length ? usableCausalEvidence : evidenceSet.sourceEvidence
@@ -440,4 +488,47 @@ export function runStep09Preconditions(input: {
         : 'EVIDENCED_OUTSIDE_MOST_LIKELY_SET',
     }
   })
+
+  if (!causalBoundaryResolved || activeFailureCodes.length === 0) return evidencedCandidates
+
+  const representedCanonical = new Set(
+    evidencedCandidates
+      .map((item) => item.canonicalCategory)
+      .filter((item): item is SeraCanonicalPreconditionCategory => Boolean(item)),
+  )
+  const likelyCounts = new Map<SeraCanonicalPreconditionCategory, string[]>()
+  for (const code of activeFailureCodes) {
+    for (const canonical of SERA_MOST_LIKELY_PRECONDITIONS[code] ?? []) {
+      const codes = likelyCounts.get(canonical) ?? []
+      if (!codes.includes(code)) codes.push(code)
+      likelyCounts.set(canonical, codes)
+    }
+  }
+
+  const investigationGaps = [...likelyCounts.entries()]
+    .filter(([canonical]) => !representedCanonical.has(canonical))
+    .sort((a, b) => b[1].length - a[1].length || SERA_PRECONDITION_META[a[0]].pt.localeCompare(SERA_PRECONDITION_META[b[0]].pt, 'pt-BR'))
+    .map(([canonical, likelyCodes]): SeraPreconditionCandidate => ({
+      id: `PC-INVESTIGATE-${canonical}`,
+      label: canonical,
+      description: input.locale === 'pt-BR'
+        ? `${PRECONDITION_INVESTIGATION_PROMPT_PT[canonical]} A Tabela 1 de Hendy relaciona esta categoria a ${likelyCodes.join(', ')}, mas ainda não há evidência factual suficiente neste evento para tratá-la como causa.`
+        : `${SERA_PRECONDITION_META[canonical].definitionEn} Hendy Table 1 links this category to ${likelyCodes.join(', ')}, but this event does not yet contain sufficient factual evidence to treat it as causal.`,
+      category: OPERATIONAL_CATEGORY_BY_CANONICAL[canonical],
+      evidence: [],
+      relationship: 'UNRELATED_OR_UNSUPPORTED',
+      sourceEvidence: [],
+      sourceRuleIds: likelyCodes.map((code) => `SERA-HENDY-TABLE1-${code}-${canonical}`),
+      linkedActor: input.directActor.actor,
+      explicitlyNotEscapePoint: true,
+      basedOnCandidateCode: true,
+      nonFinal: true,
+      confidence: 'LOW',
+      canonicalCategory: canonical,
+      canonicalLevel: SERA_PRECONDITION_META[canonical].level,
+      likelyForActiveFailureCodes: likelyCodes,
+      methodologyMatch: 'HYPOTHESIS_ONLY',
+    }))
+
+  return [...evidencedCandidates, ...investigationGaps]
 }

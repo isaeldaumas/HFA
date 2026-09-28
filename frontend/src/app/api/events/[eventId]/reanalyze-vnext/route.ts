@@ -3,7 +3,7 @@ import { requireBearerUser } from '@/lib/server/api-auth'
 import { getSupabaseAdmin } from '@/lib/server/supabase-admin'
 import { getOrCreateRequestId } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
-import { canonicalAnalyzeResponse, createCanonicalEventAnalysis, mergeCanonicalReanalysisNarrative } from '@/lib/sera-vnext-product/canonical-event-analysis'
+import { canonicalAnalyzeResponse, createCanonicalEventAnalysis, mergeCanonicalReanalysisNarrative, mergeCanonicalSupplementalEvidence } from '@/lib/sera-vnext-product/canonical-event-analysis'
 
 export const maxDuration = 300
 
@@ -40,15 +40,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
       raw.newInformation,
     ].find((value) => typeof value === 'string' && value.trim().length > 0)
     const submittedNarrative = typeof raw.eventoNarrativa === 'string' ? raw.eventoNarrativa : null
-    const { data: latestVNext } = await admin
+    const { data: vnextHistory } = await admin
       .from('sera_vnext_analyses')
-      .select('narrative')
+      .select('narrative, engine_input')
       .eq('tenant_id', user.tenantId)
       .eq('source_reference', eventId)
       .is('deleted_at', null)
       .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+      .limit(20)
+    const latestVNext = vnextHistory?.[0] ?? null
     const narrative = mergeCanonicalReanalysisNarrative({
       baseNarrative: String(latestVNext?.narrative ?? event.raw_input ?? ''),
       submittedNarrative,
@@ -65,6 +65,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
       narrative,
       mode: 'REANALYSIS',
       locale,
+      supplementalEvidence: mergeCanonicalSupplementalEvidence((vnextHistory ?? []).map((item) => item.engine_input)),
       context: {
         tenantId: user.tenantId,
         userId: user.publicUserId,

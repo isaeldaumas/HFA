@@ -228,7 +228,15 @@ export function runStep06DirectActor(input: {
         /\b(passou|passaram)\s+a\s+(?:conduzir|preparar|aproximar|alinhar|descer)\b.*\b(unidade|plataforma|pista|helideck|destino|unit-[a-z0-9-]+)\b/.test(escapeText)
       if (pfExecution && copilotPf !== captainPf) {
         const actor = copilotPf ? 'copiloto (PF)' : 'comandante (PF)'
-        return { actor, status: 'IDENTIFIED', alternatives: ['tripulação', copilotPf ? 'comandante (PM)' : 'copiloto (PM)'], actorMigrationWarnings: [] }
+        const monitoringActor = copilotPf ? 'comandante (PM)' : 'copiloto (PM)'
+        return {
+          actor,
+          status: 'IDENTIFIED',
+          alternatives: ['tripulação', monitoringActor],
+          actorMigrationWarnings: [
+            `${monitoringActor} permanece como ator contributivo de monitoramento/barreira. O P/O/A principal fica ancorado no PF porque é o executor do compromisso operacional no ponto de fuga; a falha da barreira PF–PM deve ser registrada separadamente e não absorvida no mesmo ator.`,
+          ],
+        }
       }
       return {
         actor: 'flight crew (collective)',
