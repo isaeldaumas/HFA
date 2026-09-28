@@ -8,6 +8,8 @@ import { buildCanonicalFlowVisualModel } from '@/lib/sera-vnext/canonical-flow-v
 import { buildExecutiveSummary, friendlyAnswerLabel, friendlyNodeLabel, hfacsBridgeLevelLabel, preconditionLevelLabel, preconditionMethodologyMatchLabel } from '@/lib/sera-vnext/presentation'
 import { SERA_PRECONDITION_META } from '@/lib/sera-vnext/precondition-taxonomy'
 import { buildSeraHfacsBridge } from '@/lib/sera-vnext/hfacs-bridge'
+import { buildSeraActionSuggestions } from '@/lib/corrective-actions/sera-suggestions'
+import { buildPreconditionContextReadout } from '@/lib/sera-vnext/precondition-presentation'
 import type {
   SeraVNextAnalysisRecord,
   SeraVNextReviewRecord,
@@ -691,6 +693,21 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       { label: L('Classificação', 'Classification'), value: [output.axes.perception.proposedCode, output.axes.objective.proposedCode, output.axes.action.proposedCode].map((item) => value(item, '—')).join(' / '), accent: PDF_COLORS.green },
       { label: L('Revisão', 'Review'), value: reviewStatusLabel(analysis.review_status, pt), accent: PDF_COLORS.amber },
     ])
+    if (output.directActor.actorMigrationWarnings.length > 0) {
+      infoCard(
+        doc,
+        L('Atribuição do ator e barreiras complementares', 'Actor attribution and complementary barriers'),
+        [
+          L(
+            'O P/O/A principal permanece ancorado no ator que executa ou decide o ato no ponto de fuga. Papéis de monitoramento, cross-check e última barreira são preservados separadamente para não reduzir um evento de equipe a erro individual.',
+            'Primary P/O/A remains anchored to the actor who performs or decides the act at the escape point. Monitoring, cross-check, and last-barrier roles are preserved separately so a crew event is not reduced to an individual error.',
+          ),
+          ...output.directActor.actorMigrationWarnings,
+          output.directActor.alternatives.length ? `${L('Papéis relacionados preservados', 'Related roles retained')}: ${output.directActor.alternatives.join(' · ')}` : '',
+        ].filter(Boolean).join('\n'),
+        { accent: PDF_COLORS.blue, fill: '#F3F8FC', minHeight: 84 },
+      )
+    }
 
     const axisCards = [
       { id: 'P', title: L('Percepção', 'Perception'), code: output.axes.perception.proposedCode ?? '—', meaning: reviewerOutput.axisReviews.perception.candidateMeaning ?? candidateStatusLabel(output.axes.perception.status, pt) },
@@ -788,6 +805,15 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       ])
       meta(doc, L('Relação com a falha', 'Relationship to the failure'), relationshipLabel(pc.relationship))
       if (pc.methodologyMatch) meta(doc, L('Correspondência metodológica', 'Methodological match'), preconditionMethodologyMatchLabel(pc.methodologyMatch, pt))
+      const contextReadout = buildPreconditionContextReadout(output, pc, pt)
+      if (contextReadout) {
+        subheading(doc, L('Decomposição do contexto', 'Context decomposition'))
+        bullets(doc, [
+          ...contextReadout.supported.map((text) => `${L('Sustentado', 'Supported')}: ${text}`),
+          ...contextReadout.contextual.map((text) => `${L('Contextual/possível', 'Contextual/possible')}: ${text}`),
+          ...contextReadout.rejected.map((text) => `${L('Rejeitado como fator', 'Rejected as factor')}: ${text}`),
+        ])
+      }
       if (pt && reviewCard?.reviewerQuestion) {
         doc.moveDown(0.2)
         infoCard(doc, L('Pergunta ao revisor', 'Reviewer question'), reviewCard.reviewerQuestion, { accent, fill: '#FFFFFF', minHeight: 62 })
@@ -851,7 +877,35 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     ), 'justify')
     bullets(doc, operationalObservations, L('Nenhum outro fator contribuinte ou observação operacional adicional foi identificado nesta análise.', 'No additional contributory factor or operational observation was identified in this analysis.'))
 
-    heading(doc, '8. ' + L('Conclusão e próximos passos', 'Conclusion and next steps'))
+    heading(doc, '8. ' + L('Tratamento e ações sugeridas', 'Treatment and suggested actions'))
+    const treatmentSuggestions = buildSeraActionSuggestions({
+      analysisId: analysis.id,
+      eventId: analysis.source_reference,
+      analysisTitle: analysis.title,
+      output,
+    })
+    const correctiveSuggestions = treatmentSuggestions.filter((item) => item.kind === 'CORRECTIVE_PREVENTIVE')
+    const investigationSuggestions = treatmentSuggestions.filter((item) => item.kind === 'INVESTIGATION')
+    body(doc, L(
+      'O tratamento é derivado das pré-condições, não apenas do código P/O/A. Pré-condições sustentadas geram propostas de controle para decisão humana; hipóteses ainda não confirmadas geram somente tarefas de investigação. Após a implementação, a ação deve ter eficácia verificada e o risco residual acompanhado antes do fechamento do ciclo.',
+      'Treatment is derived from preconditions, not merely from P/O/A codes. Evidence-supported preconditions generate control proposals for human decision; unconfirmed hypotheses generate investigation tasks only. After implementation, action effectiveness and residual risk must be reviewed before closing the cycle.',
+    ), 'justify')
+    doc.moveDown(0.25)
+    if (correctiveSuggestions.length) {
+      subheading(doc, L('Propostas de ação corretiva/preventiva', 'Corrective/preventive action proposals'))
+      for (const item of correctiveSuggestions) {
+        infoCard(doc, item.title, item.description, { accent: PDF_COLORS.green, fill: PDF_COLORS.greenSoft, label: L('Proposta para validação humana', 'Proposal for human validation'), minHeight: 74 })
+      }
+    }
+    if (investigationSuggestions.length) {
+      subheading(doc, L('Lacunas de investigação antes de definir ação', 'Investigation gaps before defining action'))
+      bullets(doc, investigationSuggestions.map((item) => `${item.title}: ${item.description}`))
+    }
+    if (!treatmentSuggestions.length) {
+      body(doc, L('Nenhuma proposta de tratamento é liberada com a evidência atual. Complete a investigação e valide as pré-condições antes de definir ações.', 'No treatment proposal is released with the current evidence. Complete the investigation and validate preconditions before defining actions.'))
+    }
+
+    heading(doc, '9. ' + L('Conclusão e próximos passos', 'Conclusion and next steps'))
     const analysisReady = output.evidenceSufficiency.status === 'SUFFICIENT_FOR_CANDIDATE_ANALYSIS' && !Object.values(output.guardrails).some(Boolean)
     body(doc, analysisReady
       ? L(
@@ -864,7 +918,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
         ), 'justify')
 
     doc.moveDown(0.55)
-    heading(doc, '9. ' + L('Referência metodológica', 'Methodological reference'))
+    heading(doc, '10. ' + L('Referência metodológica', 'Methodological reference'))
     body(doc, L(
       'A análise utiliza a metodologia SERA, estruturada nos eixos Percepção, Objetivo e Ação, com correspondência complementar à taxonomia HFACS quando aplicável. O resultado permanece sujeito à revisão humana.',
       'The analysis uses the SERA methodology, structured around Perception, Objective, and Action, with complementary HFACS correspondence where applicable. The result remains subject to human review.',

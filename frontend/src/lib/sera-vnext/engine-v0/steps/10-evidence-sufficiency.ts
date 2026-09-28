@@ -182,6 +182,7 @@ function directActorClarification(args: {
 }
 
 export function runStep10EvidenceSufficiency(input: {
+  factualExtraction: SeraVNextEngineOutput['factualExtraction']
   safeOperationModel: SeraVNextEngineOutput['safeOperationModel']
   escapePoint: SeraVNextEngineOutput['escapePoint']
   directActor: SeraVNextEngineOutput['directActor']
@@ -201,6 +202,15 @@ export function runStep10EvidenceSufficiency(input: {
 
   const questions: SeraClarificationQuestion[] = []
   const blockingReasons: string[] = []
+  const recordedClarificationsFor = (questionId: string): string[] =>
+    input.factualExtraction.evidence
+      .filter((item) => item.collectionSource === 'CLARIFICATION_RESPONSE' && item.linkedQuestionId === questionId)
+      .map((item) => item.statement.trim())
+      .filter((value, index, all) => value.length > 0 && all.indexOf(value) === index)
+  const compactRecorded = (values: string[]): string => {
+    const joined = values.join(' | ').replace(/\s+/g, ' ').trim()
+    return joined.length > 220 ? `${joined.slice(0, 217)}...` : joined
+  }
   const maintenancePreflightContext =
     /\bmaintenance|manuten[cç][aã]o\b/i.test(input.directActor.actor ?? '') &&
     /\b(inspe[cç][aã]o (?:de )?pr[eé][ -]?voo|pr[eé][ -]?voo|preflight inspection)\b/i.test(
@@ -263,21 +273,41 @@ export function runStep10EvidenceSufficiency(input: {
     const last = [...path.answers].reverse().find((answer) => answer.answer === 'INSUFFICIENT_EVIDENCE') ?? path.answers[path.answers.length - 1]
     if (!last) continue
     const q = questionForNode(last.nodeId, last.question, input.locale)
-    if (maintenancePreflightContext && ['P_ROOT', 'P_ASSESSMENT'].includes(last.nodeId)) {
+    if (maintenancePreflightContext && last.nodeId === 'P_ROOT') {
       q.question = input.locale === 'pt-BR'
-        ? 'Na inspeção pré-voo, o executor acreditava que a condição de fechamento/travamento estava correta? A confirmação foi apenas visual ou incluiu uma verificação física/tátil do dispositivo?'
-        : 'During the preflight inspection, did the person performing the check believe the closure/locking condition was correct? Was confirmation visual only, or did it include a physical/tactile check of the device?'
+        ? 'Na inspeção pré-voo, o que o executor acreditava sobre a condição de fechamento/travamento daquela portinhola naquele momento?'
+        : 'During the preflight inspection, what did the person performing the check believe about that access panel closure/locking condition at that moment?'
       q.requestedEvidence = input.locale === 'pt-BR'
-        ? ['relato do executor sobre o que acreditava ter verificado', 'método de inspeção visual versus física/tátil', 'condição observada do fechamento/travamento naquele momento']
-        : ['account of what the person believed had been verified', 'visual versus physical/tactile inspection method', 'observed closure/locking condition at that moment']
+        ? ['relato do executor sobre a condição que acreditava existir', 'base factual dessa percepção']
+        : ['account of the condition the person believed existed', 'factual basis for that perception']
+    }
+    if (maintenancePreflightContext && last.nodeId === 'P_ASSESSMENT') {
+      const priorPerception = recordedClarificationsFor('CLARIFY-P-P_ROOT')
+      const recordedPrefix = priorPerception.length ? compactRecorded(priorPerception) : ''
+      q.question = input.locale === 'pt-BR'
+        ? (recordedPrefix
+            ? `Você já informou sobre a percepção do executor: “${recordedPrefix}”. Para avaliar se essa percepção estava correta, qual evidência estabelece a condição real da portinhola no mesmo momento do pré-voo?`
+            : 'Qual era a condição real da portinhola no momento da inspeção pré-voo e como ela se comparava ao que o executor acreditava ter verificado?')
+        : (recordedPrefix
+            ? `You already provided the operator perception: “${recordedPrefix}”. To assess whether that perception was correct, what evidence establishes the access panel actual condition at the same preflight moment?`
+            : 'What was the access panel actual condition at the preflight inspection moment, and how did it compare with what the person believed had been verified?')
+      q.requestedEvidence = input.locale === 'pt-BR'
+        ? ['condição real no mesmo momento do pré-voo', 'verificação física/tátil, registro, testemunho ou outro dado contemporâneo', 'comparação entre estado percebido e estado real']
+        : ['actual condition at the same preflight moment', 'physical/tactile check, record, witness account, or other contemporaneous evidence', 'comparison between perceived and actual state']
     }
     if (maintenancePreflightContext && last.nodeId === 'A_IMPLEMENTED') {
+      const priorAction = recordedClarificationsFor('CLARIFY-A-A_IMPLEMENTED')
+      const recordedPrefix = priorAction.length ? compactRecorded(priorAction) : ''
       q.question = input.locale === 'pt-BR'
-        ? 'Quem executou a inspeção daquela portinhola e qual passo de inspeção, fechamento ou verificação estava previsto e foi efetivamente executado? Houve omissão de uma etapa, falta de confirmação da própria ação ou uma segunda checagem atribuída a outra pessoa?'
-        : 'Who inspected that access panel, and what inspection, closing, or verification step was required and actually performed? Was a step omitted, was the actor own action left unverified, or was a second check assigned to someone else?'
+        ? (recordedPrefix
+            ? `Você já informou: “${recordedPrefix}”. Falta esclarecer qual passo de inspeção, fechamento ou verificação estava previsto, qual foi efetivamente executado ou omitido e como o resultado deveria ser confirmado.`
+            : 'Quem executou a inspeção daquela portinhola e qual passo de inspeção, fechamento ou verificação estava previsto e foi efetivamente executado? Houve omissão de uma etapa, falta de confirmação da própria ação ou uma segunda checagem atribuída a outra pessoa?')
+        : (recordedPrefix
+            ? `You already provided: “${recordedPrefix}”. What remains to be established is which inspection, closing, or verification step was required, which step was actually performed or omitted, and how the result should have been confirmed.`
+            : 'Who inspected that access panel, and what inspection, closing, or verification step was required and actually performed? Was a step omitted, was the actor own action left unverified, or was a second check assigned to someone else?')
       q.requestedEvidence = input.locale === 'pt-BR'
-        ? ['responsável pela inspeção/ação', 'procedimento de pré-voo aplicável', 'passo efetivamente executado', 'evidência de confirmação do resultado ou segunda verificação']
-        : ['person responsible for the inspection/action', 'applicable preflight procedure', 'step actually performed', 'evidence of result confirmation or second verification']
+        ? ['procedimento de pré-voo aplicável', 'passo previsto versus passo efetivamente executado', 'evidência de confirmação do resultado ou segunda verificação']
+        : ['applicable preflight procedure', 'required step versus step actually performed', 'evidence of result confirmation or second verification']
     }
     blockingReasons.push(`${path.axis}_CANONICAL_NODE_UNANSWERED:${last.nodeId}`)
     questions.push({

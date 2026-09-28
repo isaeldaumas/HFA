@@ -8,7 +8,7 @@ import {
 } from '@/lib/server/tenant-user'
 import { getOrCreateRequestId } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
-import { canonicalAnalyzeResponse, createCanonicalEventAnalysis, mergeCanonicalReanalysisNarrative } from '@/lib/sera-vnext-product/canonical-event-analysis'
+import { canonicalAnalyzeResponse, createCanonicalEventAnalysis, mergeCanonicalReanalysisNarrative, mergeCanonicalSupplementalEvidence } from '@/lib/sera-vnext-product/canonical-event-analysis'
 import { inferOccurrenceDateFromNarrative } from '@/lib/sera-vnext/occurrence-date'
 
 export const maxDuration = 300
@@ -61,6 +61,7 @@ async function persistCanonicalResult(args: {
   creditsUsed?: number
   auditSource: string
   locale?: 'pt-BR' | 'en'
+  supplementalEvidence?: import('@/lib/sera-vnext-product/types').SeraVNextCreateAnalysisInput['supplementalEvidence']
 }) {
   const result = await createCanonicalEventAnalysis({
     eventId: args.eventId,
@@ -68,6 +69,7 @@ async function persistCanonicalResult(args: {
     narrative: args.narrative,
     mode: args.mode,
     locale: args.locale ?? 'pt-BR',
+    supplementalEvidence: args.supplementalEvidence,
     context: {
       tenantId: args.tenantId,
       userId: args.publicUserId,
@@ -168,15 +170,14 @@ export async function POST(req: Request) {
         .maybeSingle()
       if (evErr || !ev) return buildErrorResponse('ANALYZE_FORBIDDEN', requestId, 403)
 
-      const { data: latestVNext } = await admin
+      const { data: vnextHistory } = await admin
         .from('sera_vnext_analyses')
-        .select('narrative')
+        .select('narrative, engine_input')
         .eq('tenant_id', user.tenantId)
         .eq('source_reference', body.eventId)
         .is('deleted_at', null)
         .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      const latestVNext = vnextHistory?.[0] ?? null
       const reanalysisNarrative = mergeCanonicalReanalysisNarrative({
         baseNarrative: String(latestVNext?.narrative ?? ev.raw_input ?? ''),
         submittedNarrative: rawInput,
@@ -211,6 +212,7 @@ export async function POST(req: Request) {
           requestId,
           auditSource: 'reanalysis',
           locale: body.locale === 'en' ? 'en' : 'pt-BR',
+          supplementalEvidence: mergeCanonicalSupplementalEvidence((vnextHistory ?? []).map((item) => item.engine_input)),
         })
         return NextResponse.json(canonicalAnalyzeResponse(result, body.eventId), { headers: { 'x-request-id': requestId } })
       } catch (err) {

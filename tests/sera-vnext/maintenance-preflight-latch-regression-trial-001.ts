@@ -42,10 +42,45 @@ const actionPath = output.canonicalTraversal.paths.find((path) => path.axis === 
 assert.equal(actionPath?.answers.at(-1)?.nodeId, 'A_IMPLEMENTED')
 assert.equal(actionPath?.answers.at(-1)?.answer, 'INSUFFICIENT_EVIDENCE')
 assert.ok(output.preconditions.some((pc) => pc.category === 'ORGANIZATIONAL_CONTEXT' && pc.relationship === 'UNRELATED_OR_UNSUPPORTED' && pc.confidence === 'LOW'))
-assert.ok(output.evidenceSufficiency.questions.some((q) => q.stage === 'PERCEPTION' && /visual|f[ií]sica|t[aá]til/i.test(q.question)))
+assert.ok(output.evidenceSufficiency.questions.some((q) => q.stage === 'PERCEPTION' && /acreditava|condi[cç][aã]o de fechamento|travamento/i.test(q.question)))
 assert.ok(output.evidenceSufficiency.questions.some((q) => q.stage === 'ACTION' && /quem executou|omiss[aã]o|segunda checagem/i.test(q.question)))
 assert.equal(output.downstreamAllowed, false)
 assert.equal(inferOccurrenceDateFromNarrative(narrative), '2025-07-22T12:00:00.000Z')
+
+// Regression: short factual answers entered in the product clarification form must
+// be consumed as answers to the exact canonical descriptive roots that requested
+// them. The investigator should not be sent back to the same P_ROOT/O_ROOT form
+// merely because the response does not repeat engine keywords such as "objective".
+const clarifiedRoots = runSeraVNextEngineV0({
+  inputId: 'MAINT-PREFLIGHT-ROOT-CLARIFICATIONS-001',
+  narrative,
+  locale: 'pt-BR',
+  sourceType: 'real_event',
+  requestId: 'MAINT-PREFLIGHT-ROOT-CLARIFICATIONS-001',
+  mode: 'CANDIDATE_ONLY',
+  options: { allowLlm: false, requireHumanReview: true, includeDebugTrace: true },
+  supplementalEvidence: [
+    { evidenceId: 'SUP-P-ROOT', linkedQuestionId: 'CLARIFY-P-P_ROOT', stage: 'PERCEPTION', temporalRelation: 'AT_ESCAPE', statement: 'Sim. A confirmacao foi apenas visual' },
+    { evidenceId: 'SUP-O-ROOT', linkedQuestionId: 'CLARIFY-O-O_ROOT', stage: 'OBJECTIVE', temporalRelation: 'AT_ESCAPE', statement: 'Liberar a aeronave pela manutenção' },
+  ],
+})
+const clarifiedPPath = clarifiedRoots.canonicalTraversal.paths.find((path) => path.axis === 'P')
+const clarifiedOPath = clarifiedRoots.canonicalTraversal.paths.find((path) => path.axis === 'O')
+assert.equal(clarifiedPPath?.answers[0]?.nodeId, 'P_ROOT')
+assert.equal(clarifiedPPath?.answers[0]?.answer, 'START')
+assert.equal(clarifiedPPath?.answers[0]?.responseText, 'Sim. A confirmacao foi apenas visual')
+assert.equal(clarifiedOPath?.answers[0]?.nodeId, 'O_ROOT')
+assert.equal(clarifiedOPath?.answers[0]?.answer, 'START')
+assert.equal(clarifiedOPath?.answers[0]?.responseText, 'Liberar a aeronave pela manutenção')
+assert.ok(!clarifiedRoots.evidenceSufficiency.questions.some((q) => q.id === 'CLARIFY-P-P_ROOT'))
+assert.ok(!clarifiedRoots.evidenceSufficiency.questions.some((q) => q.id === 'CLARIFY-O-O_ROOT'))
+const clarifiedPerceptionFollowUp = clarifiedRoots.evidenceSufficiency.questions.find((q) => q.id === 'CLARIFY-P-P_ASSESSMENT')
+assert.ok(clarifiedPerceptionFollowUp)
+assert.match(clarifiedPerceptionFollowUp!.question, /Voc[eê] j[aá] informou|condi[cç][aã]o real/i)
+assert.ok(clarifiedRoots.evidenceSufficiency.questions.some((q) => q.id === 'CLARIFY-A-A_IMPLEMENTED'))
+const objectiveClarificationEvidence = clarifiedRoots.factualExtraction.evidence.find((item) => item.evidenceId === 'SUP-O-ROOT')
+assert.ok(objectiveClarificationEvidence?.supports.includes('OBJECTIVE'))
+assert.equal(clarifiedRoots.evidenceSufficiency.status, 'NEEDS_CLARIFICATION')
 
 const clarified = runSeraVNextEngineV0({
   inputId: 'MAINT-PREFLIGHT-CLARIFIED-001', narrative: 'A portinhola foi encontrada aberta após o pouso. A tripulação realizou a recuperação.', locale: 'pt-BR', sourceType: 'real_event', requestId: 'MAINT-PREFLIGHT-CLARIFIED-001', mode: 'CANDIDATE_ONLY', options: { allowLlm: false, requireHumanReview: true, includeDebugTrace: true },

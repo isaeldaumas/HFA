@@ -92,6 +92,11 @@ export type RiskProfileSummary = {
     open_no_owner: number
     closed_last_30d: number
     resolution_rate: number
+    effectiveness_pending: number
+    effectiveness_overdue: number
+    effectiveness_effective: number
+    effectiveness_partial: number
+    effectiveness_ineffective: number
   }
   trend: Array<{ month: string; count: number }>
   alerts: string[]

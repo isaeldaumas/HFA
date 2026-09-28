@@ -27,6 +27,7 @@ export type SeraVNextCreateAnalysisInput = {
   sourceReference?: string | null
   clientRequestId: string
   locale?: 'pt-BR' | 'en'
+  supplementalEvidence?: SeraVNextEngineInput['supplementalEvidence']
   metadata?: Record<string, unknown>
 }
 

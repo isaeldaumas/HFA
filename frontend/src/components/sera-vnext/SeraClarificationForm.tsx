@@ -18,6 +18,18 @@ export function SeraClarificationForm(props: {
       : [],
     [props.output],
   )
+  const recordedResponses = useMemo(() => {
+    const grouped = new Map<string, string[]>()
+    for (const item of props.output.factualExtraction.evidence ?? []) {
+      if (item.collectionSource !== 'CLARIFICATION_RESPONSE' || !item.linkedQuestionId) continue
+      const statement = item.statement?.trim()
+      if (!statement) continue
+      const current = grouped.get(item.linkedQuestionId) ?? []
+      if (!current.includes(statement)) current.push(statement)
+      grouped.set(item.linkedQuestionId, current)
+    }
+    return grouped
+  }, [props.output])
   const [responses, setResponses] = useState<Record<string, string>>({})
   const [state, setState] = useState<'idle' | 'loading' | 'error' | 'success'>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -29,10 +41,18 @@ export function SeraClarificationForm(props: {
     const clarificationResponses = questions
       .map((q) => ({ questionId: q.id, response: (responses[q.id] ?? '').trim() }))
       .filter((item) => item.response.length > 0)
+      .filter((item) => !(recordedResponses.get(item.questionId) ?? []).some((recorded) =>
+        recorded.trim().toLocaleLowerCase() === item.response.toLocaleLowerCase(),
+      ))
     if (!clarificationResponses.length) {
+      const hasTypedResponse = questions.some((q) => (responses[q.id] ?? '').trim().length > 0)
       setError(pt
-        ? 'Preencha pelo menos uma resposta com informação factual do evento.'
-        : 'Provide at least one response with factual event information.')
+        ? (hasTypedResponse
+            ? 'Essa informação já está registrada. Acrescente somente evidência nova ou complementar.'
+            : 'Preencha pelo menos uma resposta com informação factual do evento.')
+        : (hasTypedResponse
+            ? 'That information is already recorded. Add only new or complementary evidence.'
+            : 'Provide at least one response with factual event information.'))
       return
     }
     setState('loading')
@@ -71,21 +91,43 @@ export function SeraClarificationForm(props: {
             : 'The engine stopped classification to avoid inferring beyond the available evidence. Respond only with known or documented facts.'}
         </p>
       </div>
-      {questions.map((question, index) => (
-        <div key={question.id} className="rounded-lg border border-amber-700/40 bg-slate-950/50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-400">
-            {pt ? 'Pergunta' : 'Question'} {index + 1}
-          </p>
-          <p className="mt-2 text-sm text-slate-100">{question.question}</p>
-          <textarea
-            rows={3}
-            value={responses[question.id] ?? ''}
-            onChange={(e) => setResponses((current) => ({ ...current, [question.id]: e.target.value }))}
-            className="mt-3 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-            placeholder={pt ? 'Descreva a evidência factual disponível.' : 'Describe the available factual evidence.'}
-          />
-        </div>
-      ))}
+      {questions.map((question, index) => {
+        const recorded = recordedResponses.get(question.id) ?? []
+        return (
+          <div key={question.id} className="rounded-lg border border-amber-700/40 bg-slate-950/50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-400">
+              {pt ? 'Pergunta' : 'Question'} {index + 1}
+            </p>
+            <p className="mt-2 text-sm text-slate-100">{question.question}</p>
+            {recorded.length > 0 && (
+              <div className="mt-3 rounded-lg border border-emerald-800/60 bg-emerald-950/20 px-3 py-2">
+                <p className="text-xs font-semibold text-emerald-300">
+                  {pt ? 'Evidência já registrada e incorporada à reanálise' : 'Evidence already recorded and included in reanalysis'}
+                </p>
+                {recorded.map((statement, responseIndex) => (
+                  <p key={`${question.id}-recorded-${responseIndex}`} className="mt-1 text-sm text-emerald-100/90">
+                    {statement}
+                  </p>
+                ))}
+                <p className="mt-2 text-xs text-amber-200/80">
+                  {pt
+                    ? 'Como esta pergunta continua ativa, a evidência acima ainda não resolveu completamente este ponto. Acrescente somente o fato que estiver faltando.'
+                    : 'Because this question is still active, the evidence above has not fully resolved this point. Add only the missing factual information.'}
+                </p>
+              </div>
+            )}
+            <textarea
+              rows={3}
+              value={responses[question.id] ?? ''}
+              onChange={(e) => setResponses((current) => ({ ...current, [question.id]: e.target.value }))}
+              className="mt-3 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+              placeholder={recorded.length > 0
+                ? (pt ? 'Acrescente somente nova evidência para este ponto.' : 'Add only new evidence for this point.')
+                : (pt ? 'Descreva a evidência factual disponível.' : 'Describe the available factual evidence.')}
+            />
+          </div>
+        )
+      })}
       {error && <p className="text-sm text-red-300">{error}</p>}
       {state === 'success' && (
         <p className="rounded-lg border border-emerald-700/50 bg-emerald-950/30 px-3 py-2 text-sm text-emerald-200">

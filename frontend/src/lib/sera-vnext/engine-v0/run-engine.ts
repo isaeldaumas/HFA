@@ -73,6 +73,7 @@ export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngi
     locale: input.locale,
   })
   const evidenceSufficiency = runStep10EvidenceSufficiency({
+    factualExtraction: factualExtractionWithEvidence,
     safeOperationModel,
     escapePoint,
     directActor,

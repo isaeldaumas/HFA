@@ -4,6 +4,7 @@ import {
   buildCanonicalEventClientRequestId,
   canonicalAnalyzeResponse,
   mergeCanonicalReanalysisNarrative,
+  mergeCanonicalSupplementalEvidence,
   createCanonicalEventAnalysis,
 } from '../../frontend/src/lib/sera-vnext-product/canonical-event-analysis'
 import { runSeraVNextEngineV0 } from '../../frontend/src/lib/sera-vnext/engine-v0/run-engine'
@@ -31,6 +32,30 @@ async function main() {
   assert.equal(reanalysisInput.metadata.source, 'primary_sera_reanalysis')
   assert.equal(reanalysisInput.metadata.candidateOnly, true)
 
+  const mergedSupplemental = mergeCanonicalSupplementalEvidence([
+    { supplementalEvidence: [
+      { evidenceId: 'latest-p', statement: 'Percepção mais recente', linkedQuestionId: 'CLARIFY-P-P_ROOT', stage: 'PERCEPTION', temporalRelation: 'AT_ESCAPE' },
+      { evidenceId: 'latest-o', statement: 'Objetivo mais recente', linkedQuestionId: 'CLARIFY-O-O_ROOT', stage: 'OBJECTIVE', temporalRelation: 'AT_ESCAPE' },
+    ] },
+    { supplementalEvidence: [
+      { evidenceId: 'old-p', statement: 'Percepção antiga substituída', linkedQuestionId: 'CLARIFY-P-P_ROOT', stage: 'PERCEPTION', temporalRelation: 'AT_ESCAPE' },
+      { evidenceId: 'old-a', statement: 'Resposta de ação preservada', linkedQuestionId: 'CLARIFY-A-A_IMPLEMENTED', stage: 'ACTION', temporalRelation: 'AT_ESCAPE' },
+    ] },
+    { supplementalEvidence: [
+      { evidenceId: 'old-escape', statement: 'Ponto de fuga previamente esclarecido', linkedQuestionId: 'CLARIFY-ESCAPE-POINT', stage: 'ESCAPE_POINT', temporalRelation: 'AT_ESCAPE' },
+    ] },
+  ])
+  assert.deepEqual(mergedSupplemental.map((item) => item.linkedQuestionId), [
+    'CLARIFY-P-P_ROOT',
+    'CLARIFY-O-O_ROOT',
+    'CLARIFY-P-P_ROOT',
+    'CLARIFY-A-A_IMPLEMENTED',
+    'CLARIFY-ESCAPE-POINT',
+  ])
+  assert.deepEqual(
+    mergedSupplemental.filter((item) => item.linkedQuestionId === 'CLARIFY-P-P_ROOT').map((item) => item.statement),
+    ['Percepção mais recente', 'Percepção antiga substituída'],
+  )
 
   const mergedAdditional = mergeCanonicalReanalysisNarrative({
     baseNarrative: 'Relato original do evento.',
@@ -115,6 +140,7 @@ Segundo complemento factual.`,
     title: 'Evento 1',
     narrative: 'Narrativa suficientemente longa para um evento de teste do fluxo canônico vNext.',
     mode: 'REANALYSIS',
+    supplementalEvidence: mergedSupplemental,
     context: {
       tenantId: 'tenant-1',
       userId: 'user-1',
@@ -132,6 +158,8 @@ Segundo complemento factual.`,
   assert.equal(captured.input.sourceReference, 'event-1')
   assert.equal(captured.input.clientRequestId, 'CANONICAL_REANALYSIS_event-1_req-2')
   assert.equal(captured.input.metadata.eventId, 'event-1')
+  assert.equal(captured.input.supplementalEvidence.length, 5)
+  assert.equal(captured.input.supplementalEvidence[3].linkedQuestionId, 'CLARIFY-A-A_IMPLEMENTED')
   assert.equal(captured.context.requestId, 'req-2')
 
   const response = canonicalAnalyzeResponse(fakeResult, 'event-1')

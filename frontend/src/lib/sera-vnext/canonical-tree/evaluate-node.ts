@@ -58,6 +58,35 @@ function usableStatements(ctx: SeraNodeEvidenceContext): string[] {
   ])
 }
 
+function substantiveClarification(statement: string): boolean {
+  const compact = statement.trim().replace(/\s+/g, ' ')
+  if (compact.length < 4) return false
+  const normalized = compact
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[.!?;,]+$/g, '')
+    .trim()
+  if (/^(sim|nao|yes|no)$/.test(normalized)) return false
+  if (/^(nao sei|desconhecido|desconhecida|sem informacao|nao informado|nao informada|n\/?a|unknown|i do not know|no information|not informed)$/.test(normalized)) return false
+  return normalized.split(/\s+/).filter(Boolean).length >= 2
+}
+
+function directNodeClarificationStatements(ctx: SeraNodeEvidenceContext): string[] {
+  const use = axisToEvidenceUse(ctx.axis)
+  const expectedQuestionId = `CLARIFY-${ctx.axis}-${ctx.node.nodeId}`
+  return unique(ctx.evidence
+    .filter((item) =>
+      item.collectionSource === 'CLARIFICATION_RESPONSE'
+      && item.linkedQuestionId === expectedQuestionId
+      && item.clarificationStage === use
+      && item.temporalRelation !== 'POST_ESCAPE'
+      && item.assertionStatus === 'AFFIRMED'
+      && !item.prohibitedFor.includes(use)
+      && substantiveClarification(item.statement))
+    .map((item) => item.statement))
+}
+
 function matching(statements: string[], patterns: RegExp[]): string[] {
   return statements.filter((statement) => patterns.some((pattern) => pattern.test(statement)))
 }
@@ -162,6 +191,11 @@ function insufficientRootResponse(axis: CanonicalSeraAxis, locale: 'pt-BR' | 'en
 function rootResponseText(ctx: SeraNodeEvidenceContext, supportingEvidence: string[]): string | null {
   // Hendy Step 2 asks for substantive P/O/A statements before the ladders. START is only
   // an internal branch token; the user-facing answer must directly answer the root question.
+  // When the investigator answered this exact root question, preserve the factual response
+  // verbatim instead of trying to reconstruct it from lexical patterns.
+  const directClarification = directNodeClarificationStatements(ctx)
+    .find((statement) => supportingEvidence.includes(statement))
+  if (directClarification) return directClarification
   const support = supportingEvidence[0]?.trim()
   if (support) return conciseRootResponse(ctx.axis, support)
   const fromStatement = stripAxisStatementPrefix(ctx.statementAtEscapePoint)
@@ -476,11 +510,24 @@ function decideA(nodeId: string, statements: string[]): Decision {
 
 export function evaluateCanonicalNode(ctx: SeraNodeEvidenceContext): SeraNodeAnswer {
   const statements = usableStatements(ctx)
-  const decision = ctx.axis === 'P'
-    ? decideP(ctx.node.nodeId, statements)
-    : ctx.axis === 'O'
-      ? decideO(ctx.node.nodeId, statements)
-      : decideA(ctx.node.nodeId, statements)
+  const directRootClarification = ctx.node.nodeId.endsWith('_ROOT')
+    ? directNodeClarificationStatements(ctx)
+    : []
+  // Root questions are descriptive (Hendy Step 2), not binary classification
+  // decisions. A substantive response explicitly linked to the active canonical root
+  // is sufficient to establish the descriptive P/O/A statement and continue to the
+  // first decision node. It never selects a terminal code by itself.
+  const decision: Decision = directRootClarification.length > 0
+    ? {
+        answer: 'START',
+        supportingEvidence: directRootClarification.slice(0, 2),
+        rationale: 'A factual clarification response directly answers this canonical descriptive root; traversal may continue without inferring a leaf from that response alone.',
+      }
+    : ctx.axis === 'P'
+      ? decideP(ctx.node.nodeId, statements)
+      : ctx.axis === 'O'
+        ? decideO(ctx.node.nodeId, statements)
+        : decideA(ctx.node.nodeId, statements)
 
   const branchTarget = decision.answer === 'INSUFFICIENT_EVIDENCE'
     ? null

@@ -29,6 +29,7 @@ function buildEngineInput(input: SeraVNextCreateAnalysisInput, context: SeraVNex
     sourceReference: input.sourceReference ?? undefined,
     requestId: context.requestId,
     mode: 'CANDIDATE_ONLY',
+    supplementalEvidence: input.supplementalEvidence,
     options: {
       allowLlm: false,
       includeDebugTrace: false,
