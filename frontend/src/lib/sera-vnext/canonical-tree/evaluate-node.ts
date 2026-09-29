@@ -103,6 +103,50 @@ function anyConcept(statements: string[], concepts: SeraEvidenceConcept[]): bool
   return concepts.some((item) => hasConcept(statements, item))
 }
 
+function semanticRoleStatements(ctx: SeraNodeEvidenceContext, role: import('../engine-contract').SeraSemanticEvidenceRole): string[] {
+  const use = axisToEvidenceUse(ctx.axis)
+  return unique(ctx.evidence
+    .filter((item) =>
+      item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+      && item.assertionStatus === 'AFFIRMED'
+      && item.semanticConfidence !== 'LOW'
+      && !item.prohibitedFor.includes(use)
+      && isEvidenceUsableFor(item, use)
+      && item.semanticRoles?.includes(role))
+    .map((item) => item.statement))
+}
+
+function semanticConceptStatements(ctx: SeraNodeEvidenceContext, conceptName: SeraEvidenceConcept): string[] {
+  const use = axisToEvidenceUse(ctx.axis)
+  return unique(ctx.evidence
+    .filter((item) =>
+      item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+      && item.assertionStatus === 'AFFIRMED'
+      && item.semanticConfidence !== 'LOW'
+      && !item.prohibitedFor.includes(use)
+      && isEvidenceUsableFor(item, use)
+      && item.semanticConcepts?.includes(conceptName as never))
+    .map((item) => item.statement))
+}
+
+function semanticConceptsWithinWindow(
+  ctx: SeraNodeEvidenceContext,
+  left: SeraEvidenceConcept,
+  right: SeraEvidenceConcept,
+  maxDistance: number,
+): boolean {
+  const use = axisToEvidenceUse(ctx.axis)
+  const eligible = ctx.evidence.filter((item) =>
+    item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+    && item.assertionStatus === 'AFFIRMED'
+    && item.semanticConfidence !== 'LOW'
+    && !item.prohibitedFor.includes(use)
+    && isEvidenceUsableFor(item, use))
+  const leftItems = eligible.filter((item) => item.semanticConcepts?.includes(left as never))
+  const rightItems = eligible.filter((item) => item.semanticConcepts?.includes(right as never))
+  return leftItems.some((a) => rightItems.some((b) => Math.abs(a.sourceSentenceIndex - b.sourceSentenceIndex) <= maxDistance))
+}
+
 function stripAxisStatementPrefix(value: string | null): string | null {
   if (!value) return null
   const trimmed = value.trim()
@@ -220,34 +264,39 @@ function rootResponseText(ctx: SeraNodeEvidenceContext, supportingEvidence: stri
   return fromStatement ? conciseRootResponse(ctx.axis, fromStatement) : null
 }
 
-function decideP(nodeId: string, statements: string[]): Decision {
+function decideP(nodeId: string, statements: string[], ctx: SeraNodeEvidenceContext): Decision {
+  const c = (conceptName: SeraEvidenceConcept) => unique([...concept(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
+  const cn = (conceptName: SeraEvidenceConcept) => unique([...matchingConceptStatementsWithoutNegation(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
+  const any = (conceptNames: SeraEvidenceConcept[]) => conceptNames.some((conceptName) => c(conceptName).length > 0)
+  const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => conceptsWithinWindow(statements, left, right, maxDistance) || semanticConceptsWithinWindow(ctx, left, right, maxDistance)
   switch (nodeId) {
     case 'P_ROOT': {
       const perceivedState = unique([
-        ...concept(statements, 'inadequateAssessment'),
-        ...concept(statements, 'adequateAssessment'),
+        ...c('inadequateAssessment'),
+        ...c('adequateAssessment'),
+        ...semanticRoleStatements(ctx, 'PERCEPTION_STATE'),
         ...matching(statements, [/\b(acreditava|achava|entendia|percebia|identificou|interpretou|reconheceu|viu|vimos|viram|sabia|sabiam|ciente|consciente|believed|understood|perceived|identified|interpreted|recognized|saw|knew|aware)\b/i]),
       ])
       if (!perceivedState.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of what the operator believed or perceived; environmental/system state alone cannot substitute for that belief.' }
       return { answer: 'START', supportingEvidence: perceivedState.slice(0, 2), rationale: 'Root node establishes the operator perceived state before that assessment is tested.' }
     }
     case 'P_ASSESSMENT': {
-      const positive = concept(statements, 'adequateAssessment')
-      const negative = concept(statements, 'inadequateAssessment')
+      const positive = c('adequateAssessment')
+      const negative = c('inadequateAssessment')
       if (negative.length > 0) return { answer: 'NÃO', supportingEvidence: negative, rationale: 'Pre-escape evidence supports inaccurate or inadequate situation assessment.' }
       if (positive.length > 0) return { answer: 'SIM', supportingEvidence: positive, rationale: 'Pre-escape evidence supports adequate perception or timely recognition.' }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'No pre-escape evidence answers whether assessment was adequate.' }
     }
     case 'P_CAPABILITY': {
-      const sensory = concept(statements, 'sensoryLimitation')
-      const knowledge = concept(statements, 'knowledgeLimitation')
-      const capabilityPresent = concept(statements, 'perceptionCapabilityPresent')
+      const sensory = c('sensoryLimitation')
+      const knowledge = c('knowledgeLimitation')
+      const capabilityPresent = c('perceptionCapabilityPresent')
       if (sensory.length > 0) return { answer: 'NÃO_SENSORIAL', supportingEvidence: sensory, rationale: 'Evidence localizes the perception issue to sensory/perceptual capability.' }
       if (knowledge.length > 0) return { answer: 'NÃO_CONHECIMENTO', supportingEvidence: knowledge, rationale: 'Evidence localizes the perception issue to knowledge/training capability.' }
       const informationQuality = unique([
-        ...concept(statements, 'informationAvailableCorrect'),
-        ...concept(statements, 'informationAmbiguous'),
-        ...concept(statements, 'informationUnavailable'),
+        ...c('informationAvailableCorrect'),
+        ...c('informationAmbiguous'),
+        ...c('informationUnavailable'),
       ])
       if (capabilityPresent.length > 0 || informationQuality.length > 0) return {
         answer: 'SIM',
@@ -257,26 +306,26 @@ function decideP(nodeId: string, statements: string[]): Decision {
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The text does not identify a canonical capability subtype.' }
     }
     case 'P_TIME_PRESSURE': {
-      const attention = concept(statements, 'attentionPressure')
-      const management = concept(statements, 'timeManagementPressure')
+      const attention = c('attentionPressure')
+      const management = c('timeManagementPressure')
       if (management.length > 0 && attention.length > 0) return { answer: 'SIM_ATENCAO', supportingEvidence: unique([...attention, ...management]), rationale: 'Attention impairment is supported together with explicit excessive time/urgency pressure.' }
       if (management.length > 0) return { answer: 'SIM_GERENCIAMENTO', supportingEvidence: management, rationale: 'Explicit excessive time-management pressure is supported.' }
-      if (attention.length > 0 || anyConcept(statements, ['informationAmbiguous', 'informationAvailableCorrect', 'informationUnavailable'])) {
+      if (attention.length > 0 || any(['informationAmbiguous', 'informationAvailableCorrect', 'informationUnavailable'])) {
         return { answer: 'NÃO', supportingEvidence: attention.length > 0 ? attention : statements.slice(0, 2), rationale: 'Attention-demand evidence exists without explicit excessive time pressure; continue to information-quality branches and retain attention as contextual evidence only.' }
       }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'No evidence answers whether perceived time pressure was excessive.' }
     }
     case 'P_INFORMATION_AMBIGUOUS': {
-      const ambiguous = concept(statements, 'informationAmbiguous')
+      const ambiguous = c('informationAmbiguous')
       if (ambiguous.length > 0) return { answer: 'SIM', supportingEvidence: ambiguous, rationale: 'Information ambiguity is explicit.' }
-      if (anyConcept(statements, ['informationAvailableCorrect', 'informationUnavailable'])) {
+      if (any(['informationAvailableCorrect', 'informationUnavailable'])) {
         return { answer: 'NÃO', supportingEvidence: statements.slice(0, 2), rationale: 'Information evidence is present but ambiguity is not supported.' }
       }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'No explicit information-quality evidence is available.' }
     }
     case 'P_INFORMATION_AVAILABLE': {
-      const available = concept(statements, 'informationAvailableCorrect')
-      const unavailable = concept(statements, 'informationUnavailable')
+      const available = c('informationAvailableCorrect')
+      const unavailable = c('informationUnavailable')
       if (available.length > 0) return { answer: 'SIM', supportingEvidence: available, rationale: 'Evidence supports information being available and correct.' }
       if (unavailable.length > 0) return { answer: 'NÃO', supportingEvidence: unavailable, rationale: 'Evidence supports missing or unavailable information.' }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Available/correct information is not established strongly enough for a P-G/P-H leaf.' }
@@ -286,13 +335,18 @@ function decideP(nodeId: string, statements: string[]): Decision {
   }
 }
 
-function decideO(nodeId: string, statements: string[]): Decision {
+function decideO(nodeId: string, statements: string[], ctx: SeraNodeEvidenceContext): Decision {
+  const c = (conceptName: SeraEvidenceConcept) => unique([...concept(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
+  const cn = (conceptName: SeraEvidenceConcept) => unique([...matchingConceptStatementsWithoutNegation(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
+  const any = (conceptNames: SeraEvidenceConcept[]) => conceptNames.some((conceptName) => c(conceptName).length > 0)
+  const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => conceptsWithinWindow(statements, left, right, maxDistance) || semanticConceptsWithinWindow(ctx, left, right, maxDistance)
   switch (nodeId) {
     case 'O_ROOT': {
       const intendedGoal = unique([
         // The root must answer Hendy's explicit goal/intention question. A procedure that
         // should have been executed (safeGoal) is not evidence of what this actor intended.
-        ...concept(statements, 'efficiencyObjective'),
+        ...c('efficiencyObjective'),
+        ...semanticRoleStatements(ctx, 'OBJECTIVE_INTENT'),
         ...matching(statements, [
           /\b(objetiv|inten[cç][aã]o|pretend|planej|meta|queria|desej|buscava|visava|goal|intent|planned|planning)\w*/i,
           /\b(decidiu|decidiram|decidimos|resolveu|resolveram|resolvemos|optou|optaram|escolheu|escolheram|decided|resolved|chose|opted)\b.{0,120}\b(continuar|continuou|prosseguir|prosseguiu|tentar|decolar|decolou|pousar|pousou|aproximar|aproximou|descer|desceu|subir|subiu|continue|continued|proceed|proceeded|try|take off|took off|land|landed|approach|approached|descend|descended|climb|climbed)\b/i,
@@ -305,17 +359,17 @@ function decideO(nodeId: string, statements: string[]): Decision {
       return { answer: 'START', supportingEvidence: intendedGoal.slice(0, 2), rationale: 'Root node establishes the operator intended goal before rule/risk consistency is tested.' }
     }
     case 'O_RULES': {
-      const safeGoal = concept(statements, 'safeGoal')
+      const safeGoal = c('safeGoal')
       const violationPrerequisites = unique([
-        ...matchingConceptStatementsWithoutNegation(statements, 'knownRule'),
-        ...matchingConceptStatementsWithoutNegation(statements, 'explicitAwareness'),
-        ...matchingConceptStatementsWithoutNegation(statements, 'consciousDeviation'),
+        ...cn('knownRule'),
+        ...cn('explicitAwareness'),
+        ...cn('consciousDeviation'),
       ])
-      const unmanagedRisk = concept(statements, 'unmanagedRisk')
-      const mistakenTarget = concept(statements, 'inadequateAssessment').filter((statement) =>
+      const unmanagedRisk = c('unmanagedRisk')
+      const mistakenTarget = c('inadequateAssessment').filter((statement) =>
         /\b(unit-[a-z0-9-]+|pcp-?[0-9]+|unidade|plataforma|pista|destino|helideck|runway|surface|destination|deck)\b/i.test(statement),
       )
-      const plannedTargetEvidence = concept(statements, 'informationAvailableCorrect')
+      const plannedTargetEvidence = c('informationAvailableCorrect')
 
       if (safeGoal.length > 0) return { answer: 'SIM', supportingEvidence: safeGoal, rationale: 'Objective evidence supports a safe or rule-consistent goal.' }
       if (mistakenTarget.length > 0 && plannedTargetEvidence.length > 0 && violationPrerequisites.length === 0 && unmanagedRisk.length === 0) {
@@ -330,17 +384,17 @@ function decideO(nodeId: string, statements: string[]): Decision {
       // opens O-C or converts a documented violation into O-D.
       // Three-tier violation detection (all negation-aware):
       // Tier 1 — Strict triad with contextual window (≤ 3 sentences apart)
-      const knownRuleWindow = matchingConceptStatementsWithoutNegation(statements, 'knownRule')
-      const explicitAwarenessWindow = matchingConceptStatementsWithoutNegation(statements, 'explicitAwareness')
-      const consciousDeviationWindow = matchingConceptStatementsWithoutNegation(statements, 'consciousDeviation')
+      const knownRuleWindow = cn('knownRule')
+      const explicitAwarenessWindow = cn('explicitAwareness')
+      const consciousDeviationWindow = cn('consciousDeviation')
 
       const hasKnownRule = knownRuleWindow.length > 0
       const hasAwareness = explicitAwarenessWindow.length > 0
       const hasConscious = consciousDeviationWindow.length > 0
 
       // Tier 1: All three present within contextual window
-      const windowPair1 = conceptsWithinWindow(statements, 'knownRule', 'explicitAwareness', 3)
-      const windowPair2 = conceptsWithinWindow(statements, 'explicitAwareness', 'consciousDeviation', 3)
+      const windowPair1 = conceptWindow('knownRule', 'explicitAwareness', 3)
+      const windowPair2 = conceptWindow('explicitAwareness', 'consciousDeviation', 3)
 
       if (hasKnownRule && hasAwareness && hasConscious && (windowPair1 || windowPair2)) {
         return { answer: 'NÃO', supportingEvidence: violationPrerequisites, rationale: 'Violation path opened by known-rule, awareness, and conscious-deviation evidence within contextual proximity.' }
@@ -362,32 +416,32 @@ function decideO(nodeId: string, statements: string[]): Decision {
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'No pre-escape goal evidence answers rule/risk consistency.' }
     }
     case 'O_ROUTINE': {
-      const routine = matchingConceptStatementsWithoutNegation(statements, 'routineDeviation')
-      const exceptional = matchingConceptStatementsWithoutNegation(statements, 'exceptionalDeviation')
+      const routine = cn('routineDeviation')
+      const exceptional = cn('exceptionalDeviation')
       const awareness = unique([
-        ...matchingConceptStatementsWithoutNegation(statements, 'knownRule'),
-        ...matchingConceptStatementsWithoutNegation(statements, 'explicitAwareness'),
-        ...matchingConceptStatementsWithoutNegation(statements, 'consciousDeviation'),
+        ...cn('knownRule'),
+        ...cn('explicitAwareness'),
+        ...cn('consciousDeviation'),
       ])
       if (routine.length > 0 && awareness.length > 0) return { answer: 'SIM', supportingEvidence: unique([...routine, ...awareness]), rationale: 'Routine violation requires positive normalization/habit evidence together with rule awareness.' }
       if (exceptional.length > 0 && awareness.length > 0) return { answer: 'NÃO', supportingEvidence: unique([...exceptional, ...awareness]), rationale: 'Exceptional violation is explicitly supported together with rule awareness.' }
-      const known = matchingConceptStatementsWithoutNegation(statements, 'knownRule')
-      const explicit = matchingConceptStatementsWithoutNegation(statements, 'explicitAwareness')
-      const conscious = matchingConceptStatementsWithoutNegation(statements, 'consciousDeviation')
+      const known = cn('knownRule')
+      const explicit = cn('explicitAwareness')
+      const conscious = cn('consciousDeviation')
       if (known.length > 0 && explicit.length > 0 && conscious.length > 0 && routine.length === 0) {
         return { answer: 'NÃO', supportingEvidence: unique([...known, ...explicit, ...conscious]), rationale: 'A conscious rule deviation is established and no positive evidence of normalization/habit exists; the canonical non-routine branch is O-C.' }
       }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Violation subtype is not established.' }
     }
     case 'O_MANAGED_RISK': {
-      const managed = concept(statements, 'managedRisk')
-      const safeGoal = concept(statements, 'safeGoal')
-      const unmanaged = concept(statements, 'unmanagedRisk')
-      const efficiencyObjective = concept(statements, 'efficiencyObjective')
-      const mistakenTarget = concept(statements, 'inadequateAssessment').filter((statement) =>
+      const managed = c('managedRisk')
+      const safeGoal = c('safeGoal')
+      const unmanaged = c('unmanagedRisk')
+      const efficiencyObjective = c('efficiencyObjective')
+      const mistakenTarget = c('inadequateAssessment').filter((statement) =>
         /\b(unit-[a-z0-9-]+|pcp-?[0-9]+|unidade|plataforma|pista|destino|helideck|runway|surface|destination|deck)\b/i.test(statement),
       )
-      const plannedTargetEvidence = concept(statements, 'informationAvailableCorrect')
+      const plannedTargetEvidence = c('informationAvailableCorrect')
       // The exact PT question is negative: it asks whether the goal did not
       // manage or limit risk. Keep its answer polarity identical in EN, the
       // evaluator, and the canonical branch map.
@@ -414,10 +468,15 @@ function decideO(nodeId: string, statements: string[]): Decision {
   }
 }
 
-function decideA(nodeId: string, statements: string[]): Decision {
+function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceContext): Decision {
+  const c = (conceptName: SeraEvidenceConcept) => unique([...concept(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
+  const cn = (conceptName: SeraEvidenceConcept) => unique([...matchingConceptStatementsWithoutNegation(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
+  const any = (conceptNames: SeraEvidenceConcept[]) => conceptNames.some((conceptName) => c(conceptName).length > 0)
+  const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => conceptsWithinWindow(statements, left, right, maxDistance) || semanticConceptsWithinWindow(ctx, left, right, maxDistance)
   switch (nodeId) {
     case 'A_ROOT': {
       const actionStrategy = unique([
+        ...semanticRoleStatements(ctx, 'ACTION_STRATEGY'),
         // Hendy asks HOW the actor was trying to achieve the goal — the plan/means.
         // A bare observed control movement is not sufficient to establish that strategy.
         ...matching(statements, [
@@ -431,25 +490,28 @@ function decideA(nodeId: string, statements: string[]): Decision {
           /\b(n[aã]o iniciou|n[aã]o executou|falhou em iniciar|falhou em executar)\b.{0,80}\b(arremetida|go-around)\b/i,
           /\b(hesitou|demorou|esperou|hesitated|delayed|waited)\b.{0,100}\b(antes de|before)\b.{0,100}\b(executar|iniciar|realizar|execute|initiate|perform)\b/i,
           /\b(por meio de|atrav[eé]s de|by means of|by using|using)\b.{0,160}/i,
-          /\b(inspe[cç][aã]o (?:de )?pr[eé][ -]?voo|preflight inspection|inspe[cç][aã]o visual)\b.{0,100}\b(conclu[ií]d[ao]|realizad[ao]|completed|performed)\b/i,
+          /\b(inspe[cç][aã]o (?:de )?pr[eé][ -]?voo|preflight inspection|inspe[cç][aã]o visual)\b.{0,140}\b(conclu[ií]d[ao]|realizad[ao]|completed|performed|nada de anormal|nenhuma anormalidade|no abnormality)\b/i,
+          /\b(associou|identificou|tratou)\b.{0,140}\b(unidade|plataforma|pista|destino)\b.{0,220}\b(conduzindo|conduzir|aproxima[cç][aã]o|pouso|landing|approach)\b/i,
         ]),
       ])
       if (!actionStrategy.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of the actor plan, strategy, or means for achieving the goal; an observed movement or control input alone cannot substitute for that plan.' }
       return { answer: 'START', supportingEvidence: actionStrategy.slice(0, 2), rationale: 'Root node establishes how the operator was trying to achieve the goal before implementation and adequacy are tested.' }
     }
     case 'A_IMPLEMENTED': {
-      const safeAction = concept(statements, 'safeAction')
-      const implemented = concept(statements, 'implementedAction')
-      const perceptionDriven = concept(statements, 'inadequateAssessment')
-      const feedbackFailure = concept(statements, 'feedbackImplementationFailure').filter((statement) =>
+      const safeAction = c('safeAction')
+      const implemented = c('implementedAction')
+      const perceptionDriven = c('inadequateAssessment')
+      const feedbackFailure = c('feedbackImplementationFailure').filter((statement) =>
         /\b(pr[oó]pria a[cç][aã]o|pr[oó]prio comando|own action|own command|resultado da a[cç][aã]o|resultado do comando|fma|modo ativo|post[- ]?checklist)\b/i.test(statement)
       )
-      const slipOrLapse = concept(statements, 'slipLapse')
-      const selected = concept(statements, 'selectionSubtype')
-      const timed = concept(statements, 'timeManagementAction')
+      const slipOrLapse = c('slipLapse')
+      const selected = c('selectionSubtype')
+      const timed = c('timeManagementAction')
       const intendedAction = matching(statements, [
         /\b(pretendia|intencionava|queria|tentava|planejava|decidiu|optou|escolheu|selecionou|prosseguiu|continuou|intended|wanted|was trying|planned to|decided|opted|chose|selected|proceeded|continued)\b/i,
         /\b((?:passou|come[cç]ou) a (?:trat[aá](?:-l[ao])?|planejar|conduzir|preparar)|iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|conduziu a aproxima[cç][aã]o|preparou a aproxima[cç][aã]o|comprometeu(?:-se)?|tratava .* como (?:o )?destino)\b/i,
+        /\b(associou|identificou|tratou)\b.{0,140}\b(unidade|plataforma|pista|destino)\b.{0,220}\b(conduzindo|conduzir|aproxima[cç][aã]o|pouso|landing|approach)\b/i,
+        /\b(inspe[cç][aã]o (?:de )?pr[eé][ -]?voo|preflight inspection|inspe[cç][aã]o visual)\b.{0,140}\b(conclu[ií]d[ao]|realizad[ao]|completed|performed|nada de anormal|nenhuma anormalidade|no abnormality)\b/i,
         /\b(a[cç][aã]o pretendida|comando pretendido|intended action|intended command)\b/i,
       ])
       const observedDeliberateAction = matching(statements, [
@@ -475,15 +537,15 @@ function decideA(nodeId: string, statements: string[]): Decision {
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'No pre-escape evidence establishes both the intended and implemented action.' }
     }
     case 'A_CORRECT': {
-      const correct = concept(statements, 'correctAction')
-      const incorrect = concept(statements, 'incorrectAction')
-      const perceptionDriven = concept(statements, 'inadequateAssessment')
+      const correct = c('correctAction')
+      const incorrect = c('incorrectAction')
+      const perceptionDriven = c('inadequateAssessment')
       const independentSelectionError = matching(statements, [
         /\b(selected|selecionou|escolheu|acionou|apertou|programou|inseriu)\b.*\b(wrong|errad[oa]|incorret[oa]|modo|mode|valor|value|comando|control)\b/i,
         /\bwrong checklist|checklist errado|wrong switch|interruptor errado|wrong control|comando errado\b/i,
       ])
-      const selectionSubtype = concept(statements, 'selectionSubtype')
-      const timingSubtype = concept(statements, 'timeManagementAction')
+      const selectionSubtype = c('selectionSubtype')
+      const timingSubtype = c('timeManagementAction')
       if (timingSubtype.length > 0) return { answer: 'NÃO', supportingEvidence: timingSubtype, rationale: 'The response was eventually executed, but explicit delay/hesitation makes execution timing independently inadequate.' }
       if (correct.length > 0) return { answer: 'SIM', supportingEvidence: correct, rationale: 'Action evidence supports an adequate response.' }
       if (perceptionDriven.length > 0 && independentSelectionError.length === 0 && selectionSubtype.length === 0) return { answer: 'SIM', supportingEvidence: perceptionDriven, rationale: 'The action was coherent with the actor incorrect perceived state and no independent action-selection/implementation mechanism is established; A-axis double counting is avoided.' }
@@ -491,15 +553,15 @@ function decideA(nodeId: string, statements: string[]): Decision {
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Correctness of action is not established.' }
     }
     case 'A_CAPABILITY': {
-      const physical = concept(statements, 'physicalActionLimitation')
-      const knowledge = concept(statements, 'actionKnowledgeLimitation')
-      const capabilityPresent = concept(statements, 'actionCapabilityPresent')
+      const physical = c('physicalActionLimitation')
+      const knowledge = c('actionKnowledgeLimitation')
+      const capabilityPresent = c('actionCapabilityPresent')
       if (physical.length > 0) return { answer: 'NÃO_INABILIDADE', supportingEvidence: physical, rationale: 'Evidence supports physical/capability limitation.' }
       if (knowledge.length > 0) return { answer: 'NÃO_CONHECIMENTO', supportingEvidence: knowledge, rationale: 'Evidence supports knowledge/skill limitation.' }
       const specificActionMechanism = unique([
-        ...concept(statements, 'selectionSubtype'),
-        ...concept(statements, 'feedbackSubtype'),
-        ...concept(statements, 'timeManagementAction'),
+        ...c('selectionSubtype'),
+        ...c('feedbackSubtype'),
+        ...c('timeManagementAction'),
       ])
       if (capabilityPresent.length > 0 || specificActionMechanism.length > 0) return {
         answer: 'SIM',
@@ -509,11 +571,11 @@ function decideA(nodeId: string, statements: string[]): Decision {
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Action capability cannot be assumed without positive evidence.' }
     }
     case 'A_TIME_PRESSURE': {
-      const feedbackFailed = concept(statements, 'feedbackUnderPressureFailed')
-      const selectionFailed = concept(statements, 'selectionUnderPressureFailed')
-      const feedback = concept(statements, 'feedbackSubtype')
-      const rushed = concept(statements, 'timeManagementAction')
-      const selection = concept(statements, 'selectionSubtype')
+      const feedbackFailed = c('feedbackUnderPressureFailed')
+      const selectionFailed = c('selectionUnderPressureFailed')
+      const feedback = c('feedbackSubtype')
+      const rushed = c('timeManagementAction')
+      const selection = c('selectionSubtype')
       if (selectionFailed.length > 0) return { answer: 'SIM_SELECAO', supportingEvidence: selectionFailed, rationale: 'Evidence supports selection failure under excessive time pressure.' }
       if (feedbackFailed.length > 0) return { answer: 'SIM_FEEDBACK', supportingEvidence: feedbackFailed, rationale: 'Evidence supports feedback or communication failure under excessive time pressure.' }
       if (feedback.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: feedback, rationale: 'Evidence supports third-party feedback, supervision, or coordination failure without dominant time pressure.' }
@@ -542,10 +604,10 @@ export function evaluateCanonicalNode(ctx: SeraNodeEvidenceContext): SeraNodeAns
         rationale: 'A factual clarification response directly answers this canonical descriptive root; traversal may continue without inferring a leaf from that response alone.',
       }
     : ctx.axis === 'P'
-      ? decideP(ctx.node.nodeId, statements)
+      ? decideP(ctx.node.nodeId, statements, ctx)
       : ctx.axis === 'O'
-        ? decideO(ctx.node.nodeId, statements)
-        : decideA(ctx.node.nodeId, statements)
+        ? decideO(ctx.node.nodeId, statements, ctx)
+        : decideA(ctx.node.nodeId, statements, ctx)
 
   const branchTarget = decision.answer === 'INSUFFICIENT_EVIDENCE'
     ? null

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireBearerUser } from '@/lib/server/api-auth'
 import { getSupabaseAdmin, assertServiceRoleEnv } from '@/lib/server/supabase-admin'
+import { applyUserAiSettingsToEnv } from '@/lib/server/apply-user-ai-settings-to-env'
 import {
   debitCreditForEvent,
   ensurePublicUserRow,
@@ -133,6 +134,7 @@ export async function POST(req: Request) {
     }
 
     const admin = getSupabaseAdmin()
+    await applyUserAiSettingsToEnv(admin, user.userId)
     let body: {
       eventoNarrativa: string
       userId?: string

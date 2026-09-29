@@ -1,5 +1,5 @@
 import type { SeraVNextEngineInput, SeraVNextEngineOutput } from '../../engine-contract'
-import { extractEvidenceItems } from '../../evidence'
+import { applySemanticAnnotationsToEvidence, extractEvidenceItems } from '../../evidence'
 import { buildCandidateTimeline, extractCandidateFacts, isExplicitOperationalDeviationStatement, isExplicitOperationalOmissionStatement, OUTCOME_KEYWORDS } from '../factual-extraction-helpers'
 import { pushUnique } from '../utils'
 
@@ -16,6 +16,13 @@ function normalizeCategory(value: string): SeraVNextEngineOutput['factualExtract
 export function runStep01FactualExtraction(input: SeraVNextEngineInput): SeraVNextEngineOutput['factualExtraction'] {
   const { facts, sentences } = extractCandidateFacts(input.narrative)
   const timeline = buildCandidateTimeline(sentences, input.narrative)
+  const semanticBySentence = new Map<number, NonNullable<SeraVNextEngineInput['semanticEvidence']>>()
+  for (const annotation of input.semanticEvidence ?? []) {
+    if (annotation.assertionStatus !== 'AFFIRMED' || annotation.confidence === 'LOW') continue
+    const items = semanticBySentence.get(annotation.sourceSentenceIndex) ?? []
+    items.push(annotation)
+    semanticBySentence.set(annotation.sourceSentenceIndex, items)
+  }
 
   const normalizedFacts = facts.map((fact: (typeof facts)[number], index: number) => {
     const statement = fact.statement
@@ -25,9 +32,9 @@ export function runStep01FactualExtraction(input: SeraVNextEngineInput): SeraVNe
       category = 'decision'
     } else if (isExplicitOperationalOmissionStatement(statement)) {
       category = 'action'
-    } else if (/\b(decided|decision|chose|continue(?:d)?|abort(?:ed)?|go-around|decidiu|decisão)\b/i.test(statement)) {
+    } else if (/\b(decided|decision|chose|continue(?:d)?|abort(?:ed)?|go-around|decidiu|decidi|decisão|julgou|julguei|preferiu|preferi|escolheu|escolhi|optou|optei|tomou a decisão|tomei a decisão)\b/i.test(statement)) {
       category = 'decision'
-    } else if (/\b(input|control|throttle|pitch|bank|configured|flap|gear|controle|manche|potência)\b/i.test(statement)) {
+    } else if (/\b(input|control|throttle|pitch|bank|configured|flap|gear|controle|comandos?|manche|c[ií]clico|coletivo|collective|cyclic|potência)\b/i.test(statement)) {
       category = 'control_input'
     } else if (/\b(cue|warning|alert|awareness|sinal|alerta)\b/i.test(statement)) {
       category = /\b(warning|alert|alerta)\b/i.test(statement) ? 'warning' : 'cue'
@@ -61,21 +68,38 @@ export function runStep01FactualExtraction(input: SeraVNextEngineInput): SeraVNe
     }
   }
 
-  const normalizedTimeline = timeline.map((item: (typeof timeline)[number]) => ({
-    id: `TIME-${item.order}`,
-    order: item.order,
-    statement: item.statement,
-    temporalCue: item.temporalCue,
-    sourceSentenceIndex: item.sourceSentenceIndex,
-    sourceSection: item.sourceSection,
-    assertionStatus: item.assertionStatus,
-    occurrenceScope: item.occurrenceScope,
-  }))
+  const normalizedTimeline = timeline.map((item: (typeof timeline)[number]) => {
+    const semantic = semanticBySentence.get(item.sourceSentenceIndex) ?? []
+    const strongest = semantic.find((annotation) => annotation.confidence === 'HIGH') ?? semantic[0]
+    return {
+      id: `TIME-${item.order}`,
+      order: item.order,
+      statement: item.statement,
+      temporalCue: item.temporalCue,
+      sourceSentenceIndex: item.sourceSentenceIndex,
+      sourceSection: item.sourceSection,
+      // Source polarity is authoritative. Semantic extraction may refine an UNKNOWN
+      // occurrence scope, but it can never turn a source-level rejection/uncertainty
+      // into an affirmed event fact.
+      assertionStatus: item.assertionStatus,
+      occurrenceScope: item.occurrenceScope !== 'UNKNOWN'
+        ? item.occurrenceScope
+        : strongest?.occurrenceScope ?? item.occurrenceScope,
+      semanticRoles: [...new Set(semantic.flatMap((annotation) => annotation.roles))],
+      semanticActor: semantic.find((annotation) => annotation.actor)?.actor ?? null,
+      semanticConfidence: strongest?.confidence,
+    }
+  })
+
+  const evidence = applySemanticAnnotationsToEvidence({
+    items: extractEvidenceItems({ facts: normalizedFacts, timeline: normalizedTimeline }),
+    annotations: input.semanticEvidence,
+  })
 
   return {
     facts: normalizedFacts,
     timeline: normalizedTimeline,
-    evidence: extractEvidenceItems({ facts: normalizedFacts, timeline: normalizedTimeline }),
+    evidence,
     explicitlyUnsupportedClaims,
   }
 }

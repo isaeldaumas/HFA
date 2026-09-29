@@ -7,6 +7,11 @@ function normalize(value: string): string {
 export function detectEvidenceActor(statement: string): string | null {
   const text = normalize(statement)
   // Prefer the grammatical/operational subject over a person merely mentioned as recipient.
+  // Interview narratives use first-person deixis and labels such as "outro piloto" far more
+  // often than formal PF/PM labels; keep those identities stable across evidence extraction.
+  if (/\b(outro piloto|outro tripulante|o cara)\b.{0,180}\b(desacoplou|cancelou|reduziu|colocou|aplicou|puxou|empurrou|meteu|mexeu|pilotou|tentou|executou|subiu|desceu|fez)\b/.test(text)) return 'other pilot'
+  if (/\beu\b.{0,180}\b(decidi|resolvi|optei|escolhi|julguei|preferi|tirei|retirei|desguarneci|peguei|puxei|empurrei|assumi|pousei|fiz|conduzi|executei|tentei|percebi|achei|acreditei)\b/.test(text)) return 'interviewed pilot'
+  if (/^\s*(eu|i)\b/.test(text)) return 'interviewed pilot'
   if (/\bpic\b/.test(text)) return 'captain'
   if (/\bsic\b/.test(text)) return 'first officer'
   if (/^(?:the )?(captain|comandante)\b/.test(text) || /\b(captain|comandante)\b.{0,40}\b(said|mentioned|noted|commented|acknowledged|decided|selected|performed|executed|continued|informed|disse|mencionou|observou|comentou|reconheceu|confirmou|decidiu|selecionou|executou|prosseguiu|informou)\b/.test(text)) return 'captain'
@@ -29,6 +34,8 @@ function directActorMatches(actor: string, directActor: string): boolean {
   if (a === 'flight crew (collective)' && (d.includes('captain') || d.includes('comandante') || d.includes('copiloto') || d.includes('first officer') || d.includes('pilot') || d.includes('piloto'))) return true
   if (d.includes('copiloto') || d.includes('first officer')) return a === 'first officer'
   if (d.includes('comandante') || d.includes('captain')) return a === 'captain'
+  if (d.includes('outro piloto') || d.includes('other pilot') || d.includes('piloto em adaptacao')) return a === 'other pilot'
+  if (d.includes('piloto entrevistado') || d.includes('interviewed pilot')) return a === 'interviewed pilot'
   if (d === 'piloto' || d === 'pilot' || d.startsWith('piloto ')) return a === 'pilot'
   if (d.includes('tripulacao') || d.includes('flight crew') || d.includes('multiple crew actors')) return ['captain', 'first officer', 'pilot', 'flight crew (collective)'].includes(a)
   if (d.includes('maintenance') || d.includes('manutencao') || d.includes('mecanico') || d.includes('inspetor')) return a === 'maintenance'

@@ -37,6 +37,15 @@ function isOpeningTemporalContext(text: string): boolean {
   return /\b(after (?:takeoff|departure|offshore departure)|during (?:approach|taxi|final approach|compressor wash|execution)|on visual approach)\b/i.test(text)
 }
 
+function isRetrospectiveInterviewEvidence(text: string): boolean {
+  // Interview sections often explain an earlier event-time state several paragraphs after
+  // the chronological narrative. Document position is not event time. Explicit temporal
+  // wording ("depois do pouso", "posteriormente", etc.) is handled before this guard.
+  return /\b(piloto entrevistado|entrevistado|ele|ela)\b.{0,60}\b(afirma|afirmou|explica|explicou|informa|informou|relata|relatou|esclarece|esclareceu|considera|considerou|disse|reconhece|reconheceu)\b/i.test(text)
+    || /\b(durante a recontagem|no aprofundamento|quest(?:ao|ões) ["“]?e se|during the retelling|during debrief)\b/i.test(text)
+    || /\b(eu|nos|n[oó]s|a gente)\b.{0,120}\b(sabia|sabiamos|estava ciente|estavamos cientes|passamos do limite|estavamos fora|estávamos fora|nao deveria|não deveria)\b/i.test(text)
+}
+
 function hasExplicitPreEscapeCue(text: string): boolean {
   return /\b(during approach|during final approach|during taxi|on visual approach|before landing|before takeoff|before departure|before dispatch|prior to landing|prior to takeoff|prior to departure|prior to dispatch|rota prevista|planejamento|coordenadas? (?:foram )?inseridas?|gps|briefing|checklist|autoriza[cç][aã]o|proa direta|na aproxima[cç][aã]o|antes do pouso|antes da decolagem|antes do despacho|antes da aproxima[cç][aã]o)\b/i.test(text)
 }
@@ -97,9 +106,12 @@ export function classifyTemporalRelation(args: {
   const documentOrderEligible = !args.sourceSection
     || args.sourceSection === 'UNKNOWN'
     || (args.sourceSection === 'FACTUAL' && conversationalNarrativeAnchor)
-  if (documentOrderEligible && isOperationalEventStatement(args.statement)) {
-    if (args.latestEscapeSentenceIndex != null && args.sourceSentenceIndex > args.latestEscapeSentenceIndex) return 'POST_ESCAPE'
+  if (documentOrderEligible && isOperationalEventStatement(args.statement) && !isRetrospectiveInterviewEvidence(args.statement)) {
     if (args.latestEscapeSentenceIndex != null && args.sourceSentenceIndex < args.latestEscapeSentenceIndex) return 'PRE_ESCAPE'
+    if (args.latestEscapeSentenceIndex != null && args.sourceSentenceIndex > args.latestEscapeSentenceIndex + 6) return 'POST_ESCAPE'
+    // A short run of sentences after a conversational anchor commonly describes the
+    // same unsafe act (operator belief, repeated input, immediate feedback). Keep it
+    // temporally open unless the wording itself establishes a later consequence.
   }
 
   if (/\b(while|during|when|on visual approach|during approach|during taxi|during final approach)\b/i.test(args.statement) && isOperationalEventStatement(args.statement)) return 'PRE_ESCAPE'

@@ -1,0 +1,218 @@
+{
+  "schemaVersion": "SERA_SEMANTIC_AI_V1",
+  "provider": "openai",
+  "model": "gpt-6-luna",
+  "safeOperationModel": {
+    "expectedSafeState": "A avaliação do local identifica que o lado do outro piloto teria menos obstáculos e permitiria maior distância deles e maior margem de erro.",
+    "expectedSafeAction": "Comparar os obstáculos e as margens dos dois lados antes de escolher quem fará o pouso; no relato, o lado do outro piloto oferecia maior afastamento dos obstáculos.",
+    "evidenceQuotes": [
+      "Eu precisei ter uma precisão maior, uma margem de erro bem pequena para poder fazer o pouso com segurança e o lado dele ele iria passar mais longe a cauda (que os obstáculos ficavam na cauda com relação a esse vento e a estrutura da aeronave) e ele precisaria menos, teria uma margem de erro maior para ele gerenciar e ele passaria mais longe do obstáculo.",
+      "b) Depois de ter pousado, quando ele fez a avaliação, percebeu que o lado do outro piloto teria sido mais tranquilo e que seria bem mais fácil para o outro piloto pousar."
+    ],
+    "confidence": "HIGH"
+  },
+  "annotations": [
+    {
+      "id": "AI-SEM-1",
+      "sourceQuote": "Eu acho que eu fiz um julgamento errado com relação ao lado de quem era o pouso e aí eu aumentei o risco de colisão por ter feito essa escolha.",
+      "sourceSentenceIndex": 6,
+      "roles": [
+        "FIRST_DEPARTURE",
+        "CRITICAL_UNSAFE_ACT",
+        "OUTCOME"
+      ],
+      "concepts": [
+        "inadequateAssessment",
+        "implementedAction"
+      ],
+      "actor": "piloto entrevistado",
+      "temporalRelation": "AT_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "O piloto relata que escolheu quem faria o pouso após um julgamento que considera errado e que essa escolha aumentou o risco de colisão."
+    },
+    {
+      "id": "AI-SEM-2",
+      "sourceQuote": "Quando nós chegamos próximos à unidade para o fazer o reconhecimento de quem era melhor o lado pro pouso, eu julguei que o lado melhor era o meu lado para pousar e aí, quando eu entrei, quando eu fiz o pouso, que aí eu já pude fazer uma melhor observação do local, dos obstáculos e aí eu percebi que o lado oposto ao meu teria menos obstáculos, ele passaria mais longe dos obstáculos do que o meu.",
+      "sourceSentenceIndex": 10,
+      "roles": [
+        "CRITICAL_UNSAFE_ACT",
+        "ACTION_STRATEGY",
+        "PERCEPTION_STATE",
+        "OUTCOME"
+      ],
+      "concepts": [
+        "implementedAction",
+        "inadequateAssessment"
+      ],
+      "actor": "piloto entrevistado",
+      "temporalRelation": "AT_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "Relata a escolha do próprio lado, a execução do pouso e a constatação posterior de que o lado oposto tinha menos obstáculos."
+    },
+    {
+      "id": "AI-SEM-3",
+      "sourceQuote": "Como ele tinha mais experiência e considerou a situação crítica achou melhor assumir o pouso e acabou se colocando em uma situação crítica.",
+      "sourceSentenceIndex": 25,
+      "roles": [
+        "CRITICAL_UNSAFE_ACT",
+        "PRECONDITION"
+      ],
+      "concepts": [
+        "implementedAction"
+      ],
+      "actor": "piloto entrevistado",
+      "temporalRelation": "AT_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "A frase identifica a decisão de assumir o pouso e vincula a ela a experiência e a avaliação de que a situação era crítica."
+    },
+    {
+      "id": "AI-SEM-4",
+      "sourceQuote": "d) Ele afirma que o acidente anterior o deixou inseguro a ponto de entender que o pouso era dele quando não deveria.",
+      "sourceSentenceIndex": 24,
+      "roles": [
+        "PERCEPTION_STATE",
+        "PRECONDITION"
+      ],
+      "concepts": [],
+      "actor": "piloto entrevistado",
+      "temporalRelation": "PRE_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "PRE_EVENT_CAUSAL_HISTORY",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "A frase atribui ao acidente anterior a insegurança e a percepção equivocada sobre quem deveria pousar."
+    },
+    {
+      "id": "AI-SEM-5",
+      "sourceQuote": "O fato de já ter havido um acidente naquela plataforma fez com que eu tenha preferido fazer o pouso mesmo sabendo que seria mais trabalhoso pelo meu lado.",
+      "sourceSentenceIndex": 29,
+      "roles": [
+        "OBJECTIVE_INTENT",
+        "ACTION_STRATEGY",
+        "PRECONDITION"
+      ],
+      "concepts": [
+        "implementedAction"
+      ],
+      "actor": "piloto entrevistado",
+      "temporalRelation": "PRE_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "PRE_EVENT_CAUSAL_HISTORY",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "O piloto relaciona explicitamente o acidente anterior à preferência, anterior ao pouso, por fazê-lo pelo próprio lado apesar de ser mais trabalhoso."
+    },
+    {
+      "id": "AI-SEM-6",
+      "sourceQuote": "Ele informa que ficava lembrando que a outra aeronave tinha colidido com a cauda numa situação um pouco parecida com a aeronave pousando deixando a cauda para dentro da plataforma.",
+      "sourceSentenceIndex": 20,
+      "roles": [
+        "PERCEPTION_STATE",
+        "CONTEXT"
+      ],
+      "concepts": [],
+      "actor": "piloto entrevistado",
+      "temporalRelation": "PRE_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "HISTORICAL_COMPARATOR",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "A frase relata que o piloto mantinha presente a lembrança de um acidente anterior semelhante."
+    },
+    {
+      "id": "AI-SEM-7",
+      "sourceQuote": "A diferença era que o vento que a outra aeronave tinha era defasado, no mínimo, uns 70 ou 80 graus com relação ao vento que ele tinha.",
+      "sourceSentenceIndex": 21,
+      "roles": [
+        "CONTEXT"
+      ],
+      "concepts": [],
+      "actor": "outra aeronave",
+      "temporalRelation": "UNKNOWN",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "HISTORICAL_COMPARATOR",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "A frase compara a condição de vento do acidente anterior com a do evento atual."
+    },
+    {
+      "id": "AI-SEM-8",
+      "sourceQuote": "A percepção que ele tinha de não estar cometendo erro era porque o vento estava na proa da aeronave, diferente do vento da aeronave anterior que, apesar de ter pousado pelo mesmo lado, contava com o vento de esquerda.",
+      "sourceSentenceIndex": 22,
+      "roles": [
+        "PERCEPTION_STATE",
+        "CONTEXT"
+      ],
+      "concepts": [
+        "inadequateAssessment"
+      ],
+      "actor": "piloto entrevistado",
+      "temporalRelation": "AT_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "Relata a percepção do piloto durante o evento e a comparação entre a direção do vento atual e a do acidente anterior."
+    },
+    {
+      "id": "AI-SEM-9",
+      "sourceQuote": "c) Ele informa que estava se mantendo bem alerta por conta da semelhança com o pouso da aeronave em que havia sofrido o acidente.",
+      "sourceSentenceIndex": 23,
+      "roles": [
+        "BARRIER",
+        "PERCEPTION_STATE"
+      ],
+      "concepts": [],
+      "actor": "piloto entrevistado",
+      "temporalRelation": "AT_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "A frase relata atenção deliberada durante o evento, motivada pela semelhança percebida com o acidente anterior."
+    },
+    {
+      "id": "AI-SEM-10",
+      "sourceQuote": "a) Depois de pousado o piloto percebeu que passou mais perto dos obstáculos do que o outro piloto se tivesse realizado o pouso para colocar a aeronave no mesmo lugar do helideck.",
+      "sourceSentenceIndex": 18,
+      "roles": [
+        "PERCEPTION_STATE",
+        "OUTCOME"
+      ],
+      "concepts": [],
+      "actor": "piloto entrevistado",
+      "temporalRelation": "POST_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "A comparação da distância dos obstáculos é relatada como uma percepção posterior ao pouso."
+    },
+    {
+      "id": "AI-SEM-11",
+      "sourceQuote": "c) O piloto respondeu ao outro piloto que não estava achando que o lado estava privilegiando o pouso do lado esquerdo, que para ele era uma coincidência.",
+      "sourceSentenceIndex": 16,
+      "roles": [
+        "PERCEPTION_STATE",
+        "CONTEXT"
+      ],
+      "concepts": [],
+      "actor": "piloto entrevistado",
+      "temporalRelation": "UNKNOWN",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "MEDIUM",
+      "rationale": "Registra a resposta do piloto sobre a interpretação do privilégio do lado esquerdo, sem afirmar que essa interpretação determinou a escolha do pouso."
+    }
+  ]
+}

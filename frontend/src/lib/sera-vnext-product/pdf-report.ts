@@ -298,7 +298,7 @@ function confidenceLabel(value: string | undefined | null, pt: boolean): string 
 
 function landmarkRelationshipLabel(value: SeraVNextEngineOutput['escapePoint']['anchorBasis'], pt: boolean): string {
   if (value === 'FIRST_DEPARTURE_AND_CRITICAL_ACT') return pt ? 'Coincidem no mesmo ato/condição.' : 'Both landmarks coincide in the same act/condition.'
-  if (value === 'FIRST_DEPARTURE_PRIMARY') return pt ? 'O primeiro desvio antecede o ato crítico; P/O/A parte do primeiro desvio da operação segura.' : 'Distinct landmarks: the first departure precedes the critical act; P/O/A is anchored to the first departure.'
+  if (value === 'FIRST_DEPARTURE_PRIMARY') return pt ? 'O primeiro desvio antecede o ato crítico; ele delimita a trajetória seguro→inseguro, enquanto P/O/A permanece ligado ao ato crítico e ao seu ator direto.' : 'Distinct landmarks: the first departure precedes the critical act; it delimits the safe→unsafe trajectory, while P/O/A remains bound to the critical act and its direct actor.'
   if (value === 'FIRST_DEPARTURE_ONLY') return pt ? 'Foi identificado apenas o primeiro desvio da operação segura.' : 'Only the first departure from safe operation was established.'
   return pt ? 'Relação ainda não determinada.' : 'Relationship not yet resolved.'
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireBearerUser } from '@/lib/server/api-auth'
 import { getSupabaseAdmin } from '@/lib/server/supabase-admin'
+import { applyUserAiSettingsToEnv } from '@/lib/server/apply-user-ai-settings-to-env'
 import { getOrCreateRequestId } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
 import { canonicalAnalyzeResponse, createCanonicalEventAnalysis, mergeCanonicalReanalysisNarrative, mergeCanonicalSupplementalEvidence } from '@/lib/sera-vnext-product/canonical-event-analysis'
@@ -20,6 +21,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
     const user = await requireBearerUser(req)
     const { eventId } = await ctx.params
     const admin = getSupabaseAdmin()
+    await applyUserAiSettingsToEnv(admin, user.userId)
     const { data: event, error } = await admin
       .from('events')
       .select('id, tenant_id, title, raw_input, deleted_at')

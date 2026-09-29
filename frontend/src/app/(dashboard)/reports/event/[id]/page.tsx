@@ -71,7 +71,7 @@ const VALIDATION_LABEL_PT: Record<string, string> = {
 
 function landmarkRelationshipLabel(value: SeraVNextEngineOutput['escapePoint']['anchorBasis'], pt: boolean): string {
   if (value === 'FIRST_DEPARTURE_AND_CRITICAL_ACT') return pt ? 'Primeira saída e ato crítico coincidem.' : 'First departure and critical act coincide.'
-  if (value === 'FIRST_DEPARTURE_PRIMARY') return pt ? 'A primeira saída antecede o ato crítico posterior; P/O/A parte da primeira saída.' : 'The first departure precedes the later critical act; P/O/A starts at the first departure.'
+  if (value === 'FIRST_DEPARTURE_PRIMARY') return pt ? 'A primeira saída antecede o ato crítico; ela delimita a trajetória seguro→inseguro, enquanto P/O/A permanece ligado ao ato crítico e ao seu ator direto.' : 'The first departure precedes the critical act; it delimits the safe→unsafe trajectory, while P/O/A remains bound to the critical act and its direct actor.'
   if (value === 'FIRST_DEPARTURE_ONLY') return pt ? 'Somente a primeira saída foi estabelecida.' : 'Only the first departure was established.'
   return pt ? 'Relação ainda não determinada.' : 'Relationship not yet determined.'
 }

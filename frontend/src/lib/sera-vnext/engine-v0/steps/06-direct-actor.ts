@@ -39,18 +39,27 @@ export function runStep06DirectActor(input: {
   const captainPf = roleAssigned(text, 'captain', 'pf')
   const captainPm = roleAssigned(text, 'captain', 'pm')
   const copilotPm = roleAssigned(text, 'copilot', 'pm')
-  const primaryEscape = input.escapePoint.firstDepartureCandidate ?? input.escapePoint.statement ?? input.escapePoint.earliestCandidate ?? input.escapePoint.criticalUnsafeActCandidate ?? input.escapePoint.latestCandidate ?? ''
+  const primaryEscape = input.escapePoint.poaAnchorCandidate
+    ?? input.escapePoint.criticalUnsafeActCandidate
+    ?? input.escapePoint.firstDepartureCandidate
+    ?? input.escapePoint.statement
+    ?? input.escapePoint.earliestCandidate
+    ?? input.escapePoint.latestCandidate
+    ?? ''
   const escapeText = normalizeText(primaryEscape)
   const escapeHasCopilot = /\b(copiloto|first officer|sic)\b/.test(escapeText)
   const escapeHasCaptain = /\b(comandante|captain|training captain|pic)\b/.test(escapeText)
   const escapeHasCollectiveCrew = /\b(tripulacao|tripulação|flight crew|crew|ambos os pilotos|dois pilotos|nenhum piloto|nenhum dos pilotos|both pilots|neither pilot|nos|we)\b|\ba gente\b/.test(escapeText)
+  const escapeHasOtherPilot = /\b(outro piloto|outro tripulante|o cara)\b.{0,220}\b(desacoplou|cancelou|reduziu|colocou|aplicou|puxou|empurrou|meteu|mexeu|pilotou|tentou|executou|subiu|desceu|fez|did|disengaged|cancelled|reduced|put|applied|pulled|pushed|executed)\b/.test(escapeText)
+  const escapeHasNarratorAct = /\beu\b.{0,220}\b(decidi|resolvi|optei|escolhi|julguei|preferi|tirei|retirei|desguarneci|peguei|puxei|empurrei|assumi|pousei|fiz|conduzi|executei|tentei|i decided|i chose|i removed|i pulled|i landed)\b/.test(escapeText)
+    || /\b(decidi|resolvi|optei|escolhi|julguei|preferi|tirei|retirei|desguarneci|peguei|puxei|empurrei|assumi|pousei|fiz|conduzi|executei|tentei)\b.{0,220}\b(eu|meu|minha)\b/.test(escapeText)
   const escapeHasJointDecision = /(?:\ba gente\b|\bnos\b|\bwe\b).{0,120}\b(resolveu|resolvemos|decidiu|decidimos|decided|resolved|chose|opted)\b.{0,160}\b(continuar|prosseguir|tentar|continue|proceed|try)\b/.test(escapeText)
   const escapeHasMaintenance =
     /\bmaintenance (?:team|technician|inspector|mechanic)s?\b|\bmechanics?\b|\binspectors?\b|\bequipe de manutencao\b|\btecnic[oa]s? de manutencao\b|\bmecanicos?\b|\binspetores?\b/.test(escapeText) ||
     /\b(inspecao (?:de )?pre[- ]?voo|pre[- ]?voo|preflight inspection)\b/.test(escapeText)
   const narrativeHasMaintenance = /\b(maintenance|mechanic|inspector|manutencao|mecanico|mecanicos|inspetor|inspetores)\b/.test(text)
   const anchorContext = normalizeText(`${input.unsafeActOrCondition.statement ?? ''} ${primaryEscape} ${input.escapePoint.supportingEvidence.join(' ')}`)
-  const anchorHasHumanActor = hasAny(anchorContext, ['crew', 'pilot', 'captain', 'first officer', 'tripulacao', 'tripulação', 'comandante', 'copiloto', 'piloto', 'pic', 'sic', 'cco', 'dov', 'dispatcher', 'despachante'])
+  const anchorHasHumanActor = hasAny(anchorContext, ['crew', 'pilot', 'captain', 'first officer', 'tripulacao', 'tripulação', 'comandante', 'copiloto', 'piloto', 'outro piloto', 'outro tripulante', 'o cara', 'eu', 'pic', 'sic', 'cco', 'dov', 'dispatcher', 'despachante'])
   const systemDominant = input.unsafeActOrCondition.type === 'UNSAFE_CONDITION' &&
     !anchorHasHumanActor &&
     hasAny(anchorContext, ['technical condition', 'system failure', 'automation failure', 'rudder movement', 'microburst', 'windshear'])
@@ -97,6 +106,31 @@ export function runStep06DirectActor(input: {
     }
   }
 
+  const semanticActors = [...new Set((input.engineInput.semanticEvidence ?? [])
+    .filter((annotation) => annotation.actor && annotation.assertionStatus === 'AFFIRMED')
+    .filter((annotation) => normalizeText(annotation.sourceQuote) === escapeText)
+    .filter((annotation) => annotation.roles.includes('DIRECT_ACTOR') || annotation.roles.includes('CRITICAL_UNSAFE_ACT'))
+    .map((annotation) => annotation.actor!.trim())
+    .filter(Boolean))]
+  if (semanticActors.length === 1) {
+    return {
+      actor: semanticActors[0],
+      status: 'IDENTIFIED',
+      alternatives: [],
+      actorMigrationWarnings: [],
+    }
+  }
+  if (semanticActors.length > 1) {
+    return {
+      actor: null,
+      status: 'AMBIGUOUS',
+      alternatives: semanticActors,
+      actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
+        ? 'A extração semântica encontrou mais de um ator explicitamente associado ao ato crítico; é necessária revisão humana antes da travessia P/O/A.'
+        : 'Semantic extraction found more than one actor explicitly associated with the critical act; human review is required before P/O/A traversal.'],
+    }
+  }
+
   if (!systemDominant) {
     // Dispatch/release sentences can name several decision actors (e.g. CCO, DOV and PIC).
     // Resolve that collective attribution before generic captain/copilot logic so the presence of
@@ -132,7 +166,27 @@ export function runStep06DirectActor(input: {
           : 'The dispatch act is supported, but the factual sentence does not identify who authorized, executed, or ratified it. Actors named in other facts cannot be imported to fill that gap.'],
       }
     }
-    // Actor attribution is anchored first to the sentence that defines the escape-point candidate.
+    // Conversational interviews frequently identify the actor by deixis/coreference rather than
+    // formal role labels. Resolve the grammatical actor of the P/O/A anchor before whole-report
+    // role fallback, otherwise a salient copilot/captain mention elsewhere migrates the act.
+    if (escapeHasOtherPilot) {
+      return {
+        actor: input.engineInput.locale === 'pt-BR' ? 'outro piloto' : 'other pilot',
+        status: 'IDENTIFIED',
+        alternatives: input.engineInput.locale === 'pt-BR' ? ['piloto em adaptação', 'tripulação'] : ['pilot in transition training', 'flight crew'],
+        actorMigrationWarnings: [],
+      }
+    }
+    if (escapeHasNarratorAct) {
+      return {
+        actor: input.engineInput.locale === 'pt-BR' ? 'piloto entrevistado' : 'interviewed pilot',
+        status: 'IDENTIFIED',
+        alternatives: input.engineInput.locale === 'pt-BR' ? ['tripulação'] : ['flight crew'],
+        actorMigrationWarnings: [],
+      }
+    }
+
+    // Actor attribution is anchored first to the sentence that defines the P/O/A critical-act candidate.
     // A decision explicitly narrated in the first-person plural is a genuinely joint crew decision.
     // Keep it collective rather than inventing an individual PF/PM attribution.
     if (escapeHasJointDecision) {
@@ -141,8 +195,8 @@ export function runStep06DirectActor(input: {
         status: 'IDENTIFIED',
         alternatives: input.engineInput.locale === 'pt-BR' ? ['piloto 1', 'piloto 2'] : ['pilot 1', 'pilot 2'],
         actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
-          ? 'A própria frase do primeiro ponto de fuga atribui a decisão à tripulação em conjunto; P/O/A permanece nesse nível somente para esta decisão compartilhada. Atos posteriores de tripulantes específicos são episódios separados.'
-          : 'The first-departure sentence itself attributes the decision jointly to the crew; P/O/A stays collective only for this shared decision. Later acts by specific crewmembers remain separate episodes.'],
+          ? 'A própria frase da âncora P/O/A atribui a decisão à tripulação em conjunto; P/O/A permanece coletivo somente para essa decisão compartilhada.'
+          : 'The P/O/A anchor sentence itself attributes the decision jointly to the crew; P/O/A stays collective only for that shared decision.'],
       }
     }
     // Explicit numbered pilot labels in operational narratives are actor identities, not generic

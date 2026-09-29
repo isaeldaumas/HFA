@@ -16,6 +16,15 @@ export function runStep02SafeOperationModel(input: {
   factualExtraction: SeraVNextEngineOutput['factualExtraction']
   escapePoint?: SeraVNextEngineOutput['escapePoint']
 }): SeraVNextEngineOutput['safeOperationModel'] {
+  const semanticSafe = input.engineInput.semanticSafeOperationModel
+  if (semanticSafe?.expectedSafeState && semanticSafe.expectedSafeAction && semanticSafe.evidenceQuotes.length > 0) {
+    return {
+      expectedSafeState: semanticSafe.expectedSafeState,
+      expectedSafeAction: semanticSafe.expectedSafeAction,
+      evidence: semanticSafe.evidenceQuotes,
+      confidence: semanticSafe.confidence,
+    }
+  }
   const eligibleEvidence = input.factualExtraction.evidence.filter((item) =>
     item.assertionStatus === 'AFFIRMED' &&
     item.temporalRelation !== 'POST_ESCAPE' &&

@@ -1,4 +1,5 @@
 import { runSeraVNextEngineV0 } from '@/lib/sera-vnext/engine-v0/run-engine'
+import { enrichSeraNarrativeSemantically, enrichSeraPoaSemantically } from '@/lib/sera-vnext/ai/semantic-enrichment'
 import type { SeraVNextEngineInput, SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
 import { conflict } from '../errors'
 import { hashJson, sha256Hex, stableJson } from '../hashing'
@@ -20,7 +21,11 @@ function assertNonFinalOutput(output: SeraVNextEngineOutput): void {
   }
 }
 
-function buildEngineInput(input: SeraVNextCreateAnalysisInput, context: SeraVNextProductContext): SeraVNextEngineInput {
+function buildEngineInput(
+  input: SeraVNextCreateAnalysisInput,
+  context: SeraVNextProductContext,
+  semantic?: Awaited<ReturnType<typeof enrichSeraNarrativeSemantically>> | null,
+): SeraVNextEngineInput {
   return {
     inputId: input.clientRequestId,
     narrative: input.narrative,
@@ -30,8 +35,11 @@ function buildEngineInput(input: SeraVNextCreateAnalysisInput, context: SeraVNex
     requestId: context.requestId,
     mode: 'CANDIDATE_ONLY',
     supplementalEvidence: input.supplementalEvidence,
+    semanticEvidence: semantic?.annotations,
+    semanticSafeOperationModel: semantic?.safeOperationModel ?? undefined,
+    semanticEnrichmentMeta: semantic?.meta,
     options: {
-      allowLlm: false,
+      allowLlm: Boolean(semantic),
       includeDebugTrace: false,
       requireHumanReview: true,
     },
@@ -72,8 +80,53 @@ export async function createSeraVNextAnalysis(args: {
 
   const versions = getSeraVNextProductVersionSet()
   const effectiveSourceFlow = args.input.sourceFlowOverride ?? versions.sourceFlow
-  const engineInput = buildEngineInput(args.input, args.context)
-  const engineOutput = runSeraVNextEngineV0(engineInput)
+  const semanticAiRequired = args.input.metadata?.semanticAiRequired === true
+  let semantic = semanticAiRequired
+    ? await enrichSeraNarrativeSemantically({ narrative: args.input.narrative, locale: args.input.locale ?? 'pt-BR' })
+    : null
+  let engineInput = buildEngineInput(args.input, args.context, semantic)
+  let engineOutput = runSeraVNextEngineV0(engineInput)
+
+  const criticalAct = engineOutput.escapePoint.poaAnchorCandidate ?? engineOutput.escapePoint.criticalUnsafeActCandidate
+  const needsFocusedPoa = semantic
+    && engineOutput.directActor.status === 'IDENTIFIED'
+    && Boolean(engineOutput.directActor.actor)
+    && Boolean(criticalAct)
+    && engineOutput.evidenceSufficiency.questions.some((question) => /-(P|O|A)_ROOT$/.test(question.id))
+  if (needsFocusedPoa && semantic && criticalAct && engineOutput.directActor.actor) {
+    try {
+      const focused = await enrichSeraPoaSemantically({
+        narrative: args.input.narrative,
+        locale: args.input.locale ?? 'pt-BR',
+        criticalAct,
+        directActor: engineOutput.directActor.actor,
+        firstDeparture: engineOutput.escapePoint.firstDepartureCandidate,
+      })
+      if (focused.annotations.length > 0) {
+        const merged = [...semantic.annotations]
+        const seen = new Set(merged.map((item) => `${item.sourceSentenceIndex}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}`))
+        for (const item of focused.annotations) {
+          const key = `${item.sourceSentenceIndex}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}`
+          if (!seen.has(key)) { seen.add(key); merged.push(item) }
+        }
+        semantic = {
+          ...semantic,
+          annotations: merged,
+          meta: {
+            ...semantic.meta,
+            provider: focused.meta.provider,
+            model: focused.meta.model,
+            acceptedAnnotations: merged.length,
+            rejectedAnnotations: semantic.meta.rejectedAnnotations + focused.meta.rejectedAnnotations,
+          },
+        }
+        engineInput = buildEngineInput(args.input, args.context, semantic)
+        engineOutput = runSeraVNextEngineV0(engineInput)
+      }
+    } catch (error) {
+      console.warn('[SERA semantic P/O/A focus] falling back to primary semantic pass', error instanceof Error ? error.message : String(error))
+    }
+  }
   assertNonFinalOutput(engineOutput)
   const outputHash = hashJson(engineOutput)
   const warnings = collectWarnings(engineOutput, args.input.warnings ?? [])
@@ -128,15 +181,17 @@ export async function createSeraVNextAnalysis(args: {
         codeCommit: versions.codeCommit,
         codeCommitSource: versions.codeCommitSource,
         deploymentId: versions.deploymentId,
+        semanticEnrichment: semantic?.meta ?? null,
+        semanticLayer: semantic ? 'AI_EXTRACTION_DETERMINISTIC_SERA_TRAVERSAL' : 'DETERMINISTIC_FALLBACK',
       },
     },
-    // Proveniência metodológica (auditoria HFA, 3ª etapa). engine-v0 roda com allowLlm:false
-    // (buildEngineInput acima) — é puramente determinístico, nunca sugestão de LLM.
+    // Proveniência metodológica: a IA faz extração semântica ancorada em citações verificadas;
+    // a travessia Hendy/SERA e os guardrails continuam determinísticos e candidate-only.
     engine_id: 'SERA_VNEXT_ENGINE',
     taxonomy_version: versions.canonicalTreeVersion,
     risk_method_id: null, // risco permanece locked no vNext (canonical method question lock).
     risk_method_version: null,
-    generated_by_type: 'deterministic_engine',
+    generated_by_type: semantic ? 'llm_suggestion' : 'deterministic_engine',
     validation_status: 'not_validated',
   })
 

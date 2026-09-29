@@ -136,6 +136,7 @@ export function buildCanonicalEventAnalysisInput(args: {
       canonicalEventMode: args.mode,
       operationalEngineRole: 'PRIMARY',
       candidateOnly: true,
+      semanticAiRequired: true,
     },
   }
 }
