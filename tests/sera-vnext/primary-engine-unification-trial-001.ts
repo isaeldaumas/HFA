@@ -11,7 +11,7 @@ const riskProfile = read('frontend/src/lib/risk-profile/server.ts')
 const eventPage = read('frontend/src/app/(dashboard)/events/[id]/page.tsx')
 const actions = read('frontend/src/app/api/actions/route.ts')
 const migration = read('supabase/migrations/20260925163712_corrective_actions_primary_sera_analysis.sql')
-const deletionMigration = read('supabase/migrations/20260925174644_block_current_sera_open_actions_on_event_delete.sql')
+const deletionMigration = read('supabase/migrations/20260929004500_event_precondition_treatment_dynamic_recalculation.sql')
 const deletionHelper = read('frontend/src/lib/server/event-deletion.ts')
 const legacyRecalcRoutes = [
   'frontend/src/app/api/recalculate/route.ts',
@@ -46,7 +46,8 @@ assert.ok(reanalyze.includes('latestVNext?.narrative ?? event.raw_input'), 'even
 assert.ok(reanalyze.includes('mergeCanonicalSupplementalEvidence'), 'event reanalysis must carry forward prior clarification responses instead of resetting the form')
 assert.ok(eventPage.includes('Novas informações para reanálise'), 'event UI must expose additional-information reanalysis input')
 assert.ok(deletionHelper.includes(".in('sera_vnext_analysis_id', vnextIds)"), 'deletion impact must include current SERA corrective actions')
-assert.ok(deletionMigration.includes('EVENT_DELETE_CORRECTIVE_ACTION_BLOCK'), 'database soft-delete must block open current-SERA actions')
+assert.ok(deletionMigration.includes('RECALCULATE_ACTIVE_UNIVERSE'), 'soft delete must trigger dynamic exclusion from the active event universe')
+assert.ok(deletionMigration.includes('drop trigger if exists trg_block_event_soft_delete_current_sera_actions'), 'obsolete open-action soft-delete blocker must be retired')
 for (const route of legacyRecalcRoutes) {
   assert.ok(route.includes('status: 410'), 'legacy recalculation endpoint must be disabled')
   assert.equal(route.includes('@/lib/sera/recalculate'), false, 'legacy recalculation runtime import must be absent')

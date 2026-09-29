@@ -79,7 +79,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
   } catch (e) {
     if (e instanceof Response) return e
     const msg = e instanceof Error ? e.message : ''
-    if (msg === 'EVENT_DELETE_CORRECTIVE_ACTION_BLOCK') return jsonError(requestId, msg, 'Existem ações corretivas em aberto vinculadas ao evento.', 409)
     if (msg === 'EVENT_DELETE_IMPACT_INCOMPLETE') return jsonError(requestId, msg, 'O impacto da exclusão não pôde ser determinado integralmente.', 409)
     if (msg === 'EVENT_DELETE_ALREADY_DELETED') return jsonError(requestId, msg, 'O evento já está excluído.', 409)
     if (msg === 'EVENT_DELETE_TITLE_MISMATCH') return jsonError(requestId, msg, 'O título digitado não corresponde exatamente ao evento.', 400)

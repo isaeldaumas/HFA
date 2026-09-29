@@ -198,6 +198,17 @@ export function runStep09Preconditions(input: {
   const activeFailureCodes = [input.axes.perception.proposedCode, input.axes.objective.proposedCode, input.axes.action.proposedCode]
     .filter((code): code is string => Boolean(code) && !['P-A', 'O-A', 'A-A'].includes(code as string))
   const mostLikelyCanonical = mostLikelyPreconditionsForCodes(activeFailureCodes)
+  // Hendy Table 1 is the investigation route after the active failure is known.
+  // Preserve its order across P/O/A codes so the engine explicitly evaluates the likely
+  // preconditions before presenting evidence-supported factors outside the table. Annex B
+  // still permits other factors, but those remain visibly outside the most-likely set.
+  const likelyTraversalOrder: SeraCanonicalPreconditionCategory[] = []
+  for (const code of activeFailureCodes) {
+    for (const canonical of SERA_MOST_LIKELY_PRECONDITIONS[code] ?? []) {
+      if (!likelyTraversalOrder.includes(canonical)) likelyTraversalOrder.push(canonical)
+    }
+  }
+  const likelyTraversalIndex = new Map(likelyTraversalOrder.map((canonical, index) => [canonical, index]))
   const categoryEvidence: Record<string, { texts: string[]; sourceEvidence: SeraEvidenceItem[]; investigationOnly: boolean; explicitInvestigationSupport: boolean; rejectedByInvestigation: boolean }> = {}
   const escapeAnchorText = [
     input.escapePoint.firstDepartureCandidate,
@@ -489,6 +500,15 @@ export function runStep09Preconditions(input: {
     }
   })
 
+  evidencedCandidates.sort((left, right) => {
+    const leftIndex = left.canonicalCategory ? likelyTraversalIndex.get(left.canonicalCategory) : undefined
+    const rightIndex = right.canonicalCategory ? likelyTraversalIndex.get(right.canonicalCategory) : undefined
+    if (leftIndex !== undefined && rightIndex !== undefined) return leftIndex - rightIndex
+    if (leftIndex !== undefined) return -1
+    if (rightIndex !== undefined) return 1
+    return left.label.localeCompare(right.label, input.locale === 'pt-BR' ? 'pt-BR' : 'en')
+  })
+
   if (!causalBoundaryResolved || activeFailureCodes.length === 0) return evidencedCandidates
 
   const representedCanonical = new Set(
@@ -507,7 +527,7 @@ export function runStep09Preconditions(input: {
 
   const investigationGaps = [...likelyCounts.entries()]
     .filter(([canonical]) => !representedCanonical.has(canonical))
-    .sort((a, b) => b[1].length - a[1].length || SERA_PRECONDITION_META[a[0]].pt.localeCompare(SERA_PRECONDITION_META[b[0]].pt, 'pt-BR'))
+    .sort((a, b) => (likelyTraversalIndex.get(a[0]) ?? Number.MAX_SAFE_INTEGER) - (likelyTraversalIndex.get(b[0]) ?? Number.MAX_SAFE_INTEGER))
     .map(([canonical, likelyCodes]): SeraPreconditionCandidate => ({
       id: `PC-INVESTIGATE-${canonical}`,
       label: canonical,

@@ -1,7 +1,8 @@
 'use client'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { SeraActionSuggestion } from '@/lib/corrective-actions/sera-suggestions'
+import { SERA_PRECONDITION_META, type SeraCanonicalPreconditionCategory } from '@/lib/sera-vnext/precondition-taxonomy'
 
 // ── Static style maps (Tailwind-safe — no dynamic interpolation) ──────────────
 
@@ -60,6 +61,12 @@ function fmtDate(d: string | null | undefined): string {
   return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR')
 }
 
+function preconditionLabel(category: string | null | undefined): string | null {
+  if (!category) return null
+  const meta = SERA_PRECONDITION_META[category as SeraCanonicalPreconditionCategory]
+  return meta?.pt ?? category
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type ActionItem = {
@@ -78,6 +85,11 @@ type ActionItem = {
   created_at: string
   analysis_id?: string | null
   event_id?: string | null
+  event_title?: string | null
+  precondition_id?: string | null
+  precondition_category?: string | null
+  action_kind?: 'CORRECTIVE_PREVENTIVE' | 'INVESTIGATION' | null
+  linkage_status?: 'CURRENT' | 'STALE_PRECONDITION_LINK' | 'INVESTIGATION_TASK' | null
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -89,6 +101,7 @@ export default function ActionsPage() {
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
   const [filter, setFilter]     = useState('all')
+  const [eventFilter, setEventFilter] = useState('all')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({
     responsible: '',
@@ -149,7 +162,9 @@ export default function ActionsPage() {
           analysis_id: suggestion.analysisId,
           title: suggestion.title,
           description: suggestion.description,
-          related_failure: suggestion.relatedFailure,
+          precondition_id: suggestion.preconditionId,
+          precondition_category: suggestion.canonicalCategory,
+          action_kind: suggestion.kind,
         }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -202,18 +217,42 @@ export default function ActionsPage() {
     }
   }
 
-  const filtered = filter === 'all' ? actions : actions.filter((a) => a.status === filter)
+  const eventOptions = useMemo(() => {
+    const labels = new Map<string, string>()
+    for (const action of actions) {
+      if (action.event_id) labels.set(action.event_id, action.event_title ?? `Evento ${action.event_id.slice(0, 8)}`)
+    }
+    for (const suggestion of suggestions) {
+      if (suggestion.eventId) labels.set(suggestion.eventId, suggestion.eventTitle ?? suggestion.analysisTitle)
+    }
+    return [...labels.entries()]
+      .map(([id, title]) => ({ id, title }))
+      .sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'))
+  }, [actions, suggestions])
+
+  const effectiveEventFilter = eventFilter === 'all' || eventOptions.some((event) => event.id === eventFilter)
+    ? eventFilter
+    : 'all'
+  const eventScopedActions = effectiveEventFilter === 'all'
+    ? actions
+    : actions.filter((action) => action.event_id === effectiveEventFilter)
+  const visibleSuggestions = effectiveEventFilter === 'all'
+    ? suggestions
+    : suggestions.filter((suggestion) => suggestion.eventId === effectiveEventFilter)
+  const filtered = filter === 'all'
+    ? eventScopedActions
+    : eventScopedActions.filter((action) => action.status === filter)
   const counts: Record<string, number> = {
-    pending:     actions.filter((a) => a.status === 'pending').length,
-    in_progress: actions.filter((a) => a.status === 'in_progress').length,
-    completed:   actions.filter((a) => a.status === 'completed').length,
+    pending:     eventScopedActions.filter((a) => a.status === 'pending').length,
+    in_progress: eventScopedActions.filter((a) => a.status === 'in_progress').length,
+    completed:   eventScopedActions.filter((a) => a.status === 'completed').length,
   }
 
   return (
     <div className="p-8 max-w-4xl">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white">Ações Corretivas e Preventivas</h1>
-        <p className="text-slate-400">Criadas a partir das recomendações das análises SERA</p>
+        <p className="text-slate-400">Derivadas das pré-condições identificadas nas análises SERA</p>
       </div>
 
       <div className="mb-6 rounded-xl border border-blue-800/60 bg-blue-950/20 p-5">
@@ -229,7 +268,27 @@ export default function ActionsPage() {
         </p>
       </div>
 
-      {/* Filter cards */}
+      <div className="mb-5 rounded-xl border border-slate-800 bg-slate-900 p-4">
+        <label htmlFor="event-filter" className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+          Evento
+        </label>
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <select
+            id="event-filter"
+            value={effectiveEventFilter}
+            onChange={(event) => setEventFilter(event.target.value)}
+            className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+          >
+            <option value="all">Todos os eventos ativos</option>
+            {eventOptions.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}
+          </select>
+          <span className="text-xs text-slate-500">
+            Ações e sugestões são sempre vinculadas ao evento e à pré-condição que lhes deu origem.
+          </span>
+        </div>
+      </div>
+
+      {/* Status filter cards — counts respect the selected event. */}
       <div className="grid grid-cols-3 gap-4 mb-8">
         {FILTER_CARDS.map((card) => (
           <button
@@ -245,16 +304,16 @@ export default function ActionsPage() {
         ))}
       </div>
 
-      {suggestions.length > 0 && (
+      {visibleSuggestions.length > 0 && (
         <section className="mb-8 space-y-3">
           <div className="flex items-end justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-white">Sugestões SERA pendentes</h2>
               <p className="text-xs text-slate-500">Converta em ação rastreável somente após conferir a base factual e o escopo.</p>
             </div>
-            <span className="text-xs text-slate-500">{suggestions.length} item(ns)</span>
+            <span className="text-xs text-slate-500">{visibleSuggestions.length} item(ns)</span>
           </div>
-          {suggestions.map((suggestion) => {
+          {visibleSuggestions.map((suggestion) => {
             const investigation = suggestion.kind === 'INVESTIGATION'
             const creating = creatingSuggestionId === suggestion.id
             return (
@@ -273,7 +332,11 @@ export default function ActionsPage() {
                     </div>
                     <h3 className="mt-2 font-semibold text-white">{suggestion.title}</h3>
                     <p className="mt-1 text-sm leading-relaxed text-slate-400">{suggestion.description}</p>
-                    <p className="mt-2 text-xs text-slate-500">Análise: {suggestion.analysisTitle}</p>
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                      <span>Evento: <span className="text-slate-300">{suggestion.eventTitle ?? suggestion.analysisTitle}</span></span>
+                      <span>Pré-condição: <span className="text-slate-300">{suggestion.preconditionLabel}</span></span>
+                      <span>Nível: <span className="text-slate-300">{suggestion.preconditionLevel}</span></span>
+                    </div>
                     {suggestion.evidence.length > 0 && (
                       <p className="mt-2 text-xs leading-relaxed text-slate-500">Evidência: {suggestion.evidence.join(' | ')}</p>
                     )}
@@ -343,6 +406,16 @@ export default function ActionsPage() {
 
                       {/* Title + description */}
                       <h3 className="font-semibold text-white mb-1">{action.title}</h3>
+                      <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                        {action.event_title && <span>Evento: <span className="text-slate-300">{action.event_title}</span></span>}
+                        {action.precondition_category && (
+                          <span>Pré-condição: <span className="text-slate-300">{preconditionLabel(action.precondition_category)}</span></span>
+                        )}
+                        {action.action_kind === 'INVESTIGATION' && <span className="text-amber-300">Tarefa de investigação</span>}
+                        {action.linkage_status === 'STALE_PRECONDITION_LINK' && (
+                          <span className="text-amber-300">Vínculo metodológico alterado na reanálise — revisar esta ação</span>
+                        )}
+                      </div>
                       {action.description && (
                         <p className="text-slate-400 text-sm leading-relaxed mb-3">{action.description}</p>
                       )}
