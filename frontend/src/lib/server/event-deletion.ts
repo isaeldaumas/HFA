@@ -209,17 +209,12 @@ export async function getEventDeletionImpact(
   const legacyAnalysis = normalizeAnalysis(event.analyses)
   const legacyAnalysisId = legacyAnalysis?.id ?? null
 
-  const [vnextBySource, vnextByMetadata, riskExclusions, auditLogs, legacyEdits] = await Promise.all([
+  const [vnextBySource, riskExclusions, auditLogs, legacyEdits] = await Promise.all([
     admin
       .from('sera_vnext_analyses')
       .select('id, engine_input, engine_output, metadata')
       .eq('tenant_id', tenantId)
       .eq('source_reference', eventId),
-    admin
-      .from('sera_vnext_analyses')
-      .select('id, engine_input, engine_output, metadata')
-      .eq('tenant_id', tenantId)
-      .contains('metadata', { eventId }),
     admin
       .from('risk_profile_exclusions')
       .select('id')
@@ -237,18 +232,33 @@ export async function getEventDeletionImpact(
       : Promise.resolve({ count: 0, error: null }),
   ])
 
-  const lookupErrors = [
+  const primaryLookupErrors = [
     vnextBySource.error,
-    vnextByMetadata.error,
     riskExclusions.error,
     auditLogs.error,
     legacyEdits.error,
   ].filter(Boolean)
-  if (lookupErrors.length > 0) throw new Error('EVENT_DELETE_IMPACT_LOOKUP_FAILED')
+  if (primaryLookupErrors.length > 0) throw new Error('EVENT_DELETE_IMPACT_LOOKUP_FAILED')
+
+  // source_reference is the canonical event link for current SERA analyses. Only fall
+  // back to historical metadata when no canonical rows exist. Running both lookups on
+  // every deletion caused an unindexed JSON containment scan and could exceed the
+  // PostgREST statement timeout on events with several revisions.
+  let candidateRows = (vnextBySource.data ?? []) as Array<Record<string, unknown>>
+  if (candidateRows.length === 0) {
+    const vnextByMetadata = await admin
+      .from('sera_vnext_analyses')
+      .select('id, engine_input, engine_output, metadata')
+      .eq('tenant_id', tenantId)
+      .eq('metadata->>eventId', eventId)
+
+    if (vnextByMetadata.error) throw new Error('EVENT_DELETE_IMPACT_LOOKUP_FAILED')
+    candidateRows = (vnextByMetadata.data ?? []) as Array<Record<string, unknown>>
+  }
 
   const vnextMap = new Map<string, Record<string, unknown>>()
-  for (const row of [...(vnextBySource.data ?? []), ...(vnextByMetadata.data ?? [])]) {
-    vnextMap.set(String(row.id), row as Record<string, unknown>)
+  for (const row of candidateRows) {
+    vnextMap.set(String(row.id), row)
   }
   const vnextRows = [...vnextMap.values()]
   const vnextIds = [...vnextMap.keys()]
