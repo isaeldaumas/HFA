@@ -223,10 +223,10 @@ export type SeraVNextEngineOutput = {
     criticalUnsafeActCandidate?: string | null
     criticalCandidateAlternatives?: string[]
     irreversibilityBoundaryCandidate?: string | null
-    anchorBasis?: 'FIRST_DEPARTURE_AND_CRITICAL_ACT' | 'CRITICAL_UNSAFE_ACT' | 'FIRST_DEPARTURE_ONLY' | 'UNRESOLVED'
-    /** Evidence supporting the earlier Hendy departure landmark, kept distinct from the P/O/A anchor. */
+    anchorBasis?: 'FIRST_DEPARTURE_AND_CRITICAL_ACT' | 'FIRST_DEPARTURE_PRIMARY' | 'FIRST_DEPARTURE_ONLY' | 'UNRESOLVED'
+    /** Evidence supporting the Hendy first-departure landmark used as the primary P/O/A anchor. */
     firstDepartureSupportingEvidence?: string[]
-    /** Evidence supporting the critical unsafe act/condition used as the primary P/O/A anchor. */
+    /** Evidence supporting a later critical unsafe act/condition, preserved as a distinct downstream landmark. */
     criticalUnsafeActSupportingEvidence?: string[]
     directActor: string | null
     supportingEvidence: string[]

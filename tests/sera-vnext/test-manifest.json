@@ -2243,5 +2243,15 @@
     "expectedStatus": "PASS",
     "runtimeScope": "CURRENT",
     "dataAccess": "NONE"
+  },
+  {
+    "path": "tests/sera-vnext/human-calibration-event1-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT",
+    "dataAccess": "NONE"
   }
 ]

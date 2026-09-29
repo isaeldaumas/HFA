@@ -126,6 +126,13 @@ function conciseRootResponse(axis: CanonicalSeraAxis, raw: string): string {
     if (identifiedAsIf) return `O operador acreditava que ${identifiedAsIf[1].trim()} era ${identifiedAsIf[2].trim()}.`
     const identifiedAs = text.match(/(?:identificou|tratou|interpretou)\s+(.{1,70}?)\s+como\s+(.{1,100}?)(?:[.;,]|\s+devido\b|\s+porque\b|$)/i)
     if (identifiedAs) return `O operador acreditava que ${identifiedAs[1].trim()} correspondia a ${identifiedAs[2].trim()}.`
+    const imcAwareness = text.match(/(?:viu|vimos|viram|sabia|sabiam|estava ciente|estavam cientes).{0,120}?\bIMC\b/i)
+    if (imcAwareness) {
+      const altitude = text.match(/\b(\d{2,4})\s*(?:p[eé]s|ft|feet)\b/i)?.[1]
+      return altitude
+        ? `O operador percebia que a operação estava em IMC a ${altitude} pés.`
+        : 'O operador percebia que a operação estava em IMC.'
+    }
     const believed = text.match(/(?:acreditava|achava|entendeu|entendia|percebia)\s+que\s+(.{1,180}?)(?:[.;]|$)/i)
     if (believed) return `O operador acreditava que ${believed[1].trim()}.`
     const enIdentified = text.match(/identified\s+(.{1,70}?)\s+as\s+(?:the\s+)?(.{1,100}?)(?:[.;,]|\s+because\b|$)/i)
@@ -140,6 +147,9 @@ function conciseRootResponse(axis: CanonicalSeraAxis, raw: string): string {
     if (preparedApproach) return `O operador pretendia realizar a aproximação para ${preparedApproach[1].trim()}.`
     if (/called for (?:the )?go-around|chamou (?:pela |a )?arremetida|solicitou (?:a )?arremetida/i.test(text)) {
       return /called for/i.test(text) ? 'The operator intended to execute a go-around.' : 'O operador pretendia executar uma arremetida.'
+    }
+    if (/\b(?:resolveu|resolveram|resolvemos|decidiu|decidiram|decidimos|optou|optaram)\b.*\bcontinuar\b.*\b(?:tentar|pouso|pousar)\b/i.test(text)) {
+      return 'O operador pretendia continuar o voo e tentar o pouso.'
     }
     const goal = text.match(/(?:objetivo|inten[cç][aã]o|meta)\s+(?:era|foi|consistia em)?\s*:?[\s]*(.{1,180}?)(?:[.;]|$)/i)
     if (goal) return `O objetivo do operador era ${goal[1].trim()}.`
@@ -159,12 +169,20 @@ function conciseRootResponse(axis: CanonicalSeraAxis, raw: string): string {
     if (wrongAlternativePt) return `O operador tentava responder por meio do comando ${wrongAlternativePt[1].trim()}, em vez de ${wrongAlternativePt[2].trim()}.`
     const insertedSelection = text.match(/(?:inseriu|programou|selecionou|ajustou)\s+(.{1,180}?)(?:[.;]|$)/i)
     if (insertedSelection) return `O operador tentava atingir o objetivo por meio da seleção/configuração de ${insertedSelection[1].trim()}.`
+    if (/\b(?:colocou|aplicou|usou|utilizou|put|applied|used)\b.{0,100}\b(?:barra na barra|pitch down|c[ií]clico|cyclic|comando|control)\b/i.test(text)) {
+      return /barra na barra/i.test(text)
+        ? 'O operador tentava atingir o objetivo aplicando a técnica de barra na barra.'
+        : 'O operador tentava atingir o objetivo por meio do comando/técnica descrito no relato.'
+    }
     if (/did not initiate a go-around/i.test(text)) return 'The operator was trying to continue the approach without initiating a go-around.'
     if (/n[aã]o (?:iniciou|executou|realizou) (?:uma |a )?arremetida/i.test(text)) return 'O operador tentava prosseguir a aproximação sem iniciar a arremetida.'
     const hesitation = text.match(/(?:hesitou|demorou|esperou).{0,80}?antes de (executar|iniciar|realizar)\s+(.{1,100}?)(?:[.;]|$)/i)
     if (hesitation) return `O operador pretendia atingir o objetivo por meio da execução de ${hesitation[2].trim()}, mas hesitou antes de executá-la.`
     const prepared = text.match(/passou a (?:preparar|conduzir|planejar)\s+(?:a\s+)?aproxima[cç][aã]o\s+para\s+(.{1,90}?)(?:[.;]|$)/i)
     if (prepared) return `O operador tentava atingir o objetivo preparando e conduzindo a aproximação para ${prepared[1].trim()}.`
+    if (/\b(?:resolveu|resolveram|resolvemos|decidiu|decidiram|decidimos|optou|optaram)\b.*\bcontinuar\b.*\b(?:tentar|pouso|pousar)\b/i.test(text)) {
+      return 'O operador tentava atingir o objetivo continuando o voo e tentando o pouso.'
+    }
     const plannedMeans = text.match(/(?:decidiu|optou|planejava|pretendia|tentava)\s+(?:por\s+)?(?:usar|utilizar|empregar|executar|realizar|conduzir)\s+(.{1,180}?)(?:[.;]|$)/i)
     if (plannedMeans) return `O operador tentava atingir o objetivo usando ${plannedMeans[1].trim()}.`
     const approach = text.match(/(?:planej|conduz|inici|prosseg|continu)\w*\s+(.{1,180}?)(?:[.;]|$)/i)
@@ -208,7 +226,7 @@ function decideP(nodeId: string, statements: string[]): Decision {
       const perceivedState = unique([
         ...concept(statements, 'inadequateAssessment'),
         ...concept(statements, 'adequateAssessment'),
-        ...matching(statements, [/\b(acreditava|achava|entendia|percebia|identificou|interpretou|reconheceu|believed|understood|perceived|identified|interpreted|recognized)\b/i]),
+        ...matching(statements, [/\b(acreditava|achava|entendia|percebia|identificou|interpretou|reconheceu|viu|vimos|viram|sabia|sabiam|ciente|consciente|believed|understood|perceived|identified|interpreted|recognized|saw|knew|aware)\b/i]),
       ])
       if (!perceivedState.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of what the operator believed or perceived; environmental/system state alone cannot substitute for that belief.' }
       return { answer: 'START', supportingEvidence: perceivedState.slice(0, 2), rationale: 'Root node establishes the operator perceived state before that assessment is tested.' }
@@ -277,7 +295,7 @@ function decideO(nodeId: string, statements: string[]): Decision {
         ...concept(statements, 'efficiencyObjective'),
         ...matching(statements, [
           /\b(objetiv|inten[cç][aã]o|pretend|planej|meta|queria|desej|buscava|visava|goal|intent|planned|planning)\w*/i,
-          /\b(decidiu|optou|escolheu|decided|chose|opted)\b.{0,120}\b(continuar|continuou|prosseguir|prosseguiu|decolar|decolou|pousar|pousou|aproximar|aproximou|descer|desceu|subir|subiu|continue|continued|proceed|proceeded|take off|took off|land|landed|approach|approached|descend|descended|climb|climbed)\b/i,
+          /\b(decidiu|decidiram|decidimos|resolveu|resolveram|resolvemos|optou|optaram|escolheu|escolheram|decided|resolved|chose|opted)\b.{0,120}\b(continuar|continuou|prosseguir|prosseguiu|tentar|decolar|decolou|pousar|pousou|aproximar|aproximou|descer|desceu|subir|subiu|continue|continued|proceed|proceeded|try|take off|took off|land|landed|approach|approached|descend|descended|climb|climbed)\b/i,
           /\b(decidiu|resolveu|decided|resolved)\b.{0,80}\b(violar|descumprir|desrespeitar|violate|breach|disregard)\b.{0,100}\b(continuar|continuou|prosseguir|prosseguiu|seguir|seguiu|continue|continued|proceed|proceeded|press on|pressed on)\b/i,
           /\b((?:passou|come[cç]ou) a (?:preparar|conduzir|planejar)|iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|preparou|conduziu)\b.{0,90}\b(aproxima[cç][aã]o|approach|pouso|landing|destino|destination|unidade|unit-|plataforma|helideck)\b/i,
           /\b(called for|requested|solicitou|chamou (?:pela |a )?)\b.{0,60}\b(go-around|go around|arremetida)\b/i,
@@ -403,7 +421,7 @@ function decideA(nodeId: string, statements: string[]): Decision {
         // Hendy asks HOW the actor was trying to achieve the goal — the plan/means.
         // A bare observed control movement is not sufficient to establish that strategy.
         ...matching(statements, [
-          /\b(pretendia|intencionava|planejava|decidiu|optou|escolheu|tentava|buscava|visava|intended|planned|decided|opted|chose|was trying|sought|aimed)\b.{0,180}\b(usar|utilizar|executar|realizar|conduzir|prosseguir|continuar|selecionar|acionar|aproximar|pousar|use|using|execute|perform|conduct|proceed|continue|select|activate|approach|land)\b/i,
+          /\b(pretendia|intencionava|planejava|decidiu|decidiram|decidimos|resolveu|resolveram|resolvemos|optou|optaram|escolheu|escolheram|tentava|buscava|visava|intended|planned|decided|resolved|opted|chose|was trying|sought|aimed)\b.{0,180}\b(usar|utilizar|executar|realizar|conduzir|prosseguir|continuar|tentar|selecionar|acionar|aproximar|pousar|use|using|execute|perform|conduct|proceed|continue|try|select|activate|approach|land)\b/i,
           /\b(passou|come[cç]ou) a (?:tratar|planejar|conduzir|preparar|executar|usar|utilizar)\b/i,
           /\b(iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|conduziu a aproxima[cç][aã]o|preparou a aproxima[cç][aã]o|planejou a aproxima[cç][aã]o)\b/i,
           /\b(usou|utilizou|selecionou|acionou|configurou|programou|inseriu)\b.{0,120}\b(para|a fim de|com o objetivo de|visando|to|in order to|so as to)\b/i,

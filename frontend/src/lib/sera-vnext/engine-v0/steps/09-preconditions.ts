@@ -231,7 +231,7 @@ export function runStep09Preconditions(input: {
     return score
   }
   const hasResolvedEscapeAnchor = input.escapePoint.status !== 'INSUFFICIENT_EVIDENCE' && Boolean(input.escapePoint.statement)
-  const primaryEscapeAnchor = input.escapePoint.criticalUnsafeActCandidate ?? input.escapePoint.statement ?? input.escapePoint.latestCandidate ?? input.escapePoint.earliestCandidate ?? ''
+  const primaryEscapeAnchor = input.escapePoint.firstDepartureCandidate ?? input.escapePoint.statement ?? input.escapePoint.earliestCandidate ?? input.escapePoint.criticalUnsafeActCandidate ?? input.escapePoint.latestCandidate ?? ''
   const isContextualAnalysisStatement = (statement: string): boolean =>
     !isNonCausalDocumentStatement(statement) &&
     !isProcedureReferenceStatement(statement) &&

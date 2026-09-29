@@ -58,6 +58,7 @@ const CONCEPT_PATTERNS: Record<SeraEvidenceConcept, RegExp[]> = {
     /\bavalia[cç][aã]o (adequada|correta|apropriada|precisa)\b/i,
     /\bpercep[cç][aã]o (adequada|correta|apropriada)\b/i,
     /\bidentificou corretamente\b/i,
+    /\b(viu|vimos|viram|percebeu|perceberam|reconheceu|reconheceram|saw|perceived|recognized)\b.*\b(imc|teto baixo|baixa visibilidade|limite de visibilidade|low ceiling|poor visibility|below minimums?)\b/i,
   ],
   inadequateAssessment: [
     /\b(did not|failed to|without)\b.*\b(perceiv\w*|notic\w*|see|recogniz\w*|identify|awareness|deviation|warning)\b/i,

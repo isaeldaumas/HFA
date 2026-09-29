@@ -90,16 +90,15 @@ O alerta MASTER WARNING apresentava indicação da urgência da situação.
 Como consequência, a aeronave entrou em stall e colidiu contra o solo.
 `)
 assert.equal(fullContextEpisode.escapePoint.status, 'CANDIDATE')
-// Hendy keeps the first departure and the most critical unsafe act distinct when the evidence supports both.
+// Hendy keeps both landmarks, but the active P/O/A traversal starts at the first supported human-factor departure.
 assert.match(fullContextEpisode.escapePoint.firstDepartureCandidate ?? '', /despachada.*MEL/i)
 assert.match(fullContextEpisode.escapePoint.criticalUnsafeActCandidate ?? '', /procedimentos previstos|CRUISE SPEED LOW|checklist|Airframe De-Icing/i)
-assert.equal(fullContextEpisode.escapePoint.anchorBasis, 'CRITICAL_UNSAFE_ACT')
-assert.match(fullContextEpisode.escapePoint.statement ?? '', /procedimentos previstos|CRUISE SPEED LOW|checklist|Airframe De-Icing/i)
-assert.doesNotMatch(fullContextEpisode.escapePoint.statement ?? '', /despachada.*MEL/i)
+assert.equal(fullContextEpisode.escapePoint.anchorBasis, 'FIRST_DEPARTURE_PRIMARY')
+assert.match(fullContextEpisode.escapePoint.statement ?? '', /despachada.*MEL/i)
 assert.equal(fullContextEpisode.escapePoint.humanFactorGate?.status, 'PASSED')
 assert.equal(fullContextEpisode.escapePoint.humanFactorGate?.anchorType, 'UNSAFE_ACT')
-assert.ok(fullContextEpisode.escapePoint.supportingEvidence.some((text) => /Airframe De-Icing|procedimentos previstos|CRUISE SPEED LOW/i.test(text)))
-assert.equal(fullContextEpisode.escapePoint.supportingEvidence.some((text) => /despachada sem as restrições impostas pela MEL/i.test(text)), false)
+assert.ok(fullContextEpisode.escapePoint.supportingEvidence.some((text) => /despachada sem as restrições impostas pela MEL/i.test(text)))
+assert.ok((fullContextEpisode.escapePoint.criticalUnsafeActSupportingEvidence ?? []).some((text) => /procedimentos previstos|CRUISE SPEED LOW/i.test(text)))
 assert.ok(fullContextEpisode.escapePoint.counterEvidence.some((text) => /Multiple human-factor unsafe-act\/condition candidates/i.test(text)))
 assert.ok(fullContextEpisode.escapePoint.counterEvidence.some((text) => /Hendy boundary split/i.test(text)))
 assert.equal(fullContextEpisode.directActor.status, 'AMBIGUOUS')
@@ -107,8 +106,7 @@ assert.equal(fullContextEpisode.directActor.actor, null)
 assert.equal(fullContextEpisode.directActor.alternatives.some((actor) => /^(CCO|DOV|PIC)$/i.test(actor)), false)
 const criticalActorQuestion = fullContextEpisode.evidenceSufficiency.questions.find((question) => question.id === 'CLARIFY-DIRECT-ACTOR')
 assert.ok(criticalActorQuestion)
-assert.match(criticalActorQuestion?.question ?? '', /tripulante|PF|PM/i)
-assert.doesNotMatch(criticalActorQuestion?.question ?? '', /despacho|liberação operacional/i)
+assert.match(criticalActorQuestion?.question ?? '', /despacho|liberação operacional/i)
 assert.deepEqual(
   [fullContextEpisode.axes.perception.proposedCode, fullContextEpisode.axes.objective.proposedCode, fullContextEpisode.axes.action.proposedCode],
   [null, null, null],
@@ -175,7 +173,7 @@ for (const axisName of ['P', 'O', 'A'] as const) {
 }
 
 
-// An upstream maintenance/dispatch departure must not displace a later critical unsafe act directly linked to the outcome.
+// A scene-setting preflight fact must not displace the first supported human-factor departure; a later critical act remains separate.
 const upstreamSceneSetter = run('SERA-HENDY-FIRST-VS-CRITICAL', `
 A inspeção pré-voo foi concluída sem detectar anormalidade e a aeronave foi liberada com a pane do sistema de proteção contra gelo não identificada.
 Durante o voo, o comandante reconheceu a formação de gelo severo, mas decidiu continuar na condição e manteve a trajetória.
@@ -186,12 +184,12 @@ assert.match(upstreamSceneSetter.escapePoint.firstDepartureCandidate ?? '', /con
 assert.match(upstreamSceneSetter.escapePoint.criticalUnsafeActCandidate ?? '', /procedimentos previstos|checklist/i)
 assert.doesNotMatch(upstreamSceneSetter.escapePoint.statement ?? '', /inspeção pré-voo|liberada/i)
 assert.equal(upstreamSceneSetter.escapePoint.supportingEvidence.some((text) => /inspeção pré-voo|liberada/i.test(text)), false)
-assert.equal(upstreamSceneSetter.escapePoint.anchorBasis, 'CRITICAL_UNSAFE_ACT')
+assert.equal(upstreamSceneSetter.escapePoint.anchorBasis, 'FIRST_DEPARTURE_PRIMARY')
 assert.ok(upstreamSceneSetter.escapePoint.counterEvidence.some((text) => /Hendy boundary split/i.test(text)))
 
-// VoePass terminal chain: keep upstream dispatch as the first departure, but anchor P/O/A on
-// the observable SIC input against the stick pusher. Preserve the later irreversibility marker
-// as a boundary corroborator, not as the unsafe act itself.
+// VoePass terminal chain: keep upstream dispatch as the active first-departure traversal.
+// Preserve the later SIC input against the stick pusher as a distinct critical act and the
+// irreversibility marker as downstream trajectory evidence; neither replaces the first anchor.
 const terminalControlAct = run('VOEPASS-HENDY-TERMINAL-CONTROL-ACT', `
 k) A despeito da pane do sistema Airframe De-Icing, a aeronave foi despachada sem as restrições impostas pela MEL.
 aa) O alerta INCREASE SPEED foi acionado e ocorreu 13 segundos antes do Stall Warning System.
@@ -206,40 +204,30 @@ A aeronave perdeu o controle e colidiu contra o solo.
 `)
 assert.match(terminalControlAct.escapePoint.firstDepartureCandidate ?? '', /despachada.*MEL/i)
 assert.match(terminalControlAct.escapePoint.criticalUnsafeActCandidate ?? '', /SIC.*NOSE UP.*oposi[cç][aã]o.*stick pusher/i)
-assert.match(terminalControlAct.escapePoint.statement ?? '', /SIC.*NOSE UP.*stick pusher/i)
-assert.doesNotMatch(terminalControlAct.escapePoint.statement ?? '', /provocou.*pitch uncoupling/i)
+assert.match(terminalControlAct.escapePoint.statement ?? '', /despachada.*MEL/i)
+assert.doesNotMatch(terminalControlAct.escapePoint.statement ?? '', /SIC.*NOSE UP.*stick pusher/i)
 assert.match(terminalControlAct.escapePoint.irreversibilityBoundaryCandidate ?? '', /n[aã]o era mais poss[ií]vel|irrevers[ií]vel/i)
-assert.equal(terminalControlAct.escapePoint.anchorBasis, 'CRITICAL_UNSAFE_ACT')
+assert.equal(terminalControlAct.escapePoint.anchorBasis, 'FIRST_DEPARTURE_PRIMARY')
 assert.ok((terminalControlAct.escapePoint.firstDepartureSupportingEvidence ?? []).some((text) => /despachada.*MEL/i.test(text)))
 assert.ok((terminalControlAct.escapePoint.criticalUnsafeActSupportingEvidence ?? []).some((text) => /SIC.*NOSE UP.*stick pusher/i.test(text)))
-assert.equal(terminalControlAct.directActor.status, 'IDENTIFIED')
-assert.match(terminalControlAct.directActor.actor ?? '', /copiloto|first officer/i)
+assert.equal(terminalControlAct.directActor.status, 'AMBIGUOUS')
+assert.equal(terminalControlAct.directActor.actor, null)
+assert.ok(terminalControlAct.evidenceSufficiency.questions.some((question) => question.id === 'CLARIFY-DIRECT-ACTOR'))
+assert.match(terminalControlAct.evidenceSufficiency.questions.find((question) => question.id === 'CLARIFY-DIRECT-ACTOR')?.question ?? '', /despacho|liberação operacional/i)
 assert.equal(terminalControlAct.guardrails.consequenceUsedAsCause, false)
 assert.equal(terminalControlAct.guardrails.postEscapeEvidenceUsed, false)
 assert.equal(terminalControlAct.axes.perception.supportingEvidence.some((text) => /Roselawn|Lombardia/i.test(text)), false)
 assert.equal(terminalControlAct.axes.objective.supportingEvidence.some((text) => /Roselawn|Lombardia/i.test(text)), false)
 assert.equal(terminalControlAct.axes.action.supportingEvidence.some((text) => /Roselawn|Lombardia/i.test(text)), false)
-assert.match(terminalControlAct.safeOperationModel.expectedSafeAction ?? '', /stick pusher/i)
-assert.match(terminalControlAct.safeOperationModel.expectedSafeAction ?? '', /reduzir o ângulo de ataque|recupera[cç][aã]o/i)
-assert.doesNotMatch(terminalControlAct.safeOperationModel.expectedSafeAction ?? '', /abandonar ou evitar a condi[cç][aã]o/i)
+assert.match(terminalControlAct.safeOperationModel.expectedSafeAction ?? '', /MEL|despacho|libera[cç][aã]o/i)
+assert.doesNotMatch(terminalControlAct.safeOperationModel.expectedSafeAction ?? '', /stick pusher|reduzir o ângulo de ataque/i)
 assert.equal(terminalControlAct.axes.perception.statementAtEscapePoint, null)
 assert.equal(terminalControlAct.axes.objective.statementAtEscapePoint, null)
-assert.match(terminalControlAct.axes.action.statementAtEscapePoint ?? '', /A[cç][aã]o observada.*copiloto/i)
-const terminalPPath = terminalControlAct.canonicalTraversal.paths.find((path) => path.axis === 'P')
-const terminalOPath = terminalControlAct.canonicalTraversal.paths.find((path) => path.axis === 'O')
-const terminalAPath = terminalControlAct.canonicalTraversal.paths.find((path) => path.axis === 'A')
-assert.deepEqual(terminalPPath?.nodeIds, ['P_ROOT'])
-assert.deepEqual(terminalOPath?.nodeIds, ['O_ROOT'])
-assert.deepEqual(terminalAPath?.nodeIds, ['A_ROOT'])
-assert.equal(terminalPPath?.answers[0]?.answer, 'INSUFFICIENT_EVIDENCE')
-assert.equal(terminalOPath?.answers[0]?.answer, 'INSUFFICIENT_EVIDENCE')
-assert.equal(terminalAPath?.answers.at(-1)?.answer, 'INSUFFICIENT_EVIDENCE')
-assert.match(terminalPPath?.answers[0]?.responseText ?? '', /n[aã]o [eé] poss[ií]vel determinar.*acreditava/i)
-assert.match(terminalOPath?.answers[0]?.responseText ?? '', /n[aã]o [eé] poss[ií]vel determinar.*objetivo/i)
-assert.match(terminalAPath?.answers[0]?.responseText ?? '', /n[aã]o [eé] poss[ií]vel determinar.*plano|estrat[eé]gia/i)
-assert.ok(terminalControlAct.evidenceSufficiency.questions.some((question) => question.linkedNodeId === 'P_ROOT'))
-assert.ok(terminalControlAct.evidenceSufficiency.questions.some((question) => question.linkedNodeId === 'O_ROOT'))
-assert.ok(terminalControlAct.evidenceSufficiency.questions.some((question) => question.linkedNodeId === 'A_ROOT'))
+assert.equal(terminalControlAct.axes.action.statementAtEscapePoint, null)
+assert.equal(terminalControlAct.canonicalTraversal.status, 'INSUFFICIENT_EVIDENCE')
+assert.equal(terminalControlAct.canonicalTraversal.paths.length, 0)
+assert.ok(terminalControlAct.escapePoint.excludedPostEscapeEvidence.some((text) => /SIC.*NOSE UP.*stick pusher/i.test(text)))
+
 
 const candidateRoleSeparation = run('VOEPASS-CANDIDATE-ROLE-SEPARATION', `
 Durante a atuação do stick pusher, não deveria ser aplicada qualquer ação contrária.
@@ -346,15 +334,15 @@ x) Os procedimentos previstos para o acionamento dos avisos CRUISE SPEED LOW nã
 assert.notEqual(longReport.escapePoint.status, 'INSUFFICIENT_EVIDENCE')
 assert.match(longReport.escapePoint.firstDepartureCandidate ?? '', /despachada.*MEL/i)
 assert.match(longReport.escapePoint.criticalUnsafeActCandidate ?? '', /procedimentos previstos|checklist|CRUISE SPEED LOW/i)
-assert.match(longReport.escapePoint.statement ?? '', /procedimentos previstos|checklist|CRUISE SPEED LOW/i)
+assert.match(longReport.escapePoint.statement ?? '', /despachada.*MEL/i)
+assert.equal(longReport.escapePoint.anchorBasis, 'FIRST_DEPARTURE_PRIMARY')
 assert.equal(longReport.escapePoint.status, 'CANDIDATE')
 assert.equal(longReport.directActor.status, 'AMBIGUOUS')
 assert.equal(longReport.directActor.actor, null)
 assert.equal(longReport.directActor.alternatives.some((actor) => /^(CCO|DOV|PIC)$/i.test(actor)), false)
 const longCriticalActorQuestion = longReport.evidenceSufficiency.questions.find((question) => question.id === 'CLARIFY-DIRECT-ACTOR')
 assert.ok(longCriticalActorQuestion)
-assert.match(longCriticalActorQuestion?.question ?? '', /tripulante|PF|PM/i)
-assert.doesNotMatch(longCriticalActorQuestion?.question ?? '', /despacho|liberação operacional/i)
+assert.match(longCriticalActorQuestion?.question ?? '', /despacho|liberação operacional/i)
 assert.ok(longReport.factualExtraction.evidence.some((item) => /despachada sem as restrições impostas pela MEL/i.test(item.statement)))
 assert.ok(longReport.factualExtraction.evidence.some((item) => /procedimentos previstos no checklist.*não foram realizados/i.test(item.statement)))
 

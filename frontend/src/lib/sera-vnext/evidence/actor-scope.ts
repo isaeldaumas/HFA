@@ -13,7 +13,7 @@ export function detectEvidenceActor(statement: string): string | null {
   if (/^(?:the )?(first officer|copilot|copiloto)\b/.test(text) || /\b(first officer|copilot|copiloto)\b.{0,40}\b(said|mentioned|noted|commented|acknowledged|decided|selected|performed|executed|continued|informed|disse|mencionou|observou|comentou|reconheceu|confirmou|decidiu|selecionou|executou|prosseguiu|informou)\b/.test(text)) return 'first officer'
   if (/\b(first officer|copilot|copiloto)\b/.test(text)) return 'first officer'
   if (/\b(captain|comandante)\b/.test(text)) return 'captain'
-  if (/\bflight crew|\bcrew\b|tripulacao/.test(text)) return 'flight crew (collective)'
+  if (/\bflight crew|\bcrew\b|tripulacao|\bnos\b|\bwe\b|\ba gente\b/.test(text)) return 'flight crew (collective)'
   if (/\bpilot\b|piloto/.test(text)) return 'pilot'
   if (/\bmaintenance\b|manuten|mecanico|mecanicos|mechanic|mechanics|inspetor|inspetores|inspector|inspectors/.test(text)) return 'maintenance'
   if (/\bdispatch\b|operator pressure|organizational/.test(text)) return 'organization / dispatch context'

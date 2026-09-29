@@ -33,7 +33,7 @@ function evidenceFor(
   use: 'PERCEPTION' | 'OBJECTIVE' | 'ACTION',
 ): string[] {
   const escapeSupport = new Set(escapePoint.supportingEvidence)
-  const criticalAnchor = escapePoint.criticalUnsafeActCandidate ?? escapePoint.latestCandidate ?? escapePoint.statement ?? escapePoint.earliestCandidate
+  const criticalAnchor = escapePoint.firstDepartureCandidate ?? escapePoint.statement ?? escapePoint.earliestCandidate ?? escapePoint.criticalUnsafeActCandidate ?? escapePoint.latestCandidate
   const criticalAnchorIndex = criticalAnchor
     ? factualExtraction.timeline.find((item) => item.statement === criticalAnchor)?.sourceSentenceIndex ?? null
     : null
@@ -209,7 +209,7 @@ export function runStep07AxisStatements(input: {
   const locale = input.engineInput.locale
   const actor = actorLabel(input.directActor.actor, locale)
 
-  const criticalAnchor = input.escapePoint.criticalUnsafeActCandidate ?? input.escapePoint.statement ?? input.escapePoint.latestCandidate ?? input.escapePoint.earliestCandidate ?? ''
+  const criticalAnchor = input.escapePoint.firstDepartureCandidate ?? input.escapePoint.statement ?? input.escapePoint.earliestCandidate ?? input.escapePoint.criticalUnsafeActCandidate ?? input.escapePoint.latestCandidate ?? ''
   const perceptionRootEvidence = perceptionEvidence.filter((text) => hasPerceptionRootEvidence(text, criticalAnchor))
   const perceptionStatement = genericStatement(
     isPt(locale) ? `Estado perceptivo de ${actor} no ponto de fuga` : `Perceptual state of ${actor} at the escape point`,

@@ -210,7 +210,7 @@ export function runStep08CanonicalTraversal(input: {
 
   const maintenancePreflightContext =
     /\bmaintenance|manuten[cç][aã]o\b/i.test(input.directActor.actor ?? '') &&
-    /\b(pre[- ]?flight|pr[eé][ -]?voo|inspe[cç][aã]o)\b/i.test(`${input.escapePoint.criticalUnsafeActCandidate ?? input.escapePoint.statement ?? input.escapePoint.latestCandidate ?? input.escapePoint.earliestCandidate ?? ''}`)
+    /\b(pre[- ]?flight|pr[eé][ -]?voo|inspe[cç][aã]o)\b/i.test(`${input.escapePoint.firstDepartureCandidate ?? input.escapePoint.statement ?? input.escapePoint.earliestCandidate ?? input.escapePoint.criticalUnsafeActCandidate ?? input.escapePoint.latestCandidate ?? ''}`)
   if (maintenancePreflightContext && !perception.axisCandidate.proposedCode) {
     perception.axisCandidate.alternativesConsidered = [...new Set([...perception.axisCandidate.alternativesConsidered, 'P-F', 'P-G'])]
   }
