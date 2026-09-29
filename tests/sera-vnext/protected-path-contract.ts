@@ -90,6 +90,26 @@ export function assertCorrectiveActionsPrimarySeraContract(rootDir: string): voi
   assert.ok(source.includes(".eq('tenant_id', user.tenantId)"), `${routePath}: analysis lookup must remain tenant-scoped`);
 }
 
+export function assertCorrectiveActionSuggestionsContract(rootDir: string): void {
+  const routePath = "frontend/src/app/api/actions/suggestions/route.ts";
+  const source = readRel(rootDir, routePath);
+  assert.ok(source.includes("requireBearerUser(req)"), `${routePath}: suggestions must require authenticated user`);
+  assert.ok(source.includes(".is('deleted_at', null)"), `${routePath}: suggestions must be restricted to active events/analyses`);
+  assert.ok(source.includes(".in('source_reference', activeEventIds)"), `${routePath}: current SERA analyses must be scoped to active event identities`);
+  assert.ok(source.includes("precondition_category"), `${routePath}: suggestion identity must be precondition-linked`);
+  assert.ok(source.includes("source_event_id"), `${routePath}: suggestion dedupe must be event-linked`);
+}
+
+export function assertRecoverableEventDeleteContract(rootDir: string): void {
+  const routePath = "frontend/src/app/api/events/[eventId]/delete-request/route.ts";
+  const source = readRel(rootDir, routePath);
+  assert.ok(source.includes("requireAdmin(req)"), `${routePath}: recoverable deletion must remain admin-only`);
+  assert.ok(source.includes("getEventDeletionImpact"), `${routePath}: dependency inventory must run before deletion`);
+  assert.ok(source.includes("softDeleteEvent"), `${routePath}: delete request must remain recoverable/transactional`);
+  assert.ok(source.includes("unknownDependencies.length > 0"), `${routePath}: unknown dependencies must fail closed`);
+  assert.equal(source.includes("EVENT_DELETE_CORRECTIVE_ACTION_BLOCK"), false, `${routePath}: derivative corrective actions must not block recoverable event exclusion`);
+}
+
 export function assertCurrentSeraPdfContract(rootDir: string): void {
   const routePath = "frontend/src/app/api/sera/analyses/[analysisId]/pdf/route.ts";
   const source = readRel(rootDir, routePath);
@@ -166,6 +186,14 @@ export function isAllowedSeraVNextProtectedApiPath(rootDir: string, changedPath:
   }
   if (changedPath === "frontend/src/app/api/actions/route.ts") {
     assertCorrectiveActionsPrimarySeraContract(rootDir);
+    return true;
+  }
+  if (changedPath === "frontend/src/app/api/actions/suggestions/route.ts") {
+    assertCorrectiveActionSuggestionsContract(rootDir);
+    return true;
+  }
+  if (changedPath === "frontend/src/app/api/events/[eventId]/delete-request/route.ts") {
+    assertRecoverableEventDeleteContract(rootDir);
     return true;
   }
   if (changedPath === "frontend/src/app/api/sera/analyses/[analysisId]/pdf/route.ts") {
@@ -280,6 +308,7 @@ export function isAllowedSeraVNextCanonicalTreePath(rootDir: string, changedPath
 export function isAllowedPrimarySeraMigrationPath(rootDir: string, changedPath: string): boolean {
   const actionMigration = "supabase/migrations/20260925163712_corrective_actions_primary_sera_analysis.sql";
   const deletionMigration = "supabase/migrations/20260925174644_block_current_sera_open_actions_on_event_delete.sql";
+  const dynamicTreatmentMigration = "supabase/migrations/20260929004500_event_precondition_treatment_dynamic_recalculation.sql";
   if (changedPath === actionMigration) {
     const source = readRel(rootDir, actionMigration);
     assert.ok(source.includes("sera_vnext_analysis_id"), `${actionMigration}: current SERA FK must exist`);
@@ -290,9 +319,16 @@ export function isAllowedPrimarySeraMigrationPath(rootDir: string, changedPath: 
   }
   if (changedPath === deletionMigration) {
     const source = readRel(rootDir, deletionMigration);
-    assert.ok(source.includes("sera_vnext_analysis_id"), `${deletionMigration}: deletion guard must inspect current SERA actions`);
-    assert.ok(source.includes("EVENT_DELETE_CORRECTIVE_ACTION_BLOCK"), `${deletionMigration}: deletion guard must preserve existing blocker code`);
-    assert.ok(source.includes("before update of deleted_at"), `${deletionMigration}: guard must run before soft delete`);
+    assert.ok(source.includes("sera_vnext_analysis_id"), `${deletionMigration}: historical deletion guard migration must remain intact`);
+    assert.ok(source.includes("EVENT_DELETE_CORRECTIVE_ACTION_BLOCK"), `${deletionMigration}: historical migration provenance must remain intact`);
+    return true;
+  }
+  if (changedPath === dynamicTreatmentMigration) {
+    const source = readRel(rootDir, dynamicTreatmentMigration);
+    assert.ok(source.includes("precondition_category"), `${dynamicTreatmentMigration}: actions must be linked to canonical preconditions`);
+    assert.ok(source.includes("source_event_id"), `${dynamicTreatmentMigration}: actions must carry stable event identity`);
+    assert.ok(source.includes("RECALCULATE_ACTIVE_UNIVERSE"), `${dynamicTreatmentMigration}: soft delete must recalculate active derived data`);
+    assert.ok(source.includes("drop trigger if exists trg_block_event_soft_delete_current_sera_actions"), `${dynamicTreatmentMigration}: recoverable delete must no longer be blocked by derivative actions`);
     return true;
   }
   return false;

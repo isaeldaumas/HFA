@@ -341,16 +341,26 @@ async function main() {
       status: 'pending',
     })
     if (openAction.error) throw openAction.error
-    const blockedDelete = await apiJson<ApiError>({
+    const dynamicDelete = await apiJson<{ status: string }>({
       baseUrl,
       path: `/api/events/${openEventId}/delete-request`,
       method: 'POST',
       token: enterprise.accessToken,
-      body: { reason: 'must block', confirmationTitle: openTitle },
+      body: { reason: 'validate dynamic derived-data exclusion', confirmationTitle: openTitle },
     })
-    assert.equal(blockedDelete.status, 409)
-    assert.equal(blockedDelete.json.error?.code, 'EVENT_DELETE_CORRECTIVE_ACTION_BLOCK')
-    checks.push({ name: '06-corrective-action-open-block-real', status: 'PASS', detail: 'open action blocked soft delete' })
+    assert.equal(dynamicDelete.status, 200)
+    assert.equal(dynamicDelete.json.status, 'SOFT_DELETED')
+    const openActionStillExists = await admin.from('corrective_actions').select('id, status').eq('tenant_id', enterprise.tenantId).eq('analysis_id', openAnalysis.data.id).single()
+    if (openActionStillExists.error) throw openActionStillExists.error
+    assert.equal(openActionStillExists.data.status, 'pending')
+    const restoreOpen = await apiJson<{ status: string }>({
+      baseUrl,
+      path: `/api/events/${openEventId}/restore`,
+      method: 'POST',
+      token: enterprise.accessToken,
+    })
+    assert.equal(restoreOpen.status, 200)
+    checks.push({ name: '06-corrective-action-dynamic-exclusion-real', status: 'PASS', detail: 'soft delete succeeded with derivative action preserved; restore reactivated event' })
 
     const missingStorage = await admin.from('analyses').update({
       source_file_url: `analysis-documents/${enterprise.publicUserId}/event-delete-tests/missing-${suffix}.txt`,

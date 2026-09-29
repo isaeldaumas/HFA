@@ -371,7 +371,6 @@ export default function EventDetailPage() {
   const [vnextReanalyzeState, setVnextReanalyzeState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [vnextReanalyzeError, setVnextReanalyzeError] = useState<string | null>(null)
   const [vnextAdditionalInformation, setVnextAdditionalInformation] = useState('')
-  const [actionStates, setActionStates] = useState<Record<number, 'idle' | 'loading' | 'done' | 'error'>>({})
   const [canManageDelete, setCanManageDelete] = useState(false)
   const [showLegacyHistorical, setShowLegacyHistorical] = useState(false)
   const [deletionBusy, setDeletionBusy] = useState(false)
@@ -509,29 +508,6 @@ export default function EventDetailPage() {
       setTimeout(() => setVnextPdfState('idle'), 3000)
     }
   }, [event, token])
-
-  async function createAction(index: number, r: Recommendation, analysisId: string) {
-    setActionStates((prev) => ({ ...prev, [index]: 'loading' }))
-    try {
-      const res = await fetch('/api/actions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          analysis_id: analysisId,
-          title: r.title ?? 'Ação corretiva/preventiva',
-          description: r.description ?? null,
-          related_failure: r.related_code ?? null,
-        }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as Record<string, unknown>
-        throw new Error(typeof err.detail === 'string' ? err.detail : `HTTP ${res.status}`)
-      }
-      setActionStates((prev) => ({ ...prev, [index]: 'done' }))
-    } catch {
-      setActionStates((prev) => ({ ...prev, [index]: 'error' }))
-    }
-  }
 
   async function deleteEventFromDetail() {
     if (!token || !event?.title || event.deleted_at) return
@@ -680,7 +656,8 @@ export default function EventDetailPage() {
 
             {deletionImpact && (deletionImpact.purgeBlockers.length > 0 || deletionImpact.unknownDependencies.length > 0) && (
               <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-                <p className="font-semibold">Bloqueios e dependências desconhecidas</p>
+                <p className="font-semibold">Restrições para purge definitivo / dependências desconhecidas</p>
+                <p className="mt-1 text-xs text-amber-200/80">A exclusão recuperável continua permitida. Enquanto o evento estiver excluído, ações, pré-condições e indicadores derivados deixam o universo ativo e são recalculados somente com os eventos restantes.</p>
                 <ul className="mt-2 list-disc space-y-1 pl-5">
                   {[...deletionImpact.purgeBlockers, ...deletionImpact.unknownDependencies].map((item) => <li key={item}>{item}</li>)}
                 </ul>
@@ -1140,56 +1117,33 @@ export default function EventDetailPage() {
                 </span>
               </div>
               <div className="p-6 space-y-3">
-                {recommendations.map((r: Recommendation, i: number) => {
-                  const aState = actionStates[i] ?? 'idle'
-                  return (
-                    <div key={i} className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-                      <div className="flex flex-col sm:flex-row sm:items-start gap-3">
-                        <span className="flex-shrink-0 text-xs font-mono bg-blue-900 text-blue-300 px-2 py-1 rounded self-start">
-                          {r.related_code}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-200 mb-1">{r.title}</p>
-                          <p className="text-sm text-slate-400 leading-relaxed">{r.description}</p>
-                        </div>
+                {recommendations.map((r: Recommendation, i: number) => (
+                  <div key={i} className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+                      <span className="flex-shrink-0 text-xs font-mono bg-slate-900 text-slate-400 px-2 py-1 rounded self-start">
+                        {r.related_code}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-200 mb-1">{r.title}</p>
+                        <p className="text-sm text-slate-400 leading-relaxed">{r.description}</p>
                       </div>
-                      {analysis?.id && (
-                        <div className="mt-3 pt-3 border-t border-slate-700/60 flex items-center justify-between gap-3">
-                          <span className={
-                            aState === 'done'  ? 'text-xs text-green-400' :
-                            aState === 'error' ? 'text-xs text-red-400' :
-                            'text-xs text-slate-600'
-                          }>
-                            {aState === 'done'  ? 'Ação criada — revisável em Ações Corretivas' :
-                             aState === 'error' ? 'Erro ao criar. Tente novamente.' :
-                             'Transforme esta recomendação em uma ação rastreável.'}
-                          </span>
-                          {aState === 'done' ? (
-                            <a
-                              href="/actions"
-                              className="shrink-0 text-xs font-medium text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-500 px-3 py-1.5 rounded-lg transition-colors"
-                            >
-                              Ver ações →
-                            </a>
-                          ) : (
-                            <button
-                              disabled={aState === 'loading'}
-                              onClick={() => createAction(i, r, analysis.id)}
-                              className={aState === 'loading'
-                                ? 'shrink-0 text-xs font-medium text-slate-500 border border-slate-700 px-3 py-1.5 rounded-lg cursor-wait'
-                                : 'shrink-0 text-xs font-medium text-blue-400 hover:text-blue-300 border border-blue-800 hover:border-blue-600 px-3 py-1.5 rounded-lg transition-colors'}
-                            >
-                              {aState === 'loading' ? 'Criando…' : 'Criar ação corretiva'}
-                            </button>
-                          )}
-                        </div>
-                      )}
                     </div>
-                  )
-                })}
+                    <div className="mt-3 pt-3 border-t border-slate-700/60 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="text-xs text-slate-500">
+                        Recomendação histórica. Ação corretiva formal só pode nascer de uma pré-condição SERA 0.3 sustentada pela evidência do evento.
+                      </span>
+                      <a
+                        href="/actions"
+                        className="shrink-0 text-xs font-medium text-blue-400 hover:text-blue-300 border border-blue-800 hover:border-blue-600 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Ver tratamento SERA →
+                      </a>
+                    </div>
+                  </div>
+                ))}
                 <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
                   <p className="text-xs text-slate-600">
-                    Ações corretivas/preventivas criadas aqui ficam disponíveis para acompanhamento na lista de ações.
+                    O fluxo atual de tratamento usa as pré-condições do SERA 0.3 como vínculo obrigatório entre análise, ação e Perfil de Risco.
                   </p>
                   <a
                     href="/actions"

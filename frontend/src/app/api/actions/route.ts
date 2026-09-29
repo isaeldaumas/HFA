@@ -4,6 +4,22 @@ import { getSupabaseAdmin, assertServiceRoleEnv } from '@/lib/server/supabase-ad
 import { getOrCreateRequestId, buildErrorResponse } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
 
+const SUPPORTED_RELATIONSHIPS = new Set(['ENABLING_PRECONDITION', 'CONTEXTUAL_PRECONDITION'])
+const VALID_ACTION_KINDS = new Set(['CORRECTIVE_PREVENTIVE', 'INVESTIGATION'])
+
+type EnginePrecondition = {
+  id?: unknown
+  canonicalCategory?: unknown
+  relationship?: unknown
+  methodologyMatch?: unknown
+}
+
+function enginePreconditions(engineOutput: unknown): EnginePrecondition[] {
+  if (!engineOutput || typeof engineOutput !== 'object') return []
+  const value = (engineOutput as { preconditions?: unknown }).preconditions
+  return Array.isArray(value) ? value.filter((item): item is EnginePrecondition => !!item && typeof item === 'object') : []
+}
+
 export async function GET(req: Request) {
   const requestId = getOrCreateRequestId(req)
   const jsonError = (message: string, status: number) => buildErrorResponse(message, status, requestId)
@@ -11,10 +27,11 @@ export async function GET(req: Request) {
     const user = await requireBearerUser(req)
     assertServiceRoleEnv()
     const admin = getSupabaseAdmin()
+    const requestedEventId = new URL(req.url).searchParams.get('eventId')?.trim() || null
 
     const { data, error } = await admin
       .from('corrective_actions')
-      .select('id, title, description, related_failure, status, responsible, due_date, completed_at, effectiveness_status, effectiveness_notes, effectiveness_review_due_date, effectiveness_reviewed_at, created_at, analysis_id, sera_vnext_analysis_id')
+      .select('id, title, description, related_failure, status, responsible, due_date, completed_at, effectiveness_status, effectiveness_notes, effectiveness_review_due_date, effectiveness_reviewed_at, created_at, analysis_id, sera_vnext_analysis_id, source_event_id, precondition_id, precondition_category, action_kind')
       .eq('tenant_id', user.tenantId)
       .order('created_at', { ascending: false })
     if (error) return jsonError(error.message, 500)
@@ -34,11 +51,69 @@ export async function GET(req: Request) {
 
     const legacyEventByAnalysis = new Map((legacyRows.data ?? []).map((row) => [String(row.id), row.event_id as string | null]))
     const currentEventByAnalysis = new Map((currentRows.data ?? []).map((row) => [String(row.id), row.source_reference as string | null]))
+    const eventIdForRow = (row: (typeof data)[number]): string | null => {
+      if (typeof row.source_event_id === 'string' && row.source_event_id) return row.source_event_id
+      if (typeof row.sera_vnext_analysis_id === 'string') return currentEventByAnalysis.get(row.sera_vnext_analysis_id) ?? null
+      if (typeof row.analysis_id === 'string') return legacyEventByAnalysis.get(row.analysis_id) ?? null
+      return null
+    }
 
-    const rows = (data ?? []).map((row) => {
+    const candidateEventIds = [...new Set((data ?? []).map(eventIdForRow).filter((id): id is string => !!id))]
+    const activeEvents = candidateEventIds.length
+      ? await admin
+          .from('events')
+          .select('id, title')
+          .eq('tenant_id', user.tenantId)
+          .in('id', candidateEventIds)
+          .is('deleted_at', null)
+      : { data: [], error: null }
+    if (activeEvents.error) return jsonError('Não foi possível resolver os eventos ativos das ações.', 500)
+    const activeEventById = new Map((activeEvents.data ?? []).map((event) => [String(event.id), String(event.title ?? 'Evento')]))
+
+    const latestCurrentByEvent = new Map<string, { id: string; engine_output: unknown }>()
+    if (activeEventById.size > 0) {
+      const latestAnalyses = await admin
+        .from('sera_vnext_analyses')
+        .select('id, source_reference, updated_at, engine_output')
+        .eq('tenant_id', user.tenantId)
+        .in('source_reference', [...activeEventById.keys()])
+        .is('deleted_at', null)
+        .order('updated_at', { ascending: false })
+      if (latestAnalyses.error) return jsonError('Não foi possível validar o vínculo atual das ações.', 500)
+      for (const analysis of latestAnalyses.data ?? []) {
+        const sourceEventId = typeof analysis.source_reference === 'string' ? analysis.source_reference : ''
+        if (sourceEventId && !latestCurrentByEvent.has(sourceEventId)) {
+          latestCurrentByEvent.set(sourceEventId, { id: String(analysis.id), engine_output: analysis.engine_output })
+        }
+      }
+    }
+
+    const rows = (data ?? []).flatMap((row) => {
       const currentId = row.sera_vnext_analysis_id as string | null
       const legacyId = row.analysis_id as string | null
-      return {
+      const sourceEventId = eventIdForRow(row)
+      // Soft-deleted events leave their treatment history intact for audit, but disappear
+      // from the active queue. Restoring the event makes the same rows visible again.
+      if (!sourceEventId || !activeEventById.has(sourceEventId)) return []
+      if (requestedEventId && sourceEventId !== requestedEventId) return []
+      // The operational queue only contains current SERA treatment records with explicit
+      // event + precondition traceability. Legacy rows remain in the database for audit.
+      if (!currentId || typeof row.precondition_id !== 'string' || typeof row.precondition_category !== 'string' || typeof row.action_kind !== 'string') return []
+      const latest = latestCurrentByEvent.get(sourceEventId)
+      const currentSupportedCategories = new Set(
+        enginePreconditions(latest?.engine_output)
+          .filter((item) => item.methodologyMatch !== 'HYPOTHESIS_ONLY'
+            && typeof item.relationship === 'string'
+            && SUPPORTED_RELATIONSHIPS.has(item.relationship))
+          .map((item) => typeof item.canonicalCategory === 'string' ? item.canonicalCategory : '')
+          .filter(Boolean),
+      )
+      const linkageStatus = row.action_kind === 'INVESTIGATION'
+        ? 'INVESTIGATION_TASK'
+        : currentSupportedCategories.has(row.precondition_category)
+          ? 'CURRENT'
+          : 'STALE_PRECONDITION_LINK'
+      return [{
         id: row.id,
         title: row.title,
         description: row.description,
@@ -54,12 +129,14 @@ export async function GET(req: Request) {
         created_at: row.created_at,
         analysis_id: currentId ?? legacyId,
         analysis_engine: currentId ? 'SERA_ENGINE_0_3' : 'LEGACY_HISTORICAL',
-        event_id: currentId
-          ? currentEventByAnalysis.get(currentId) ?? null
-          : legacyId
-            ? legacyEventByAnalysis.get(legacyId) ?? null
-            : null,
-      }
+        event_id: sourceEventId,
+        event_title: activeEventById.get(sourceEventId) ?? 'Evento',
+        precondition_id: row.precondition_id,
+        precondition_category: row.precondition_category,
+        action_kind: row.action_kind,
+        linkage_status: linkageStatus,
+        current_analysis_id: latest?.id ?? null,
+      }]
     })
     return NextResponse.json(rows, { headers: { 'x-request-id': requestId } })
   } catch (e) {
@@ -77,82 +154,134 @@ export async function POST(req: Request) {
     assertServiceRoleEnv()
     const admin = getSupabaseAdmin()
     const body = await req.json().catch(() => ({})) as Record<string, unknown>
-    const { analysis_id, title, description, related_failure } = body as {
-      analysis_id?: string; title?: string; description?: string; related_failure?: string
-    }
-    if (!analysis_id || !title?.trim()) return jsonError('analysis_id e title são obrigatórios', 400)
+    const analysisId = typeof body.analysis_id === 'string' ? body.analysis_id.trim() : ''
+    const title = typeof body.title === 'string' ? body.title.trim() : ''
+    const description = typeof body.description === 'string' ? body.description.trim() : ''
+    const preconditionId = typeof body.precondition_id === 'string' ? body.precondition_id.trim() : ''
+    const preconditionCategory = typeof body.precondition_category === 'string' ? body.precondition_category.trim() : ''
+    const actionKind = typeof body.action_kind === 'string' ? body.action_kind.trim() : ''
 
-    const { data: currentAnalysis } = await admin
+    if (!analysisId || !title) return jsonError('analysis_id e title são obrigatórios', 400)
+    if (!preconditionId || !preconditionCategory || !VALID_ACTION_KINDS.has(actionKind)) {
+      return jsonError('Toda nova ação deve estar vinculada a uma pré-condição SERA identificada.', 400)
+    }
+
+    const { data: analysis, error: analysisError } = await admin
       .from('sera_vnext_analyses')
-      .select('id')
-      .eq('id', analysis_id)
+      .select('id, source_reference, engine_output')
+      .eq('id', analysisId)
       .eq('tenant_id', user.tenantId)
       .is('deleted_at', null)
       .maybeSingle()
-
-    let legacyAnalysis: { id: string } | null = null
-    if (!currentAnalysis) {
-      const legacyLookup = await admin
-        .from('analyses')
-        .select('id')
-        .eq('id', analysis_id)
-        .eq('tenant_id', user.tenantId)
-        .maybeSingle()
-      legacyAnalysis = legacyLookup.data as { id: string } | null
+    if (analysisError) return jsonError('Não foi possível validar a análise SERA.', 500)
+    if (!analysis) {
+      return jsonError('Novas ações só podem ser criadas a partir da análise SERA 0.3 e de suas pré-condições.', 409)
     }
-    if (!currentAnalysis && !legacyAnalysis) return jsonError('Análise não encontrada ou acesso negado', 404)
 
-    if (related_failure?.trim()) {
-      let duplicateQuery = admin
-        .from('corrective_actions')
-        .select('id, title, status, related_failure, analysis_id, sera_vnext_analysis_id')
-        .eq('tenant_id', user.tenantId)
-        .eq('related_failure', related_failure.trim())
-        .neq('status', 'cancelled')
-        .limit(1)
-      duplicateQuery = currentAnalysis
-        ? duplicateQuery.eq('sera_vnext_analysis_id', currentAnalysis.id)
-        : duplicateQuery.eq('analysis_id', legacyAnalysis!.id)
-      const duplicate = await duplicateQuery.maybeSingle()
-      if (duplicate.error) return jsonError('Não foi possível verificar ação existente.', 500)
-      if (duplicate.data) {
-        return NextResponse.json({
-          id: duplicate.data.id,
-          title: duplicate.data.title,
-          status: duplicate.data.status,
-          related_failure: duplicate.data.related_failure,
-          analysis_id,
-          analysis_engine: currentAnalysis ? 'SERA_ENGINE_0_3' : 'LEGACY_HISTORICAL',
-          idempotent: true,
-        }, { status: 200, headers: { 'x-request-id': requestId } })
-      }
+    const sourceEventId = typeof analysis.source_reference === 'string' ? analysis.source_reference : ''
+    if (!sourceEventId) return jsonError('A análise SERA não está vinculada a um evento.', 409)
+    const { data: activeEvent, error: activeEventError } = await admin
+      .from('events')
+      .select('id, title')
+      .eq('id', sourceEventId)
+      .eq('tenant_id', user.tenantId)
+      .is('deleted_at', null)
+      .maybeSingle()
+    if (activeEventError) return jsonError('Não foi possível validar o evento da ação.', 500)
+    if (!activeEvent) return jsonError('O evento não está ativo; nenhuma nova ação pode ser criada para ele.', 409)
+
+    const matchedPrecondition = enginePreconditions(analysis.engine_output).find((item) =>
+      item.id === preconditionId && item.canonicalCategory === preconditionCategory,
+    )
+    if (!matchedPrecondition) {
+      return jsonError('A pré-condição informada não pertence à análise SERA atual deste evento.', 409)
+    }
+
+    const isSupported = matchedPrecondition.methodologyMatch !== 'HYPOTHESIS_ONLY'
+      && typeof matchedPrecondition.relationship === 'string'
+      && SUPPORTED_RELATIONSHIPS.has(matchedPrecondition.relationship)
+    if (actionKind === 'CORRECTIVE_PREVENTIVE' && !isSupported) {
+      return jsonError('Ação corretiva exige uma pré-condição sustentada pela evidência do evento.', 409)
+    }
+    if (actionKind === 'INVESTIGATION' && isSupported) {
+      return jsonError('Pré-condição já sustentada deve gerar ação corretiva, não tarefa de investigação.', 409)
+    }
+
+    const relatedFailure = actionKind === 'CORRECTIVE_PREVENTIVE'
+      ? `PC:${preconditionCategory}`
+      : `INVESTIGATE:${preconditionCategory}`
+
+    const duplicate = await admin
+      .from('corrective_actions')
+      .select('id, title, status, related_failure')
+      .eq('tenant_id', user.tenantId)
+      .eq('source_event_id', sourceEventId)
+      .eq('precondition_category', preconditionCategory)
+      .eq('action_kind', actionKind)
+      .neq('status', 'cancelled')
+      .limit(1)
+      .maybeSingle()
+    if (duplicate.error) return jsonError('Não foi possível verificar ação existente.', 500)
+    if (duplicate.data) {
+      return NextResponse.json({
+        ...duplicate.data,
+        analysis_id: analysisId,
+        analysis_engine: 'SERA_ENGINE_0_3',
+        event_id: sourceEventId,
+        event_title: activeEvent.title,
+        precondition_id: preconditionId,
+        precondition_category: preconditionCategory,
+        action_kind: actionKind,
+        idempotent: true,
+      }, { status: 200, headers: { 'x-request-id': requestId } })
     }
 
     const { data, error } = await admin
       .from('corrective_actions')
       .insert({
-        analysis_id: legacyAnalysis?.id ?? null,
-        sera_vnext_analysis_id: currentAnalysis?.id ?? null,
+        analysis_id: null,
+        sera_vnext_analysis_id: analysis.id,
+        source_event_id: sourceEventId,
         tenant_id: user.tenantId,
-        title: title.trim(),
-        description: description?.trim() || null,
-        related_failure: related_failure?.trim() || null,
+        title,
+        description: description || null,
+        related_failure: relatedFailure,
+        precondition_id: preconditionId,
+        precondition_category: preconditionCategory,
+        action_kind: actionKind,
         status: 'pending',
       })
-      .select('id, title, status, related_failure, analysis_id, sera_vnext_analysis_id')
+      .select('id, title, status, related_failure, sera_vnext_analysis_id, source_event_id, precondition_id, precondition_category, action_kind')
       .single()
     if (error) return jsonError(error.message, 500)
 
     await writeAuditLog({
       tenantId: user.tenantId, userId: user.userId, requestId,
-      eventType: 'corrective_action_created', entityType: 'corrective_action', entityId: data.id,
+      eventType: 'corrective_action_created',
+      entityType: 'corrective_action', entityId: data.id,
       route: '/api/actions', method: 'POST',
-      metadata: { analysis_id, analysis_engine: currentAnalysis ? 'SERA_ENGINE_0_3' : 'LEGACY_HISTORICAL' },
+      metadata: {
+        analysis_id: analysisId,
+        analysis_engine: 'SERA_ENGINE_0_3',
+        source_event_id: sourceEventId,
+        precondition_id: preconditionId,
+        precondition_category: preconditionCategory,
+        action_kind: actionKind,
+      },
     })
 
     return NextResponse.json({
-      id: data.id, title: data.title, status: data.status, related_failure: data.related_failure,
-      analysis_id, analysis_engine: currentAnalysis ? 'SERA_ENGINE_0_3' : 'LEGACY_HISTORICAL',
+      id: data.id,
+      title: data.title,
+      status: data.status,
+      related_failure: data.related_failure,
+      analysis_id: analysisId,
+      analysis_engine: 'SERA_ENGINE_0_3',
+      event_id: sourceEventId,
+      event_title: activeEvent.title,
+      precondition_id: data.precondition_id,
+      precondition_category: data.precondition_category,
+      action_kind: data.action_kind,
     }, { status: 201, headers: { 'x-request-id': requestId } })
   } catch (e) {
     if (e instanceof Response) return e

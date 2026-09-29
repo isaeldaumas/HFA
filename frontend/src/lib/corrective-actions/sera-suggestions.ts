@@ -1,10 +1,11 @@
 import type { SeraPreconditionCandidate, SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
-import { SERA_PRECONDITION_META, type SeraCanonicalPreconditionCategory } from '@/lib/sera-vnext/precondition-taxonomy'
+import { SERA_PRECONDITION_META, type SeraCanonicalPreconditionCategory, type SeraPreconditionLevel } from '@/lib/sera-vnext/precondition-taxonomy'
 
 export type SeraActionSuggestion = {
   id: string
   analysisId: string
   eventId: string | null
+  eventTitle?: string | null
   analysisTitle: string
   kind: 'CORRECTIVE_PREVENTIVE' | 'INVESTIGATION'
   readiness: 'READY_FOR_HUMAN_ADOPTION' | 'INVESTIGATE_FIRST'
@@ -13,6 +14,9 @@ export type SeraActionSuggestion = {
   relatedFailure: string
   canonicalCategory: SeraCanonicalPreconditionCategory | null
   preconditionId: string
+  preconditionLabel: string
+  preconditionLevel: SeraPreconditionLevel
+  sourceRuleIds: string[]
   evidence: string[]
   linkedCodes: string[]
 }
@@ -95,6 +99,9 @@ export function buildSeraActionSuggestions(args: {
       relatedFailure: isSupported ? `PC:${canonical}` : `INVESTIGATE:${canonical}`,
       canonicalCategory: canonical,
       preconditionId: item.id,
+      preconditionLabel: label,
+      preconditionLevel: SERA_PRECONDITION_META[canonical].level,
+      sourceRuleIds: item.sourceRuleIds ?? [],
       evidence: item.evidence.slice(0, 3),
       linkedCodes,
     })

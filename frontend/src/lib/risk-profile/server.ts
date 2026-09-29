@@ -50,7 +50,7 @@ const LEGACY_PRECONDITION_NAMES: Record<string, string> = {
   O4: 'Influências Organizacionais - Gestão',
 }
 
-const RISK_PROFILE_ACTION_SELECT = 'id, status, due_date, responsible, related_failure, analysis_id, sera_vnext_analysis_id, created_at, completed_at, effectiveness_status, effectiveness_review_due_date, effectiveness_reviewed_at'
+const RISK_PROFILE_ACTION_SELECT = 'id, status, due_date, responsible, related_failure, analysis_id, sera_vnext_analysis_id, source_event_id, precondition_id, precondition_category, action_kind, created_at, completed_at, effectiveness_status, effectiveness_review_due_date, effectiveness_reviewed_at'
 
 const VNEXT_PRECONDITION_NAMES: Record<string, string> = {
   PHYSICAL_CAPABILITY: 'Capacidade física',
@@ -101,6 +101,9 @@ type ActionRow = {
   effectiveness_review_due_date?: string | null
   effectiveness_reviewed_at?: string | null
   source_event_id?: string | null
+  precondition_id?: string | null
+  precondition_category?: string | null
+  action_kind?: string | null
 }
 
 type ExclusionRow = {
@@ -405,12 +408,20 @@ export async function loadRiskProfileUniverse(
 
   const exclusionLookup = buildExclusionLookup((exclusionsRes.data ?? []) as ExclusionRow[])
   const legacyHistoricalCount = ((eventsRes.data ?? []) as LegacyEventRow[]).filter((row) => !!coerceLegacyAnalysis(row.analyses)).length
+  const activeEventIds = new Set(((eventsRes.data ?? []) as LegacyEventRow[]).map((row) => row.id))
   const allVNextRows = (vnextRes.data ?? []) as VNextAnalysisRow[]
-  const eligibleVNextRows = allVNextRows.filter(isCompatibleVNextRow)
+  // source_reference is the event identity for the current SERA engine. An event that is
+  // soft-deleted is excluded here immediately; restore makes it eligible again on the next request.
+  // No cached aggregate survives this boundary, so every risk/profile calculation reflects the
+  // currently active event universe.
+  const activeVNextRows = allVNextRows.filter((row) =>
+    typeof row.source_reference === 'string' && activeEventIds.has(row.source_reference),
+  )
+  const eligibleVNextRows = activeVNextRows.filter(isCompatibleVNextRow)
   const pendingHumanReviewCount = eligibleVNextRows.filter((row) =>
     normalizeVNextStatus(row.status, row.review_status, row.deleted_at) === 'provisional'
   ).length
-  const incompatibleReviewedCount = allVNextRows.filter((row) =>
+  const incompatibleReviewedCount = activeVNextRows.filter((row) =>
     (row.status === 'HUMAN_REVIEW_COMPLETED_NON_FINAL' || row.review_status === 'REVIEWED' || row.review_status === 'APPROVED') && !isCompatibleVNextRow(row)
   ).length
 
@@ -451,11 +462,12 @@ export async function loadRiskProfileUniverse(
   }
   const enrichedActions = ((actionsRes.data ?? []) as ActionRow[]).map((action) => ({
     ...action,
-    source_event_id: action.sera_vnext_analysis_id
-      ? vnextEventByAnalysis.get(action.sera_vnext_analysis_id) ?? null
-      : action.analysis_id
-        ? legacyEventByAnalysis.get(action.analysis_id) ?? null
-        : null,
+    source_event_id: action.source_event_id
+      ?? (action.sera_vnext_analysis_id
+        ? vnextEventByAnalysis.get(action.sera_vnext_analysis_id) ?? null
+        : action.analysis_id
+          ? legacyEventByAnalysis.get(action.analysis_id) ?? null
+          : null),
   }))
 
   return {
@@ -560,9 +572,19 @@ export async function getRiskProfileSummaryForTenant(
       .map((source) => source.sourceReference ?? (source.source === 'legacy_event' ? source.id : null))
       .filter((id): id is string => typeof id === 'string' && id.length > 0),
   )
+  const currentPreconditionsByEvent = new Map<string, Set<string>>()
+  for (const source of includedSources) {
+    const eventId = source.sourceReference ?? (source.source === 'legacy_event' ? source.id : null)
+    if (!eventId) continue
+    currentPreconditionsByEvent.set(eventId, new Set(source.preconditions ?? []))
+  }
   const profileActions = actions.filter((action) =>
     (action.source_event_id ? includedEventIds.has(action.source_event_id) : false)
-    && !String(action.related_failure ?? '').startsWith('INVESTIGATE:'),
+    && action.action_kind === 'CORRECTIVE_PREVENTIVE'
+    && typeof action.precondition_category === 'string'
+    && action.precondition_category.length > 0
+    && !!action.source_event_id
+    && (currentPreconditionsByEvent.get(action.source_event_id)?.has(action.precondition_category) ?? false),
   )
 
   const openStatuses = new Set(['pending', 'in_progress'])

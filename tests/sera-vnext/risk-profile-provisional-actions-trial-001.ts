@@ -88,8 +88,13 @@ const treatmentSuggestions = buildSeraActionSuggestions({
 assert.equal(treatmentSuggestions.length, 2)
 assert.equal(treatmentSuggestions[0].kind, 'CORRECTIVE_PREVENTIVE')
 assert.equal(treatmentSuggestions[0].relatedFailure, 'PC:MONITORING_SUPERVISION')
+assert.equal(treatmentSuggestions[0].preconditionId, 'PC-EVIDENCE-SUPERVISION')
+assert.equal(treatmentSuggestions[0].preconditionLabel, 'Monitoramento e supervisão')
+assert.equal(treatmentSuggestions[0].preconditionLevel, 'COMMAND_CONTROL_SUPERVISION')
+assert.ok(treatmentSuggestions[0].sourceRuleIds.includes('SERA-HENDY-ANNEX-B-MONITORING_SUPERVISION'))
 assert.equal(treatmentSuggestions[1].kind, 'INVESTIGATION')
 assert.equal(treatmentSuggestions[1].relatedFailure, 'INVESTIGATE:TRAINING_SELECTION')
+assert.equal(treatmentSuggestions[1].preconditionId, 'PC-INVESTIGATE-TRAINING')
 
 
 const psCdqEnvironment = {
@@ -139,7 +144,9 @@ assert.match(psCdqTreatment[0].description, /9P|confirmação independente/i)
 
 const riskProfileServer = readFileSync('frontend/src/lib/risk-profile/server.ts', 'utf8')
 assert.match(riskProfileServer, /related_failure/)
-assert.match(riskProfileServer, /startsWith\('INVESTIGATE:'\)/, 'investigation tasks must not count as corrective-action risk treatment')
+assert.match(riskProfileServer, /action_kind === 'CORRECTIVE_PREVENTIVE'/, 'only precondition-linked corrective treatment may affect action risk metrics')
+assert.match(riskProfileServer, /activeEventIds/, 'risk universe must be rebuilt from active events on every request')
+assert.match(riskProfileServer, /activeVNextRows/, 'soft-deleted events must not contribute current SERA analyses')
 assert.match(riskProfileServer, /effectiveness_pending/)
 assert.match(riskProfileServer, /effectiveness_ineffective/)
 const effectivenessMigration = readFileSync('supabase/migrations/20260928234247_corrective_action_effectiveness_cycle.sql', 'utf8')
