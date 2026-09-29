@@ -1,0 +1,285 @@
+{
+  "schemaVersion": "SERA_SEMANTIC_AI_V1",
+  "provider": "openai",
+  "model": "gpt-6-luna",
+  "safeOperationModel": {
+    "expectedSafeState": "No deslocamento entre plataformas, manter a condição visual mencionada no relato; diante de visibilidade que não se sustenta ou de uma indicação de transmissão, avaliar a situação e conduzir a aeronave para uma condição visual conforme descrito.",
+    "expectedSafeAction": "Interromper a aproximação e arremeter quando a condição visual não permite prosseguir; diante da luz de transmissão, verificar os parâmetros, fazer o checklist, informar o controle e seguir a decisão relatada de descer para o litoral quando a praia estava visível.",
+    "evidenceQuotes": [
+      "Na época era 500 pés.",
+      "Eu falei: estou vendo a praia vou fazer uma curva 90 graus a direita e vou descer para 500 pés."
+    ],
+    "confidence": "HIGH"
+  },
+  "annotations": [
+    {
+      "id": "AI-SEM-1",
+      "sourceQuote": "A gente conseguiu descer visual, mas depois a gente começou a entrar e sair da camada e quando a gente estava chegando para pousar na plataforma, eu já estava voando aproximadamente uns dois minutos, a quinhentos pés, guardado, e eu estipulei que a gente ia voar mais duas milhas nessa condição e arremeter.",
+      "sourceSentenceIndex": 16,
+      "roles": [
+        "FIRST_DEPARTURE",
+        "CONTEXT"
+      ],
+      "concepts": [],
+      "actor": "piloto entrevistado, instrutor voando à esquerda",
+      "temporalRelation": "UNKNOWN",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "A frase relata o início de entrada e saída da camada durante o deslocamento e, em seguida, a permanência nessa condição."
+    },
+    {
+      "id": "AI-SEM-2",
+      "sourceQuote": "A gente conseguiu descer visual, mas depois a gente começou a entrar e sair da camada e quando a gente estava chegando para pousar na plataforma, eu já estava voando aproximadamente uns dois minutos, a quinhentos pés, guardado, e eu estipulei que a gente ia voar mais duas milhas nessa condição e arremeter.",
+      "sourceSentenceIndex": 16,
+      "roles": [
+        "CRITICAL_UNSAFE_ACT",
+        "DIRECT_ACTOR"
+      ],
+      "concepts": [
+        "implementedAction"
+      ],
+      "actor": "piloto entrevistado, instrutor voando à esquerda",
+      "temporalRelation": "AT_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "O entrevistado relata que manteve o voo na condição descrita e que planejou continuar por mais duas milhas antes de arremeter."
+    },
+    {
+      "id": "AI-SEM-4",
+      "sourceQuote": "Bom, o que aconteceu não foi nada demais.",
+      "sourceSentenceIndex": 13,
+      "roles": [
+        "CONTEXT"
+      ],
+      "concepts": [],
+      "actor": "piloto entrevistado",
+      "temporalRelation": "UNKNOWN",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "LOW",
+      "rationale": "É uma avaliação geral do entrevistado, sem descrever por si só uma ação ou resultado operacional específico."
+    },
+    {
+      "id": "AI-SEM-5",
+      "sourceQuote": "Esse fato, eu estava dando instrução para uma pessoa que tinha um cargo superior ao meu dentro da empresa, envolvido no ensino, de formação militar, mas que não tinha experiência na máquina e pelo que eu constatei durante esse dia ele não tinha muita experiência de voo também, apesar de ter várias marcas e,  Então foi uma condição de voo em que o tempo estava muito ruim e, por eu considerar que o cara tinha muita experiência a instrução era feita bem objetiva, sem muito detalhamento.",
+      "sourceSentenceIndex": 10,
+      "roles": [
+        "PRECONDITION",
+        "CONTEXT"
+      ],
+      "concepts": [],
+      "actor": "piloto entrevistado, instrutor voando à esquerda",
+      "temporalRelation": "PRE_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "O entrevistado vincula as condições meteorológicas ruins ao episódio e relata que conduziu a instrução de modo objetivo por considerar o outro piloto experiente."
+    },
+    {
+      "id": "AI-SEM-9",
+      "sourceQuote": "No retorno acendeu a luz.",
+      "sourceSentenceIndex": 56,
+      "roles": [
+        "OUTCOME",
+        "CONTEXT"
+      ],
+      "concepts": [],
+      "actor": "não especificado",
+      "temporalRelation": "UNKNOWN",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "A frase registra o acendimento de uma luz durante o retorno; a frase seguinte especifica que era a luz de transmissão."
+    },
+    {
+      "id": "AI-SEM-11",
+      "sourceQuote": "E a primeira atitude que ele teve foi virar para mim e falar: Olha, no 76 isso é normal porque está chovendo muito.",
+      "sourceSentenceIndex": 57,
+      "roles": [
+        "PERCEPTION_STATE",
+        "DIRECT_ACTOR"
+      ],
+      "concepts": [],
+      "actor": "comandante em adaptação ao 76",
+      "temporalRelation": "AT_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "O outro piloto atribuiu a luz à chuva e a descreveu como normal; a frase não confirma que essa avaliação fosse correta."
+    },
+    {
+      "id": "AI-SEM-12",
+      "sourceQuote": "Não, eu não acho que a gente deva fazer isso.",
+      "sourceSentenceIndex": 70,
+      "roles": [
+        "CRITICAL_UNSAFE_ACT",
+        "DIRECT_ACTOR"
+      ],
+      "concepts": [],
+      "actor": "comandante em adaptação ao 76",
+      "temporalRelation": "AT_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "MEDIUM",
+      "rationale": "O piloto se opôs à proposta de descer e ficar visual sobre a praia, em contexto de luz de transmissão e voo por instrumentos."
+    },
+    {
+      "id": "AI-SEM-13",
+      "sourceQuote": "Eu falei: estou vendo a praia vou fazer uma curva 90 graus a direita e vou descer para 500 pés.",
+      "sourceSentenceIndex": 89,
+      "roles": [
+        "ACTION_STRATEGY",
+        "DIRECT_ACTOR"
+      ],
+      "concepts": [
+        "implementedAction"
+      ],
+      "actor": "piloto entrevistado, instrutor voando à esquerda",
+      "temporalRelation": "AT_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "O entrevistado relata a decisão de curvar e descer ao avistar a praia, comunicando a manobra ao controle."
+    },
+    {
+      "id": "AI-SEM-14",
+      "sourceQuote": "Ficou aquele silêncio a Bordo.",
+      "sourceSentenceIndex": 93,
+      "roles": [
+        "OUTCOME"
+      ],
+      "concepts": [],
+      "actor": "tripulantes a bordo",
+      "temporalRelation": "POST_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "O silêncio a bordo é relatado após a comunicação e a execução da manobra."
+    },
+    {
+      "id": "AI-SEM-15",
+      "sourceQuote": "Fizemos o pouso.",
+      "sourceSentenceIndex": 94,
+      "roles": [
+        "OUTCOME"
+      ],
+      "concepts": [],
+      "actor": "tripulação",
+      "temporalRelation": "POST_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "A frase relata o pouso como resultado posterior às ações descritas."
+    },
+    {
+      "id": "AI-SEM-16",
+      "sourceQuote": "Conseguimos manter condições visuais até o final.",
+      "sourceSentenceIndex": 95,
+      "roles": [
+        "OUTCOME"
+      ],
+      "concepts": [],
+      "actor": "tripulação",
+      "temporalRelation": "POST_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "O relato informa que as condições visuais foram mantidas até o final do voo."
+    },
+    {
+      "id": "AI-SEM-17",
+      "sourceQuote": "Ele estava fazendo adaptação de equipamento.",
+      "sourceSentenceIndex": 30,
+      "roles": [
+        "CONTEXT"
+      ],
+      "concepts": [],
+      "actor": "comandante em adaptação ao 76",
+      "temporalRelation": "UNKNOWN",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "A frase esclarece que o outro piloto estava em adaptação ao equipamento."
+    },
+    {
+      "id": "AI-SEM-18",
+      "sourceQuote": "Eu estou preocupado que a gente tá baixo e o helicóptero tá entrando em atitude anormal,  Eu falei,  comandante a gente tem duas condições aqui,  Ele era um comandante de outra aeronave e estava fazendo uma adaptação para o 76 e eu estava voando na esquerda como instrutor.",
+      "sourceSentenceIndex": 29,
+      "roles": [
+        "CONTEXT"
+      ],
+      "concepts": [],
+      "actor": "comandante em adaptação ao 76 e piloto entrevistado, instrutor voando à esquerda",
+      "temporalRelation": "UNKNOWN",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "A frase identifica as funções dos dois pilotos durante o episódio."
+    },
+    {
+      "id": "AI-SEM-19",
+      "sourceQuote": "b) A área estava aberta, mas na região que eles estavam as condições meteorológicas estavam muito ruins com muita chuva e visibilidade restrita.",
+      "sourceSentenceIndex": 108,
+      "roles": [
+        "PRECONDITION",
+        "CONTEXT"
+      ],
+      "concepts": [],
+      "actor": "não especificado",
+      "temporalRelation": "PRE_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "A recontagem relaciona condições meteorológicas ruins e visibilidade restrita à região do episódio."
+    },
+    {
+      "id": "AI-SEM-20",
+      "sourceQuote": "c) O piloto entrevistado disse que já sabia do histórico de prepotência do outro piloto e já foi voar com “o pé atrás”.",
+      "sourceSentenceIndex": 109,
+      "roles": [
+        "PRECONDITION",
+        "CONTEXT"
+      ],
+      "concepts": [],
+      "actor": "piloto entrevistado e comandante em adaptação ao 76",
+      "temporalRelation": "PRE_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": "SOCIAL",
+      "confidence": "MEDIUM",
+      "rationale": "O entrevistado relata uma expectativa prévia sobre o outro piloto e que isso influenciou sua disposição ao iniciar o voo."
+    },
+    {
+      "id": "AI-SEM-21",
+      "sourceQuote": "a) Enquanto estava voltando para o continente o piloto informou pelo rádio o que havia acontecido para a empresa; Ele afirma que, naquela época, a lei dizia que a aeronave deveria estar voando em condições totalmente visuais com uma altitude mínima de 500 pés entre plataformas, pois o controle de tráfego na área não tem radar.",
+      "sourceSentenceIndex": 107,
+      "roles": [
+        "CONTEXT"
+      ],
+      "concepts": [],
+      "actor": "piloto entrevistado",
+      "temporalRelation": "UNKNOWN",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "O relato atribui ao entrevistado a descrição da regra então vigente e da ausência de radar na área."
+    }
+  ]
+}

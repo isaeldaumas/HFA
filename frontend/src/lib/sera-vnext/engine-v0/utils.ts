@@ -69,7 +69,7 @@ export function classifyPreconditionCategory(args: {
     ['TEAM_COORDINATION', ['crew coordination', 'team coordination', 'coordenação da tripulação', 'coordenacao da tripulacao', 'crm', 'falha de coordenação', 'falha de coordenacao']],
     ['ORGANIZATIONAL_CONTEXT', ['schedule', 'organizational', 'dispatch', 'operator pressure', 'reduced staffing', 'degraded supervision', 'staffing', 'supervision', 'supervisão', 'supervisao', 'supervisão inadequada', 'supervisao inadequada', 'cultura', 'culture', 'registro formal', 'formal record', 'tlb']],
     ['TECHNICAL_CONTEXT', ['warning', 'system', 'automation', 'fmc', 'equipment', 'control law', 'autothrottle', 'dafcs', 'trim fail', 'rudder', 'technical', 'malfunction', 'fault', 'pane', 'falha técnica', 'falha tecnica']],
-    ['PHYSICAL_CAPABILITY', ['physical', 'fatigue', 'ergonomic', 'motor', 'reach']],
+    ['PHYSICAL_CAPABILITY', ['physical', 'fatigue', 'fadiga', 'cansaço', 'cansaco', 'cansado', 'cansada', 'descanso', 'ergonomic', 'motor', 'reach']],
   ]
 
   const containsToken = (token: string): boolean => {

@@ -60,8 +60,14 @@ function escapeConfidence(args: {
   supportCount: number
   counterCount: number
   fromDirectClarification: boolean
+  semanticVerified?: boolean
 }): 'LOW' | 'MEDIUM' | 'HIGH' {
-  if (!args.candidate || !isOperationalEventStatement(args.candidate)) return 'LOW'
+  if (!args.candidate) return 'LOW'
+  // A source-anchored semantic landmark is allowed to establish the event boundary even
+  // when the wording is colloquial and falls outside the deterministic verb lexicon.
+  // This is exactly the layer the AI is responsible for; the quote itself was already
+  // verified against the narrative before entering the engine.
+  if (!isOperationalEventStatement(args.candidate) && !args.semanticVerified) return 'LOW'
   if (args.fromDirectClarification && args.counterCount === 0) return 'HIGH'
   if (args.counterCount > 0) return 'MEDIUM'
   return args.supportCount >= 2 ? 'HIGH' : 'MEDIUM'
@@ -99,6 +105,9 @@ export function runStep03EscapePoint(input: {
         anchorBasis: 'FIRST_DEPARTURE_AND_CRITICAL_ACT' as const,
         firstDepartureSupportingEvidence: [directClarification.statement],
         criticalUnsafeActSupportingEvidence: [directClarification.statement],
+        poaAnchorCandidate: directClarification.statement,
+        poaAnchorSupportingEvidence: [directClarification.statement],
+        poaAnchorBasis: 'CRITICAL_UNSAFE_ACT' as const,
         supportingEvidence: [directClarification.statement],
         counterEvidence: [],
         progressiveBoundary: false,
@@ -122,6 +131,15 @@ export function runStep03EscapePoint(input: {
       ? 'PROGRESSIVE_ZONE'
       : 'CANDIDATE'
     : 'INSUFFICIENT_EVIDENCE'
+  const confidenceCandidate = selectedWindow.firstDepartureCandidate
+    ?? selectedWindow.earliestCandidate
+    ?? selectedWindow.criticalUnsafeActCandidate
+    ?? selectedWindow.latestCandidate
+  const semanticVerified = Boolean(confidenceCandidate && input.factualExtraction.timeline.some((item) =>
+    item.statement === confidenceCandidate
+    && item.semanticConfidence !== 'LOW'
+    && item.semanticRoles?.some((role) => role === 'FIRST_DEPARTURE' || role === 'CRITICAL_UNSAFE_ACT'),
+  ))
 
   return {
     status,
@@ -135,16 +153,20 @@ export function runStep03EscapePoint(input: {
     anchorBasis: selectedWindow.anchorBasis,
     firstDepartureSupportingEvidence: selectedWindow.firstDepartureSupportingEvidence,
     criticalUnsafeActSupportingEvidence: selectedWindow.criticalUnsafeActSupportingEvidence,
+    poaAnchorCandidate: selectedWindow.poaAnchorCandidate ?? selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.firstDepartureCandidate ?? null,
+    poaAnchorSupportingEvidence: selectedWindow.poaAnchorSupportingEvidence ?? selectedWindow.criticalUnsafeActSupportingEvidence ?? selectedWindow.firstDepartureSupportingEvidence ?? [],
+    poaAnchorBasis: selectedWindow.poaAnchorBasis ?? (selectedWindow.criticalUnsafeActCandidate ? 'CRITICAL_UNSAFE_ACT' : selectedWindow.firstDepartureCandidate ? 'FIRST_DEPARTURE_FALLBACK' : 'UNRESOLVED'),
     directActor: null,
     supportingEvidence: selectedWindow.supportingEvidence,
     counterEvidence: selectedWindow.counterEvidence,
     excludedPostEscapeEvidence: excludedPostEscapeEvidence(input.factualExtraction.timeline, latestSentenceIndex, selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate ?? selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.latestCandidate),
     episodeCandidates: selectedWindow.episodeCandidates,
     confidence: escapeConfidence({
-      candidate: selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate ?? selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.latestCandidate,
+      candidate: confidenceCandidate,
       supportCount: selectedWindow.supportingEvidence.length,
       counterCount: selectedWindow.counterEvidence.length,
       fromDirectClarification: selectedWindow === directClarificationWindow || selectedWindow === clarificationWindow,
+      semanticVerified,
     }),
     humanFactorGate: selectedWindow.humanFactorGate,
   }

@@ -34,12 +34,12 @@ export function buildEscapePointReview(escapePoint: EscapePointOutput): SeraRevi
   return {
     candidateStatement: escapePoint.statement,
     reviewerQuestion: escapePointReviewerQuestion(),
-    whyThisMatters: 'Hendy distingue a primeira saída da operação segura do ato/condição insegura crítica. Quando os marcos diferem, o primeiro delimita a transição seguro→inseguro e ancora P/O/A; o ato crítico posterior permanece registrado como marco downstream. Se essa fronteira estiver incorreta, toda a análise downstream fica comprometida.',
+    whyThisMatters: 'Hendy distingue a primeira saída da operação segura do ato/condição insegura crítica. Quando os marcos diferem, a primeira saída delimita a transição seguro→inseguro; P/O/A permanece ligado ao ato crítico e ao operador diretamente envolvido. Se qualquer um desses vínculos estiver incorreto, toda a análise downstream fica comprometida.',
     supportingEvidence: supporting.length > 0 ? supporting : ['Nenhuma evidência explícita de suporte registrada.'],
     counterEvidence: counter.length > 0 ? counter : ['Nenhuma evidência contrária explícita registrada.'],
     boundaryWarnings: [
       ...boundaryWarnings(escapePoint.status),
-      ...(escapePoint.anchorBasis === 'FIRST_DEPARTURE_PRIMARY' ? ['Hendy boundary split — primeira saída e ato crítico são marcos distintos; P/O/A permanece ancorado na primeira saída e o ato crítico posterior deve ser revisado separadamente.'] : []),
+      ...(escapePoint.anchorBasis === 'FIRST_DEPARTURE_PRIMARY' ? ['Hendy boundary split — primeira saída e ato crítico são marcos distintos; a primeira saída delimita a trajetória seguro→inseguro e P/O/A permanece ligado ao ato crítico e ao seu ator direto.'] : []),
     ],
     confidence: confidenceLabel(escapePoint.confidence),
     reviewerOptions: escapePointReviewerOptions(),

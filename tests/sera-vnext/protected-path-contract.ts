@@ -32,7 +32,7 @@ export function assertAnalyzeRouteSanitizationContract(rootDir: string): void {
   assert.equal(source.includes("completeSeraAnalysisAfterEventCreated"), false, `${routePath}: legacy engine must not be reachable from /api/analyze`);
   assert.equal(source.includes("isSeraVNextCanonicalAnalyzeEnabled"), false, `${routePath}: primary engine must not be selected by rollout flag`);
   assert.equal(source.includes("String(user.role ?? '').toLowerCase() === 'admin'"), false, `${routePath}: primary engine must not be admin-only`);
-  assert.equal(source.includes("applyUserAiSettingsToEnv"), false, `${routePath}: deterministic SERA engine must not require an AI provider setting`);
+  assert.ok(source.includes("applyUserAiSettingsToEnv"), `${routePath}: canonical flow must load the user AI provider for semantic extraction before deterministic SERA traversal`);
   assert.ok(
     existsSync(path.join(rootDir, "tests/sera-vnext/product-unification/error-sanitization-trial-001.ts")),
     "error sanitization trial must exist for /api/analyze protected path changes",
@@ -44,7 +44,7 @@ export function assertEventsPrimarySeraContract(rootDir: string): void {
   const source = readRel(rootDir, routePath);
   assert.ok(source.includes("createCanonicalEventAnalysis"), `${routePath}: event creation must use primary SERA 0.3 engine`);
   assert.equal(source.includes("completeSeraAnalysisAfterEventCreated"), false, `${routePath}: event creation must not call legacy engine`);
-  assert.equal(source.includes("applyUserAiSettingsToEnv"), false, `${routePath}: deterministic primary engine must not require AI provider settings`);
+  assert.ok(source.includes("applyUserAiSettingsToEnv"), `${routePath}: event creation must load the user AI provider for semantic extraction before deterministic SERA traversal`);
   assert.ok(source.includes("from('sera_vnext_analyses')"), `${routePath}: event listing must read current SERA codes`);
   assert.ok(source.includes("analysis_engine: current ? 'SERA_ENGINE_0_3'"), `${routePath}: event listing must identify current engine provenance`);
 }

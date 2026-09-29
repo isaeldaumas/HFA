@@ -1,0 +1,210 @@
+{
+  "schemaVersion": "SERA_SEMANTIC_AI_V1",
+  "provider": "openai",
+  "model": "gpt-6-luna",
+  "safeOperationModel": {
+    "expectedSafeState": "A condição observada deve respeitar a regra relatada: plataforma visível a pelo menos 5 milhas e altitude mínima de 700 pés em relação ao teto das nuvens.",
+    "expectedSafeAction": "Não manter a aproximação a 500 pés em condições não visuais para tentar pousar; seguir o limite descrito no relato antes de continuar a aproximação.",
+    "evidenceQuotes": [
+      "Ele explica que eles estavam fora da regra que estabelece a altitude mínima de 700 pés para o teto das nuvens vendo a plataforma a, pelo menos, 5 milhas de distância.",
+      "Com o objetivo de cumprir a missão e pousar, eles se aproximaram a uma distância de 3 milhas da plataforma e chegaram na altitude de 500 pés."
+    ],
+    "confidence": "HIGH"
+  },
+  "annotations": [
+    {
+      "id": "AI-SEM-1",
+      "sourceQuote": "Aí, nós decolamos, a rota estava instrumento e aí, pelo radar, a gente viu que 5 milhas da unidade marítima, já a 500 pés, vendo pelo radar, estava IMC e, mesmo assim, a gente resolveu continuar o voo e tentar o pouso.",
+      "sourceSentenceIndex": 9,
+      "roles": [
+        "FIRST_DEPARTURE",
+        "DIRECT_ACTOR"
+      ],
+      "concepts": [
+        "implementedAction"
+      ],
+      "actor": "piloto entrevistado e outro piloto",
+      "temporalRelation": "PRE_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "O relato situa a primeira decisão de continuar a aproximação a 500 pés apesar de a condição estar IMC."
+    },
+    {
+      "id": "AI-SEM-2",
+      "sourceQuote": "Com o objetivo de cumprir a missão e pousar, eles se aproximaram a uma distância de 3 milhas da plataforma e chegaram na altitude de 500 pés.",
+      "sourceSentenceIndex": 36,
+      "roles": [
+        "OBJECTIVE_INTENT"
+      ],
+      "concepts": [],
+      "actor": "piloto entrevistado e outro piloto",
+      "temporalRelation": "PRE_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "A frase explicita o objetivo associado à aproximação e à tentativa de pouso."
+    },
+    {
+      "id": "AI-SEM-3",
+      "sourceQuote": "Então pra eu não perder o visual da plataforma, eu abandonei a pilotagem e deixei a pilotagem por conta dele e ele, como sempre voou uma máquina sem automação, como é a automação do 76, ele resolveu desacoplar e ter a atitude que ele tinha da outra aeronave que era barra na barra.",
+      "sourceSentenceIndex": 16,
+      "roles": [
+        "ACTION_STRATEGY"
+      ],
+      "concepts": [
+        "implementedAction"
+      ],
+      "actor": "piloto entrevistado",
+      "temporalRelation": "PRE_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "O entrevistado relata que deixou o outro piloto pilotando para não perder a plataforma de vista."
+    },
+    {
+      "id": "AI-SEM-4",
+      "sourceQuote": "Então pra eu não perder o visual da plataforma, eu abandonei a pilotagem e deixei a pilotagem por conta dele e ele, como sempre voou uma máquina sem automação, como é a automação do 76, ele resolveu desacoplar e ter a atitude que ele tinha da outra aeronave que era barra na barra.",
+      "sourceSentenceIndex": 16,
+      "roles": [
+        "CRITICAL_UNSAFE_ACT",
+        "DIRECT_ACTOR"
+      ],
+      "concepts": [
+        "implementedAction"
+      ],
+      "actor": "outro piloto",
+      "temporalRelation": "AT_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "A frase relata que o outro piloto desacoplou a automação e adotou a atitude de pilotagem da outra aeronave."
+    },
+    {
+      "id": "AI-SEM-5",
+      "sourceQuote": "f) O piloto entrevistado explicou que quando o outro piloto ouviu para tomar cuidado com a velocidade, teve a atitude que normalmente teria no outro equipamento e colocou barra na barra (inclinou a aeronave de forma a nivelá-la com o horizonte), quando o certo para esse equipamento seria pitch down (uma leve inclinação para baixo).",
+      "sourceSentenceIndex": 31,
+      "roles": [
+        "CRITICAL_UNSAFE_ACT",
+        "DIRECT_ACTOR"
+      ],
+      "concepts": [
+        "implementedAction",
+        "incorrectAction"
+      ],
+      "actor": "outro piloto",
+      "temporalRelation": "AT_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "A recontagem descreve a ação de colocar barra na barra e a contrasta com a atitude indicada para aquele equipamento."
+    },
+    {
+      "id": "AI-SEM-6",
+      "sourceQuote": "Ele era comandante do 412, que tem uma atitude completamente diferente da atitude do 76, em termos de pilotagem.",
+      "sourceSentenceIndex": 7,
+      "roles": [
+        "PRECONDITION"
+      ],
+      "concepts": [],
+      "actor": "outro piloto",
+      "temporalRelation": "PRE_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "MEDIUM",
+      "rationale": "A diferença entre os equipamentos é relatada no contexto da atitude posteriormente adotada, mas a frase isolada não especifica uma categoria canônica."
+    },
+    {
+      "id": "AI-SEM-8",
+      "sourceQuote": "Então, quando eu vi aquela cena de perceber que ele não estava sabendo o que estava acontecendo dentro da cabine, a gravidade, eu tomei o comando da mão dele e ainda bem que tínhamos altura ainda e eu piquei a aeronave pra atingir a velocidade rapidamente e aí, eu fiquei tão cego na hora que eu não conseguia ver nada além do rumo de ir embora.",
+      "sourceSentenceIndex": 19,
+      "roles": [
+        "PERCEPTION_STATE",
+        "ACTION_STRATEGY"
+      ],
+      "concepts": [
+        "implementedAction"
+      ],
+      "actor": "piloto entrevistado e outro piloto",
+      "temporalRelation": "AT_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "MEDIUM",
+      "rationale": "O entrevistado relata sua avaliação da situação do outro piloto e as ações que tomou para assumir o comando e ganhar velocidade."
+    },
+    {
+      "id": "AI-SEM-9",
+      "sourceQuote": "Acredito que faltou uma comunicação maior entre nós",
+      "sourceSentenceIndex": 41,
+      "roles": [
+        "PRECONDITION"
+      ],
+      "concepts": [],
+      "actor": "piloto entrevistado e outro piloto",
+      "temporalRelation": "PRE_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": "SOCIAL",
+      "confidence": "MEDIUM",
+      "rationale": "A resposta associa a comunicação insuficiente à possibilidade de ambos estarem olhando para fora ao mesmo tempo."
+    },
+    {
+      "id": "AI-SEM-10",
+      "sourceQuote": "Ele explica que eles estavam fora da regra que estabelece a altitude mínima de 700 pés para o teto das nuvens vendo a plataforma a, pelo menos, 5 milhas de distância.",
+      "sourceSentenceIndex": 35,
+      "roles": [
+        "BARRIER",
+        "CONTEXT"
+      ],
+      "concepts": [
+        "knownRule"
+      ],
+      "actor": "piloto entrevistado e outro piloto",
+      "temporalRelation": "PRE_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "A frase identifica a regra descrita no relato e afirma que a condição do evento estava fora dela."
+    },
+    {
+      "id": "AI-SEM-11",
+      "sourceQuote": "Aí, quando eu senti no corpo, um G negativo forte, quando eu olhei no velocímetro estava zerado, o climb estava mais de 1000 pés de razão.",
+      "sourceSentenceIndex": 17,
+      "roles": [
+        "OUTCOME"
+      ],
+      "concepts": [],
+      "actor": "aeronave",
+      "temporalRelation": "POST_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "A frase descreve as condições da aeronave percebidas após a ação crítica."
+    },
+    {
+      "id": "AI-SEM-12",
+      "sourceQuote": "g) O piloto afirma que a aeronave entrou em estol (perda de sustentação aerodinâmica) e começou a afundar com nenhuma velocidade de deslocamento.",
+      "sourceSentenceIndex": 32,
+      "roles": [
+        "OUTCOME"
+      ],
+      "concepts": [],
+      "actor": "aeronave",
+      "temporalRelation": "POST_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "A recontagem relata estol e afundamento como consequências do evento."
+    }
+  ]
+}

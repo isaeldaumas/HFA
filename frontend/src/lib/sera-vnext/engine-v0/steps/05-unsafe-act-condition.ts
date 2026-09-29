@@ -7,13 +7,23 @@ export function runStep05UnsafeActCondition(input: {
   unsafeState: SeraVNextEngineOutput['unsafeState']
   escapePoint: SeraVNextEngineOutput['escapePoint']
 }): SeraVNextEngineOutput['unsafeActOrCondition'] {
-  const escapeSource = input.escapePoint.firstDepartureCandidate ?? input.escapePoint.statement ?? input.escapePoint.earliestCandidate ?? input.escapePoint.criticalUnsafeActCandidate ?? input.escapePoint.latestCandidate ?? ''
+  const escapeSource = input.escapePoint.poaAnchorCandidate
+    ?? input.escapePoint.criticalUnsafeActCandidate
+    ?? input.escapePoint.firstDepartureCandidate
+    ?? input.escapePoint.statement
+    ?? input.escapePoint.earliestCandidate
+    ?? input.escapePoint.latestCandidate
+    ?? ''
   const humanAnchor = classifyHumanFactorEscapeStatement(escapeSource)
-  if (humanAnchor && input.escapePoint.statement) {
+  if (humanAnchor && escapeSource) {
     return {
       type: humanAnchor === 'UNSAFE_ACT' ? 'UNSAFE_ACT' : 'UNSAFE_CONDITION',
-      statement: input.escapePoint.statement.replace(/^Quando\s+/i, ''),
-      evidence: input.escapePoint.supportingEvidence,
+      statement: escapeSource.replace(/^Quando\s+/i, '').replace(/[.\s]+$/g, '').trim(),
+      evidence: input.escapePoint.poaAnchorSupportingEvidence?.length
+        ? input.escapePoint.poaAnchorSupportingEvidence
+        : input.escapePoint.criticalUnsafeActSupportingEvidence?.length
+          ? input.escapePoint.criticalUnsafeActSupportingEvidence
+          : input.escapePoint.supportingEvidence,
     }
   }
 

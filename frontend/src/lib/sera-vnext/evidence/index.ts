@@ -7,7 +7,7 @@ export type {
   SeraEvidenceUse,
 } from './types'
 export { detectEvidenceActor, classifyActorRelation } from './actor-scope'
-export { extractEvidenceItems, extractSupplementalEvidenceItems } from './extract-evidence'
+export { applySemanticAnnotationsToEvidence, extractEvidenceItems, extractSupplementalEvidenceItems } from './extract-evidence'
 export {
   classifyTemporalRelation,
   excludedPostEscapeEvidenceFromTimeline,

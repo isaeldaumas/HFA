@@ -1,4 +1,5 @@
 import { runSeraVNextEngineV0 } from '@/lib/sera-vnext/engine-v0/run-engine'
+import { enrichSeraNarrativeSemantically, enrichSeraPoaSemantically } from '@/lib/sera-vnext/ai/semantic-enrichment'
 import { notFound, SeraVNextProductError } from '../errors'
 import { hashJson } from '../hashing'
 import { assertValidAnalysisTransition } from '../transitions'
@@ -89,15 +90,74 @@ export async function reanalyzeSeraVNextAnalysis(args: {
     usedEvidenceIds.add(evidenceId)
     supplementalEvidence.push({ ...item, evidenceId })
   }
-  const engineInput = {
+  const locale = args.locale ?? analysis.engine_input.locale ?? 'pt-BR'
+  let semantic = analysis.source_flow === 'VNEXT_CANONICAL'
+    ? await enrichSeraNarrativeSemantically({ narrative: analysis.narrative, locale })
+    : null
+  let engineInput: SeraVNextEngineInput = {
     ...analysis.engine_input,
     narrative: analysis.narrative,
-    locale: args.locale ?? analysis.engine_input.locale ?? 'pt-BR',
+    locale,
     supplementalEvidence,
+    semanticEvidence: semantic?.annotations ?? analysis.engine_input.semanticEvidence,
+    semanticSafeOperationModel: semantic?.safeOperationModel ?? analysis.engine_input.semanticSafeOperationModel,
+    semanticEnrichmentMeta: semantic?.meta ?? analysis.engine_input.semanticEnrichmentMeta,
+    options: {
+      ...analysis.engine_input.options,
+      allowLlm: Boolean(semantic ?? analysis.engine_input.semanticEvidence?.length),
+      requireHumanReview: true as const,
+    },
     requestId: args.context.requestId,
     inputId: `${analysis.client_request_id}:rev:${nextRevision}`,
   }
-  const engineOutput = runSeraVNextEngineV0(engineInput)
+  let engineOutput = runSeraVNextEngineV0(engineInput)
+
+  const criticalAct = engineOutput.escapePoint.poaAnchorCandidate ?? engineOutput.escapePoint.criticalUnsafeActCandidate
+  const needsFocusedPoa = semantic
+    && engineOutput.directActor.status === 'IDENTIFIED'
+    && Boolean(engineOutput.directActor.actor)
+    && Boolean(criticalAct)
+    && engineOutput.evidenceSufficiency.questions.some((question) => /-(P|O|A)_ROOT$/.test(question.id))
+  if (needsFocusedPoa && semantic && criticalAct && engineOutput.directActor.actor) {
+    try {
+      const focused = await enrichSeraPoaSemantically({
+        narrative: analysis.narrative,
+        locale,
+        criticalAct,
+        directActor: engineOutput.directActor.actor,
+        firstDeparture: engineOutput.escapePoint.firstDepartureCandidate,
+      })
+      if (focused.annotations.length > 0) {
+        const merged = [...semantic.annotations]
+        const seen = new Set(merged.map((item) => `${item.sourceSentenceIndex}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}`))
+        for (const item of focused.annotations) {
+          const key = `${item.sourceSentenceIndex}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}`
+          if (!seen.has(key)) { seen.add(key); merged.push(item) }
+        }
+        semantic = {
+          ...semantic,
+          annotations: merged,
+          meta: {
+            ...semantic.meta,
+            provider: focused.meta.provider,
+            model: focused.meta.model,
+            acceptedAnnotations: merged.length,
+            rejectedAnnotations: semantic.meta.rejectedAnnotations + focused.meta.rejectedAnnotations,
+          },
+        }
+        engineInput = {
+          ...engineInput,
+          semanticEvidence: semantic.annotations,
+          semanticSafeOperationModel: semantic.safeOperationModel ?? engineInput.semanticSafeOperationModel,
+          semanticEnrichmentMeta: semantic.meta,
+          options: { ...engineInput.options, allowLlm: true, requireHumanReview: true as const },
+        }
+        engineOutput = runSeraVNextEngineV0(engineInput)
+      }
+    } catch (error) {
+      console.warn('[SERA semantic P/O/A focus] falling back to primary semantic pass during reanalysis', error instanceof Error ? error.message : String(error))
+    }
+  }
   const nextStatus = engineOutput.evidenceSufficiency.status === 'NEEDS_CLARIFICATION'
     ? 'REQUIRES_MORE_EVIDENCE' as const
     : 'CANDIDATE_ANALYSIS_CREATED' as const
@@ -127,6 +187,8 @@ export async function reanalyzeSeraVNextAnalysis(args: {
         codeCommit: versions.codeCommit,
         codeCommitSource: versions.codeCommitSource,
         deploymentId: versions.deploymentId,
+        semanticEnrichment: semantic?.meta ?? analysis.engine_input.semanticEnrichmentMeta ?? null,
+        semanticLayer: semantic ? 'AI_EXTRACTION_DETERMINISTIC_SERA_TRAVERSAL' : 'DETERMINISTIC_FALLBACK',
       },
     },
   })
@@ -157,6 +219,7 @@ export async function reanalyzeSeraVNextAnalysis(args: {
     uncertainties: engineOutput.uncertainties,
     limitations: engineOutput.limitations,
     current_revision: nextRevision,
+    generated_by_type: semantic ? 'llm_suggestion' : analysis.generated_by_type ?? 'deterministic_engine',
   })
 
   await createAuditEvent({

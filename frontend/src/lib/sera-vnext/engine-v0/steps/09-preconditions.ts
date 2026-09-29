@@ -190,13 +190,14 @@ export function runStep09Preconditions(input: {
   axes: SeraVNextEngineOutput['axes']
   locale: 'pt-BR' | 'en'
 }): SeraPreconditionCandidate[] {
+  const activeFailureCodes = [input.axes.perception.proposedCode, input.axes.objective.proposedCode, input.axes.action.proposedCode]
+    .filter((code): code is string => Boolean(code) && !['P-A', 'O-A', 'A-A'].includes(code as string))
   const causalBoundaryResolved =
     input.escapePoint.status !== 'INSUFFICIENT_EVIDENCE' &&
     input.escapePoint.status !== 'NO_HUMAN_ESCAPE_POINT' &&
     input.escapePoint.confidence !== 'LOW' &&
-    input.directActor.status === 'IDENTIFIED'
-  const activeFailureCodes = [input.axes.perception.proposedCode, input.axes.objective.proposedCode, input.axes.action.proposedCode]
-    .filter((code): code is string => Boolean(code) && !['P-A', 'O-A', 'A-A'].includes(code as string))
+    input.directActor.status === 'IDENTIFIED' &&
+    activeFailureCodes.length > 0
   const mostLikelyCanonical = mostLikelyPreconditionsForCodes(activeFailureCodes)
   // Hendy Table 1 is the investigation route after the active failure is known.
   // Preserve its order across P/O/A codes so the engine explicitly evaluates the likely
@@ -302,15 +303,29 @@ export function runStep09Preconditions(input: {
     return text
   }
 
-  const categoryForPreconditionStatement = (statement: string): SeraPreconditionCategory | null => {
+  const categoryForPreconditionStatement = (
+    statement: string,
+    semanticCanonical?: SeraCanonicalPreconditionCategory | null,
+  ): SeraPreconditionCategory | null => {
+    if (semanticCanonical) return OPERATIONAL_CATEGORY_BY_CANONICAL[semanticCanonical]
     // Organizational recording/culture evidence must not migrate to Equipment merely because
     // the same sentence names the technical fault that should have been recorded.
     if (isActualOrganizationalCondition(statement)) return 'ORGANIZATIONAL_CONTEXT'
     return classifyPreconditionCategory({ text: statement, proposedCode: null })
   }
 
+  const hasSemanticInterpretation = input.factualExtraction.evidence.some((item) =>
+    item.collectionSource === 'AI_SEMANTIC_EXTRACTION' && item.semanticConfidence !== 'LOW',
+  )
   const contextualEvidence = input.factualExtraction.evidence
     .filter((item) => item.occurrenceScope !== 'HISTORICAL_COMPARATOR')
+    // Once the semantic pass exists, use it as the primary interpretation layer. Raw
+    // lexical/regex matches remain a fallback only when semantic enrichment is absent;
+    // otherwise a word such as "vento", "treinamento" or "sistema" can create an
+    // unrelated precondition from another episode of the same interview.
+    .filter((item) => !hasSemanticInterpretation
+      || item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+      || item.collectionSource === 'CLARIFICATION_RESPONSE')
     .filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
     .filter((item) => isContextualAnalysisStatement(item.statement))
     .filter((item) => !isInvestigatorConclusionStatement(item.statement))
@@ -340,18 +355,21 @@ export function runStep09Preconditions(input: {
   const rejectedEvidence = input.factualExtraction.evidence.filter((item) => item.assertionStatus === 'REJECTED_AS_FACTOR')
 
   for (const item of contextualEvidence) {
-    const category = categoryForPreconditionStatement(item.statement)
+    const category = categoryForPreconditionStatement(item.statement, item.semanticPreconditionCategory)
     if (!category) continue
-    if (category === 'ENVIRONMENTAL_CONTEXT' && !isActualEnvironmentalCondition(item.statement)) continue
-    if (category === 'TECHNICAL_CONTEXT' && !isActualTechnicalCondition(item.statement)) continue
+    const semanticPrecondition = item.semanticSource === 'AI_SEMANTIC_EXTRACTION'
+      && Boolean(item.semanticPreconditionCategory)
+      && item.semanticConfidence !== 'LOW'
+    if (category === 'ENVIRONMENTAL_CONTEXT' && !semanticPrecondition && !isActualEnvironmentalCondition(item.statement)) continue
+    if (category === 'TECHNICAL_CONTEXT' && !semanticPrecondition && !isActualTechnicalCondition(item.statement)) continue
     // A technical fault is not a precondition merely because it occurred on the same aircraft.
     // Require semantic linkage to the Hendy causal window; explicit investigator-supported
     // contributors are handled separately below.
-    if (category === 'TECHNICAL_CONTEXT') {
+    if (category === 'TECHNICAL_CONTEXT' && !semanticPrecondition) {
       const nearEscapeAnchor = escapeIndexes.some((index) => Math.abs(index - item.sourceSentenceIndex) <= 10)
       if (lexicalOverlap(item.statement, escapeAnchorText) < 2 && !nearEscapeAnchor) continue
     }
-    if (category === 'ORGANIZATIONAL_CONTEXT' && !isActualOrganizationalCondition(item.statement)) continue
+    if (category === 'ORGANIZATIONAL_CONTEXT' && !semanticPrecondition && !isActualOrganizationalCondition(item.statement)) continue
     categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true, explicitInvestigationSupport: false, rejectedByInvestigation: false }
     categoryEvidence[category].investigationOnly = false
     pushUnique(categoryEvidence[category].texts, item.statement)
@@ -359,7 +377,7 @@ export function runStep09Preconditions(input: {
   }
 
   for (const item of explicitContributorEvidence) {
-    const category = categoryForPreconditionStatement(item.statement)
+    const category = categoryForPreconditionStatement(item.statement, item.semanticPreconditionCategory)
     if (!category) continue
     const existing = categoryEvidence[category]
     const independentlySupported = existing?.sourceEvidence.some((candidate) => isEvidenceUsableFor(candidate, 'PRECONDITION')) ?? false
@@ -375,7 +393,7 @@ export function runStep09Preconditions(input: {
   }
 
   for (const item of investigationIndicatedEvidence) {
-    const category = categoryForPreconditionStatement(item.statement)
+    const category = categoryForPreconditionStatement(item.statement, item.semanticPreconditionCategory)
     if (!category) continue
     const existing = categoryEvidence[category]
     if (existing && !existing.investigationOnly && existing.sourceEvidence.length > 0) continue
@@ -385,7 +403,7 @@ export function runStep09Preconditions(input: {
   }
 
   for (const item of rejectedEvidence) {
-    const category = categoryForPreconditionStatement(item.statement)
+    const category = categoryForPreconditionStatement(item.statement, item.semanticPreconditionCategory)
     if (category && categoryEvidence[category]) categoryEvidence[category].rejectedByInvestigation = true
   }
 
@@ -394,7 +412,7 @@ export function runStep09Preconditions(input: {
     const causalEvidence = evidenceSet.sourceEvidence.filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
     const evidenceForCanonicalization = causalEvidence.length ? causalEvidence : evidenceSet.sourceEvidence
     for (const item of evidenceForCanonicalization) {
-      const canonical = classifyCanonicalPrecondition(item.statement)
+      const canonical = item.semanticPreconditionCategory ?? classifyCanonicalPrecondition(item.statement)
       if (canonical) canonicalCounts.set(canonical, (canonicalCounts.get(canonical) ?? 0) + 1)
     }
     const fallbackCanonical = CANONICAL_FALLBACK_BY_OPERATIONAL_CATEGORY[category] ?? null

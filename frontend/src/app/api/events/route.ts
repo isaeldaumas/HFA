@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireBearerUser } from '@/lib/server/api-auth'
 import { getSupabaseAdmin, assertServiceRoleEnv } from '@/lib/server/supabase-admin'
+import { applyUserAiSettingsToEnv } from '@/lib/server/apply-user-ai-settings-to-env'
 import { debitCreditForEvent, ensurePublicUserRow, refundCreditForFailedAnalysis } from '@/lib/server/tenant-user'
 import { getOrCreateRequestId, buildErrorResponse } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
@@ -115,6 +116,8 @@ export async function POST(req: Request) {
     }
 
     const admin = getSupabaseAdmin()
+    stage = 'load-ai-settings'
+    await applyUserAiSettingsToEnv(admin, user.userId)
     const ct = req.headers.get('content-type') || ''
     let title: string
     let raw_input: string

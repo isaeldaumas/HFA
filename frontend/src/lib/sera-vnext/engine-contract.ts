@@ -50,6 +50,10 @@ export type SeraTimelineItem = {
   sourceSection?: SeraEvidenceSourceSection
   assertionStatus?: SeraAssertionStatus
   occurrenceScope?: SeraOccurrenceScope
+  semanticRoles?: SeraSemanticEvidenceRole[]
+  semanticActor?: string | null
+  semanticPreconditionCategory?: SeraCanonicalPreconditionCategory | null
+  semanticConfidence?: SeraConfidence
 }
 
 export type SeraCanonicalPath = {
@@ -175,6 +179,90 @@ export type SeraSupplementalEvidenceInput = {
   temporalRelation: 'PRE_ESCAPE' | 'AT_ESCAPE'
 }
 
+/**
+ * Semantic evidence extracted by AI from the source narrative. The AI is allowed to
+ * identify meaning and relationships, but not to release SERA codes. Every annotation
+ * must be anchored to a verbatim source sentence validated by the server before the
+ * deterministic Hendy/SERA traversal consumes it.
+ */
+export type SeraSemanticEvidenceRole =
+  | 'FIRST_DEPARTURE'
+  | 'CRITICAL_UNSAFE_ACT'
+  | 'DIRECT_ACTOR'
+  | 'PERCEPTION_STATE'
+  | 'OBJECTIVE_INTENT'
+  | 'ACTION_STRATEGY'
+  | 'PRECONDITION'
+  | 'BARRIER'
+  | 'OUTCOME'
+  | 'CONTEXT'
+
+export type SeraSemanticDecisionConcept =
+  | 'adequateAssessment'
+  | 'inadequateAssessment'
+  | 'sensoryLimitation'
+  | 'knowledgeLimitation'
+  | 'perceptionCapabilityPresent'
+  | 'attentionPressure'
+  | 'timeManagementPressure'
+  | 'informationAmbiguous'
+  | 'informationAvailableCorrect'
+  | 'informationUnavailable'
+  | 'safeGoal'
+  | 'knownRule'
+  | 'explicitAwareness'
+  | 'consciousDeviation'
+  | 'routineDeviation'
+  | 'exceptionalDeviation'
+  | 'managedRisk'
+  | 'unmanagedRisk'
+  | 'efficiencyObjective'
+  | 'safeAction'
+  | 'implementedAction'
+  | 'feedbackImplementationFailure'
+  | 'slipLapse'
+  | 'correctAction'
+  | 'incorrectAction'
+  | 'physicalActionLimitation'
+  | 'actionKnowledgeLimitation'
+  | 'actionCapabilityPresent'
+  | 'selectionUnderPressureFailed'
+  | 'feedbackUnderPressureFailed'
+  | 'selectionSubtype'
+  | 'feedbackSubtype'
+  | 'timeManagementAction'
+
+export type SeraSemanticEvidenceAnnotation = {
+  id: string
+  sourceQuote: string
+  sourceSentenceIndex: number
+  roles: SeraSemanticEvidenceRole[]
+  concepts?: SeraSemanticDecisionConcept[]
+  actor: string | null
+  temporalRelation: 'PRE_ESCAPE' | 'AT_ESCAPE' | 'POST_ESCAPE' | 'UNKNOWN'
+  assertionStatus: SeraAssertionStatus
+  occurrenceScope: SeraOccurrenceScope
+  preconditionCategory?: SeraCanonicalPreconditionCategory | null
+  confidence: SeraConfidence
+  rationale?: string | null
+}
+
+export type SeraSemanticSafeOperationModel = {
+  expectedSafeState: string
+  expectedSafeAction: string
+  evidenceQuotes: string[]
+  confidence: SeraConfidence
+}
+
+export type SeraSemanticEnrichmentMeta = {
+  provider: string
+  model: string
+  requestedAt: string
+  acceptedAnnotations: number
+  rejectedAnnotations: number
+  schemaVersion: 'SERA_SEMANTIC_AI_V1'
+}
+
 export type SeraVNextEngineInput = {
   inputId: string
   narrative: string
@@ -184,6 +272,9 @@ export type SeraVNextEngineInput = {
   requestId: string
   mode: SeraVNextEngineMode
   supplementalEvidence?: SeraSupplementalEvidenceInput[]
+  semanticEvidence?: SeraSemanticEvidenceAnnotation[]
+  semanticSafeOperationModel?: SeraSemanticSafeOperationModel
+  semanticEnrichmentMeta?: SeraSemanticEnrichmentMeta
   options?: {
     includeDebugTrace?: boolean
     requireHumanReview?: true
@@ -228,6 +319,15 @@ export type SeraVNextEngineOutput = {
     firstDepartureSupportingEvidence?: string[]
     /** Evidence supporting a later critical unsafe act/condition, preserved as a distinct downstream landmark. */
     criticalUnsafeActSupportingEvidence?: string[]
+    /**
+     * Landmark used for Hendy's P/O/A questions. This is the critical unsafe act/condition
+     * and its directly involved operator when that landmark is supported. The first
+     * safe→unsafe departure remains a separate trajectory boundary and is never silently
+     * substituted for the act under cognitive analysis.
+     */
+    poaAnchorCandidate?: string | null
+    poaAnchorSupportingEvidence?: string[]
+    poaAnchorBasis?: 'CRITICAL_UNSAFE_ACT' | 'FIRST_DEPARTURE_FALLBACK' | 'UNRESOLVED'
     directActor: string | null
     supportingEvidence: string[]
     counterEvidence: string[]

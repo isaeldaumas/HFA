@@ -1,0 +1,176 @@
+{
+  "schemaVersion": "SERA_SEMANTIC_AI_V1",
+  "provider": "openai",
+  "model": "gpt-6-luna",
+  "safeOperationModel": {
+    "expectedSafeState": "A aeronave pousada na posição indicada pela padronização da empresa, com o coletivo guarnecido e sob controle do piloto.",
+    "expectedSafeAction": "Manter a mão no coletivo, em vez de desguarnecê-lo para pegar a papelada.",
+    "evidenceQuotes": [
+      "Então, a padronização da nossa empresa diz que nós temos que pousar de forma que nós fiquemos sentados em cima da parte da frente do círculo amarelo e assim você tem certeza de que toda a cauda da aeronave está longe de qualquer obstáculo, no caso, a plataforma está atrás da aeronave.",
+      "Uma das minhas mãos, que é a mão que segura o coletivo, eu desguarneci o coletivo.",
+      "Enquanto isso, o comissário abriu a porta da aeronave, os passageiros permaneceram sentados, ele abriu a porta, desceu, pegou a documentação de troca dos passageiros que iam entrar na aeronave e o comissário parou na porta que divide o cockipt pra cabine onde ficam os passageiros com o braço, que estava segurando a papelada para dentro do cockpit e eu fiz uma coisa que eu nunca fiz e sempre instruí contra, mas se me perguntarem por que eu fiz isso eu não sei."
+    ],
+    "confidence": "HIGH"
+  },
+  "annotations": [
+    {
+      "id": "AI-SEM-1",
+      "sourceQuote": "Uma das minhas mãos, que é a mão que segura o coletivo, eu desguarneci o coletivo.",
+      "sourceSentenceIndex": 18,
+      "roles": [
+        "FIRST_DEPARTURE",
+        "CRITICAL_UNSAFE_ACT",
+        "DIRECT_ACTOR"
+      ],
+      "concepts": [
+        "implementedAction"
+      ],
+      "actor": "piloto entrevistado, comandante da aeronave",
+      "temporalRelation": "AT_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "O piloto relata que retirou a mão do controle que guarnecia; este é o primeiro ato descrito que deixa o coletivo sem essa proteção."
+    },
+    {
+      "id": "AI-SEM-3",
+      "sourceQuote": "Por eu estar vendo ele com o braço parado ali e aguardando que o meu colega pegasse esse papel e o meu colega estava fazendo uma série de cálculos e anotações e ele não queria parar naquele exato momento só pra pegar o papel, eu, pra ajudar, pra ser proativo, alguma coisa, eu não sei o que passou na minha cabeça.",
+      "sourceSentenceIndex": 19,
+      "roles": [
+        "OBJECTIVE_INTENT"
+      ],
+      "concepts": [],
+      "actor": "piloto entrevistado, comandante da aeronave",
+      "temporalRelation": "AT_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "MEDIUM",
+      "rationale": "Ele associa a ação à intenção de ajudar e ser proativo, mas declara não saber exatamente o que pensou."
+    },
+    {
+      "id": "AI-SEM-4",
+      "sourceQuote": "Quando eu peguei essa papelada, eu senti que a aeronave começou a mexer e eu percebi que ela andou pra frente e eu pensei: “o parking break soltou”, nisso eu já estava com os pés no pedal eu apertei os dois pedais de freio até o final, deu batente, e a aeronave continuou indo a frente e na frente da aeronave era o final do helideck.",
+      "sourceSentenceIndex": 21,
+      "roles": [
+        "PERCEPTION_STATE",
+        "ACTION_STRATEGY"
+      ],
+      "concepts": [
+        "perceptionCapabilityPresent",
+        "implementedAction"
+      ],
+      "actor": "piloto entrevistado, comandante da aeronave",
+      "temporalRelation": "POST_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "Depois de pegar a papelada, percebeu o movimento para a frente e aplicou os pedais de freio, sem que a aeronave parasse."
+    },
+    {
+      "id": "AI-SEM-5",
+      "sourceQuote": "E eu percebi que o coletivo subiu sozinho e eu falei: “eu tenho que colocar esse coletivo embaixo de novo”, mas aí eu me lembrei que uma aeronave nossa há alguns anos atrás fez um pouso também meio brusco na plataforma e ela deu um problema, enrugou uma parte da estrutura da aeronave porque bateu com muita força no solo da plataforma e eu pensava:",
+      "sourceSentenceIndex": 27,
+      "roles": [
+        "PERCEPTION_STATE",
+        "OBJECTIVE_INTENT",
+        "ACTION_STRATEGY",
+        "CONTEXT"
+      ],
+      "concepts": [],
+      "actor": "piloto entrevistado, comandante da aeronave",
+      "temporalRelation": "AT_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "Relata a percepção do coletivo subindo e a decisão de baixá-lo com rapidez, mas sem fazê-lo rápido demais, tendo em mente um episódio anterior."
+    },
+    {
+      "id": "AI-SEM-6",
+      "sourceQuote": "Enfim, botei.",
+      "sourceSentenceIndex": 29,
+      "roles": [
+        "ACTION_STRATEGY"
+      ],
+      "concepts": [
+        "implementedAction"
+      ],
+      "actor": "piloto entrevistado, comandante da aeronave",
+      "temporalRelation": "AT_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "Confirma que executou a ação planejada de baixar o coletivo."
+    },
+    {
+      "id": "AI-SEM-7",
+      "sourceQuote": "f) O piloto entrevistado informou que era o primeiro voo do dia, mas ele estava cansado porque já estava no final da quinzena de trabalho após um acúmulo de muitos dias voados.",
+      "sourceSentenceIndex": 56,
+      "roles": [
+        "PRECONDITION"
+      ],
+      "concepts": [],
+      "actor": "piloto entrevistado, comandante da aeronave",
+      "temporalRelation": "PRE_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": "PHYSIOLOGICAL",
+      "confidence": "HIGH",
+      "rationale": "O relato informa cansaço antes do evento, associado ao acúmulo de dias voados."
+    },
+    {
+      "id": "AI-SEM-8",
+      "sourceQuote": "e) Ele acredita que o maior problema não foi a pane técnica e sim o estado mental de cansaço em que ele se encontrava.",
+      "sourceSentenceIndex": 55,
+      "roles": [
+        "PRECONDITION",
+        "PERCEPTION_STATE"
+      ],
+      "concepts": [],
+      "actor": "piloto entrevistado, comandante da aeronave",
+      "temporalRelation": "PRE_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": "PHYSIOLOGICAL",
+      "confidence": "HIGH",
+      "rationale": "O entrevistado atribui maior relevância para o evento ao cansaço que já sentia."
+    },
+    {
+      "id": "AI-SEM-9",
+      "sourceQuote": "b) Verificaram que o problema era em um lote de peça que já tinha vindo da fábrica com esse problema.",
+      "sourceSentenceIndex": 52,
+      "roles": [
+        "PRECONDITION",
+        "CONTEXT"
+      ],
+      "concepts": [],
+      "actor": "equipe que verificou o problema, identidade funcional não especificada",
+      "temporalRelation": "UNKNOWN",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": "EQUIPMENT",
+      "confidence": "MEDIUM",
+      "rationale": "A verificação relatada associa o problema técnico a um lote de peça defeituoso; não é especificado qual peça falhou nesta aeronave."
+    },
+    {
+      "id": "AI-SEM-11",
+      "sourceQuote": "Esses calços explodiram, estouraram as cordas.",
+      "sourceSentenceIndex": 38,
+      "roles": [
+        "OUTCOME"
+      ],
+      "concepts": [],
+      "actor": "calços e cordas da aeronave",
+      "temporalRelation": "POST_ESCAPE",
+      "assertionStatus": "AFFIRMED",
+      "occurrenceScope": "CURRENT_EVENT",
+      "preconditionCategory": null,
+      "confidence": "HIGH",
+      "rationale": "Relata a ruptura dos calços e das cordas durante o movimento da aeronave."
+    }
+  ]
+}

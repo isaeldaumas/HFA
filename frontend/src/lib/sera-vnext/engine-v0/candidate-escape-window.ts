@@ -26,6 +26,9 @@ type CandidateEscapeWindow = {
   anchorBasis: 'FIRST_DEPARTURE_AND_CRITICAL_ACT' | 'FIRST_DEPARTURE_PRIMARY' | 'FIRST_DEPARTURE_ONLY' | 'UNRESOLVED'
   firstDepartureSupportingEvidence: string[]
   criticalUnsafeActSupportingEvidence: string[]
+  poaAnchorCandidate: string | null
+  poaAnchorSupportingEvidence: string[]
+  poaAnchorBasis: 'CRITICAL_UNSAFE_ACT' | 'FIRST_DEPARTURE_FALLBACK' | 'UNRESOLVED'
   supportingEvidence: string[]
   counterEvidence: string[]
   progressiveBoundary: boolean
@@ -53,8 +56,17 @@ function admissible(item: SeraTimelineItem): boolean {
   if (item.assertionStatus && item.assertionStatus !== 'AFFIRMED') return false
   if (item.sourceSection === 'REPORT_ANALYSIS' || item.sourceSection === 'RECOMMENDATION' || item.sourceSection === 'ADMINISTRATIVE') return false
   if (['HISTORICAL_COMPARATOR', 'PRE_EVENT_CAUSAL_HISTORY'].includes(item.occurrenceScope ?? 'UNKNOWN')) return false
-  if (!isOperationalEventStatement(item.statement)) return false
-  return !isPostEscapeStatement(item.statement)
+  if (isPostEscapeStatement(item.statement)) return false
+
+  // A verified semantic landmark is itself evidence that the sentence describes an
+  // operational event. Do not make the AI extraction pass a second lexical/regex gate:
+  // naturalistic interviews routinely express acts with wording the deterministic
+  // recognizer has never seen. Low-confidence semantic annotations never bypass it.
+  const verifiedSemanticLandmark = item.semanticConfidence !== 'LOW' &&
+    item.semanticRoles?.some((role) => role === 'FIRST_DEPARTURE' || role === 'CRITICAL_UNSAFE_ACT')
+  if (verifiedSemanticLandmark) return true
+
+  return isOperationalEventStatement(item.statement)
 }
 
 const EPISODE_STOPWORDS = new Set([
@@ -99,12 +111,14 @@ function phaseCompatible(anchor: string, candidate: string): boolean {
 
 function hasExplicitHumanActor(statement: string): boolean {
   const text = normalized(statement)
-  return /\b(tripulacao|crew|piloto|pilot|comandante|captain|copiloto|first officer|pic|sic|pf|pm|operador|operator|mecanico|mechanic|tecnico de manutencao|maintenance technician|inspetor|inspector|despachante|dispatcher|cco|dov|eles|they|nos|we)\b|\ba gente\b/.test(text)
+  return /\b(tripulacao|crew|piloto|pilot|piloto entrevistado|entrevistado|outro piloto|outro tripulante|o cara|comandante|captain|copiloto|first officer|pic|sic|pf|pm|operador|operator|mecanico|mechanic|tecnico de manutencao|maintenance technician|inspetor|inspector|despachante|dispatcher|cco|dov|eles|they|nos|we|eu|i|voce)\b|\ba gente\b/.test(text)
 }
 
 function isOperatorControlledUnsafeCondition(statement: string): boolean {
   const text = normalized(statement)
   return /\b(aeronave|aircraft)\b.*\b(desceu|descendeu|descended|permaneceu|remained|entrou|entered|alinhou|lined up|pousou|landed)\b.*\b(abaixo|below|mda|minim[oa]|perfil|profile|sem referencia|without visual|pista|runway|insegur|unsafe)\b/.test(text)
+    || /(?:\b(tripulacao|pilotos?|crew|nos|we|eu)\b|\ba gente\b).{0,180}\b(500|quinhentos)\s*(?:pes|ft|feet)\b.{0,180}\b(sem (?:ver|visual|referencia)|nao (?:via|vi|estou vendo|estavamos vendo)|guardad[oa]|imc|instrumento)\b/.test(text)
+    || /(?:\b(tripulacao|pilotos?|crew|nos|we)\b|\ba gente\b).{0,180}\b(imc|instrumento|sem referencia visual)\b.{0,180}\b(continuou|continuaram|prosseguiu|prosseguiram|resolveu continuar|resolvemos continuar)\b/.test(text)
     || /\b(separacao|separation|clearance|distancia|distance)\b.*\b(abaixo|below|menor que|less than)\b.*\b(minim[oa]|required|requerid[oa]|aceitavel|acceptable)\b/.test(text)
     || /\b(instalacao|installation)\b.*\b(peca errada|wrong part|incorrect part)\b/.test(text)
     || /\b(torque)\b.*\b(errad[oa]|incorret[oa]|wrong|incorrect|fora do limite|out of limit)\b/.test(text)
@@ -134,7 +148,7 @@ function hasObservableHumanAct(statement: string): boolean {
 
   if (!hasExplicitHumanActor(statement)) return false
   if (/\b(nao notou|nao percebeu|nao reconheceu|nao processou|nao monitorou|nao verificou|nao confirmou|nao insistiu|deixou de monitorar|deixou de verificar|did not notice|did not perceive|did not recognize|did not process|did not monitor|did not verify|did not confirm|did not insist|failed to monitor|failed to verify)\b/.test(text)) return true
-  return /\b(decidiu|decidiram|decidimos|resolveu|resolveram|resolvemos|optou|escolheu|continuou|continuaram|prosseguiu|prosseguiram|manteve|mantiveram|selecionou|acionou|desligou|ligou|desacoplou|desacoplaram|cancelou|cancelaram|reduziu|reduziram|colocou|colocaram|aplicou|aplicaram|executou|executaram|omitiu|deixou de|falhou|iniciou|iniciaram|iniciado|iniciada|inseriu|programou|ajustou|configurou|conduziu|conduziram|preparou|prepararam|passou|passaram|aproximou|aproximaram|desceu|desceram|subiu|subiram|moveu|moveram|puxou|puxaram|empurrou|empurraram|alinhou|alinharam|permitiu|permitiram|abandonou|abandonaram|hesitou|hesitaram|demorou|demoraram|esperou|esperaram|decided|chose|opted|resolved|continued|proceeded|maintained|selected|disengaged|cancelled|reduced|put|applied|executed|failed to|did not|initiated|started|inserted|programmed|configured|conducted|prepared|approached|began|started|descended|climbed|moved|pulled|pushed|lined up|allowed|hesitated|delayed|waited)\b/.test(text)
+  return /\b(decidiu|decidi|decidiram|decidimos|resolveu|resolvi|resolveram|resolvemos|optou|optei|escolheu|escolhi|continuou|continuei|continuaram|prosseguiu|prossegui|prosseguiram|manteve|mantive|mantiveram|selecionou|selecionei|acionou|acionei|desligou|desliguei|ligou|liguei|desacoplou|desacoplei|desacoplaram|cancelou|cancelei|cancelaram|reduziu|reduzi|reduziram|colocou|coloquei|colocaram|aplicou|apliquei|aplicaram|executou|executei|executaram|omitiu|omiti|deixou de|deixei de|falhou|falhei|iniciou|iniciei|iniciaram|iniciado|iniciada|inseriu|inseri|programou|programei|ajustou|ajustei|configurou|configurei|conduziu|conduzi|conduziram|preparou|preparei|prepararam|passou|passei|passaram|aproximou|aproximei|aproximaram|desceu|desci|desceram|subiu|subi|subiram|moveu|movi|moveram|puxou|puxei|puxaram|empurrou|empurrei|empurraram|alinhou|alinhei|alinharam|permitiu|permiti|permitiram|abandonou|abandonei|abandonaram|hesitou|hesitei|hesitaram|demorou|demorei|demoraram|esperou|esperei|esperaram|tirou|tirei|retirou|retirei|pegou|peguei|meteu|meti|julgou|julguei|preferiu|preferi|assumiu|assumi|desguarneci|mexeu|mexendo|decided|chose|opted|resolved|continued|proceeded|maintained|selected|disengaged|cancelled|reduced|put|applied|executed|failed to|did not|initiated|started|inserted|programmed|configured|conducted|prepared|approached|began|started|descended|climbed|moved|pulled|pushed|lined up|allowed|hesitated|delayed|waited)\b/.test(text)
 }
 
 export function classifyHumanFactorEscapeStatement(statement: string): HumanFactorEscapeAnchorType | null {
@@ -145,6 +159,9 @@ export function classifyHumanFactorEscapeStatement(statement: string): HumanFact
 }
 
 function seraEpisodeRole(item: SeraTimelineItem): SeraEpisodeRole {
+  const semanticHumanLandmark = item.semanticConfidence !== 'LOW'
+    && item.semanticRoles?.some((role) => role === 'FIRST_DEPARTURE' || role === 'CRITICAL_UNSAFE_ACT')
+  if (semanticHumanLandmark) return 'HUMAN_FACTOR_CANDIDATE'
   return classifyHumanFactorEscapeStatement(item.statement) ? 'HUMAN_FACTOR_CANDIDATE' : 'TECHNICAL_ENVIRONMENT'
 }
 
@@ -238,14 +255,22 @@ function candidateScore(sentence: string): number {
   if (/\b(touched down long|landed long|pousou longo|toque longo)\b/.test(text)) score += 8
   if (/\b(suggested corrections|sugeriu corre[cç][oõ]es)\b.*\b(did not take control|nao assumiu o controle|não assumiu o controle)\b/.test(text)) score += 3
   if (/\b(did not insist|nao insistiu|não insistiu)\b/.test(text)) score += 7
+  // Naturalistic interview language: preserve observable first-person/colloquial acts
+  // without requiring formal report wording.
+  if (/\b(tirei|tirou|retirei|retirou|desguarneci)\b.{0,100}\b(mao|mão)\b.{0,80}\b(coletivo|collective|comando)\b/.test(text)) score += 14
+  if (/\b(o cara|outro piloto|outro tripulante|piloto entrevistado|eu|voce)\b.{0,180}\b(meteu|puxou|puxei|mexendo|mexeu|moveu|movimentei|movimentou)\b.{0,100}\b(comandos?|ciclico|cíclico|coletivo|cyclic|collective)\b/.test(text)) score += 12
+  if (/\b(julguei|julgou|decidi|decidiu|escolhi|escolheu|preferi|preferiu|tomei a decisao|tomou a decisao)\b.{0,180}\b(lado|pouso|pousar|aproximacao|aproximação|landing|approach)\b/.test(text)) score += 11
+  if (/\b(preferi|preferiu|decidi|decidiu|escolhi|escolheu)\b.{0,180}\b(pouso|pousar)\b.{0,180}\b(mesmo sabendo|mais trabalhoso|mais perto|menor margem|obstaculo|obstáculo|risco)\b/.test(text)) score += 18
+  if (/(?:\b(tripulacao|pilotos?|nos|we|eu)\b|\ba gente\b).{0,180}\b(500|quinhentos)\s*(?:pes|ft|feet)\b.{0,180}\b(sem (?:ver|visual|referencia)|nao (?:via|vi|estou vendo|estavamos vendo)|guardad[oa]|imc|instrumento)\b/.test(text)) score += 10
   if (/\b(decidiu|decidiram|decidimos|resolveu|resolveram|resolvemos|continuou|executou|desceu|subiu|virou|desacoplou|cancelou|reduziu|tripula|pilot|crew|a gente|nos|we)\b/.test(text)) score += 1
-  if (/\b(sem incidentes|sem intercorr[eê]ncias|without incident|safely|normal landing|pouso normal)\b/.test(text)) score -= 10
+  if (/\b(sem incidentes|sem intercorr[eê]ncias|sem problema(?: nenhum)?|sem anormalidade|without incident|without problem|safely|normal landing|pouso normal)\b/.test(text)) score -= 20
   if (hasOutcomeSignal(sentence)) score -= 10
   return score
 }
 
 function hasControlWindowSignal(item: SeraTimelineItem): boolean {
   if (!admissible(item)) return false
+  if (item.semanticRoles?.some((role) => role === 'FIRST_DEPARTURE' || role === 'CRITICAL_UNSAFE_ACT')) return true
   return candidateScore(item.statement) > 0 || /\b(crew|pilot|operator|decided|continued|failed to|did not|executed|turned|descended|climbed|approach|landing|tripula|piloto|decidiu|continuou|falhou|executou|desceu|subiu|aproxima[cç][aã]o|pouso)\b/i.test(item.statement)
 }
 
@@ -270,7 +295,10 @@ function buildEpisodeCandidates(scored: Array<{ item: SeraTimelineItem; score: n
       supportingEvidence: support.map((candidate) => candidate.statement),
       occurrenceScope: item.occurrenceScope ?? 'UNKNOWN',
       seraRole: role,
-      humanFactorEligible: role !== 'TECHNICAL_ENVIRONMENT' && classifyHumanFactorEscapeStatement(item.statement) !== null,
+      humanFactorEligible: role !== 'TECHNICAL_ENVIRONMENT' && (
+        classifyHumanFactorEscapeStatement(item.statement) !== null
+        || Boolean(item.semanticConfidence !== 'LOW' && item.semanticRoles?.some((semanticRole) => semanticRole === 'FIRST_DEPARTURE' || semanticRole === 'CRITICAL_UNSAFE_ACT'))
+      ),
       selected: false,
     })
     if (episodes.length >= 6) break
@@ -297,7 +325,15 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
   ) ?? null
   const candidateItems = timeline.filter((item) => hasControlWindowSignal(item) && !hasOutcomeSignal(item.statement))
   const scored = candidateItems
-    .map((item) => ({ item, score: candidateScore(item.statement) }))
+    .map((item) => {
+      let score = candidateScore(item.statement)
+      // Semantic AI is an interpretation layer, not the methodological authority. Give
+      // verified landmarks a meaningful bonus, but keep strong factual candidates in the
+      // race so a bad semantic label cannot suppress an observable control act.
+      if (item.semanticRoles?.includes('FIRST_DEPARTURE')) score += item.semanticConfidence === 'HIGH' ? 8 : 5
+      if (item.semanticRoles?.includes('CRITICAL_UNSAFE_ACT')) score += item.semanticConfidence === 'HIGH' ? 12 : 8
+      return { item, score }
+    })
     .filter(({ score }) => score >= 5)
   const episodeCandidates = buildEpisodeCandidates(scored, timeline)
 
@@ -305,9 +341,13 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
   // (1) the first departure from safe operation and (2) the most critical unsafe act/condition,
   // i.e. the one on the occurrence trajectory from which only the direct outcome trajectory remains.
   // Upstream maintenance/dispatch/organizational material may set the scene without becoming the
-  // first departure merely because it happened earlier. When a supported human-factor first departure
-  // is established, that boundary anchors the active P/O/A traversal; later critical acts remain separate.
-  const humanFactorScored = scored.filter(({ item }) => classifyHumanFactorEscapeStatement(item.statement) !== null)
+  // first departure merely because it happened earlier. The first departure delimits the trajectory
+  // boundary. Hendy's P/O/A questions, however, stay bound to the operator and critical unsafe act/
+  // condition under analysis. These landmarks may coincide, but must never be silently conflated.
+  const humanFactorScored = scored.filter(({ item }) =>
+    classifyHumanFactorEscapeStatement(item.statement) !== null ||
+    item.semanticRoles?.some((role) => role === 'FIRST_DEPARTURE' || role === 'CRITICAL_UNSAFE_ACT'),
+  )
   const phaseRank: Record<OperationalPhase, number> = { MAINTENANCE: 0, DISPATCH: 1, GROUND: 2, INFLIGHT: 3, APPROACH: 4, GENERIC: 5 }
   const selectedPool = humanFactorScored
 
@@ -315,9 +355,34 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
   // trajectory. Prefer candidates whose operational phase is explicit; document order is
   // only a tie-breaker inside a phase and must never make a generic statement outrank a
   // clearly earlier operational phase.
-  const phaseResolvedFirstPool = humanFactorScored.some(({ item }) => operationalPhase(item.statement) !== 'GENERIC')
-    ? humanFactorScored.filter(({ item }) => operationalPhase(item.statement) !== 'GENERIC')
-    : humanFactorScored
+  const semanticCriticalActors = new Set(
+    humanFactorScored
+      .filter(({ item }) => item.semanticRoles?.includes('CRITICAL_UNSAFE_ACT') && item.semanticConfidence !== 'LOW')
+      .map(({ item }) => item.semanticActor?.trim())
+      .filter((actor): actor is string => Boolean(actor)),
+  )
+  const sharedActor = (actor: string | null | undefined, statement: string): boolean => {
+    const value = `${actor ?? ''} ${statement}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    return /\b(tripulacao|crew|nos|nós|a gente|ambos|eles|pilotos|pilots)\b/.test(value)
+      || /,/.test(actor ?? '')
+      || /\b(e|and)\b/.test(actor ?? '')
+  }
+  const semanticFirstPoolRaw = humanFactorScored.filter(({ item }) => item.semanticRoles?.includes('FIRST_DEPARTURE'))
+  const semanticFirstPool = semanticCriticalActors.size
+    ? semanticFirstPoolRaw.filter(({ item }) => {
+        const actor = item.semanticActor?.trim() ?? null
+        if (!actor || sharedActor(actor, item.statement)) return true
+        return semanticCriticalActors.has(actor)
+      })
+    : semanticFirstPoolRaw
+  // Semantic extraction is advisory, not sovereign. If an isolated FIRST_DEPARTURE
+  // annotation belongs to a different individual than every supported critical-act actor,
+  // and it is not a shared/team decision, fall back to the factual candidate pool rather
+  // than allowing that annotation to redefine the occurrence boundary by itself.
+  const baseFirstPool = semanticFirstPool.length ? semanticFirstPool : humanFactorScored
+  const phaseResolvedFirstPool = baseFirstPool.some(({ item }) => operationalPhase(item.statement) !== 'GENERIC')
+    ? baseFirstPool.filter(({ item }) => operationalPhase(item.statement) !== 'GENERIC')
+    : baseFirstPool
   const firstDepartureEntry = [...phaseResolvedFirstPool].sort((a, b) =>
     phaseRank[operationalPhase(a.item.statement)] - phaseRank[operationalPhase(b.item.statement)] ||
     a.item.sourceSentenceIndex - b.item.sourceSentenceIndex,
@@ -393,6 +458,18 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
     if (/\b(continuou|prosseguiu|manteve|continued|proceeded|maintained)\b.*\b(apesar|despite|abaixo|below|insegur|unsafe|gelo|icing)\b/.test(text)) total += 3
     if (/\b(desceu|descendeu|descended|permaneceu|remained)\b.*\b(abaixo|below)\b.*\b(mda|minim|perfil|profile)\b/.test(text)) total += 4
     if (/\b(errad[oa]|incorret[oa]|wrong|incorrect)\b.*\b(pista|runway|destino|destination|peca|part|torque)\b/.test(text)) total += 3
+    // Critical-act directness in naturalistic cockpit interviews: these are concrete
+    // control/selection acts immediately coupled to the hazardous aircraft state, so they
+    // outrank an earlier contextual decision without erasing that first-departure boundary.
+    if (/\b(barra na barra|pitch down)\b/.test(text)) total += 16
+    if (/\b(desacoplou|cancelou|disengaged|cancelled)\b.{0,100}\b(automatismo|diretor de voo|flight director|autopilot|automacao|automation)\b/.test(text)) total += 12
+    if (/\b(tirei|tirou|retirei|retirou|desguarneci)\b.{0,120}\b(mao|mão)\b.{0,100}\b(coletivo|collective|comando)\b/.test(text)) total += 12
+    // Colloquial cockpit narratives often describe the decisive control act without a
+    // formal actor label ("o cara meteu a mão", "puxou o cíclico/coletivo"). Preserve
+    // that observable act as a strong critical-act candidate even if the AI misses it.
+    if (/\b(meteu|puxou|puxei|mexeu|moveu|movimentou|empurrou|empurrei)\b.{0,140}\b(comandos?|ciclico|cíclico|coletivo|cyclic|collective|manche|stick)\b/.test(text)) total += 24
+    if (/\b(julguei|julgou|preferi|preferiu|escolhi|escolheu|decidi|decidiu)\b.{0,180}\b(lado|pouso|pousar)\b.{0,220}\b(obstaculo|obstáculo|margem|risco|trabalhoso|mais perto)\b/.test(text)) total += 9
+    if (/\b(preferi|preferiu|escolhi|escolheu|decidi|decidiu)\b.{0,180}\b(pouso|pousar)\b.{0,120}\b(mesmo sabendo)\b/.test(text)) total += 14
     total += analysisCorroborationScore(candidate.item)
     const distance = nextOutcomeDistance(candidate.item)
     if (distance !== null) total += distance <= 2 ? 4 : distance <= 5 ? 3 : distance <= 12 ? 2 : distance <= 30 ? 1 : 0
@@ -405,11 +482,34 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
     return total
   }
 
-  const criticalRanked = [...selectedPool].sort((a, b) =>
+  const criticalSelectionPool = selectedPool
+  const criticalRanked = [...criticalSelectionPool].sort((a, b) =>
     criticalTrajectoryScore(b) - criticalTrajectoryScore(a) ||
     b.item.sourceSentenceIndex - a.item.sourceSentenceIndex,
   )
-  const criticalEntry = criticalRanked[0] ?? null
+
+  const isConcreteUnsafeActCandidate = (candidate: { item: SeraTimelineItem; score: number }): boolean => {
+    const text = normalized(candidate.item.statement)
+    if (candidate.item.semanticRoles?.includes('OUTCOME') || candidate.item.occurrenceScope === 'HISTORICAL_COMPARATOR') return false
+    if (candidate.item.semanticRoles?.includes('CRITICAL_UNSAFE_ACT') && candidate.item.semanticConfidence !== 'LOW') return true
+    if (isExplicitOperationalDeviationStatement(candidate.item.statement) || isExplicitOperationalOmissionStatement(candidate.item.statement)) return true
+    return /\b(barra na barra|pitch down|desacoplou|cancelou|disengaged|cancelled|meteu|puxou|puxei|empurrou|empurrei|tirei|tirou|retirei|retirou|desguarneci)\b/.test(text)
+      || /\b(julguei|julgou|preferi|preferiu|escolhi|escolheu|decidi|decidiu)\b.{0,180}\b(pouso|pousar|lado)\b.{0,220}\b(risco|obstaculo|obstáculo|margem|mais trabalhoso|mais perto)\b/.test(text)
+  }
+
+  let criticalEntry = criticalRanked[0] ?? null
+  // Semantic extraction may over-label the first departure as the critical act as well.
+  // If a later, concrete unsafe act is strongly supported on the same occurrence trajectory,
+  // preserve Hendy's split: first departure delimits the trajectory; the later act anchors P/O/A.
+  if (firstDeparture && criticalEntry?.item.statement === firstDeparture.statement) {
+    const firstScore = criticalTrajectoryScore(criticalEntry)
+    const downstreamConcrete = criticalRanked.find((candidate) =>
+      candidate.item.sourceSentenceIndex > firstDeparture.sourceSentenceIndex
+      && isConcreteUnsafeActCandidate(candidate)
+      && criticalTrajectoryScore(candidate) >= Math.max(18, firstScore - 12),
+    )
+    if (downstreamConcrete) criticalEntry = downstreamConcrete
+  }
   const criticalTopScore = criticalEntry ? criticalTrajectoryScore(criticalEntry) : 0
   const criticalCandidateAlternatives = criticalRanked
     .filter((candidate) => candidate.item.statement !== criticalEntry?.item.statement)
@@ -419,6 +519,12 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
     .map((candidate) => candidate.item.statement)
   const criticalAct = criticalEntry?.item ?? firstDeparture
   const primaryAnchor = firstDeparture ?? criticalAct
+  const poaAnchor = criticalEntry?.item ?? firstDeparture
+  const poaAnchorBasis: CandidateEscapeWindow['poaAnchorBasis'] = criticalEntry
+    ? 'CRITICAL_UNSAFE_ACT'
+    : firstDeparture
+      ? 'FIRST_DEPARTURE_FALLBACK'
+      : 'UNRESOLVED'
   const supportingItems = primaryAnchor ? episodeSupport(primaryAnchor, timeline) : []
   const criticalSupportItems = criticalAct ? episodeSupport(criticalAct, timeline) : []
   const firstDepartureSupportingItems = firstDeparture ? episodeSupport(firstDeparture, timeline) : []
@@ -463,7 +569,7 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
   if (!effectiveItems.length) counterEvidence.push('No explicit pre-outcome controllable departure statement was found in admissible factual evidence.')
   if (!outcomeItem && sameEpisodeCandidates.length > 1) counterEvidence.push('No explicit consequence boundary was detected inside the selected operational episode; multiple departure moments require review.')
   if (sameEpisodeCandidates.length > 1) counterEvidence.push('Multiple departure candidates remain inside the selected operational episode; Hendy first-departure and critical-act landmarks are retained separately for review.')
-  if (earliest && latest && earliest.statement !== latest.statement) counterEvidence.push('Hendy boundary split: the first departure from safe operation and the most critical unsafe act/condition are different supported landmarks. P/O/A is anchored to the first departure; the later critical act is preserved as a downstream episode and must not replace the safe-to-unsafe boundary.')
+  if (earliest && latest && earliest.statement !== latest.statement) counterEvidence.push('Hendy boundary split: the first departure from safe operation and the most critical unsafe act/condition are different supported landmarks. The first departure delimits the safe→unsafe trajectory; P/O/A is bound to the critical unsafe act/condition and its directly involved operator.')
   if (criticalCandidateAlternatives.length) counterEvidence.push(`Critical-act alternatives remain close in trajectory support and require human review: ${criticalCandidateAlternatives.join(' | ')}`)
   if (irreversibilityItem) counterEvidence.push(`Explicit no-return/irreversibility boundary preserved from the source: ${irreversibilityItem.statement}`)
   const humanEpisodeCandidates = episodeCandidates.filter((episode) => episode.humanFactorEligible)
@@ -486,14 +592,17 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
     if (selectedEpisode) selectedEpisode.selected = true
   }
 
-  const anchorType = primaryAnchor ? classifyHumanFactorEscapeStatement(primaryAnchor.statement) : null
+  const anchorType = primaryAnchor
+    ? classifyHumanFactorEscapeStatement(primaryAnchor.statement)
+      ?? (primaryAnchor.semanticRoles?.some((role) => role === 'FIRST_DEPARTURE' || role === 'CRITICAL_UNSAFE_ACT') ? 'UNSAFE_ACT' : null)
+    : null
   const humanFactorGate = anchorType
     ? {
         status: 'PASSED' as const,
         anchorType,
         rationale: [
           'Hendy gate: the anchor is an observable operator unsafe act/inaction or operator-controlled unsafe condition on the occurrence trajectory.',
-          'The first departure from safe operation and the critical unsafe act are retained separately when they do not coincide; P/O/A uses the first departure as the primary anchor.',
+          'The first departure from safe operation and the critical unsafe act are retained separately when they do not coincide; P/O/A is bound to the critical unsafe act/condition and its directly involved operator.',
           'Technical, environmental, maintenance, dispatch and organizational facts that only set the scene remain context/preconditions rather than displacing the directly outcome-linked unsafe act.',
         ],
       }
@@ -517,6 +626,11 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
     anchorBasis,
     firstDepartureSupportingEvidence,
     criticalUnsafeActSupportingEvidence,
+    poaAnchorCandidate: poaAnchor?.statement ?? null,
+    poaAnchorSupportingEvidence: criticalEntry
+      ? criticalUnsafeActSupportingEvidence
+      : firstDepartureSupportingEvidence,
+    poaAnchorBasis,
     supportingEvidence: firstDepartureSupportingEvidence.length ? firstDepartureSupportingEvidence : criticalUnsafeActSupportingEvidence,
     counterEvidence,
     progressiveBoundary,

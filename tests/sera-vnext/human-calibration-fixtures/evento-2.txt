@@ -1,0 +1,31 @@
+ENTREVISTA 2 
+4.2.1 Análise segundo o MDC 
+4.2.1.1 Preparação e Instrução 
+Nessa etapa foi explicado o propósito da pesquisa e coletada informações sobre a experiência do piloto entrevistado: 
+Tempo como piloto – 21 anos 
+Horas de voo de helicóptero – 8.000 horas 
+Horas de voo de helicóptero offshore – 7.000 horas 
+Tempo como comandante – 9 anos 
+Horas como comandante – 4.500 horas 
+4.2.1.2 Identificação e Seleção do Evento 
+Foi solicitado ao entrevistado que escolhesse um acontecimento indesejado pelo qual tivesse passado que não necessariamente gerou um relatório formal e que, de acordo com as suas características, poderia ocorrer novamente. 
+4.2.1.3 Recuperação do Evento 
+Relato do caso fornecido pelo piloto (ipsis litteris): 
+“O que aconteceu foi uma aproximação não estabilizada. Eu estava dando treinamento a comando para um comandante que não era do equipamento que a gente estava voando. Ele era comandante do 412, que tem uma atitude completamente diferente da atitude do 76, em termos de pilotagem. Na primeira missão, quando ele teve a primeira missão dele nessa nova aeronave ele veio comigo, pra ter treinamento, já logo sentou na posição de comandante e até depois disso e a partir disso eu resolvi que não ia mais colocar nenhum comandante na direita, de cara, eu sempre iria colocar ele na esquerda primeiro para ver como ele estava e tal, antes de colocá-lo na direita de fato. Aí, nós decolamos, a rota estava instrumento e aí, pelo radar, a gente viu que 5 milhas da unidade marítima, já a 500 pés, vendo pelo radar, estava IMC e, mesmo assim, a gente resolveu continuar o voo e tentar o pouso. Aí eu até consultei ele, eu falei: “Vamos tentar o pouso? Vamos tentar fazer a missão? ” Ele falou: “Vamos”. “Então tá bom.”. Aí quando deu mais ou menos 3 ou 4 milhas, eu já estava visual com a plataforma. O teto estava baixo, mas dava pra ver. Então pra eu não perder o visual da plataforma, eu abandonei a pilotagem e deixei a pilotagem por conta dele e ele, como sempre voou uma máquina sem automação, como é a automação do 76, ele resolveu desacoplar e ter a atitude que ele tinha da outra aeronave que era barra na barra. Aí, quando eu senti no corpo, um G negativo forte, quando eu olhei no velocímetro estava zerado, o climb estava mais de 1000 pés de razão. E eu vi... quando eu vi isso, quando eu olhei e os parâmetros de motor estavam já no vermelho, e quando eu olhei pra ele, ele estava olhando pra fora. Então, quando eu vi aquela cena de perceber que ele não estava sabendo o que estava acontecendo dentro da cabine, a gravidade, eu tomei o comando da mão dele e ainda bem que tínhamos altura ainda e eu piquei a aeronave pra atingir a velocidade rapidamente e aí, eu fiquei tão cego na hora que eu não conseguia ver nada além do rumo de ir embora. Eu descartei totalmente a possibilidade de pouso. Eu não tinha condição emocional para aquilo e a gente voltou pro “destino” (quer dizer: aeroporto). Então, pra mim, hoje, não só naquele evento, mas até hoje, os pilotos que têm tendência de querer voar desacoplado num voo com a meteorologia um pouco ruim e mesmo sem estar, eu acho assim um risco bastante presente. ” 
+4.2.1.4 Recontagem do Evento: 
+Durante a recontagem do evento foram esclarecidos os seguintes pontos: 
+a)	O piloto estava vendo que a aeronave estava a 5 milhas da plataforma apenas pelo radar meteorológico. 
+b)	Quando ele conseguiu ver a plataforma a uma distância entre 3 e 4 milhas, ele disse para o outro: “Visual com a plataforma”. Nesse momento, o outro piloto desacoplou o automatismo da aeronave (Diretor de voo). 
+c)	Quando o piloto entrevistado viu que o outro havia desacoplado falou: “Cuidado com a velocidade”. 
+d)	Para ele não perder a plataforma de vista, ficou olhando para fora e não olhou mais para o painel da aeronave, pois era o outro que estava pilotando. 
+e)	Quando ele sentiu que a aeronave estava descendo e olhou para o painel viu que o indicador de descida estava NEGATIVO, ou seja, a aeronave perdia altitude. 
+f)	O piloto entrevistado explicou que quando o outro piloto ouviu para tomar cuidado com a velocidade, teve a atitude que normalmente teria no outro equipamento e colocou barra na barra (inclinou a aeronave de forma a nivelá-la com o horizonte), quando o certo para esse equipamento seria pitch down (uma leve inclinação para baixo). 
+g)	O piloto afirma que a aeronave entrou em estol (perda de sustentação aerodinâmica) e começou a afundar com nenhuma velocidade de deslocamento. 
+4.2.1.5 Verificação da linha temporal e Identificação de pontos de decisão 
+Figura 8 - Linha Temporal da Entrevista 2 
+ 
+4.2.1.6 Aprofundamento Progressivo 
+O piloto entrevistado considera que uma barreira de segurança foi ultrapassada no momento em que eles resolvem manter a altitude de 500 pés para tentar localizar a plataforma mesmo estando em condições não visuais. Ele explica que eles estavam fora da regra que estabelece a altitude mínima de 700 pés para o teto das nuvens vendo a plataforma a, pelo menos, 5 milhas de distância. Com o objetivo de cumprir a missão e pousar, eles se aproximaram a uma distância de 3 milhas da plataforma e chegaram na altitude de 500 pés. 
+“Nós passamos do limite de visibilidade e passamos do limite de teto”, afirmou o piloto entrevistado. 
+4.2.1.7 Questões “E se?” 
+E se vocês tivessem estabelecido a divisão de tarefas mais claramente, você acha que teria evitado os dois pilotos estarem olhando para fora ao mesmo tempo? R. Sim. Acredito que faltou uma comunicação maior entre nós
