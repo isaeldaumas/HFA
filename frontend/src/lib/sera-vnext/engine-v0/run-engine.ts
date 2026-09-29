@@ -31,13 +31,13 @@ export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngi
   const unsafeActOrCondition = runStep05UnsafeActCondition({ engineInput: input, unsafeState, escapePoint })
   const directActor = runStep06DirectActor({ engineInput: input, unsafeActOrCondition, escapePoint })
   const latestEscapeSentenceIndex =
-    factualExtraction.timeline.find((item) => item.statement === escapePoint.latestCandidate)?.sourceSentenceIndex ?? null
+    factualExtraction.timeline.find((item) => item.statement === (escapePoint.firstDepartureCandidate ?? escapePoint.earliestCandidate))?.sourceSentenceIndex ?? null
   const narrativeEvidence = extractEvidenceItems({
     facts: factualExtraction.facts,
     timeline: factualExtraction.timeline,
     directActor: directActor.actor,
     latestEscapeSentenceIndex,
-    escapePointStatement: escapePoint.criticalUnsafeActCandidate ?? escapePoint.statement ?? escapePoint.latestCandidate ?? escapePoint.earliestCandidate,
+    escapePointStatement: escapePoint.firstDepartureCandidate ?? escapePoint.statement ?? escapePoint.earliestCandidate ?? escapePoint.criticalUnsafeActCandidate ?? escapePoint.latestCandidate,
   })
   const supplementalEvidence = extractSupplementalEvidenceItems({
     items: input.supplementalEvidence ?? [],

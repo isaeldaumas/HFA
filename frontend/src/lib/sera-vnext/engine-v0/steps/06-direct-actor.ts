@@ -39,11 +39,12 @@ export function runStep06DirectActor(input: {
   const captainPf = roleAssigned(text, 'captain', 'pf')
   const captainPm = roleAssigned(text, 'captain', 'pm')
   const copilotPm = roleAssigned(text, 'copilot', 'pm')
-  const primaryEscape = input.escapePoint.criticalUnsafeActCandidate ?? input.escapePoint.statement ?? input.escapePoint.latestCandidate ?? input.escapePoint.earliestCandidate ?? ''
+  const primaryEscape = input.escapePoint.firstDepartureCandidate ?? input.escapePoint.statement ?? input.escapePoint.earliestCandidate ?? input.escapePoint.criticalUnsafeActCandidate ?? input.escapePoint.latestCandidate ?? ''
   const escapeText = normalizeText(primaryEscape)
   const escapeHasCopilot = /\b(copiloto|first officer|sic)\b/.test(escapeText)
   const escapeHasCaptain = /\b(comandante|captain|training captain|pic)\b/.test(escapeText)
-  const escapeHasCollectiveCrew = /\b(tripulacao|tripulação|flight crew|crew|ambos os pilotos|dois pilotos|nenhum piloto|nenhum dos pilotos|both pilots|neither pilot)\b/.test(escapeText)
+  const escapeHasCollectiveCrew = /\b(tripulacao|tripulação|flight crew|crew|ambos os pilotos|dois pilotos|nenhum piloto|nenhum dos pilotos|both pilots|neither pilot|nos|we)\b|\ba gente\b/.test(escapeText)
+  const escapeHasJointDecision = /(?:\ba gente\b|\bnos\b|\bwe\b).{0,120}\b(resolveu|resolvemos|decidiu|decidimos|decided|resolved|chose|opted)\b.{0,160}\b(continuar|prosseguir|tentar|continue|proceed|try)\b/.test(escapeText)
   const escapeHasMaintenance =
     /\bmaintenance (?:team|technician|inspector|mechanic)s?\b|\bmechanics?\b|\binspectors?\b|\bequipe de manutencao\b|\btecnic[oa]s? de manutencao\b|\bmecanicos?\b|\binspetores?\b/.test(escapeText) ||
     /\b(inspecao (?:de )?pre[- ]?voo|pre[- ]?voo|preflight inspection)\b/.test(escapeText)
@@ -132,6 +133,29 @@ export function runStep06DirectActor(input: {
       }
     }
     // Actor attribution is anchored first to the sentence that defines the escape-point candidate.
+    // A decision explicitly narrated in the first-person plural is a genuinely joint crew decision.
+    // Keep it collective rather than inventing an individual PF/PM attribution.
+    if (escapeHasJointDecision) {
+      return {
+        actor: input.engineInput.locale === 'pt-BR' ? 'tripulação (decisão conjunta)' : 'flight crew (joint decision)',
+        status: 'IDENTIFIED',
+        alternatives: input.engineInput.locale === 'pt-BR' ? ['piloto 1', 'piloto 2'] : ['pilot 1', 'pilot 2'],
+        actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
+          ? 'A própria frase do primeiro ponto de fuga atribui a decisão à tripulação em conjunto; P/O/A permanece nesse nível somente para esta decisão compartilhada. Atos posteriores de tripulantes específicos são episódios separados.'
+          : 'The first-departure sentence itself attributes the decision jointly to the crew; P/O/A stays collective only for this shared decision. Later acts by specific crewmembers remain separate episodes.'],
+      }
+    }
+    // Explicit numbered pilot labels in operational narratives are actor identities, not generic
+    // mentions. Preserve them so a later critical act by "piloto 2" is not collapsed to "pilot".
+    const numberedPilot = escapeText.match(/\bpiloto\s*([12])\b/)
+    if (numberedPilot?.[1]) {
+      return {
+        actor: `piloto ${numberedPilot[1]}`,
+        status: 'IDENTIFIED',
+        alternatives: ['tripulação'],
+        actorMigrationWarnings: [],
+      }
+    }
     // Whole-report mentions are only fallback context, preventing migration to a different crew member.
     if (escapeHasMaintenance && narrativeHasMaintenance) {
       return {

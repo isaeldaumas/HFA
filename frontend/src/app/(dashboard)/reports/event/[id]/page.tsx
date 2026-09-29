@@ -69,6 +69,13 @@ const VALIDATION_LABEL_PT: Record<string, string> = {
   rejected: 'rejeitado',
 }
 
+function landmarkRelationshipLabel(value: SeraVNextEngineOutput['escapePoint']['anchorBasis'], pt: boolean): string {
+  if (value === 'FIRST_DEPARTURE_AND_CRITICAL_ACT') return pt ? 'Primeira saída e ato crítico coincidem.' : 'First departure and critical act coincide.'
+  if (value === 'FIRST_DEPARTURE_PRIMARY') return pt ? 'A primeira saída antecede o ato crítico posterior; P/O/A parte da primeira saída.' : 'The first departure precedes the later critical act; P/O/A starts at the first departure.'
+  if (value === 'FIRST_DEPARTURE_ONLY') return pt ? 'Somente a primeira saída foi estabelecida.' : 'Only the first departure was established.'
+  return pt ? 'Relação ainda não determinada.' : 'Relationship not yet determined.'
+}
+
 type EventPayload = {
   id: string
   title?: string | null
@@ -380,7 +387,7 @@ export default function EventReportPage() {
                   <p><strong>{L('Marco de irreversibilidade / sem retorno', 'Irreversibility / no-return boundary')}:</strong> {vnextOutput.escapePoint.irreversibilityBoundaryCandidate}</p>
                 )}
                 <p><strong>{L('Âncora primária P/O/A', 'Primary P/O/A anchor')}:</strong> {vnextOutput.escapePoint.statement ?? L('Não estabelecida', 'Not established')}</p>
-                <p><strong>{L('Relação entre os marcos', 'Landmark relationship')}:</strong> {vnextOutput.escapePoint.anchorBasis ?? L('Não resolvida', 'Unresolved')}</p>
+                <p><strong>{L('Relação entre os marcos', 'Landmark relationship')}:</strong> {landmarkRelationshipLabel(vnextOutput.escapePoint.anchorBasis, locale === 'pt-BR')}</p>
                 <p><strong>{L('Ator direto', 'Direct actor')}:</strong> {localizeActor(vnextOutput.directActor.actor, locale) ?? L('Não resolvido', 'Unresolved')}</p>
                 <p><strong>{L('Status do ator', 'Actor status')}:</strong> {directActorStatusLabel(vnextOutput.directActor, locale === 'pt-BR')}</p>
                 <p><strong>{L('Percepção', 'Perception')}:</strong> {vnextOutput.axes.perception.proposedCode ?? L('Não resolvida', 'Unresolved')}</p>

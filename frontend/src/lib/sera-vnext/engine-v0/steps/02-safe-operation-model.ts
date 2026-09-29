@@ -24,7 +24,7 @@ export function runStep02SafeOperationModel(input: {
     item.sourceSection !== 'ADMINISTRATIVE' &&
     !['OUTCOME', 'UNSUPPORTED_REPORT_ANALYSIS', 'NON_CAUSAL_DOCUMENT'].includes(item.evidenceType),
   )
-  const anchor = normalized(input.escapePoint?.criticalUnsafeActCandidate ?? input.escapePoint?.statement ?? input.escapePoint?.latestCandidate ?? '')
+  const anchor = normalized(input.escapePoint?.firstDepartureCandidate ?? input.escapePoint?.statement ?? input.escapePoint?.earliestCandidate ?? input.escapePoint?.criticalUnsafeActCandidate ?? input.escapePoint?.latestCandidate ?? '')
   const corpus = normalizeText(eligibleEvidence.map((item) => item.statement).join(' '))
   const text = `${anchor} ${corpus}`
 
@@ -44,6 +44,13 @@ export function runStep02SafeOperationModel(input: {
     expectedSafeState = 'A aeronave deveria ser liberada apenas após a condição inspecionada estar verificada e compatível com o procedimento de manutenção/pré-voo aplicável.'
     expectedSafeAction = 'Executar e confirmar os passos de inspeção, fechamento, travamento ou verificação previstos antes da liberação da aeronave.'
     evidenceTheme = /pre[- ]?voo|preflight|inspe[cç][aã]o|maintenance|manuten[cç][aã]o|verifica[cç][aã]o|travamento|latch/i
+  } else if (
+    /\b(imc|condi[cç][oõ]es? n[aã]o visuais?|non[- ]?visual|instrument meteorological)\b/.test(text) &&
+    /\b(aproxima[cç][aã]o|approach|pouso|landing|plataforma|helideck|continuar|prosseguir|continue|proceed)\b/.test(text)
+  ) {
+    expectedSafeState = 'A aproximação deveria permanecer dentro dos critérios meteorológicos e operacionais aplicáveis, preservando altitude/margem e as referências visuais exigidas antes de comprometer a continuação para o pouso.'
+    expectedSafeAction = 'Não prosseguir abaixo ou além dos critérios aplicáveis sem as referências requeridas; manter o perfil seguro por instrumentos ou descontinuar a tentativa até que as condições para prosseguir estejam satisfeitas.'
+    evidenceTheme = /imc|teto|ceiling|visibilidade|visibility|minim[oa]|minimum|aproxima[cç][aã]o|approach|pouso|landing|refer[eê]ncia visual|visual reference/i
   } else if (hasAny(text, ['wrong deck', 'wrong destination', 'plataforma nao prevista', 'plataforma não prevista', 'unidade nao prevista', 'unidade não prevista', 'pouso nao autorizado', 'pouso não autorizado'])) {
     expectedSafeState = 'A operação deveria permanecer orientada para o destino planejado, com identificação positiva da unidade antes de comprometer a aproximação final.'
     expectedSafeAction = 'Prosseguir para a unidade planejada e reconfirmar visualmente a identificação do destino antes da aproximação/pouso.'

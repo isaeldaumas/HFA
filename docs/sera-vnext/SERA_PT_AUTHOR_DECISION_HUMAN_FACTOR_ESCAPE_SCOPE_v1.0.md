@@ -59,7 +59,25 @@ When they differ, the engine must preserve both:
 
 - `firstDepartureCandidate`: first supported departure from safe operation;
 - `criticalUnsafeActCandidate`: most directly outcome-linked supported unsafe act/condition before the final consequence boundary;
-- primary P/O/A anchor: `criticalUnsafeActCandidate`;
-- the interval from first departure to critical act remains a legitimate causal-analysis window and must not be discarded as post-escape consequence merely because it occurs after the first departure.
+- primary P/O/A anchor: `firstDepartureCandidate`;
+- `criticalUnsafeActCandidate` remains a distinct downstream landmark for trajectory reconstruction, severity/escalation review and a possible separate SERA traversal; it must not replace the first safe→unsafe crossing in the current P/O/A traversal.
+- evidence after the first departure may remain valuable for reconstructing later episodes, but it cannot be imported backward to answer P/O/A for the first-departure actor unless the canonical node explicitly permits such confirmation.
 
 When the evidence does not support the relationship between the two landmarks, the engine must fail closed or retain the boundary as candidate/review-required. It must never choose an upstream maintenance/dispatch/organizational fact solely by document order, phase order or narrative salience.
+
+
+## 7. Author recalibration — primary anchor corrected (2026-09-29)
+
+This section supersedes the 2026-09-27 operationalization wherever it stated that P/O/A should be anchored automatically to the most critical later unsafe act. Calibration against a real event showed that this rule could skip a supported earlier safe→unsafe crossing and reframe a later escalation act as though it were the original departure.
+
+For the active SERA traversal, the primary P/O/A anchor is therefore the **first supported human-factor departure from safe operation** on the selected occurrence trajectory. The most critical later unsafe act/condition remains visible and auditable, but it is downstream of the current anchor and, when analytically relevant, requires its own SERA traversal.
+
+The engine must consequently preserve the following invariants:
+
+- first departure and later critical act are both retained when supported;
+- P/O/A, direct actor, safe-operation model, evidence cutoff and preconditions are all scoped to the first departure of the active traversal;
+- a later act must not contaminate or replace the P/O/A evidence of that first departure;
+- genuine upstream maintenance, dispatch or organizational material that merely sets the scene remains context/precondition; however, if such a human act is itself established as the first relevant departure on the selected trajectory, it may be analysed as its own SERA traversal rather than being silently skipped;
+- uncertainty about actor, rule awareness, intended action or implementation must trigger focused clarification instead of migration to a later, easier-to-classify act.
+
+This recalibration preserves Hendy's dual-landmark distinction while restoring the methodological sequence: **safe operation → first human-factor departure → direct actor → P/O/A → preconditions**.

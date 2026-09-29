@@ -114,7 +114,7 @@ export function runStep03EscapePoint(input: {
   const selectedFromNarrative = selectedWindow === legacyWindow && Boolean(legacyWindow.statement)
 
   const latestSentenceIndex = selectedFromNarrative
-    ? input.factualExtraction.timeline.find((item) => item.statement === selectedWindow.latestCandidate)?.sourceSentenceIndex ?? null
+    ? input.factualExtraction.timeline.find((item) => item.statement === (selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate))?.sourceSentenceIndex ?? null
     : null
 
   const status = selectedWindow.statement
@@ -125,7 +125,7 @@ export function runStep03EscapePoint(input: {
 
   return {
     status,
-    statement: formatEscapeStatement(selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.latestCandidate ?? selectedWindow.earliestCandidate, input.locale),
+    statement: formatEscapeStatement(selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate ?? selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.latestCandidate, input.locale),
     earliestCandidate: selectedWindow.earliestCandidate,
     latestCandidate: selectedWindow.latestCandidate,
     firstDepartureCandidate: selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate,
@@ -138,10 +138,10 @@ export function runStep03EscapePoint(input: {
     directActor: null,
     supportingEvidence: selectedWindow.supportingEvidence,
     counterEvidence: selectedWindow.counterEvidence,
-    excludedPostEscapeEvidence: excludedPostEscapeEvidence(input.factualExtraction.timeline, latestSentenceIndex, selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.latestCandidate ?? selectedWindow.earliestCandidate),
+    excludedPostEscapeEvidence: excludedPostEscapeEvidence(input.factualExtraction.timeline, latestSentenceIndex, selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate ?? selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.latestCandidate),
     episodeCandidates: selectedWindow.episodeCandidates,
     confidence: escapeConfidence({
-      candidate: selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.latestCandidate ?? selectedWindow.earliestCandidate,
+      candidate: selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate ?? selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.latestCandidate,
       supportCount: selectedWindow.supportingEvidence.length,
       counterCount: selectedWindow.counterEvidence.length,
       fromDirectClarification: selectedWindow === directClarificationWindow || selectedWindow === clarificationWindow,

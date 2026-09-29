@@ -35,7 +35,7 @@ type CandidateResponse = {
     criticalUnsafeActCandidate?: string | null
     criticalCandidateAlternatives?: string[]
     irreversibilityBoundaryCandidate?: string | null
-    anchorBasis?: 'FIRST_DEPARTURE_AND_CRITICAL_ACT' | 'CRITICAL_UNSAFE_ACT' | 'FIRST_DEPARTURE_ONLY' | 'UNRESOLVED'
+    anchorBasis?: 'FIRST_DEPARTURE_AND_CRITICAL_ACT' | 'FIRST_DEPARTURE_PRIMARY' | 'FIRST_DEPARTURE_ONLY' | 'UNRESOLVED'
     directActor: string | null
     supportingEvidence: string[]
     counterEvidence: string[]

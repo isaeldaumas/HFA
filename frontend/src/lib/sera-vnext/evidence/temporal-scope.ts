@@ -74,6 +74,9 @@ export function classifyTemporalRelation(args: {
   if (args.sourceSection === 'ADMINISTRATIVE' || args.sourceSection === 'RECOMMENDATION' || args.sourceSection === 'REPORT_ANALYSIS') return 'UNKNOWN'
   if (isNonCausalDocumentStatement(args.statement) || isProcedureReferenceStatement(args.statement) || isSystemDescriptionStatement(args.statement)) return 'UNKNOWN'
   if (args.latestEscapeSentenceIndex != null && args.sourceSentenceIndex === args.latestEscapeSentenceIndex) return 'AT_ESCAPE'
+  if (args.latestEscapeSentenceIndex != null && args.sourceSentenceIndex > args.latestEscapeSentenceIndex
+      && /^(?:\s*)(?:nesse momento|naquele momento|em seguida|na sequ[eê]ncia|logo ap[oó]s|depois|posteriormente|then|at that moment|subsequently|afterward)\b/i.test(args.statement)
+      && isOperationalEventStatement(args.statement)) return 'POST_ESCAPE'
   if (hasExplicitPostEscapeCue(args.statement)) return 'POST_ESCAPE'
   if (hasConsequenceMarker(args.statement) && !isOpeningTemporalContext(args.statement)) return 'POST_ESCAPE'
   if (hasExplicitPreEscapeCue(args.statement)) return 'PRE_ESCAPE'
@@ -90,7 +93,11 @@ export function classifyTemporalRelation(args: {
   // Use document order only for genuinely operational event statements. This prevents a
   // glossary, regulation, system description, or topic-based report section appearing later
   // in the document from being mislabeled as chronologically post-escape.
-  if ((!args.sourceSection || args.sourceSection === 'UNKNOWN') && isOperationalEventStatement(args.statement)) {
+  const conversationalNarrativeAnchor = /\b(eu|n[oó]s|a gente|meu|minha|I|we|our|my)\b/i.test(args.escapePointStatement ?? '')
+  const documentOrderEligible = !args.sourceSection
+    || args.sourceSection === 'UNKNOWN'
+    || (args.sourceSection === 'FACTUAL' && conversationalNarrativeAnchor)
+  if (documentOrderEligible && isOperationalEventStatement(args.statement)) {
     if (args.latestEscapeSentenceIndex != null && args.sourceSentenceIndex > args.latestEscapeSentenceIndex) return 'POST_ESCAPE'
     if (args.latestEscapeSentenceIndex != null && args.sourceSentenceIndex < args.latestEscapeSentenceIndex) return 'PRE_ESCAPE'
   }
