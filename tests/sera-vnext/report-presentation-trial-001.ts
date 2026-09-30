@@ -5,15 +5,6 @@ import { computeCandidateAttention, directActorStatusLabel, friendlyAnswerLabel,
 
 const root = path.resolve(__dirname, '..', '..')
 
-function includesCode(source: string, snippet: string): boolean {
-  return source.includes(snippet) || source.includes(snippet.replaceAll("'", '"'))
-}
-
-function hasLocalizedCall(source: string, pt: string, en: string): boolean {
-  const esc = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return new RegExp(`L\\(\\s*[\"']${esc(pt)}[\"']\\s*,\\s*[\"']${esc(en)}[\"']\\s*,?\\s*\\)`).test(source)
-}
-
 assert.equal(friendlyNodeLabel('P_ASSESSMENT', true), 'Avaliação da situação')
 assert.equal(friendlyNodeLabel('P_TIME_PRESSURE', true), 'Pressão de tempo')
 assert.equal(friendlyNodeLabel('A_IMPLEMENTED', true), 'Execução da ação')
@@ -44,24 +35,24 @@ assert.ok(screenReport.includes('Como o sistema chegou à classificação'))
 assert.ok(screenReport.includes('CanonicalTreeDiagram'))
 assert.ok(screenReport.includes('Pré-condições sustentadas pela evidência'))
 assert.ok(screenReport.includes('Hipóteses preservadas — não confirmadas causalmente'))
-assert.ok(hasLocalizedCall(serverPdf, 'Síntese executiva', 'Executive summary'))
-assert.ok(hasLocalizedCall(serverPdf, 'Sequência da ocorrência e ponto de fuga', 'Occurrence sequence and escape point'))
+assert.ok(serverPdf.includes("L('Síntese executiva', 'Executive summary')"))
+assert.ok(serverPdf.includes("L('Sequência da ocorrência e ponto de fuga', 'Occurrence sequence and escape point')"))
 assert.ok(serverPdf.includes('renderAxisDidacticPage'))
 assert.ok(serverPdf.includes('canonicalQuestion(answer, pt)'), 'external flowchart must use the complete canonical question')
-assert.ok(hasLocalizedCall(serverPdf, 'Pré-condições sustentadas pela evidência', 'Preconditions supported by the evidence'))
-assert.ok(hasLocalizedCall(serverPdf, 'Hipóteses preservadas - não confirmadas causalmente', 'Retained hypotheses - not causally confirmed'))
+assert.ok(serverPdf.includes("L('Pré-condições sustentadas pela evidência', 'Preconditions supported by the evidence')"))
+assert.ok(serverPdf.includes("L('Hipóteses preservadas - não confirmadas causalmente', 'Retained hypotheses - not causally confirmed')"))
 assert.ok(serverPdf.includes('buildSeraHfacsBridge'))
 assert.ok(serverPdf.includes('hfacsLabel(item.hfacs, pt)'), 'HFACS labels must be localized in the client PDF')
 assert.ok(serverPdf.includes('SERA_PRECONDITION_META'))
-assert.ok(hasLocalizedCall(serverPdf, 'Outros fatores contribuintes e observações operacionais', 'Other contributory factors and operational observations'))
+assert.ok(serverPdf.includes("L('Outros fatores contribuintes e observações operacionais', 'Other contributory factors and operational observations')"))
 assert.ok(serverPdf.includes('applyPageChrome'))
 assert.ok(serverPdf.includes('fontSize(10.5)'), 'main body typography should use the redesigned reading size')
 assert.ok(serverPdf.includes('renderCanonicalTreePage'), 'external PDF must render the complete canonical tree')
 assert.ok(serverPdf.includes('buildCanonicalFlowVisualModel'), 'PDF tree must use the same canonical visual model as the site')
-assert.ok(includesCode(serverPdf, "layout: 'landscape'"), 'complete P/O/A trees must use landscape A4 pages for legibility')
+assert.ok(serverPdf.includes("layout: 'landscape'"), 'complete P/O/A trees must use landscape A4 pages for legibility')
 assert.ok(serverPdf.includes("friendlyNodeLabel(answer.nodeId, pt)"), 'visited path details must use the same friendly node labels as the site')
 assert.ok(serverPdf.includes('reviewStatusLabel(analysis.review_status, pt)'), 'raw internal review status must not be printed')
-assert.ok(hasLocalizedCall(serverPdf, 'Referência metodológica', 'Methodological reference'))
+assert.ok(serverPdf.includes("L('Referência metodológica', 'Methodological reference')"))
 assert.equal(serverPdf.includes('Índice HFA de atenção operacional'), false, 'internal attention score must not appear in the external PDF')
 assert.equal(serverPdf.includes("L('Linha causal e marcos Hendy'"), false)
 assert.equal(serverPdf.includes("L('Apêndice técnico - rastreabilidade e auditoria'"), false)
@@ -77,8 +68,8 @@ assert.ok(eventPanel.includes('CandidateRiskCard'))
 assert.ok(canonicalJourney.includes('node.responseText ?? friendlyAnswerLabel(node.answer, pt)'), 'UI must show the substantive root response instead of the internal INSUFFICIENT_EVIDENCE/START label')
 assert.ok(eventPanel.includes("'Resposta inicial SERA'"), 'axis card must distinguish observed action from the initial SERA plan/strategy answer')
 for (const source of [screenReport, serverPdf, eventPanel]) {
-  assert.ok(includesCode(source, "item.evidenceType !== 'NON_CAUSAL_DOCUMENT'"))
-  assert.ok(includesCode(source, "item.evidenceType !== 'SYSTEM_DESCRIPTION'"))
+  assert.ok(source.includes("item.evidenceType !== 'NON_CAUSAL_DOCUMENT'"))
+  assert.ok(source.includes("item.evidenceType !== 'SYSTEM_DESCRIPTION'"))
   assert.ok(source.includes('item.statement.length <= 1200'))
 }
 assert.ok(reportsIndex.includes("redirect('/reports/executive')"))

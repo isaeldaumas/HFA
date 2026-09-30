@@ -28,7 +28,7 @@ type CandidateEscapeWindow = {
   criticalUnsafeActSupportingEvidence: string[]
   poaAnchorCandidate: string | null
   poaAnchorSupportingEvidence: string[]
-  poaAnchorBasis: 'CRITICAL_UNSAFE_ACT' | 'FIRST_DEPARTURE_FALLBACK' | 'UNRESOLVED'
+  poaAnchorBasis: 'FIRST_DEPARTURE' | 'UNRESOLVED'
   supportingEvidence: string[]
   counterEvidence: string[]
   progressiveBoundary: boolean
@@ -499,8 +499,8 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
 
   let criticalEntry = criticalRanked[0] ?? null
   // Semantic extraction may over-label the first departure as the critical act as well.
-  // If a later, concrete unsafe act is strongly supported on the same occurrence trajectory,
-  // preserve Hendy's split: first departure delimits the trajectory; the later act anchors P/O/A.
+  // A later concrete unsafe act is retained as downstream occurrence evolution only.
+  // Under the frozen HFA/SERA contract, it never replaces the first safe→unsafe departure as the P/O/A anchor.
   if (firstDeparture && criticalEntry?.item.statement === firstDeparture.statement) {
     const firstScore = criticalTrajectoryScore(criticalEntry)
     const downstreamConcrete = criticalRanked.find((candidate) =>
@@ -519,12 +519,10 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
     .map((candidate) => candidate.item.statement)
   const criticalAct = criticalEntry?.item ?? firstDeparture
   const primaryAnchor = firstDeparture ?? criticalAct
-  const poaAnchor = criticalEntry?.item ?? firstDeparture
-  const poaAnchorBasis: CandidateEscapeWindow['poaAnchorBasis'] = criticalEntry
-    ? 'CRITICAL_UNSAFE_ACT'
-    : firstDeparture
-      ? 'FIRST_DEPARTURE_FALLBACK'
-      : 'UNRESOLVED'
+  const poaAnchor = firstDeparture
+  const poaAnchorBasis: CandidateEscapeWindow['poaAnchorBasis'] = firstDeparture
+    ? 'FIRST_DEPARTURE'
+    : 'UNRESOLVED'
   const supportingItems = primaryAnchor ? episodeSupport(primaryAnchor, timeline) : []
   const criticalSupportItems = criticalAct ? episodeSupport(criticalAct, timeline) : []
   const firstDepartureSupportingItems = firstDeparture ? episodeSupport(firstDeparture, timeline) : []
@@ -569,11 +567,11 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
   if (!effectiveItems.length) counterEvidence.push('No explicit pre-outcome controllable departure statement was found in admissible factual evidence.')
   if (!outcomeItem && sameEpisodeCandidates.length > 1) counterEvidence.push('No explicit consequence boundary was detected inside the selected operational episode; multiple departure moments require review.')
   if (sameEpisodeCandidates.length > 1) counterEvidence.push('Multiple departure candidates remain inside the selected operational episode; Hendy first-departure and critical-act landmarks are retained separately for review.')
-  if (earliest && latest && earliest.statement !== latest.statement) counterEvidence.push('Hendy boundary split: the first departure from safe operation and the most critical unsafe act/condition are different supported landmarks. The first departure delimits the safe→unsafe trajectory; P/O/A is bound to the critical unsafe act/condition and its directly involved operator.')
+  if (earliest && latest && earliest.statement !== latest.statement) counterEvidence.push('The first departure from safe operation and a later critical unsafe act/condition are different supported landmarks. The first departure is the unique SERA escape point and P/O/A anchor; the later act is retained only as downstream occurrence evolution.')
   if (criticalCandidateAlternatives.length) counterEvidence.push(`Critical-act alternatives remain close in trajectory support and require human review: ${criticalCandidateAlternatives.join(' | ')}`)
   if (irreversibilityItem) counterEvidence.push(`Explicit no-return/irreversibility boundary preserved from the source: ${irreversibilityItem.statement}`)
   const humanEpisodeCandidates = episodeCandidates.filter((episode) => episode.humanFactorEligible)
-  if (humanEpisodeCandidates.length > 1) counterEvidence.push('Multiple human-factor unsafe-act/condition candidates were identified across the event. SERA analyses one unsafe act at a time; the proposed critical-act anchor is provisional and requires human confirmation of the Hendy boundary.')
+  if (humanEpisodeCandidates.length > 1) counterEvidence.push('Multiple human-factor unsafe-act/condition candidates were identified across the event. They remain occurrence landmarks for review, but SERA keeps one escape point: the first supported safe→unsafe departure.')
   if (earliest && /\b(developed across several moments|across several moments|progressively|gradually|allowed .* to develop|desenvolveu[- ]?se (?:ao longo de|em) (?:v[aá]rios|diversos) momentos|permitiu .* (?:desenvolver|evoluir)|zona progressiva)\b/i.test(earliest.statement)) {
     progressiveBoundary = true
     counterEvidence.push('The narrative explicitly describes the departure as progressive across multiple moments; retain a progressive-zone boundary for human review.')
@@ -602,8 +600,8 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
         anchorType,
         rationale: [
           'Hendy gate: the anchor is an observable operator unsafe act/inaction or operator-controlled unsafe condition on the occurrence trajectory.',
-          'The first departure from safe operation and the critical unsafe act are retained separately when they do not coincide; P/O/A is bound to the critical unsafe act/condition and its directly involved operator.',
-          'Technical, environmental, maintenance, dispatch and organizational facts that only set the scene remain context/preconditions rather than displacing the directly outcome-linked unsafe act.',
+          'The first departure from safe operation is the unique SERA escape point and the only P/O/A anchor. Later critical acts remain downstream occurrence evolution when they do not coincide with that departure.',
+          'Technical, environmental, maintenance, dispatch and organizational facts that only set the scene remain context/preconditions and do not displace the first safe→unsafe departure.',
         ],
       }
     : {
@@ -627,9 +625,7 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
     firstDepartureSupportingEvidence,
     criticalUnsafeActSupportingEvidence,
     poaAnchorCandidate: poaAnchor?.statement ?? null,
-    poaAnchorSupportingEvidence: criticalEntry
-      ? criticalUnsafeActSupportingEvidence
-      : firstDepartureSupportingEvidence,
+    poaAnchorSupportingEvidence: firstDepartureSupportingEvidence,
     poaAnchorBasis,
     supportingEvidence: firstDepartureSupportingEvidence.length ? firstDepartureSupportingEvidence : criticalUnsafeActSupportingEvidence,
     counterEvidence,

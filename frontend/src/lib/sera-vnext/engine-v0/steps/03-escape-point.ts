@@ -108,7 +108,7 @@ export function runStep03EscapePoint(input: {
         criticalUnsafeActSupportingEvidence: [directClarification.statement],
         poaAnchorCandidate: directClarification.statement,
         poaAnchorSupportingEvidence: [directClarification.statement],
-        poaAnchorBasis: 'CRITICAL_UNSAFE_ACT' as const,
+        poaAnchorBasis: 'FIRST_DEPARTURE' as const,
         supportingEvidence: [directClarification.statement],
         counterEvidence: [],
         progressiveBoundary: false,
@@ -129,7 +129,7 @@ export function runStep03EscapePoint(input: {
     selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.latestCandidate ?? '',
   ) || null
   const poaAnchorCandidate = trimSemanticLandmarkToEventMoment(
-    selectedWindow.poaAnchorCandidate ?? selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.firstDepartureCandidate ?? '',
+    selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate ?? '',
   ) || null
 
   const latestSentenceIndex = selectedFromNarrative
@@ -164,8 +164,8 @@ export function runStep03EscapePoint(input: {
     firstDepartureSupportingEvidence: selectedWindow.firstDepartureSupportingEvidence,
     criticalUnsafeActSupportingEvidence: selectedWindow.criticalUnsafeActSupportingEvidence,
     poaAnchorCandidate,
-    poaAnchorSupportingEvidence: selectedWindow.poaAnchorSupportingEvidence ?? selectedWindow.criticalUnsafeActSupportingEvidence ?? selectedWindow.firstDepartureSupportingEvidence ?? [],
-    poaAnchorBasis: selectedWindow.poaAnchorBasis ?? (selectedWindow.criticalUnsafeActCandidate ? 'CRITICAL_UNSAFE_ACT' : selectedWindow.firstDepartureCandidate ? 'FIRST_DEPARTURE_FALLBACK' : 'UNRESOLVED'),
+    poaAnchorSupportingEvidence: selectedWindow.firstDepartureSupportingEvidence ?? [],
+    poaAnchorBasis: firstDepartureCandidate ? 'FIRST_DEPARTURE' : 'UNRESOLVED',
     directActor: null,
     supportingEvidence: selectedWindow.supportingEvidence,
     counterEvidence: selectedWindow.counterEvidence,

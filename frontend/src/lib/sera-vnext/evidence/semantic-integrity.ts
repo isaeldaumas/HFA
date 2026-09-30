@@ -50,29 +50,16 @@ function isInvestigatorQuestion(text: string): boolean {
 }
 
 function isRetrospectiveEvaluation(text: string): boolean {
-  return (
-    /\b(depois de pousad|ap[oó]s o pouso|posteriormente|olhando agora|hoje eu acho|eu acho que eu fiz|depois eu percebi|after landing|after touchdown|looking back|in hindsight)\b/i.test(
-      text,
-    ) ||
-    /\b(?:ele|ela|eu) (?:acredita|acha|considera) que (?:o )?(?:maior|principal) (?:problema|causa|fator)\b/i.test(
-      text,
-    )
-  );
+  return /\b(depois de pousad|ap[oó]s o pouso|posteriormente|olhando agora|hoje eu acho|eu acho que eu fiz|depois eu percebi|after landing|after touchdown|looking back|in hindsight)\b/i.test(
+    text,
+  ) || /\b(?:ele|ela|eu) (?:acredita|acha|considera) que (?:o )?(?:maior|principal) (?:problema|causa|fator)\b/i.test(text);
 }
 
 function isPostActionFeedback(text: string): boolean {
   const t = norm(text);
-  return (
-    /\b(quando eu (?:peguei|puxei|empurrei|acionei|selecionei|fiz|executei).{0,120}(?:senti|percebi|vi) que)\b/.test(
-      t,
-    ) ||
-    /\b(percebi|senti|vi) que .{0,100}\b(come[cç]ou|subiu sozinho|desceu sozinho|andou|moveu|mexer)\b/.test(
-      t,
-    ) ||
-    /\b(after i (?:selected|pulled|pushed|performed|executed).{0,120}(?:noticed|saw|felt))\b/.test(
-      t,
-    )
-  );
+  return /\b(quando eu (?:peguei|puxei|empurrei|acionei|selecionei|fiz|executei).{0,120}(?:senti|percebi|vi) que)\b/.test(t)
+    || /\b(percebi|senti|vi) que .{0,100}\b(come[cç]ou|subiu sozinho|desceu sozinho|andou|moveu|mexer)\b/.test(t)
+    || /\b(after i (?:selected|pulled|pushed|performed|executed).{0,120}(?:noticed|saw|felt))\b/.test(t);
 }
 
 export function trimSemanticLandmarkToEventMoment(text: string): string {
@@ -109,55 +96,18 @@ function inferPreconditionCategory(
   if (annotation.preconditionCategory) return annotation.preconditionCategory;
   if (!annotation.roles.includes("PRECONDITION")) return null;
   const text = norm(annotation.sourceQuote);
-  if (
-    /\b(fadiga|fatigue|cansad\w*|exaust\w*|sonol\w*|drows\w*|final da quinzena|acumulo de dias voados)\b/.test(
-      text,
-    )
-  )
-    return "PHYSIOLOGICAL";
-  if (
-    /\b(insegur\w*|medo|ansied\w*|stress|estresse|trauma\w*|vies|bias|fixacao|complac\w*)\b/.test(
-      text,
-    )
-  )
-    return "PSYCHOLOGICAL";
-  if (
-    /\b(outro equipamento|outra aeronave|adaptacao|familiaridade|unfamiliar\w*|treinamento|training|proficiencia)\b/.test(
-      text,
-    )
-  )
-    return "TRAINING_SELECTION";
-  if (
-    /\b(gradiente de autoridade|prepotencia|assertiv\w*|lideranca|leadership|comunicacao entre|coordenacao|crm)\b/.test(
-      text,
-    )
-  )
-    return "SOCIAL";
-  if (
-    /\b(lote de peca|defeit\w*|pane|falha tecnica|malfunction|fault|equipamento|equipment)\b/.test(
-      text,
-    )
-  )
-    return "EQUIPMENT";
-  if (
-    /\b(condicoes meteorolog\w*|visibilidade|chuva|vento|weather|visibility|rain|wind)\b/.test(
-      text,
-    )
-  )
-    return "ENVIRONMENT";
+  if (/\b(fadiga|fatigue|cansad\w*|exaust\w*|sonol\w*|drows\w*|final da quinzena|acumulo de dias voados)\b/.test(text)) return "PHYSIOLOGICAL";
+  if (/\b(insegur\w*|medo|ansied\w*|stress|estresse|trauma\w*|vies|bias|fixacao|complac\w*)\b/.test(text)) return "PSYCHOLOGICAL";
+  if (/\b(outro equipamento|outra aeronave|adaptacao|familiaridade|unfamiliar\w*|treinamento|training|proficiencia)\b/.test(text)) return "TRAINING_SELECTION";
+  if (/\b(gradiente de autoridade|prepotencia|assertiv\w*|lideranca|leadership|comunicacao entre|coordenacao|crm)\b/.test(text)) return "SOCIAL";
+  if (/\b(lote de peca|defeit\w*|pane|falha tecnica|malfunction|fault|equipamento|equipment)\b/.test(text)) return "EQUIPMENT";
+  if (/\b(condicoes meteorolog\w*|visibilidade|chuva|vento|weather|visibility|rain|wind)\b/.test(text)) return "ENVIRONMENT";
   return null;
 }
 
 function normalizeOccurrenceScope(
   annotation: SeraSemanticEvidenceAnnotation,
 ): SeraSemanticEvidenceAnnotation["occurrenceScope"] {
-  if (
-    annotation.occurrenceScope === "PRE_EVENT_CAUSAL_HISTORY" &&
-    /\b(deixou .* insegur.* a ponto de|fez com que .* prefer|levou .* a (?:prefer|assum|entender)|acidente anterior .* (?:prefer|assum|entender))\b/i.test(
-      annotation.sourceQuote,
-    )
-  )
-    return "CURRENT_EVENT";
   if (annotation.occurrenceScope !== "PRE_EVENT_CAUSAL_HISTORY")
     return annotation.occurrenceScope;
   const text = norm(annotation.sourceQuote);
@@ -181,17 +131,6 @@ function augmentConcepts(
   const concepts = new Set<SeraSemanticDecisionConcept>(
     annotation.concepts ?? [],
   );
-  // Hindsight firewall: a later discovery that reality differed may validate that an
-  // assessment was wrong, but it cannot prove that the correct information was available
-  // before/at the act. Keep informationAvailableCorrect only when the quote itself shows
-  // contemporaneous access/availability.
-  if (
-    concepts.has("informationAvailableCorrect") &&
-    !/\b(dispon[ií]vel|corret[ao]|mostrava|indicava|radar|instrumento|display|painel|viu|vimos|viram|sabia|sabiam|ciente|available|correct|showed|indicated|saw|knew|aware)\b/i.test(
-      annotation.sourceQuote,
-    )
-  )
-    concepts.delete("informationAvailableCorrect");
   const wrongTechniqueContrast =
     /\b(quando o certo|o correto|em vez de|ao inves de|instead of|should have|deveria)\b/.test(
       text,
@@ -207,13 +146,6 @@ function augmentConcepts(
     concepts.add("incorrectAction");
   if (wrongTechniqueContrast || explicitKnownWrong)
     concepts.add("selectionSubtype");
-  if (
-    explicitKnownWrong &&
-    /\b(n[aã]o sei (?:por que|o que passou)|n[aã]o consigo explicar|don't know why|do not know why)\b/i.test(
-      text,
-    )
-  )
-    concepts.add("slipLapse");
   if (explicitKnownWrong) concepts.add("knownRule");
   if (explicitKnownWrong) concepts.add("explicitAwareness");
   if (
@@ -230,14 +162,6 @@ function augmentConcepts(
   ) {
     concepts.add("informationAvailableCorrect");
     concepts.add("perceptionCapabilityPresent");
-  }
-  if (
-    /\b(?:viu|vimos|viram|sabia|sabiam|ciente).*\bimc\b.*\b(?:mesmo assim|ainda assim).*\b(?:resolv|decid|continu|prossegu)\w*/.test(
-      text,
-    )
-  ) {
-    concepts.add("explicitAwareness");
-    concepts.add("consciousDeviation");
   }
   return [...concepts];
 }
@@ -301,10 +225,6 @@ export function enforceSemanticEvidenceIntegrity(args: {
   const normalizedNarrative = norm(args.narrative);
   const result: SeraSemanticEvidenceAnnotation[] = [];
   const seen = new Set<string>();
-  const sentences = args.narrative
-    .split(/(?<=[.!?])\s+|\n+/)
-    .map((value) => value.trim())
-    .filter(Boolean);
 
   for (const item of args.annotations) {
     let sourceQuote = item.sourceQuote.trim();
@@ -332,55 +252,10 @@ export function enforceSemanticEvidenceIntegrity(args: {
       concepts: augmentConcepts({ ...item, sourceQuote }),
     };
     candidate = { ...candidate, roles: validRoles(candidate) };
-    const text = norm(candidate.sourceQuote);
-    const transferPattern =
-      /\b(outro equipamento|outra aeronave|412|sem automacao|normalmente teria|atitude que .* tinha|como sempre voou .* sem automacao)\b/.test(
-        text,
-      );
-    if (
-      transferPattern &&
-      candidate.roles.some(
-        (role) => role === "CRITICAL_UNSAFE_ACT" || role === "ACTION_STRATEGY",
-      )
-    ) {
-      candidate = {
-        ...candidate,
-        roles: [...new Set([...candidate.roles, "PRECONDITION" as const])],
-        preconditionCategory:
-          candidate.preconditionCategory ?? "TRAINING_SELECTION",
-      };
-    }
-    const priorWindow = sentences
-      .slice(
-        Math.max(0, candidate.sourceSentenceIndex - 3),
-        candidate.sourceSentenceIndex + 1,
-      )
-      .join(" ");
-    const commandedResponse =
-      /\b(vamos arremeter|arremeta|go-around|suba|vamos subir|climb)\b/i.test(
-        priorWindow,
-      ) &&
-      /\b(meteu .*comandos|puxou .*c[ií]clico|puxou .*coletivo|come[cç]ou a subir)\b/i.test(
-        candidate.sourceQuote,
-      );
-    if (commandedResponse && candidate.roles.includes("CRITICAL_UNSAFE_ACT")) {
-      candidate = {
-        ...candidate,
-        roles: [...new Set([...candidate.roles, "ACTION_STRATEGY" as const])],
-      };
-    }
-    if (
-      candidate.roles.includes("OBJECTIVE_INTENT") &&
-      /\b(?:pra|para) ajudar\b|\bser proativ\w*/i.test(candidate.sourceQuote) &&
-      candidate.assertionStatus === "UNCERTAIN"
-    ) {
-      candidate = { ...candidate, assertionStatus: "AFFIRMED" };
-    }
     if (!candidate.roles.length) continue;
 
     if (
-      (isRetrospectiveEvaluation(candidate.sourceQuote) ||
-        isPostActionFeedback(candidate.sourceQuote)) &&
+      (isRetrospectiveEvaluation(candidate.sourceQuote) || isPostActionFeedback(candidate.sourceQuote)) &&
       candidate.roles.some(
         (role) => role === "PERCEPTION_STATE" || role === "OBJECTIVE_INTENT",
       ) &&
@@ -388,18 +263,7 @@ export function enforceSemanticEvidenceIntegrity(args: {
         (role) => role === "CRITICAL_UNSAFE_ACT" || role === "FIRST_DEPARTURE",
       )
     ) {
-      if (candidate.roles.includes("PRECONDITION")) {
-        candidate = {
-          ...candidate,
-          roles: candidate.roles.filter(
-            (role) =>
-              role !== "PERCEPTION_STATE" && role !== "OBJECTIVE_INTENT",
-          ),
-          temporalRelation: item.temporalRelation,
-        };
-      } else {
-        candidate = { ...candidate, temporalRelation: "POST_ESCAPE" };
-      }
+      candidate = { ...candidate, temporalRelation: "POST_ESCAPE" };
     }
 
     const key = `${candidate.sourceSentenceIndex}:${candidate.sourceQuote}:${candidate.roles.join(",")}:${candidate.actor ?? ""}:${candidate.preconditionCategory ?? ""}`;
