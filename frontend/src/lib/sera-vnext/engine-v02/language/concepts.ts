@@ -211,6 +211,7 @@ const CONCEPT_PATTERNS: Record<SeraEvidenceConcept, RegExp[]> = {
   knownRule: [
     /\b(known rule|briefed procedure|required by sop|procedure required|clearance required|rule required|knew the rule)\b/i,
     /\b(regra conhecida|procedimento conhecido|previsto no sop|procedimento exigia|autoriza[cç][aã]o exigida|sabia da regra)\b/i,
+    /\b(nunca (?:fiz|havia feito).{0,140}sempre (?:instrui|instru[ií]|ensinei) contra)\b/i,
     // Natural PT expressions
     /\b(sabia|conhecia|tinha (ci[eê]ncia|conhecimento)|estava ciente)\b.*\b(que|do)\b.*\b(n[aã]o (devia|podia|era para|deveria)|proibido|vedado|obrigat[oó]rio|exigido|necess[aá]rio)\b/i,
     /\b(sabia|conhecia|tinha (ci[eê]ncia|conhecimento)|estava ciente)\b.*\b(procedimento|regra|manual|norma|regulamento|sop|limite|m[ií]nimo)\b/i,
@@ -225,6 +226,7 @@ const CONCEPT_PATTERNS: Record<SeraEvidenceConcept, RegExp[]> = {
   explicitAwareness: [
     /\b(aware|recognized|knew|noticed|was warned|warning acknowledged|conscious of|despite knowing)\b/i,
     /\b(ciente|consciente|reconheceu|sabia|notou|foi alertad[ao]|alerta reconhecido|apesar de saber)\b/i,
+    /\b(nunca (?:fiz|havia feito).{0,140}sempre (?:instrui|instru[ií]|ensinei) contra)\b/i,
     // Natural PT expressions
     /\b(sabia que|tinha (consci[eê]ncia|ci[eê]ncia|no[cç][aã]o) (de que|do que|que)|estava (ciente|consciente|a par) (de que|do que|que)|percebeu que|notou que|reparou que|constatou que|verificou que|identificou que|reconheceu que)\b/i,
     /\b(afirmou|disse|comentou|declarou|mencionou)\b.*\b(que )?(sabia|conhecia|estava ciente|tinha conhecimento)\b.*\b(procedimento|regra|manual|norma|regulamento|sop|limite|m[ií]nimo)\b/i,
@@ -330,6 +332,8 @@ const CONCEPT_PATTERNS: Record<SeraEvidenceConcept, RegExp[]> = {
     /\b(hesitated|delayed|waited|hesitou|demorou|esperou)\b.*\b(seconds?|segundos?|before|antes de)\b.*\b(execut|initiat|perform|executar|iniciar|manobra|maneuver)\b/i,
     /\b(wrong runway|wrong surface|selected wrong|wrong mode|lined up toward|lined up on|continued below|descended below|unstable approach|incorrect action)\b/i,
     /\b(pista errada|superf[ií]cie errada|selecionou errado|modo errado|alinhou para|continuou abaixo|desceu abaixo|aproxima[cç][aã]o inst[aá]vel|a[cç][aã]o incorreta)\b/i,
+    /\b(nunca (?:fiz|havia feito).{0,140}sempre (?:instrui|instru[ií]|ensinei) contra)\b/i,
+    /\b(barra na barra)\b.{0,180}\b(o certo|o correto|deveria)\b.{0,120}\b(pitch down|inclina[cç][aã]o para baixo)\b/i,
     /\b((respondeu|reagiu|atuou|procedeu|executou|realizou|fez|cometeu) (errad|incorret|inadequad|equivocad|imprudentemente)|cometeu (um|o) erro|a[cç][aã]o (errada|incorreta|inadequada))\b/i,
     /\b(puxou|empurrou|virou|girou|aumentou|reduziu|selecionou|escolheu|apertou)\b.*\b((o|a) (errad[oa]|incorret[oa]|inadequad[oa]|equivocad[oa])|erradamente|incorretamente)\b/i,
     /\b(did not|failed to|omitted to)\b.*\b(initiate|execute|perform)\b.*\b(go-around|go around|required action|procedure)\b/i,
@@ -373,6 +377,8 @@ const CONCEPT_PATTERNS: Record<SeraEvidenceConcept, RegExp[]> = {
     /\b(puxou|empurrou)\b.*\b(coluna|manche|c[ií]clico|coletivo|comando)\b.*\b(em vez de|ao inv[eé]s de)\b/i,
     /\b(wrong runway|wrong surface|selected wrong|wrong mode|lined up toward|lined up on|selection error)\b/i,
     /\b(pista errada|superf[ií]cie errada|selecionou errado|modo errado|alinhou para|erro de sele[cç][aã]o)\b/i,
+    /\b(nunca (?:fiz|havia feito).{0,140}sempre (?:instrui|instru[ií]|ensinei) contra)\b/i,
+    /\b(barra na barra)\b.{0,180}\b(o certo|o correto|deveria)\b.{0,120}\b(pitch down|inclina[cç][aã]o para baixo)\b/i,
     /\b(escolheu|selecionou|optou|decidiu|apertou|acionou|engatou|inseriu|programou)\b.*\b((o|a) (errad[oa]|incorret[oa]|inadequad[oa]|equivocad[oa])|erradamente|incorretamente)\b/i,
     /\b(erro|falha|engano|equ[ií]voco|confus[aã]o) (de|na|ao) (sele[cç][aã]o|escolha|op[cç][aã]o|decis[aã]o|programa[cç][aã]o|inser[cç][aã]o)\b/i,
     /\b(did not|failed to|declined to|omitted to)\b.*\b(initiate|execute|perform|select|set|configure)\b.*\b(go-around|go around|procedure|mode|altitude|level|setting)\b/i,

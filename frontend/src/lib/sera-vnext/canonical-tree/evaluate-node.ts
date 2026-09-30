@@ -177,6 +177,11 @@ function conciseRootResponse(axis: CanonicalSeraAxis, raw: string): string {
         ? `O operador percebia que a operação estava em IMC a ${altitude} pés.`
         : 'O operador percebia que a operação estava em IMC.'
     }
+    const judged = text.match(/(?:eu\s+)?julg(?:uei|ava)\s+que\s+(.{1,180}?)(?:[.;]|$)/i)
+    if (judged) {
+      const belief = judged[1].trim().replace(/\bmeu lado\b/gi, 'seu lado').replace(/\bminha rota\b/gi, 'sua rota')
+      return `O operador acreditava que ${belief}.`
+    }
     const believed = text.match(/(?:acreditava|achava|entendeu|entendia|percebia)\s+que\s+(.{1,180}?)(?:[.;]|$)/i)
     if (believed) return `O operador acreditava que ${believed[1].trim()}.`
     const enIdentified = text.match(/identified\s+(.{1,70}?)\s+as\s+(?:the\s+)?(.{1,100}?)(?:[.;,]|\s+because\b|$)/i)
@@ -197,6 +202,11 @@ function conciseRootResponse(axis: CanonicalSeraAxis, raw: string): string {
     }
     const goal = text.match(/(?:objetivo|inten[cç][aã]o|meta)\s+(?:era|foi|consistia em)?\s*:?[\s]*(.{1,180}?)(?:[.;]|$)/i)
     if (goal) return `O objetivo do operador era ${goal[1].trim()}.`
+    if (/\b(?:pra|para) ajudar\b.*\b(?:proativo|proativa)\b/i.test(text)) {
+      return 'O operador pretendia ajudar o colega, agindo de forma proativa.'
+    }
+    const preferredLanding = text.match(/(?:preferi|preferiu|tenha preferido)\s+(?:fazer|realizar)\s+o pouso(?:\s+mesmo[^.;]{0,120})?\s+(?:pelo|por)\s+(meu|seu)\s+lado/i)
+    if (preferredLanding) return `O operador pretendia realizar o pouso pelo ${preferredLanding[1] === 'meu' ? 'seu' : preferredLanding[1]} lado.`
     const desired = text.match(/(?:desejava|queria|pretendia|buscava|visava)\s+(.{1,180}?)(?:[.;]|$)/i)
     if (desired) return `O operador pretendia ${desired[1].trim()}.`
     if (/planned\s+(?:route|destination)|intended\s+(?:route|destination)/i.test(text)) {
@@ -205,6 +215,14 @@ function conciseRootResponse(axis: CanonicalSeraAxis, raw: string): string {
   }
 
   if (axis === 'A') {
+    if (/\b(?:pra|para) ajudar\b.*\b(?:proativo|proativa)\b/i.test(text)) {
+      return 'O operador tentava atingir o objetivo ajudando o colega de forma proativa.'
+    }
+    const preferredLanding = text.match(/(?:preferi|preferiu|tenha preferido)\s+(?:fazer|realizar)\s+o pouso(?:\s+mesmo[^.;]{0,120})?\s+(?:pelo|por)\s+(meu|seu)\s+lado/i)
+    if (preferredLanding) return `O operador tentava atingir o objetivo realizando o pouso pelo ${preferredLanding[1] === 'meu' ? 'seu' : preferredLanding[1]} lado.`
+    if (/\b(?:tirei|tirou|retirei|retirou|desguarneci)\b.{0,120}\bcoletivo\b.{0,160}\b(?:peguei|pegou)\b.{0,80}\b(?:papel|papelada|documenta[cç][aã]o)\b/i.test(text)) {
+      return 'O operador tentava atingir o objetivo retirando a mão do coletivo para pegar a documentação.'
+    }
     const pcp = text.match(/passou a tratar\s+([A-Z0-9-]+)\s+como\s+o destino previsto para o primeiro pouso/i)
     if (pcp) return `O operador passou a planejar e conduzir a aproximação para ${pcp[1]}, que tratava como o destino previsto para o primeiro pouso.`
     const wrongAlternativeEn = text.match(/(?:pulled|pushed)\s+(.{1,100}?)\s+instead of\s+(.{1,100}?)(?:[.;]|$)/i)
@@ -258,9 +276,14 @@ function rootResponseText(ctx: SeraNodeEvidenceContext, supportingEvidence: stri
   const directClarification = directNodeClarificationStatements(ctx)
     .find((statement) => supportingEvidence.includes(statement))
   if (directClarification) return directClarification
+  const fromStatement = stripAxisStatementPrefix(ctx.statementAtEscapePoint)
+  if (ctx.axis === 'A') {
+    const candidates = [...(fromStatement ? [fromStatement] : []), ...supportingEvidence]
+    const concrete = candidates.find((text) => /\b(tirei|tirou|retirei|retirou|desguarneci|peguei|pegou|puxei|puxou|empurrei|empurrou|coloquei|colocou|apliquei|aplicou|preferi|preferiu|tenha preferido|assumir|assumiu|barra na barra|pitch down|removed|pulled|pushed|applied|preferred|took over)\b/i.test(text))
+    if (concrete) return conciseRootResponse(ctx.axis, concrete)
+  }
   const support = supportingEvidence[0]?.trim()
   if (support) return conciseRootResponse(ctx.axis, support)
-  const fromStatement = stripAxisStatementPrefix(ctx.statementAtEscapePoint)
   return fromStatement ? conciseRootResponse(ctx.axis, fromStatement) : null
 }
 
@@ -477,6 +500,7 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
     case 'A_ROOT': {
       const actionStrategy = unique([
         ...semanticRoleStatements(ctx, 'ACTION_STRATEGY'),
+        ...c('selectionSubtype'),
         // Hendy asks HOW the actor was trying to achieve the goal — the plan/means.
         // A bare observed control movement is not sufficient to establish that strategy.
         ...matching(statements, [

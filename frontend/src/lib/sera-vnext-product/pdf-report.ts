@@ -683,13 +683,17 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
 
     infoCard(
       doc,
-      L('Ponto de fuga identificado para revisão', 'Escape point identified for review'),
-      value(output.escapePoint.statement, L('Não estabelecido.', 'Not established.')),
-      { accent: PDF_COLORS.blue, fill: '#F2F7FC', label: L('Ponto de fuga analisado', 'Analysed escape point'), minHeight: 82 },
+      L('Marcos da ocorrência para revisão', 'Occurrence landmarks for review'),
+      [
+        `${L('Primeira saída da operação segura', 'First departure from safe operation')}: ${value(output.escapePoint.firstDepartureCandidate ?? output.escapePoint.statement, L('Não estabelecida.', 'Not established.'))}`,
+        `${L('Ator da primeira saída', 'First-departure actor')}: ${value(localizeActor(output.escapePoint.firstDepartureActor ?? null, locale), L('Não individualizado', 'Not individually resolved'))}`,
+        `${L('Ato crítico que ancora P/O/A', 'Critical act anchoring P/O/A')}: ${value(output.escapePoint.poaAnchorCandidate ?? output.escapePoint.criticalUnsafeActCandidate, L('Não estabelecido.', 'Not established.'))}`,
+      ].join('\n'),
+      { accent: PDF_COLORS.blue, fill: '#F2F7FC', label: L('Dois marcos mantidos separados', 'Two landmarks kept separate'), minHeight: 108 },
     )
 
     statRow(doc, [
-      { label: L('Ator direto', 'Direct actor'), value: value(localizeActor(output.directActor.actor, locale), L('Não resolvido', 'Unresolved')), accent: PDF_COLORS.blue },
+      { label: L('Ator do ato crítico (P/O/A)', 'Critical-act actor (P/O/A)'), value: value(localizeActor(output.escapePoint.criticalUnsafeActActor ?? output.directActor.actor, locale), L('Não resolvido', 'Unresolved')), accent: PDF_COLORS.blue },
       { label: L('Classificação', 'Classification'), value: [output.axes.perception.proposedCode, output.axes.objective.proposedCode, output.axes.action.proposedCode].map((item) => value(item, '—')).join(' / '), accent: PDF_COLORS.green },
       { label: L('Revisão', 'Review'), value: reviewStatusLabel(analysis.review_status, pt), accent: PDF_COLORS.amber },
     ])
@@ -750,9 +754,9 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     })
 
     statRow(doc, [
-      { label: L('Relação entre os momentos', 'Relationship between moments'), value: landmarkRelationshipLabel(output.escapePoint.anchorBasis, pt), accent: PDF_COLORS.blue },
-      { label: L('Ator direto', 'Direct actor'), value: value(localizeActor(output.directActor.actor, locale), L('Não resolvido', 'Unresolved')), accent: PDF_COLORS.blue },
-      { label: L('Confiança da identificação', 'Identification confidence'), value: confidenceLabel(output.escapePoint.confidence, pt), accent: PDF_COLORS.amber },
+      { label: L('Ator da primeira saída', 'First-departure actor'), value: value(localizeActor(output.escapePoint.firstDepartureActor ?? null, locale), L('Não individualizado', 'Not individually resolved')), accent: PDF_COLORS.blue },
+      { label: L('Ator do ato crítico (P/O/A)', 'Critical-act actor (P/O/A)'), value: value(localizeActor(output.escapePoint.criticalUnsafeActActor ?? output.directActor.actor, locale), L('Não resolvido', 'Unresolved')), accent: PDF_COLORS.blue },
+      { label: L('Relação / confiança', 'Relationship / confidence'), value: `${landmarkRelationshipLabel(output.escapePoint.anchorBasis, pt)} · ${confidenceLabel(output.escapePoint.confidence, pt)}`, accent: PDF_COLORS.amber },
     ])
 
     subheading(doc, L('Evidência principal da primeira saída', 'Key evidence for the first departure'))

@@ -47,7 +47,8 @@ assert.match(output.directActor.actor ?? '', /piloto 2|outro piloto|comandante e
 assert.equal(output.evidenceSufficiency.questions.some((q) => ['ESCAPE_POINT', 'DIRECT_ACTOR'].includes(q.stage)), false)
 assert.match(output.axes.action.statementAtEscapePoint ?? '', /barra na barra|desacoplou/i)
 assert.equal(output.axes.action.supportingEvidence.some((item) => /barra na barra|desacoplou/i.test(item)), true)
-assert.equal(output.preconditions.length, 0, 'preconditions remain gated until an active P/O/A failure code is supported')
+assert.equal(output.axes.action.proposedCode, 'A-F', 'explicit wrong control selection should reach the action-selection candidate')
+assert.equal(output.preconditions.some((p) => p.canonicalCategory === 'PSYCHOLOGICAL' && p.methodologyMatch === 'HYPOTHESIS_ONLY'), true, 'once A-F is supported, Hendy-linked preconditions may be presented only as investigation hypotheses until event evidence supports causality')
 assert.match(output.safeOperationModel.expectedSafeState ?? '', /crit[eé]rios meteorol[oó]gicos|refer[eê]ncias visuais/i)
 assert.match(output.safeOperationModel.expectedSafeAction ?? '', /n[aã]o prosseguir|descontinuar/i)
 

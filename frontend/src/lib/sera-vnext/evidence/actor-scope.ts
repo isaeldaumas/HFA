@@ -31,6 +31,14 @@ function directActorMatches(actor: string, directActor: string): boolean {
   const a = normalize(actor)
   const d = normalize(directActor)
   if (a === d) return true
+  // Semantic extraction may preserve a more specific label (e.g. "piloto entrevistado,
+  // comandante da aeronave") than the deterministic actor resolver. Treat compatible
+  // functional aliases as the same person instead of demoting their evidence to context.
+  const semanticActorIsCollective = /\b(e|and)\b/.test(a) && /(piloto|pilot|comandante|captain|copiloto|first officer)/.test(a)
+  if (!semanticActorIsCollective && (a.includes('piloto entrevistado') || a.includes('interviewed pilot'))
+    && (d.includes('piloto entrevistado') || d.includes('interviewed pilot'))) return true
+  if (!semanticActorIsCollective && (a.includes('outro piloto') || a.includes('other pilot') || a.includes('piloto em adaptacao'))
+    && (d.includes('outro piloto') || d.includes('other pilot') || d.includes('piloto em adaptacao'))) return true
   if (a === 'flight crew (collective)' && (d.includes('captain') || d.includes('comandante') || d.includes('copiloto') || d.includes('first officer') || d.includes('pilot') || d.includes('piloto'))) return true
   if (d.includes('copiloto') || d.includes('first officer')) return a === 'first officer'
   if (d.includes('comandante') || d.includes('captain')) return a === 'captain'

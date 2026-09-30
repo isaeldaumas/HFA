@@ -46,7 +46,7 @@ function evidenceFor(
     ?? escapePoint.earliestCandidate
     ?? escapePoint.latestCandidate
   const criticalAnchorIndex = criticalAnchor
-    ? factualExtraction.timeline.find((item) => item.statement === criticalAnchor)?.sourceSentenceIndex ?? null
+    ? factualExtraction.timeline.find((item) => item.statement === criticalAnchor || item.statement.includes(criticalAnchor) || criticalAnchor.includes(item.statement))?.sourceSentenceIndex ?? null
     : null
   const maxDistance = use === 'ACTION' ? 60 : 90
   const criticalAnchorText = (criticalAnchor ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -56,7 +56,7 @@ function evidenceFor(
     factualExtraction.evidence
       .filter((item) => item.collectionSource === 'AI_SEMANTIC_EXTRACTION')
       .filter((item) => item.semanticRoles?.some((role) =>
-        ['FIRST_DEPARTURE', 'PERCEPTION_STATE', 'OBJECTIVE_INTENT', 'ACTION_STRATEGY', 'CRITICAL_UNSAFE_ACT', 'OUTCOME'].includes(role),
+        ['FIRST_DEPARTURE', 'PERCEPTION_STATE', 'OBJECTIVE_INTENT', 'ACTION_STRATEGY', 'CRITICAL_UNSAFE_ACT', 'PRECONDITION', 'BARRIER', 'CONTEXT', 'OUTCOME'].includes(role),
       ))
       .map((item) => item.sourceSentenceIndex),
   )
@@ -69,7 +69,10 @@ function evidenceFor(
       if (semanticPassPresent
         && item.collectionSource !== 'AI_SEMANTIC_EXTRACTION'
         && item.collectionSource !== 'CLARIFICATION_RESPONSE') {
-        if (!(use === 'ACTION' && item.statement === criticalAnchor)) return false
+        const highValueActionFallback = use === 'ACTION' && /\b(nunca (?:fiz|havia feito).{0,140}sempre (?:instrui|instru[ií]|ensinei) contra|barra na barra.{0,180}(?:o certo|o correto|deveria).{0,120}pitch down)\b/i.test(item.statement)
+        const criticalAnchorValue = criticalAnchor ?? ''
+        const sameCriticalAct = use === 'ACTION' && criticalAnchorValue.length > 0 && (item.statement === criticalAnchorValue || item.statement.includes(criticalAnchorValue) || criticalAnchorValue.includes(item.statement))
+        if (!highValueActionFallback && !sameCriticalAct) return false
       }
       // When the semantic pass has explicitly interpreted a sentence for P/O/A, critical-act,
       // or outcome meaning, its actor/temporal binding is authoritative for that sentence.

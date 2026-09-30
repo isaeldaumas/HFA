@@ -169,9 +169,14 @@ function operationalPhase(text: string): OperationalPhase {
   const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
   if (/\b(despach\w*|dispatch\w*|mel|cco|dov|planejamento|flight planning|antes do despacho|before dispatch)\b/.test(normalized)) return 'DISPATCH'
   if (/\b(manutenc\w*|maintenance|mecan\w*|mechanic|inspecao pre-voo|preflight inspection|tlb)\b/.test(normalized)) return 'MAINTENANCE'
+  // Ground/helideck servicing can be described without the word "ground". Keep this
+  // episode distinct from an approach/landing episode so evidence from a different human
+  // act in the same interview cannot migrate into the selected SERA traversal.
+  if (/\b(taxi|solo|ground|pushback|estacionamento|parking break|parking brake|papelada|documenta[cç][aã]o de troca|comiss[aá]rio|passageiros?|pedais? de freio|cal[cç]os?|cordas?)\b/.test(normalized)
+    || /\b(desguarnec\w*|tirei|tirou|retirei|retirou)\b.{0,100}\b(coletivo|collective)\b/.test(normalized)
+    || /\b(peguei|pegou)\b.{0,80}\b(papel|papelada|documenta[cç][aã]o)\b/.test(normalized)) return 'GROUND'
   if (/\b(aproximacao|approach|aproximacao final|final approach|pouso|landing|go-around|arremet)\b/.test(normalized)) return 'APPROACH'
   if (/\b(subida|climb|cruzeiro|cruise|descida|descent|durante o voo|during the flight|fl\d{2,3}|nivelamento|levelled|leveling|de-icing|anti-icing|airframe|cruise speed|degraded performance|increase speed|gelo|icing)\b/.test(normalized)) return 'INFLIGHT'
-  if (/\b(taxi|solo|ground|pushback|estacionamento)\b/.test(normalized)) return 'GROUND'
   return 'GENERIC'
 }
 
@@ -220,6 +225,15 @@ export function runStep09Preconditions(input: {
   const escapeIndexes = input.factualExtraction.evidence
     .filter((item) => input.escapePoint.supportingEvidence.includes(item.statement))
     .map((item) => item.sourceSentenceIndex)
+  const explicitCausalLinkToSelectedFailure = (item: SeraEvidenceItem): boolean => {
+    const text = item.statement.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    const explicitLink = /\b(contribuiu|contribuinte|tornou .* mais provavel|maior problema .* (?:foi|era)|fez com que|deixou .* a ponto de|levou .* a|motivou .* a|por conta d[aeo]|devido a|because of|contributed|made .* more likely|led .* to|caused .* to)\b/.test(text)
+    if (explicitLink) return true
+    const sameActor = item.actorRelation === 'DIRECT_ACTOR'
+    const nearAnchor = escapeIndexes.some((index) => Math.abs(index - item.sourceSentenceIndex) <= 10)
+    const topical = escapeAnchorText ? lexicalOverlap(item.statement, escapeAnchorText) : 0
+    return sameActor && item.semanticConfidence === 'HIGH' && nearAnchor && topical >= 2
+  }
   const contextRelevance = (item: SeraEvidenceItem): number => {
     let score = item.sourceSection === 'FACTUAL' ? 2 : 0
     if (item.occurrenceScope === 'CURRENT_EVENT') score += 6
@@ -237,8 +251,14 @@ export function runStep09Preconditions(input: {
     !isNonCausalDocumentStatement(statement) &&
     !isProcedureReferenceStatement(statement) &&
     !isSystemDescriptionStatement(statement)
-  const isSeparateActiveFailure = (item: SeraEvidenceItem): boolean =>
-    isExplicitOperationalOmissionStatement(item.statement) || isExplicitOperationalDeviationStatement(item.statement)
+  const isSeparateActiveFailure = (item: SeraEvidenceItem): boolean => {
+    // A source sentence may explicitly connect a contextual factor to the selected act
+    // while also describing the resulting decision. Preserve that causal evidence when
+    // the semantic layer marked it as PRECONDITION; phase compatibility still prevents
+    // a different operational episode from migrating into this traversal.
+    if (item.semanticRoles?.includes('PRECONDITION') && explicitCausalLinkToSelectedFailure(item)) return false
+    return isExplicitOperationalOmissionStatement(item.statement) || isExplicitOperationalDeviationStatement(item.statement)
+  }
   const isTechnicalReferenceNoise = (statement: string): boolean => {
     const text = statement.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
     // Descriptions of how a system generally behaves, catalogue/table prose and explanatory
@@ -371,7 +391,10 @@ export function runStep09Preconditions(input: {
     }
     if (category === 'ORGANIZATIONAL_CONTEXT' && !semanticPrecondition && !isActualOrganizationalCondition(item.statement)) continue
     categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true, explicitInvestigationSupport: false, rejectedByInvestigation: false }
-    categoryEvidence[category].investigationOnly = false
+    // A semantic label is not itself proof of causality. Promote a contextual factor to an
+    // evidenced precondition only when the source links it to the selected active failure.
+    // Otherwise preserve it as an investigation hypothesis (e.g. a parallel equipment fault).
+    if (explicitCausalLinkToSelectedFailure(item)) categoryEvidence[category].investigationOnly = false
     pushUnique(categoryEvidence[category].texts, item.statement)
     pushEvidence(categoryEvidence[category].sourceEvidence, item)
   }
