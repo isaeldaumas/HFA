@@ -312,6 +312,10 @@ export type SeraVNextEngineOutput = {
     latestCandidate: string | null
     firstDepartureCandidate?: string | null
     criticalUnsafeActCandidate?: string | null
+    /** Actor attached to the first safe→unsafe departure, kept separate from the P/O/A actor. */
+    firstDepartureActor?: string | null
+    /** Actor attached to the critical unsafe act that anchors P/O/A. */
+    criticalUnsafeActActor?: string | null
     criticalCandidateAlternatives?: string[]
     irreversibilityBoundaryCandidate?: string | null
     anchorBasis?: 'FIRST_DEPARTURE_AND_CRITICAL_ACT' | 'FIRST_DEPARTURE_PRIMARY' | 'FIRST_DEPARTURE_ONLY' | 'UNRESOLVED'

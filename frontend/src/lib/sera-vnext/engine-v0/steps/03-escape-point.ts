@@ -2,6 +2,7 @@ import type { SeraSupplementalEvidenceInput, SeraTimelineItem, SeraVNextEngineIn
 import { buildCandidateEscapeWindow, classifyHumanFactorEscapeStatement } from '../candidate-escape-window'
 import { isOperationalEventStatement } from '../factual-extraction-helpers'
 import { excludedPostEscapeEvidence } from '../utils'
+import { trimSemanticLandmarkToEventMoment } from '../../evidence/semantic-integrity'
 
 function formatEscapeStatement(candidate: string | null, locale: SeraVNextEngineInput['locale']): string | null {
   if (!candidate) return null
@@ -121,9 +122,18 @@ export function runStep03EscapePoint(input: {
       ? directClarificationWindow
       : legacyWindow
   const selectedFromNarrative = selectedWindow === legacyWindow && Boolean(legacyWindow.statement)
+  const firstDepartureCandidate = trimSemanticLandmarkToEventMoment(
+    selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate ?? '',
+  ) || null
+  const criticalUnsafeActCandidate = trimSemanticLandmarkToEventMoment(
+    selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.latestCandidate ?? '',
+  ) || null
+  const poaAnchorCandidate = trimSemanticLandmarkToEventMoment(
+    selectedWindow.poaAnchorCandidate ?? selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.firstDepartureCandidate ?? '',
+  ) || null
 
   const latestSentenceIndex = selectedFromNarrative
-    ? input.factualExtraction.timeline.find((item) => item.statement === (selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate))?.sourceSentenceIndex ?? null
+    ? input.factualExtraction.timeline.find((item) => firstDepartureCandidate && (item.statement === firstDepartureCandidate || item.statement.includes(firstDepartureCandidate) || firstDepartureCandidate.includes(item.statement)))?.sourceSentenceIndex ?? null
     : null
 
   const status = selectedWindow.statement
@@ -143,17 +153,17 @@ export function runStep03EscapePoint(input: {
 
   return {
     status,
-    statement: formatEscapeStatement(selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate ?? selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.latestCandidate, input.locale),
+    statement: formatEscapeStatement(firstDepartureCandidate ?? criticalUnsafeActCandidate, input.locale),
     earliestCandidate: selectedWindow.earliestCandidate,
     latestCandidate: selectedWindow.latestCandidate,
-    firstDepartureCandidate: selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate,
-    criticalUnsafeActCandidate: selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.latestCandidate,
+    firstDepartureCandidate,
+    criticalUnsafeActCandidate,
     criticalCandidateAlternatives: selectedWindow.criticalCandidateAlternatives ?? [],
     irreversibilityBoundaryCandidate: selectedWindow.irreversibilityBoundaryCandidate ?? null,
     anchorBasis: selectedWindow.anchorBasis,
     firstDepartureSupportingEvidence: selectedWindow.firstDepartureSupportingEvidence,
     criticalUnsafeActSupportingEvidence: selectedWindow.criticalUnsafeActSupportingEvidence,
-    poaAnchorCandidate: selectedWindow.poaAnchorCandidate ?? selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.firstDepartureCandidate ?? null,
+    poaAnchorCandidate,
     poaAnchorSupportingEvidence: selectedWindow.poaAnchorSupportingEvidence ?? selectedWindow.criticalUnsafeActSupportingEvidence ?? selectedWindow.firstDepartureSupportingEvidence ?? [],
     poaAnchorBasis: selectedWindow.poaAnchorBasis ?? (selectedWindow.criticalUnsafeActCandidate ? 'CRITICAL_UNSAFE_ACT' : selectedWindow.firstDepartureCandidate ? 'FIRST_DEPARTURE_FALLBACK' : 'UNRESOLVED'),
     directActor: null,

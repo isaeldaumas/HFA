@@ -116,9 +116,11 @@ export function buildExecutiveSummary(args: {
   pt?: boolean
 }): string {
   const pt = args.pt !== false
-  const actor = args.output.directActor.actor ?? (pt ? 'ator não resolvido' : 'unresolved actor')
   const sentence = (value: string) => value.trim().replace(/[.\s]+$/, '')
-  const escape = sentence(args.output.escapePoint.statement ?? (pt ? 'ponto de fuga não estabelecido' : 'escape point not established'))
+  const firstDeparture = sentence(args.output.escapePoint.firstDepartureCandidate ?? args.output.escapePoint.statement ?? (pt ? 'primeira saída não estabelecida' : 'first departure not established'))
+  const criticalAct = sentence(args.output.escapePoint.poaAnchorCandidate ?? args.output.escapePoint.criticalUnsafeActCandidate ?? args.output.escapePoint.statement ?? (pt ? 'ato crítico não estabelecido' : 'critical act not established'))
+  const criticalActor = args.output.escapePoint.criticalUnsafeActActor ?? args.output.directActor.actor ?? (pt ? 'ator não resolvido' : 'unresolved actor')
+  const firstActor = args.output.escapePoint.firstDepartureActor ?? (pt ? 'não individualizado' : 'not individually resolved')
   const codes = [
     args.output.axes.perception.proposedCode,
     args.output.axes.objective.proposedCode,
@@ -132,14 +134,17 @@ export function buildExecutiveSummary(args: {
   if (pt) {
     const subject = args.title?.trim() ? `No evento ${args.title.trim()}, ` : 'No evento analisado, '
     const safe = safeState ? `O estado seguro esperado era: ${safeState}. ` : ''
-    if (!ready) return `${subject}a análise permanece não resolvida para fechamento metodológico. ${safe}Ponto de fuga: ${escape}. Ator: ${actor}. P/O/A: ${codes}. As razões de bloqueio devem ser resolvidas antes do uso formal.`
-    return `${subject}o ponto de fuga candidato é ${escape}. O ator direto candidato é ${actor}. ${safe}A classificação candidata é ${codes}.`
+    const landmarks = `Primeira saída da operação segura: ${firstDeparture} (ator: ${firstActor}). Ato crítico que ancora P/O/A: ${criticalAct} (ator: ${criticalActor}). `
+    if (!ready) return `${subject}a análise permanece não resolvida para fechamento metodológico. ${safe}${landmarks}P/O/A: ${codes}. As razões de bloqueio devem ser resolvidas antes do uso formal.`
+    return `${subject}${safe}${landmarks}A classificação candidata é ${codes}.`
   }
   const subject = args.title?.trim() ? `In event ${args.title.trim()}, ` : 'In the analyzed event, '
   const safe = safeState ? `The expected safe state was: ${safeState}. ` : ''
-  if (!ready) return `${subject}the analysis remains unresolved for methodological closure. ${safe}Escape point: ${escape}. Actor: ${actor}. P/O/A: ${codes}. Blocking reasons must be resolved before formal use.`
-  return `${subject}the candidate escape point is ${escape}. The candidate direct actor is ${actor}. ${safe}The candidate classification is ${codes}.`
+  const landmarks = `First departure from safe operation: ${firstDeparture} (actor: ${firstActor}). Critical act anchoring P/O/A: ${criticalAct} (actor: ${criticalActor}). `
+  if (!ready) return `${subject}the analysis remains unresolved for methodological closure. ${safe}${landmarks}P/O/A: ${codes}. Blocking reasons must be resolved before formal use.`
+  return `${subject}${safe}${landmarks}The candidate classification is ${codes}.`
 }
+
 export function friendlyAnswerLabel(value: string, pt = true): string {
   const yes = new Set(['SIM', 'SIM_ATENCAO', 'SIM_GERENCIAMENTO', 'SIM_SELECAO', 'SIM_FEEDBACK'])
   if (value === 'START') return pt ? 'Resposta descritiva' : 'Descriptive response'
