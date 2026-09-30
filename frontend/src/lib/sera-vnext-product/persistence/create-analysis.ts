@@ -87,20 +87,19 @@ export async function createSeraVNextAnalysis(args: {
   let engineInput = buildEngineInput(args.input, args.context, semantic)
   let engineOutput = runSeraVNextEngineV0(engineInput)
 
-  const criticalAct = engineOutput.escapePoint.poaAnchorCandidate ?? engineOutput.escapePoint.criticalUnsafeActCandidate
+  const escapePoint = engineOutput.escapePoint.firstDepartureCandidate ?? engineOutput.escapePoint.poaAnchorCandidate
   const needsFocusedPoa = semantic
     && engineOutput.directActor.status === 'IDENTIFIED'
     && Boolean(engineOutput.directActor.actor)
-    && Boolean(criticalAct)
+    && Boolean(escapePoint)
     && engineOutput.evidenceSufficiency.questions.some((question) => /-(P|O|A)_ROOT$/.test(question.id))
-  if (needsFocusedPoa && semantic && criticalAct && engineOutput.directActor.actor) {
+  if (needsFocusedPoa && semantic && escapePoint && engineOutput.directActor.actor) {
     try {
       const focused = await enrichSeraPoaSemantically({
         narrative: args.input.narrative,
         locale: args.input.locale ?? 'pt-BR',
-        criticalAct,
+        escapePoint,
         directActor: engineOutput.directActor.actor,
-        firstDeparture: engineOutput.escapePoint.firstDepartureCandidate,
       })
       if (focused.annotations.length > 0) {
         const merged = [...semantic.annotations]

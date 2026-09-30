@@ -298,7 +298,7 @@ function confidenceLabel(value: string | undefined | null, pt: boolean): string 
 
 function landmarkRelationshipLabel(value: SeraVNextEngineOutput['escapePoint']['anchorBasis'], pt: boolean): string {
   if (value === 'FIRST_DEPARTURE_AND_CRITICAL_ACT') return pt ? 'Coincidem no mesmo ato/condição.' : 'Both landmarks coincide in the same act/condition.'
-  if (value === 'FIRST_DEPARTURE_PRIMARY') return pt ? 'O primeiro desvio antecede o ato crítico; ele delimita a trajetória seguro→inseguro, enquanto P/O/A permanece ligado ao ato crítico e ao seu ator direto.' : 'Distinct landmarks: the first departure precedes the critical act; it delimits the safe→unsafe trajectory, while P/O/A remains bound to the critical act and its direct actor.'
+  if (value === 'FIRST_DEPARTURE_PRIMARY') return pt ? 'O ponto de fuga SERA é o primeiro desvio seguro→inseguro e ancora P/O/A; o ato crítico posterior é preservado apenas como evolução da ocorrência.' : 'The SERA escape point is the first safe→unsafe departure and anchors P/O/A; the later critical act is retained only as occurrence evolution.'
   if (value === 'FIRST_DEPARTURE_ONLY') return pt ? 'Foi identificado apenas o primeiro desvio da operação segura.' : 'Only the first departure from safe operation was established.'
   return pt ? 'Relação ainda não determinada.' : 'Relationship not yet resolved.'
 }
@@ -685,15 +685,15 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       doc,
       L('Marcos da ocorrência para revisão', 'Occurrence landmarks for review'),
       [
-        `${L('Primeira saída da operação segura', 'First departure from safe operation')}: ${value(output.escapePoint.firstDepartureCandidate ?? output.escapePoint.statement, L('Não estabelecida.', 'Not established.'))}`,
-        `${L('Ator da primeira saída', 'First-departure actor')}: ${value(localizeActor(output.escapePoint.firstDepartureActor ?? null, locale), L('Não individualizado', 'Not individually resolved'))}`,
-        `${L('Ato crítico que ancora P/O/A', 'Critical act anchoring P/O/A')}: ${value(output.escapePoint.poaAnchorCandidate ?? output.escapePoint.criticalUnsafeActCandidate, L('Não estabelecido.', 'Not established.'))}`,
+        `${L('Ponto de fuga SERA / primeira saída', 'SERA escape point / first departure')}: ${value(output.escapePoint.firstDepartureCandidate ?? output.escapePoint.statement, L('Não estabelecido.', 'Not established.'))}`,
+        `${L('Ator no ponto de fuga (P/O/A)', 'Escape-point actor (P/O/A)')}: ${value(localizeActor(output.escapePoint.firstDepartureActor ?? output.directActor.actor, locale), L('Não individualizado', 'Not individually resolved'))}`,
+        `${L('Evolução crítica posterior', 'Later critical evolution')}: ${value(output.escapePoint.criticalUnsafeActCandidate, L('Nenhum ato posterior distinto estabelecido.', 'No distinct later act established.'))}`,
       ].join('\n'),
-      { accent: PDF_COLORS.blue, fill: '#F2F7FC', label: L('Dois marcos mantidos separados', 'Two landmarks kept separate'), minHeight: 108 },
+      { accent: PDF_COLORS.blue, fill: '#F2F7FC', label: L('Uma única âncora SERA', 'Single SERA anchor'), minHeight: 108 },
     )
 
     statRow(doc, [
-      { label: L('Ator do ato crítico (P/O/A)', 'Critical-act actor (P/O/A)'), value: value(localizeActor(output.escapePoint.criticalUnsafeActActor ?? output.directActor.actor, locale), L('Não resolvido', 'Unresolved')), accent: PDF_COLORS.blue },
+      { label: L('Ator no ponto de fuga (P/O/A)', 'Escape-point actor (P/O/A)'), value: value(localizeActor(output.escapePoint.firstDepartureActor ?? output.directActor.actor, locale), L('Não resolvido', 'Unresolved')), accent: PDF_COLORS.blue },
       { label: L('Classificação', 'Classification'), value: [output.axes.perception.proposedCode, output.axes.objective.proposedCode, output.axes.action.proposedCode].map((item) => value(item, '—')).join(' / '), accent: PDF_COLORS.green },
       { label: L('Revisão', 'Review'), value: reviewStatusLabel(analysis.review_status, pt), accent: PDF_COLORS.amber },
     ])
@@ -727,8 +727,8 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     doc.addPage({ size: 'A4', layout: 'portrait', margin: 44 })
     heading(doc, '1. ' + L('Sequência da ocorrência e ponto de fuga', 'Occurrence sequence and escape point'))
     body(doc, L(
-      'A leitura abaixo organiza a sequência relevante para a análise: operação segura esperada, primeiro desvio, ato inseguro crítico que define o ponto de fuga e desfecho posterior.',
-      'The sequence below separates the safe state, the first departure from safe operation, the critical unsafe act anchoring P/O/A, and the later outcome. These landmarks are not interchangeable.',
+      'A leitura abaixo organiza a sequência relevante para a análise: operação segura esperada, ponto de fuga SERA (primeira saída seguro→inseguro e única âncora P/O/A), evolução crítica posterior quando existente e desfecho.',
+      'The sequence below separates the safe state, the SERA escape point (first safe→unsafe departure and sole P/O/A anchor), later critical evolution when present, and the outcome.',
     ), 'justify')
     doc.moveDown(0.55)
 
@@ -737,15 +737,15 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       fill: '#F2FAF5',
       label: L('1  -  operação segura esperada', '1  -  expected safe operation'),
     })
-    infoCard(doc, L('Primeiro desvio da operação segura', 'First departure from safe operation'), value(output.escapePoint.firstDepartureCandidate ?? output.escapePoint.earliestCandidate), {
+    infoCard(doc, L('Ponto de fuga SERA', 'SERA escape point'), value(output.escapePoint.firstDepartureCandidate ?? output.escapePoint.earliestCandidate), {
       accent: PDF_COLORS.amber,
       fill: '#FFF9EC',
-      label: L('2  -  primeiro desvio relevante', '2  -  first relevant departure'),
+      label: L('2  -  primeira saída seguro → inseguro / âncora P/O/A', '2  -  first safe → unsafe departure / P/O/A anchor'),
     })
-    infoCard(doc, L('Ato/condição insegura crítica', 'Critical unsafe act/condition'), value(output.escapePoint.criticalUnsafeActCandidate ?? output.escapePoint.latestCandidate), {
+    infoCard(doc, L('Evolução crítica posterior', 'Later critical evolution'), value(output.escapePoint.criticalUnsafeActCandidate, L('Nenhum ato crítico posterior distinto foi estabelecido.', 'No distinct later critical act was established.')), {
       accent: PDF_COLORS.red,
       fill: '#FFF4F4',
-      label: L('3  -  ponto de fuga para P/O/A', '3  -  P/O/A escape point'),
+      label: L('3  -  evolução posterior (não ancora P/O/A)', '3  -  later evolution (does not anchor P/O/A)'),
     })
     infoCard(doc, L('Desfecho posterior', 'Later outcome'), value(output.escapePoint.irreversibilityBoundaryCandidate, L('Nenhum ponto explícito de irreversibilidade foi identificado.', 'No explicit irreversibility boundary was identified.')), {
       accent: '#6B7280',
@@ -754,14 +754,14 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     })
 
     statRow(doc, [
-      { label: L('Ator da primeira saída', 'First-departure actor'), value: value(localizeActor(output.escapePoint.firstDepartureActor ?? null, locale), L('Não individualizado', 'Not individually resolved')), accent: PDF_COLORS.blue },
-      { label: L('Ator do ato crítico (P/O/A)', 'Critical-act actor (P/O/A)'), value: value(localizeActor(output.escapePoint.criticalUnsafeActActor ?? output.directActor.actor, locale), L('Não resolvido', 'Unresolved')), accent: PDF_COLORS.blue },
+      { label: L('Ator no ponto de fuga (P/O/A)', 'Escape-point actor (P/O/A)'), value: value(localizeActor(output.escapePoint.firstDepartureActor ?? output.directActor.actor, locale), L('Não individualizado', 'Not individually resolved')), accent: PDF_COLORS.blue },
+      { label: L('Ator da evolução posterior', 'Later-evolution actor'), value: value(localizeActor(output.escapePoint.criticalUnsafeActActor ?? null, locale), L('Não individualizado', 'Not individually resolved')), accent: PDF_COLORS.blue },
       { label: L('Relação / confiança', 'Relationship / confidence'), value: `${landmarkRelationshipLabel(output.escapePoint.anchorBasis, pt)} · ${confidenceLabel(output.escapePoint.confidence, pt)}`, accent: PDF_COLORS.amber },
     ])
 
     subheading(doc, L('Evidência principal da primeira saída', 'Key evidence for the first departure'))
     bullets(doc, (output.escapePoint.firstDepartureSupportingEvidence ?? []).slice(0, 2), L('Nenhuma evidência específica registrada para este marco.', 'No landmark-specific evidence recorded.'))
-    subheading(doc, L('Evidência principal do ato crítico', 'Key evidence for the critical act'))
+    subheading(doc, L('Evidência da evolução crítica posterior', 'Evidence for later critical evolution'))
     bullets(doc, (output.escapePoint.criticalUnsafeActSupportingEvidence ?? output.escapePoint.supportingEvidence).slice(0, 2), L('Nenhuma evidência específica registrada para este marco.', 'No landmark-specific evidence recorded.'))
     if (output.canonicalTraversal.paths.length === 0) {
       doc.addPage({ size: 'A4', layout: 'portrait', margin: 44 })

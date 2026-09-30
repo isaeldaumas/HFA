@@ -312,9 +312,9 @@ export type SeraVNextEngineOutput = {
     latestCandidate: string | null
     firstDepartureCandidate?: string | null
     criticalUnsafeActCandidate?: string | null
-    /** Actor attached to the first safe→unsafe departure, kept separate from the P/O/A actor. */
+    /** Actor attached to the first safe→unsafe departure; this is also the SERA P/O/A actor when identified. */
     firstDepartureActor?: string | null
-    /** Actor attached to the critical unsafe act that anchors P/O/A. */
+    /** Actor attached to a later critical unsafe act, retained descriptively when distinct from the escape point. */
     criticalUnsafeActActor?: string | null
     criticalCandidateAlternatives?: string[]
     irreversibilityBoundaryCandidate?: string | null
@@ -324,14 +324,13 @@ export type SeraVNextEngineOutput = {
     /** Evidence supporting a later critical unsafe act/condition, preserved as a distinct downstream landmark. */
     criticalUnsafeActSupportingEvidence?: string[]
     /**
-     * Landmark used for Hendy's P/O/A questions. This is the critical unsafe act/condition
-     * and its directly involved operator when that landmark is supported. The first
-     * safe→unsafe departure remains a separate trajectory boundary and is never silently
-     * substituted for the act under cognitive analysis.
+     * Unique landmark used for Hendy's P/O/A questions. Under the frozen HFA/SERA
+     * methodology this must be the first observable safe→unsafe departure. A later
+     * critical act may be retained descriptively but cannot replace this anchor.
      */
     poaAnchorCandidate?: string | null
     poaAnchorSupportingEvidence?: string[]
-    poaAnchorBasis?: 'CRITICAL_UNSAFE_ACT' | 'FIRST_DEPARTURE_FALLBACK' | 'UNRESOLVED'
+    poaAnchorBasis?: 'FIRST_DEPARTURE' | 'UNRESOLVED'
     directActor: string | null
     supportingEvidence: string[]
     counterEvidence: string[]

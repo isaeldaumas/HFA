@@ -39,12 +39,8 @@ export function runStep06DirectActor(input: {
   const captainPf = roleAssigned(text, 'captain', 'pf')
   const captainPm = roleAssigned(text, 'captain', 'pm')
   const copilotPm = roleAssigned(text, 'copilot', 'pm')
-  const primaryEscape = input.escapePoint.poaAnchorCandidate
-    ?? input.escapePoint.criticalUnsafeActCandidate
-    ?? input.escapePoint.firstDepartureCandidate
-    ?? input.escapePoint.statement
+  const primaryEscape = input.escapePoint.firstDepartureCandidate
     ?? input.escapePoint.earliestCandidate
-    ?? input.escapePoint.latestCandidate
     ?? ''
   const escapeText = normalizeText(primaryEscape)
   const escapeHasCopilot = /\b(copiloto|first officer|sic)\b/.test(escapeText)
@@ -109,7 +105,7 @@ export function runStep06DirectActor(input: {
   const semanticActors = [...new Set((input.engineInput.semanticEvidence ?? [])
     .filter((annotation) => annotation.actor && annotation.assertionStatus === 'AFFIRMED')
     .filter((annotation) => normalizeText(annotation.sourceQuote) === escapeText)
-    .filter((annotation) => annotation.roles.includes('DIRECT_ACTOR') || annotation.roles.includes('CRITICAL_UNSAFE_ACT'))
+    .filter((annotation) => annotation.roles.includes('DIRECT_ACTOR') || annotation.roles.includes('FIRST_DEPARTURE'))
     .map((annotation) => annotation.actor!.trim())
     .filter(Boolean))]
   if (semanticActors.length === 1) {
@@ -126,8 +122,8 @@ export function runStep06DirectActor(input: {
       status: 'AMBIGUOUS',
       alternatives: semanticActors,
       actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
-        ? 'A extração semântica encontrou mais de um ator explicitamente associado ao ato crítico; é necessária revisão humana antes da travessia P/O/A.'
-        : 'Semantic extraction found more than one actor explicitly associated with the critical act; human review is required before P/O/A traversal.'],
+        ? 'A extração semântica encontrou mais de um ator explicitamente associado ao ponto de fuga; é necessária revisão humana antes da travessia P/O/A.'
+        : 'Semantic extraction found more than one actor explicitly associated with the escape point; human review is required before P/O/A traversal.'],
     }
   }
 
@@ -186,7 +182,7 @@ export function runStep06DirectActor(input: {
       }
     }
 
-    // Actor attribution is anchored first to the sentence that defines the P/O/A critical-act candidate.
+    // Actor attribution is anchored first to the sentence that defines the unique SERA escape point.
     // A decision explicitly narrated in the first-person plural is a genuinely joint crew decision.
     // Keep it collective rather than inventing an individual PF/PM attribution.
     if (escapeHasJointDecision) {

@@ -84,7 +84,7 @@ export function classifyTemporalRelation(args: {
   if (isNonCausalDocumentStatement(args.statement) || isProcedureReferenceStatement(args.statement) || isSystemDescriptionStatement(args.statement)) return 'UNKNOWN'
   if (args.latestEscapeSentenceIndex != null && args.sourceSentenceIndex === args.latestEscapeSentenceIndex) return 'AT_ESCAPE'
   if (args.latestEscapeSentenceIndex != null && args.sourceSentenceIndex > args.latestEscapeSentenceIndex
-      && /^(?:\s*)(?:nesse momento|naquele momento|em seguida|na sequ[eê]ncia|logo ap[oó]s|depois|posteriormente|then|at that moment|subsequently|afterward)\b/i.test(args.statement)
+      && /^(?:\s*)(?:nesse momento|naquele momento|em seguida|na sequ[eê]ncia|logo ap[oó]s|depois|posteriormente|mais tarde|then|at that moment|subsequently|afterward|later)\b/i.test(args.statement)
       && isOperationalEventStatement(args.statement)) return 'POST_ESCAPE'
   if (hasExplicitPostEscapeCue(args.statement)) return 'POST_ESCAPE'
   if (hasConsequenceMarker(args.statement) && !isOpeningTemporalContext(args.statement)) return 'POST_ESCAPE'
@@ -108,10 +108,10 @@ export function classifyTemporalRelation(args: {
     || (args.sourceSection === 'FACTUAL' && conversationalNarrativeAnchor)
   if (documentOrderEligible && isOperationalEventStatement(args.statement) && !isRetrospectiveInterviewEvidence(args.statement)) {
     if (args.latestEscapeSentenceIndex != null && args.sourceSentenceIndex < args.latestEscapeSentenceIndex) return 'PRE_ESCAPE'
-    if (args.latestEscapeSentenceIndex != null && args.sourceSentenceIndex > args.latestEscapeSentenceIndex + 6) return 'POST_ESCAPE'
-    // A short run of sentences after a conversational anchor commonly describes the
-    // same unsafe act (operator belief, repeated input, immediate feedback). Keep it
-    // temporally open unless the wording itself establishes a later consequence.
+    if (args.latestEscapeSentenceIndex != null && args.sourceSentenceIndex > args.latestEscapeSentenceIndex) return 'POST_ESCAPE'
+    // Once the unique first safe→unsafe departure is established, later operational
+    // event statements are downstream by definition. Retrospective interview evidence
+    // is exempted above and may still describe a PRE_ESCAPE/AT_ESCAPE mental state.
   }
 
   if (/\b(while|during|when|on visual approach|during approach|during taxi|during final approach)\b/i.test(args.statement) && isOperationalEventStatement(args.statement)) return 'PRE_ESCAPE'

@@ -182,31 +182,32 @@ ${excerpt}`
 
 export function focusedPoaEvidenceExcerpt(args: {
   narrative: string
-  criticalAct: string
+  escapePoint: string
   directActor: string
-  firstDeparture?: string | null
 }): string {
   const records = splitNarrativeIntoSentenceRecords(args.narrative)
-  const critical = findSourceSentence(args.narrative, args.criticalAct)
-  const firstDeparture = args.firstDeparture ? findSourceSentence(args.narrative, args.firstDeparture) : null
-  const criticalIndex = critical?.sourceSentenceIndex ?? null
+  const escape = findSourceSentence(args.narrative, args.escapePoint)
+  const escapeIndex = escape?.sourceSentenceIndex ?? null
   const normalizedActor = normalizeSourceText(args.directActor)
   const firstPersonActor = /\b(piloto entrevistado|entrevistad[oa]|narrador|declarante)\b/.test(normalizedActor)
   const actorTokens = normalizedActor
     .split(/[^a-z0-9]+/)
     .filter((token) => token.length >= 4)
-    .filter((token) => !['piloto', 'outro', 'direto', 'comandante', 'treinamento'].includes(token))
+    .filter((token) => !['piloto', 'outro', 'direto', 'comandante', 'treinamento', 'tripulacao'].includes(token))
   const mentalIntentCue = /\b(acredit|ach|pens|sab|perceb|entend|julg|imagin|quer|pretend|inten|objetiv|para ajudar|pra ajudar|proativ|a fim de|com o objetivo|decid|resolv|opt|escolh|believ|thought|knew|perceiv|intended|wanted|decided|chose|aimed)\w*/i
   const strategyCue = /\b(usar|utiliz|execut|realiz|conduz|prossegu|continu|tent|selecion|acion|aproxim|pous|arremet|subir|descer|pux|empurr|tir|peg|segur|desacopl|barra na barra|pitch down|use|using|execute|perform|conduct|proceed|continue|try|select|activate|approach|land|climb|descend|pull|push)\w*/i
   const firstPersonCue = /\b(eu|me|meu|minha|comigo|pensei|achei|acreditei|queria|pretendia|decidi|resolvi|tentei|fiz|tirei|peguei)\b/i
   const actorLinked = (statement: string) => {
     const normalized = normalizeSourceText(statement)
     if (firstPersonActor && firstPersonCue.test(statement)) return true
+    if (/tripulacao|tripulação|decisao conjunta|decisão conjunta|flight crew|crew/.test(normalizedActor)) {
+      return /\b(a gente|n[oó]s|ambos|tripula[cç][aã]o|we|both)\b/i.test(statement)
+    }
     return actorTokens.some((token) => normalized.includes(token)) || normalized.includes(normalizedActor)
   }
 
   const local = records.filter((record) =>
-    criticalIndex != null && Math.abs(record.sourceSentenceIndex - criticalIndex) <= 9,
+    escapeIndex != null && Math.abs(record.sourceSentenceIndex - escapeIndex) <= 9,
   )
   const retrospective = records
     .filter((record) => !local.some((item) => item.sourceSentenceIndex === record.sourceSentenceIndex))
@@ -217,8 +218,7 @@ export function focusedPoaEvidenceExcerpt(args: {
       if (actorLinked(record.statement)) score += 4
       if (mentalIntentCue.test(record.statement)) score += 3
       if (strategyCue.test(record.statement)) score += 2
-      if (firstDeparture && record.sourceSentenceIndex === firstDeparture.sourceSentenceIndex) score += 4
-      if (criticalIndex != null && Math.abs(record.sourceSentenceIndex - criticalIndex) <= 20) score += 2
+      if (escapeIndex != null && Math.abs(record.sourceSentenceIndex - escapeIndex) <= 20) score += 2
       return { record, score }
     })
     .filter((item) => item.score >= 5)
@@ -228,39 +228,36 @@ export function focusedPoaEvidenceExcerpt(args: {
     .sort((a, b) => a.sourceSentenceIndex - b.sourceSentenceIndex)
 
   const format = (items: typeof records) => items.map((record) => `[S${record.sourceSentenceIndex}] ${record.statement}`).join('\n')
-  return `JANELA LOCAL DO ATO CRÍTICO:\n${format(local)}\n\nEVIDÊNCIAS RETROSPECTIVAS/DO MESMO ATOR PRIORIZADAS:\n${format(retrospective)}`
+  return `JANELA LOCAL DO PONTO DE FUGA SERA:\n${format(local)}\n\nEVIDÊNCIAS RETROSPECTIVAS DO MESMO ATOR/DECISÃO PRIORIZADAS:\n${format(retrospective)}`
 }
 
 function focusedPoaPrompt(args: {
   narrative: string
-  criticalAct: string
+  escapePoint: string
   directActor: string
-  firstDeparture?: string | null
 }): string {
-  return `Faça uma segunda leitura semântica focalizada SOMENTE no ato crítico e no ator abaixo. Esta etapa não classifica SERA; ela apenas recupera evidência P/O/A ancorada no texto.
+  return `Faça uma segunda leitura semântica focalizada SOMENTE no ponto de fuga SERA e no ator abaixo. Esta etapa não classifica SERA; ela apenas recupera evidência P/O/A ancorada no texto.
 
-ATO CRÍTICO JÁ SELECIONADO PELO MOTOR:
-${args.criticalAct}
+PONTO DE FUGA SERA JÁ SELECIONADO PELO MOTOR (primeira travessia seguro→inseguro):
+${args.escapePoint}
 
-ATOR DIRETO JÁ SELECIONADO PELO MOTOR:
+ATOR DIRETO NO PONTO DE FUGA:
 ${args.directActor}
 
-PRIMEIRA SAÍDA SEGURO→INSEGURO (pode ser diferente do ato crítico):
-${args.firstDeparture ?? 'não estabelecida separadamente'}
-
 Regras obrigatórias:
-- NÃO escreva códigos P/O/A e NÃO mude o ato crítico nem o ator.
-- Examine os recortes em três perguntas independentes antes de responder: (P) o que ESTE ator via, percebia, acreditava ou entendia imediatamente antes/no ato; (O) para quê/por quê ESTE ator agia, qual objetivo/intenção declarou; (A) qual método, estratégia, comando ou meio ESTE ator usou para tentar atingir o objetivo.
-- Resolva correferências coloquiais pelo contexto local. Se o ator for "piloto entrevistado", falas em primeira pessoa ("eu", "meu", "minha") são desse ator. Se o ator for "outro piloto", "ele", "o cara", função/equipamento ou patente podem ser o mesmo ator SOMENTE quando a sequência local deixa isso claro.
-- Uma frase pode aparecer muito depois na entrevista e ainda ser PRE_ESCAPE/AT_ESCAPE se ela descrever retrospectivamente o estado existente antes/no ato crítico.
-- Uma ação concreta que descreve o MEIO usado no próprio ato crítico (por exemplo puxar comandos, colocar barra na barra, retirar a mão, selecionar modo) pode ser ACTION_STRATEGY mesmo sem a frase usar palavras como "estratégia" ou "pretendia". Isso não autoriza inferir OBJECTIVE_INTENT.
-- Não use percepção, intenção ou ação de outro tripulante como se fosse do ator direto.
-- Não use recuperação, diagnóstico posterior, resultado, avaliação pós-pouso ou consequência como P/O/A anterior.
-- Não transplante o objetivo de uma primeira saída anterior para o ato crítico posterior, salvo se o relato conectar explicitamente esse objetivo ao ator e ao ato crítico.
-- Se a frase descreve uma decisão/estado do evento atual causado por experiência ou acidente anterior, occurrenceScope deve ser CURRENT_EVENT; PRE_EVENT_CAUSAL_HISTORY é reservado ao fato histórico em si, não à decisão atual que ele influenciou.
-- Se o ator declara não saber o que pensou/pretendeu, marque a annotation de PERCEPTION_STATE/OBJECTIVE_INTENT como UNCERTAIN; não invente a lacuna. Se a mesma frase também descreve uma ação concreta, gere annotation SEPARADA de ACTION_STRATEGY com AFFIRMED, para não contaminar a ação observável com a incerteza mental.
+- NÃO escreva códigos P/O/A e NÃO mude o ponto de fuga nem o ator.
+- P/O/A pertencem exclusivamente ao momento da primeira saída da operação segura. Um ato crítico posterior, recuperação ou consequência NÃO pode substituir esta âncora.
+- Examine os recortes em três perguntas independentes: (P) o que ESTE ator via, percebia, acreditava ou entendia imediatamente antes/no ponto de fuga; (O) para quê/por quê ESTE ator agia, qual objetivo/intenção levou à primeira saída; (A) qual método, estratégia, decisão, comando ou meio ESTE ator usou naquele ponto de fuga.
+- Resolva correferências coloquiais pelo contexto local. Se o ator for coletivo, use somente evidência atribuível à decisão coletiva; não importe estado mental exclusivo de um tripulante.
+- Uma frase pode aparecer muito depois na entrevista e ainda ser PRE_ESCAPE/AT_ESCAPE se ela descrever retrospectivamente o estado que existia antes/no ponto de fuga.
+- Uma ação concreta pode ser ACTION_STRATEGY quando descreve o meio usado no próprio ponto de fuga, mesmo sem usar a palavra "estratégia". Isso não autoriza inferir OBJECTIVE_INTENT.
+- Não use percepção, intenção ou ação de outro ator como se fosse do ator direto.
+- Não use recuperação, diagnóstico posterior, resultado, avaliação pós-evento ou consequência como P/O/A anterior.
+- Atos posteriores podem existir no relato, mas devem ficar fora desta passagem P/O/A.
+- Se a frase descreve uma decisão/estado do evento atual causado por experiência anterior, occurrenceScope deve ser CURRENT_EVENT; PRE_EVENT_CAUSAL_HISTORY é reservado ao fato histórico em si.
+- Se o ator declara não saber o que pensou/pretendeu, marque PERCEPTION_STATE/OBJECTIVE_INTENT como UNCERTAIN; não invente a lacuna.
 - sourceQuote deve ser UMA frase literal do relato e cada evidência deve estar ancorada nessa frase.
-- Retorne somente evidências realmente sustentadas. Se um eixo não tiver evidência, simplesmente não produza annotation para ele.
+- Retorne somente evidências realmente sustentadas. Se um eixo não tiver evidência, não produza annotation para ele.
 
 Roles permitidos nesta passagem: PERCEPTION_STATE, OBJECTIVE_INTENT, ACTION_STRATEGY, BARRIER.
 Concepts permitidos: adequateAssessment, inadequateAssessment, sensoryLimitation, knowledgeLimitation, perceptionCapabilityPresent, attentionPressure, timeManagementPressure, informationAmbiguous, informationAvailableCorrect, informationUnavailable, safeGoal, knownRule, explicitAwareness, consciousDeviation, routineDeviation, exceptionalDeviation, managedRisk, unmanagedRisk, efficiencyObjective, safeAction, implementedAction, feedbackImplementationFailure, slipLapse, correctAction, incorrectAction, physicalActionLimitation, actionKnowledgeLimitation, actionCapabilityPresent, selectionUnderPressureFailed, feedbackUnderPressureFailed, selectionSubtype, feedbackSubtype, timeManagementAction.
@@ -309,13 +306,13 @@ function buildAnnotation(raw: Record<string, unknown>, narrative: string, index:
     rationale: asString(raw.rationale),
   }
 }
-function normalizePostCriticalSemantics(annotations: SeraSemanticEvidenceAnnotation[]): SeraSemanticEvidenceAnnotation[] {
-  const critical = annotations.filter((item) =>
+function normalizePostEscapeSemantics(annotations: SeraSemanticEvidenceAnnotation[]): SeraSemanticEvidenceAnnotation[] {
+  const departures = annotations.filter((item) =>
     item.assertionStatus === 'AFFIRMED'
     && item.confidence !== 'LOW'
-    && item.roles.includes('CRITICAL_UNSAFE_ACT'),
+    && item.roles.includes('FIRST_DEPARTURE'),
   )
-  if (!critical.length) return annotations
+  if (!departures.length) return annotations
 
   const normActor = (actor: string | null) => normalizeSourceText(actor ?? '')
   const retrospectiveCue = /\b(naquele momento|naquela hora|na hora|a percepcao que .* tinha|acreditava|achava|sabia|estava ciente|at that moment|at the time|believed|thought|knew|was aware)\b/i
@@ -325,13 +322,13 @@ function normalizePostCriticalSemantics(annotations: SeraSemanticEvidenceAnnotat
   return annotations.map((item) => {
     if (item.temporalRelation !== 'AT_ESCAPE') return item
     if (!item.roles.some((role) => role === 'PERCEPTION_STATE' || role === 'OBJECTIVE_INTENT' || role === 'ACTION_STRATEGY')) return item
-    const sameActorCritical = critical.filter((candidate) => {
+    const sameActorDepartures = departures.filter((candidate) => {
       if (!item.actor || !candidate.actor) return true
       const a = normActor(item.actor)
       const b = normActor(candidate.actor)
       return a === b || a.includes(b) || b.includes(a)
     })
-    const anchors = sameActorCritical.length ? sameActorCritical : critical
+    const anchors = sameActorDepartures.length ? sameActorDepartures : departures
     const preceding = anchors
       .filter((candidate) => candidate.sourceSentenceIndex < item.sourceSentenceIndex)
       .sort((a, b) => b.sourceSentenceIndex - a.sourceSentenceIndex)[0]
@@ -441,7 +438,7 @@ export async function enrichSeraNarrativeSemantically(args: {
     throw new Error('SERA_SEMANTIC_AI_NO_VERIFIABLE_EVIDENCE')
   }
 
-  const normalizedAnnotations = normalizePostCriticalSemantics(accepted)
+  const normalizedAnnotations = normalizePostEscapeSemantics(accepted)
 
   // callAi may load the user's active provider/key from persistence. Capture provenance
   // only after the call so the recorded provider/model is the one that actually ran.
@@ -464,9 +461,8 @@ export async function enrichSeraNarrativeSemantically(args: {
 export async function enrichSeraPoaSemantically(args: {
   narrative: string
   locale: 'pt-BR' | 'en'
-  criticalAct: string
+  escapePoint: string
   directActor: string
-  firstDeparture?: string | null
 }): Promise<{ annotations: SeraSemanticEvidenceAnnotation[]; meta: SeraSemanticEnrichmentMeta }> {
   const requestedAt = new Date().toISOString()
   const parsed = await askJson(
@@ -494,7 +490,7 @@ export async function enrichSeraPoaSemantically(args: {
     accepted.push(focused)
   }
 
-  const normalized = normalizePostCriticalSemantics(accepted)
+  const normalized = normalizePostEscapeSemantics(accepted)
   const provider = getActiveProvider()
   const model = getModelName(provider)
   return {

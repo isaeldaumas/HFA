@@ -54,12 +54,9 @@ export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngi
   const escapePoint = runStep03EscapePoint({ factualExtraction: factualExtractionWithInitialEvidence, supplementalEvidence: effectiveInput.supplementalEvidence, locale: effectiveInput.locale })
   const safeOperationModel = runStep02SafeOperationModel({ engineInput: effectiveInput, factualExtraction: factualExtractionWithInitialEvidence, escapePoint })
   const unsafeState = runStep04UnsafeState({ engineInput: effectiveInput, factualExtraction })
-  const poaAnchor = escapePoint.poaAnchorCandidate
-    ?? escapePoint.criticalUnsafeActCandidate
-    ?? escapePoint.firstDepartureCandidate
-    ?? escapePoint.statement
+  const poaAnchor = escapePoint.firstDepartureCandidate
     ?? escapePoint.earliestCandidate
-    ?? escapePoint.latestCandidate
+    ?? null
   const poaAnchorSentenceIndex = factualExtraction.timeline
     .find((item) => poaAnchor && (item.statement === poaAnchor || item.statement.includes(poaAnchor) || poaAnchor.includes(item.statement)))?.sourceSentenceIndex ?? null
   const poaEscapePoint = {
@@ -82,6 +79,7 @@ export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngi
     }),
     annotations: effectiveInput.semanticEvidence,
     directActor: directActor.actor,
+    canonicalEscapeSentenceIndex: poaAnchorSentenceIndex,
   })
   const supplementalEvidence = extractSupplementalEvidenceItems({
     items: effectiveInput.supplementalEvidence ?? [],
@@ -137,8 +135,12 @@ export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngi
     safeOperationModel,
     escapePoint: {
       ...poaEscapePoint,
-      firstDepartureActor: semanticActorForLandmark(effectiveInput, poaEscapePoint.firstDepartureCandidate, 'FIRST_DEPARTURE'),
-      criticalUnsafeActActor: directActor.actor,
+      firstDepartureActor: semanticActorForLandmark(effectiveInput, poaEscapePoint.firstDepartureCandidate, 'FIRST_DEPARTURE') ?? directActor.actor,
+      criticalUnsafeActActor: semanticActorForLandmark(effectiveInput, poaEscapePoint.criticalUnsafeActCandidate, 'CRITICAL_UNSAFE_ACT')
+        ?? (poaEscapePoint.criticalUnsafeActCandidate && poaEscapePoint.firstDepartureCandidate
+          && normalizeLandmarkText(poaEscapePoint.criticalUnsafeActCandidate) === normalizeLandmarkText(poaEscapePoint.firstDepartureCandidate)
+          ? directActor.actor
+          : null),
       directActor: directActor.actor,
     },
     unsafeState,

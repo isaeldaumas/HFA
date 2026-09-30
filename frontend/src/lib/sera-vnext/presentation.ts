@@ -118,9 +118,9 @@ export function buildExecutiveSummary(args: {
   const pt = args.pt !== false
   const sentence = (value: string) => value.trim().replace(/[.\s]+$/, '')
   const firstDeparture = sentence(args.output.escapePoint.firstDepartureCandidate ?? args.output.escapePoint.statement ?? (pt ? 'primeira saída não estabelecida' : 'first departure not established'))
-  const criticalAct = sentence(args.output.escapePoint.poaAnchorCandidate ?? args.output.escapePoint.criticalUnsafeActCandidate ?? args.output.escapePoint.statement ?? (pt ? 'ato crítico não estabelecido' : 'critical act not established'))
-  const criticalActor = args.output.escapePoint.criticalUnsafeActActor ?? args.output.directActor.actor ?? (pt ? 'ator não resolvido' : 'unresolved actor')
-  const firstActor = args.output.escapePoint.firstDepartureActor ?? (pt ? 'não individualizado' : 'not individually resolved')
+  const laterCriticalAct = sentence(args.output.escapePoint.criticalUnsafeActCandidate ?? (pt ? 'nenhum ato crítico posterior distinto estabelecido' : 'no distinct later critical act established'))
+  const laterCriticalActor = args.output.escapePoint.criticalUnsafeActActor ?? (pt ? 'não individualizado' : 'not individually resolved')
+  const escapeActor = args.output.escapePoint.firstDepartureActor ?? args.output.directActor.actor ?? (pt ? 'não individualizado' : 'not individually resolved')
   const codes = [
     args.output.axes.perception.proposedCode,
     args.output.axes.objective.proposedCode,
@@ -134,13 +134,13 @@ export function buildExecutiveSummary(args: {
   if (pt) {
     const subject = args.title?.trim() ? `No evento ${args.title.trim()}, ` : 'No evento analisado, '
     const safe = safeState ? `O estado seguro esperado era: ${safeState}. ` : ''
-    const landmarks = `Primeira saída da operação segura: ${firstDeparture} (ator: ${firstActor}). Ato crítico que ancora P/O/A: ${criticalAct} (ator: ${criticalActor}). `
+    const landmarks = `Ponto de fuga SERA / primeira saída da operação segura: ${firstDeparture} (ator: ${escapeActor}); esta é a única âncora P/O/A. Evolução crítica posterior, quando distinta: ${laterCriticalAct} (ator: ${laterCriticalActor}). `
     if (!ready) return `${subject}a análise permanece não resolvida para fechamento metodológico. ${safe}${landmarks}P/O/A: ${codes}. As razões de bloqueio devem ser resolvidas antes do uso formal.`
     return `${subject}${safe}${landmarks}A classificação candidata é ${codes}.`
   }
   const subject = args.title?.trim() ? `In event ${args.title.trim()}, ` : 'In the analyzed event, '
   const safe = safeState ? `The expected safe state was: ${safeState}. ` : ''
-  const landmarks = `First departure from safe operation: ${firstDeparture} (actor: ${firstActor}). Critical act anchoring P/O/A: ${criticalAct} (actor: ${criticalActor}). `
+  const landmarks = `SERA escape point / first departure from safe operation: ${firstDeparture} (actor: ${escapeActor}); this is the sole P/O/A anchor. Later critical evolution, when distinct: ${laterCriticalAct} (actor: ${laterCriticalActor}). `
   if (!ready) return `${subject}the analysis remains unresolved for methodological closure. ${safe}${landmarks}P/O/A: ${codes}. Blocking reasons must be resolved before formal use.`
   return `${subject}${safe}${landmarks}The candidate classification is ${codes}.`
 }

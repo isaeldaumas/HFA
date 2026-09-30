@@ -33,18 +33,12 @@ function evidenceFor(
   use: 'PERCEPTION' | 'OBJECTIVE' | 'ACTION',
 ): string[] {
   const escapeSupport = new Set(
-    escapePoint.poaAnchorSupportingEvidence?.length
-      ? escapePoint.poaAnchorSupportingEvidence
-      : escapePoint.criticalUnsafeActSupportingEvidence?.length
-        ? escapePoint.criticalUnsafeActSupportingEvidence
-        : escapePoint.supportingEvidence,
+    escapePoint.firstDepartureSupportingEvidence?.length
+      ? escapePoint.firstDepartureSupportingEvidence
+      : escapePoint.supportingEvidence,
   )
-  const criticalAnchor = escapePoint.poaAnchorCandidate
-    ?? escapePoint.criticalUnsafeActCandidate
-    ?? escapePoint.firstDepartureCandidate
-    ?? escapePoint.statement
+  const criticalAnchor = escapePoint.firstDepartureCandidate
     ?? escapePoint.earliestCandidate
-    ?? escapePoint.latestCandidate
   const criticalAnchorIndex = criticalAnchor
     ? factualExtraction.timeline.find((item) => item.statement === criticalAnchor || item.statement.includes(criticalAnchor) || criticalAnchor.includes(item.statement))?.sourceSentenceIndex ?? null
     : null
@@ -263,12 +257,8 @@ export function runStep07AxisStatements(input: {
   const locale = input.engineInput.locale
   const actor = actorLabel(input.directActor.actor, locale)
 
-  const criticalAnchor = input.escapePoint.poaAnchorCandidate
-    ?? input.escapePoint.criticalUnsafeActCandidate
-    ?? input.escapePoint.firstDepartureCandidate
-    ?? input.escapePoint.statement
+  const criticalAnchor = input.escapePoint.firstDepartureCandidate
     ?? input.escapePoint.earliestCandidate
-    ?? input.escapePoint.latestCandidate
     ?? ''
   const perceptionRootEvidence = perceptionEvidence.filter((text) => hasPerceptionRootEvidence(text, criticalAnchor) || semanticPerceptionRoot.has(text))
   const perceptionStatement = genericStatement(
