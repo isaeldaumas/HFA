@@ -1,25 +1,12 @@
-import { runSeraVNextEngineV0 } from "@/lib/sera-vnext/engine-v0/run-engine";
-import {
-  enrichSeraNarrativeSemantically,
-  refineSeraTrajectoryPoaSemantics,
-} from "@/lib/sera-vnext/ai/semantic-enrichment";
-import type {
-  SeraVNextEngineInput,
-  SeraVNextEngineOutput,
-} from "@/lib/sera-vnext/engine-contract";
-import { conflict } from "../errors";
-import { hashJson, sha256Hex, stableJson } from "../hashing";
-import type {
-  SeraVNextCreateAnalysisInput,
-  SeraVNextCreateAnalysisResult,
-  SeraVNextProductContext,
-} from "../types";
-import { getSeraVNextProductVersionSet } from "../versioning";
-import { createAuditEvent } from "./create-audit-event";
-import {
-  createSeraVNextProductRepository,
-  type SeraVNextProductRepository,
-} from "./repositories";
+import { runSeraVNextEngineV0 } from '@/lib/sera-vnext/engine-v0/run-engine'
+import { enrichSeraNarrativeSemantically, enrichSeraPoaSemantically } from '@/lib/sera-vnext/ai/semantic-enrichment'
+import type { SeraVNextEngineInput, SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
+import { conflict } from '../errors'
+import { hashJson, sha256Hex, stableJson } from '../hashing'
+import type { SeraVNextCreateAnalysisInput, SeraVNextCreateAnalysisResult, SeraVNextProductContext } from '../types'
+import { getSeraVNextProductVersionSet } from '../versioning'
+import { createAuditEvent } from './create-audit-event'
+import { createSeraVNextProductRepository, type SeraVNextProductRepository } from './repositories'
 
 function assertNonFinalOutput(output: SeraVNextEngineOutput): void {
   if (
@@ -30,7 +17,7 @@ function assertNonFinalOutput(output: SeraVNextEngineOutput): void {
     output.readyPromotion !== false ||
     output.downstreamAllowed !== false
   ) {
-    throw new Error("SERA_VNEXT_PRODUCT_BETA_FINAL_OUTPUT_LOCK_VIOLATED");
+    throw new Error('SERA_VNEXT_PRODUCT_BETA_FINAL_OUTPUT_LOCK_VIOLATED')
   }
 }
 
@@ -42,12 +29,11 @@ function buildEngineInput(
   return {
     inputId: input.clientRequestId,
     narrative: input.narrative,
-    locale: input.locale ?? "pt-BR",
-    sourceType:
-      input.sourceType === "TRAINING" ? "neutral_trial" : "real_event",
+    locale: input.locale ?? 'pt-BR',
+    sourceType: input.sourceType === 'TRAINING' ? 'neutral_trial' : 'real_event',
     sourceReference: input.sourceReference ?? undefined,
     requestId: context.requestId,
-    mode: "CANDIDATE_ONLY",
+    mode: 'CANDIDATE_ONLY',
     supplementalEvidence: input.supplementalEvidence,
     semanticEvidence: semantic?.annotations,
     semanticSafeOperationModel: semantic?.safeOperationModel ?? undefined,
@@ -57,97 +43,99 @@ function buildEngineInput(
       includeDebugTrace: false,
       requireHumanReview: true,
     },
-  };
+  }
 }
 
-function collectWarnings(
-  output: SeraVNextEngineOutput,
-  inputWarnings: string[],
-): string[] {
-  const warnings = new Set<string>([
-    "NON_FINAL_OUTPUT_ONLY",
-    "HUMAN_REVIEW_REQUIRED",
-    ...inputWarnings,
-  ]);
-  if (output.canonicalTraversal.status !== "COMPLETED_CANDIDATE_ONLY")
-    warnings.add("CANONICAL_TRAVERSAL_REVIEW_REQUIRED");
-  if (output.evidenceSufficiency.status === "NEEDS_CLARIFICATION")
-    warnings.add("ADDITIONAL_EVIDENCE_REQUIRED");
-  if (output.directActor.status !== "IDENTIFIED")
-    warnings.add("DIRECT_ACTOR_REVIEW_REQUIRED");
-  if (output.preconditions.length === 0)
-    warnings.add("NO_PRECONDITION_CANDIDATE");
+function collectWarnings(output: SeraVNextEngineOutput, inputWarnings: string[]): string[] {
+  const warnings = new Set<string>(['NON_FINAL_OUTPUT_ONLY', 'HUMAN_REVIEW_REQUIRED', ...inputWarnings])
+  if (output.canonicalTraversal.status !== 'COMPLETED_CANDIDATE_ONLY') warnings.add('CANONICAL_TRAVERSAL_REVIEW_REQUIRED')
+  if (output.evidenceSufficiency.status === 'NEEDS_CLARIFICATION') warnings.add('ADDITIONAL_EVIDENCE_REQUIRED')
+  if (output.directActor.status !== 'IDENTIFIED') warnings.add('DIRECT_ACTOR_REVIEW_REQUIRED')
+  if (output.preconditions.length === 0) warnings.add('NO_PRECONDITION_CANDIDATE')
   for (const [name, violated] of Object.entries(output.guardrails)) {
-    if (violated) warnings.add(`GUARDRAIL_VIOLATED_${name.toUpperCase()}`);
+    if (violated) warnings.add(`GUARDRAIL_VIOLATED_${name.toUpperCase()}`)
   }
-  return [...warnings];
+  return [...warnings]
 }
 
 export async function createSeraVNextAnalysis(args: {
-  input: SeraVNextCreateAnalysisInput & {
-    warnings?: string[];
-    sourceFlowOverride?: "VNEXT_CANONICAL" | "VNEXT_PRODUCT_BETA";
-  };
-  context: SeraVNextProductContext;
-  repository?: SeraVNextProductRepository;
+  input: SeraVNextCreateAnalysisInput & { warnings?: string[]; sourceFlowOverride?: 'VNEXT_CANONICAL' | 'VNEXT_PRODUCT_BETA' }
+  context: SeraVNextProductContext
+  repository?: SeraVNextProductRepository
 }): Promise<SeraVNextCreateAnalysisResult> {
-  const repository = args.repository ?? createSeraVNextProductRepository();
-  const narrativeHash = sha256Hex(args.input.narrative);
-  const existing = await repository.findAnalysisByClientRequest(
-    args.context.tenantId,
-    args.input.clientRequestId,
-  );
+  const repository = args.repository ?? createSeraVNextProductRepository()
+  const narrativeHash = sha256Hex(args.input.narrative)
+  const existing = await repository.findAnalysisByClientRequest(args.context.tenantId, args.input.clientRequestId)
   if (existing) {
     if (
       existing.narrative_hash !== narrativeHash ||
       existing.title !== args.input.title ||
       existing.source_type !== args.input.sourceType
     ) {
-      throw conflict(
-        "clientRequestId já foi usado com payload divergente neste tenant.",
-      );
+      throw conflict('clientRequestId já foi usado com payload divergente neste tenant.')
     }
-    const revisions = await repository.listRevisions(
-      args.context.tenantId,
-      existing.id,
-    );
-    return { analysis: existing, revision: revisions[0], idempotent: true };
+    const revisions = await repository.listRevisions(args.context.tenantId, existing.id)
+    return { analysis: existing, revision: revisions[0], idempotent: true }
   }
 
-  const versions = getSeraVNextProductVersionSet();
-  const effectiveSourceFlow =
-    args.input.sourceFlowOverride ?? versions.sourceFlow;
-  const semanticAiRequired = args.input.metadata?.semanticAiRequired === true;
+  const versions = getSeraVNextProductVersionSet()
+  const effectiveSourceFlow = args.input.sourceFlowOverride ?? versions.sourceFlow
+  const semanticAiRequired = args.input.metadata?.semanticAiRequired === true
   let semantic = semanticAiRequired
-    ? await enrichSeraNarrativeSemantically({
-        narrative: args.input.narrative,
-        locale: args.input.locale ?? "pt-BR",
-      })
-    : null;
-  let engineInput = buildEngineInput(args.input, args.context, semantic);
-  let engineOutput = runSeraVNextEngineV0(engineInput);
+    ? await enrichSeraNarrativeSemantically({ narrative: args.input.narrative, locale: args.input.locale ?? 'pt-BR' })
+    : null
+  let engineInput = buildEngineInput(args.input, args.context, semantic)
+  let engineOutput = runSeraVNextEngineV0(engineInput)
 
-  if (semantic) {
-    semantic = await refineSeraTrajectoryPoaSemantics({
-      narrative: args.input.narrative,
-      locale: args.input.locale ?? "pt-BR",
-      semantic,
-      engineOutput,
-    });
-    engineInput = buildEngineInput(args.input, args.context, semantic);
-    engineOutput = runSeraVNextEngineV0(engineInput);
+  const criticalAct = engineOutput.escapePoint.poaAnchorCandidate ?? engineOutput.escapePoint.criticalUnsafeActCandidate
+  const needsFocusedPoa = semantic
+    && engineOutput.directActor.status === 'IDENTIFIED'
+    && Boolean(engineOutput.directActor.actor)
+    && Boolean(criticalAct)
+    && engineOutput.evidenceSufficiency.questions.some((question) => /-(P|O|A)_ROOT$/.test(question.id))
+  if (needsFocusedPoa && semantic && criticalAct && engineOutput.directActor.actor) {
+    try {
+      const focused = await enrichSeraPoaSemantically({
+        narrative: args.input.narrative,
+        locale: args.input.locale ?? 'pt-BR',
+        criticalAct,
+        directActor: engineOutput.directActor.actor,
+        firstDeparture: engineOutput.escapePoint.firstDepartureCandidate,
+      })
+      if (focused.annotations.length > 0) {
+        const merged = [...semantic.annotations]
+        const seen = new Set(merged.map((item) => `${item.sourceSentenceIndex}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}`))
+        for (const item of focused.annotations) {
+          const key = `${item.sourceSentenceIndex}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}`
+          if (!seen.has(key)) { seen.add(key); merged.push(item) }
+        }
+        semantic = {
+          ...semantic,
+          annotations: merged,
+          meta: {
+            ...semantic.meta,
+            provider: focused.meta.provider,
+            model: focused.meta.model,
+            acceptedAnnotations: merged.length,
+            rejectedAnnotations: semantic.meta.rejectedAnnotations + focused.meta.rejectedAnnotations,
+          },
+        }
+        engineInput = buildEngineInput(args.input, args.context, semantic)
+        engineOutput = runSeraVNextEngineV0(engineInput)
+      }
+    } catch (error) {
+      console.warn('[SERA semantic P/O/A focus] falling back to primary semantic pass', error instanceof Error ? error.message : String(error))
+    }
   }
-  assertNonFinalOutput(engineOutput);
-  const outputHash = hashJson(engineOutput);
-  const warnings = collectWarnings(engineOutput, args.input.warnings ?? []);
-  const initialStatus =
-    engineOutput.evidenceSufficiency.status === "NEEDS_CLARIFICATION"
-      ? ("REQUIRES_MORE_EVIDENCE" as const)
-      : ("CANDIDATE_ANALYSIS_CREATED" as const);
-  const initialReviewStatus =
-    engineOutput.evidenceSufficiency.status === "NEEDS_CLARIFICATION"
-      ? ("MORE_EVIDENCE_REQUIRED" as const)
-      : ("NOT_REVIEWED" as const);
+  assertNonFinalOutput(engineOutput)
+  const outputHash = hashJson(engineOutput)
+  const warnings = collectWarnings(engineOutput, args.input.warnings ?? [])
+  const initialStatus = engineOutput.evidenceSufficiency.status === 'NEEDS_CLARIFICATION'
+    ? 'REQUIRES_MORE_EVIDENCE' as const
+    : 'CANDIDATE_ANALYSIS_CREATED' as const
+  const initialReviewStatus = engineOutput.evidenceSufficiency.status === 'NEEDS_CLARIFICATION'
+    ? 'MORE_EVIDENCE_REQUIRED' as const
+    : 'NOT_REVIEWED' as const
 
   const analysis = await repository.insertAnalysis({
     tenant_id: args.context.tenantId,
@@ -187,31 +175,25 @@ export async function createSeraVNextAnalysis(args: {
     current_revision: 1,
     metadata: {
       ...(args.input.metadata ?? {}),
-      inputPayloadHash: hashJson({
-        title: args.input.title,
-        narrativeHash,
-        sourceType: args.input.sourceType,
-      }),
+      inputPayloadHash: hashJson({ title: args.input.title, narrativeHash, sourceType: args.input.sourceType }),
       stableEngineOutput: stableJson(engineOutput).length,
       provenance: {
         codeCommit: versions.codeCommit,
         codeCommitSource: versions.codeCommitSource,
         deploymentId: versions.deploymentId,
         semanticEnrichment: semantic?.meta ?? null,
-        semanticLayer: semantic
-          ? "AI_EXTRACTION_DETERMINISTIC_SERA_TRAVERSAL"
-          : "DETERMINISTIC_FALLBACK",
+        semanticLayer: semantic ? 'AI_EXTRACTION_DETERMINISTIC_SERA_TRAVERSAL' : 'DETERMINISTIC_FALLBACK',
       },
     },
     // Proveniência metodológica: a IA faz extração semântica ancorada em citações verificadas;
     // a travessia Hendy/SERA e os guardrails continuam determinísticos e candidate-only.
-    engine_id: "SERA_VNEXT_ENGINE",
+    engine_id: 'SERA_VNEXT_ENGINE',
     taxonomy_version: versions.canonicalTreeVersion,
     risk_method_id: null, // risco permanece locked no vNext (canonical method question lock).
     risk_method_version: null,
-    generated_by_type: semantic ? "llm_suggestion" : "deterministic_engine",
-    validation_status: "not_validated",
-  });
+    generated_by_type: semantic ? 'llm_suggestion' : 'deterministic_engine',
+    validation_status: 'not_validated',
+  })
 
   const revision = await repository.insertRevision({
     analysis_id: analysis.id,
@@ -225,15 +207,15 @@ export async function createSeraVNextAnalysis(args: {
     engine_input: engineInput,
     engine_output: engineOutput,
     engine_output_hash: outputHash,
-    reason: "initial_analysis",
-    metadata: { source: "product_beta_create" },
-  });
+    reason: 'initial_analysis',
+    metadata: { source: 'product_beta_create' },
+  })
 
   await createAuditEvent({
     repository,
     context: args.context,
     analysisId: analysis.id,
-    eventType: "analysis.created",
+    eventType: 'analysis.created',
     toStatus: analysis.status,
     payload: {
       title: analysis.title,
@@ -246,14 +228,12 @@ export async function createSeraVNextAnalysis(args: {
       deploymentId: versions.deploymentId,
       warningsCount: warnings.length,
       evidenceSufficiencyStatus: engineOutput.evidenceSufficiency.status,
-      clarificationQuestionIds: engineOutput.evidenceSufficiency.questions.map(
-        (item) => item.id,
-      ),
+      clarificationQuestionIds: engineOutput.evidenceSufficiency.questions.map((item) => item.id),
       guardrailViolations: Object.entries(engineOutput.guardrails)
         .filter(([, violated]) => violated)
         .map(([name]) => name),
     },
-  });
+  })
 
-  return { analysis, revision, idempotent: false };
+  return { analysis, revision, idempotent: false }
 }

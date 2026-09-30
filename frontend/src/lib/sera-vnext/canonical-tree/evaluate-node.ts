@@ -1,187 +1,132 @@
-import type { SeraConfidence } from "../engine-contract";
-import {
-  hasConcept,
-  matchingConceptStatements,
-  matchingConceptStatementsWithoutNegation,
-  conceptsWithinWindow,
-  type SeraEvidenceConcept,
-} from "../engine-v02/language/concepts";
-import type { SeraEvidenceItem } from "../evidence";
-import { axisToEvidenceUse, isEvidenceUsableFor } from "../evidence";
-import type { CanonicalSeraAxis } from "../types";
-import type { SeraCanonicalNode } from "./types";
+import type { SeraConfidence } from '../engine-contract'
+import { hasConcept, matchingConceptStatements, matchingConceptStatementsWithoutNegation, conceptsWithinWindow, type SeraEvidenceConcept } from '../engine-v02/language/concepts'
+import type { SeraEvidenceItem } from '../evidence'
+import { axisToEvidenceUse, isEvidenceUsableFor } from '../evidence'
+import type { CanonicalSeraAxis } from '../types'
+import type { SeraCanonicalNode } from './types'
 
 export type SeraNodeEvidenceContext = {
-  axis: CanonicalSeraAxis;
-  node: SeraCanonicalNode;
-  evidence: SeraEvidenceItem[];
-  statementAtEscapePoint: string | null;
+  axis: CanonicalSeraAxis
+  node: SeraCanonicalNode
+  evidence: SeraEvidenceItem[]
+  statementAtEscapePoint: string | null
   /** Substantive answer produced at the descriptive root and carried to later nodes. */
-  rootResponseText?: string | null;
-  locale?: "pt-BR" | "en";
-};
+  rootResponseText?: string | null
+  locale?: 'pt-BR' | 'en'
+}
 
 export type SeraNodeAnswer = {
-  nodeId: string;
-  question: string;
-  exactQuestionTextENAnchor: string;
-  answer:
-    | "START"
-    | "SIM"
-    | "NÃO"
-    | "NÃO_SENSORIAL"
-    | "NÃO_CONHECIMENTO"
-    | "SIM_ATENCAO"
-    | "SIM_GERENCIAMENTO"
-    | "NÃO_DESLIZE_LAPSO_ERRO"
-    | "NÃO_FEEDBACK"
-    | "NÃO_INABILIDADE"
-    | "NÃO_SELECAO"
-    | "SIM_SELECAO"
-    | "SIM_FEEDBACK"
-    | "INSUFFICIENT_EVIDENCE";
+  nodeId: string
+  question: string
+  exactQuestionTextENAnchor: string
+  answer: 'START' | 'SIM' | 'NÃO' | 'NÃO_SENSORIAL' | 'NÃO_CONHECIMENTO' | 'SIM_ATENCAO' | 'SIM_GERENCIAMENTO' | 'NÃO_DESLIZE_LAPSO_ERRO' | 'NÃO_FEEDBACK' | 'NÃO_INABILIDADE' | 'NÃO_SELECAO' | 'SIM_SELECAO' | 'SIM_FEEDBACK' | 'INSUFFICIENT_EVIDENCE'
   /** Human-readable answer to descriptive/root questions; never the internal START token. */
-  responseText: string | null;
-  nextNodeId: string | null;
-  terminalCode: string | null;
-  supportingEvidence: string[];
-  counterEvidence: string[];
-  prohibitedInferenceChecks: string[];
-  confidence: SeraConfidence;
-  rationale: string;
-};
+  responseText: string | null
+  nextNodeId: string | null
+  terminalCode: string | null
+  supportingEvidence: string[]
+  counterEvidence: string[]
+  prohibitedInferenceChecks: string[]
+  confidence: SeraConfidence
+  rationale: string
+}
 
-type BranchAnswer = SeraNodeAnswer["answer"];
+type BranchAnswer = SeraNodeAnswer['answer']
 
 type Decision = {
-  answer: BranchAnswer;
-  supportingEvidence: string[];
-  rationale: string;
-};
+  answer: BranchAnswer
+  supportingEvidence: string[]
+  rationale: string
+}
 
 function unique(values: string[]): string[] {
-  return [...new Set(values.filter(Boolean))];
+  return [...new Set(values.filter(Boolean))]
 }
 
 function confidenceFromEvidence(count: number): SeraConfidence {
-  if (count >= 3) return "HIGH";
-  if (count === 2) return "MEDIUM";
-  return "LOW";
+  if (count >= 3) return 'HIGH'
+  if (count === 2) return 'MEDIUM'
+  return 'LOW'
 }
 
 function usableStatements(ctx: SeraNodeEvidenceContext): string[] {
-  const use = axisToEvidenceUse(ctx.axis);
+  const use = axisToEvidenceUse(ctx.axis)
   return unique([
-    ...ctx.evidence
-      .filter((item) => isEvidenceUsableFor(item, use))
-      .map((item) => item.statement),
-    ctx.statementAtEscapePoint ?? "",
-    ctx.rootResponseText ?? "",
-  ]);
+    ...ctx.evidence.filter((item) => isEvidenceUsableFor(item, use)).map((item) => item.statement),
+    ctx.statementAtEscapePoint ?? '',
+    ctx.rootResponseText ?? '',
+  ])
 }
 
 function substantiveClarification(statement: string): boolean {
-  const compact = statement.trim().replace(/\s+/g, " ");
-  if (compact.length < 4) return false;
+  const compact = statement.trim().replace(/\s+/g, ' ')
+  if (compact.length < 4) return false
   const normalized = compact
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replace(/[.!?;,]+$/g, "")
-    .trim();
-  if (/^(sim|nao|yes|no)$/.test(normalized)) return false;
-  if (
-    /^(nao sei|desconhecido|desconhecida|sem informacao|nao informado|nao informada|n\/?a|unknown|i do not know|no information|not informed)$/.test(
-      normalized,
-    )
-  )
-    return false;
-  return normalized.split(/\s+/).filter(Boolean).length >= 2;
+    .replace(/[.!?;,]+$/g, '')
+    .trim()
+  if (/^(sim|nao|yes|no)$/.test(normalized)) return false
+  if (/^(nao sei|desconhecido|desconhecida|sem informacao|nao informado|nao informada|n\/?a|unknown|i do not know|no information|not informed)$/.test(normalized)) return false
+  return normalized.split(/\s+/).filter(Boolean).length >= 2
 }
 
-function directNodeClarificationStatements(
-  ctx: SeraNodeEvidenceContext,
-): string[] {
-  const use = axisToEvidenceUse(ctx.axis);
-  const expectedQuestionId = `CLARIFY-${ctx.axis}-${ctx.node.nodeId}`;
-  return unique(
-    ctx.evidence
-      .filter(
-        (item) =>
-          item.collectionSource === "CLARIFICATION_RESPONSE" &&
-          item.linkedQuestionId === expectedQuestionId &&
-          item.clarificationStage === use &&
-          item.temporalRelation !== "POST_ESCAPE" &&
-          item.assertionStatus === "AFFIRMED" &&
-          !item.prohibitedFor.includes(use) &&
-          substantiveClarification(item.statement),
-      )
-      .map((item) => item.statement),
-  );
+function directNodeClarificationStatements(ctx: SeraNodeEvidenceContext): string[] {
+  const use = axisToEvidenceUse(ctx.axis)
+  const expectedQuestionId = `CLARIFY-${ctx.axis}-${ctx.node.nodeId}`
+  return unique(ctx.evidence
+    .filter((item) =>
+      item.collectionSource === 'CLARIFICATION_RESPONSE'
+      && item.linkedQuestionId === expectedQuestionId
+      && item.clarificationStage === use
+      && item.temporalRelation !== 'POST_ESCAPE'
+      && item.assertionStatus === 'AFFIRMED'
+      && !item.prohibitedFor.includes(use)
+      && substantiveClarification(item.statement))
+    .map((item) => item.statement))
 }
 
 function matching(statements: string[], patterns: RegExp[]): string[] {
-  return statements.filter((statement) =>
-    patterns.some((pattern) => pattern.test(statement)),
-  );
+  return statements.filter((statement) => patterns.some((pattern) => pattern.test(statement)))
 }
 
 function hasText(statements: string[], patterns: RegExp[]): boolean {
-  return matching(statements, patterns).length > 0;
+  return matching(statements, patterns).length > 0
 }
 
-function concept(
-  statements: string[],
-  evidenceConcept: SeraEvidenceConcept,
-): string[] {
-  return matchingConceptStatements(statements, evidenceConcept);
+function concept(statements: string[], evidenceConcept: SeraEvidenceConcept): string[] {
+  return matchingConceptStatements(statements, evidenceConcept)
 }
 
-function anyConcept(
-  statements: string[],
-  concepts: SeraEvidenceConcept[],
-): boolean {
-  return concepts.some((item) => hasConcept(statements, item));
+function anyConcept(statements: string[], concepts: SeraEvidenceConcept[]): boolean {
+  return concepts.some((item) => hasConcept(statements, item))
 }
 
-function semanticRoleStatements(
-  ctx: SeraNodeEvidenceContext,
-  role: import("../engine-contract").SeraSemanticEvidenceRole,
-): string[] {
-  const use = axisToEvidenceUse(ctx.axis);
-  return unique(
-    ctx.evidence
-      .filter(
-        (item) =>
-          item.collectionSource === "AI_SEMANTIC_EXTRACTION" &&
-          item.assertionStatus === "AFFIRMED" &&
-          item.semanticConfidence !== "LOW" &&
-          !item.prohibitedFor.includes(use) &&
-          isEvidenceUsableFor(item, use) &&
-          item.semanticRoles?.includes(role),
-      )
-      .map((item) => item.statement),
-  );
+function semanticRoleStatements(ctx: SeraNodeEvidenceContext, role: import('../engine-contract').SeraSemanticEvidenceRole): string[] {
+  const use = axisToEvidenceUse(ctx.axis)
+  return unique(ctx.evidence
+    .filter((item) =>
+      item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+      && item.assertionStatus === 'AFFIRMED'
+      && item.semanticConfidence !== 'LOW'
+      && !item.prohibitedFor.includes(use)
+      && isEvidenceUsableFor(item, use)
+      && item.semanticRoles?.includes(role))
+    .map((item) => item.statement))
 }
 
-function semanticConceptStatements(
-  ctx: SeraNodeEvidenceContext,
-  conceptName: SeraEvidenceConcept,
-): string[] {
-  const use = axisToEvidenceUse(ctx.axis);
-  return unique(
-    ctx.evidence
-      .filter(
-        (item) =>
-          item.collectionSource === "AI_SEMANTIC_EXTRACTION" &&
-          item.assertionStatus === "AFFIRMED" &&
-          item.semanticConfidence !== "LOW" &&
-          !item.prohibitedFor.includes(use) &&
-          isEvidenceUsableFor(item, use) &&
-          item.semanticConcepts?.includes(conceptName as never),
-      )
-      .map((item) => item.statement),
-  );
+function semanticConceptStatements(ctx: SeraNodeEvidenceContext, conceptName: SeraEvidenceConcept): string[] {
+  const use = axisToEvidenceUse(ctx.axis)
+  return unique(ctx.evidence
+    .filter((item) =>
+      item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+      && item.assertionStatus === 'AFFIRMED'
+      && item.semanticConfidence !== 'LOW'
+      && !item.prohibitedFor.includes(use)
+      && isEvidenceUsableFor(item, use)
+      && item.semanticConcepts?.includes(conceptName as never))
+    .map((item) => item.statement))
 }
 
 function semanticConceptsWithinWindow(
@@ -190,860 +135,372 @@ function semanticConceptsWithinWindow(
   right: SeraEvidenceConcept,
   maxDistance: number,
 ): boolean {
-  const use = axisToEvidenceUse(ctx.axis);
-  const eligible = ctx.evidence.filter(
-    (item) =>
-      item.collectionSource === "AI_SEMANTIC_EXTRACTION" &&
-      item.assertionStatus === "AFFIRMED" &&
-      item.semanticConfidence !== "LOW" &&
-      !item.prohibitedFor.includes(use) &&
-      isEvidenceUsableFor(item, use),
-  );
-  const leftItems = eligible.filter((item) =>
-    item.semanticConcepts?.includes(left as never),
-  );
-  const rightItems = eligible.filter((item) =>
-    item.semanticConcepts?.includes(right as never),
-  );
-  return leftItems.some((a) =>
-    rightItems.some(
-      (b) =>
-        Math.abs(a.sourceSentenceIndex - b.sourceSentenceIndex) <= maxDistance,
-    ),
-  );
+  const use = axisToEvidenceUse(ctx.axis)
+  const eligible = ctx.evidence.filter((item) =>
+    item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+    && item.assertionStatus === 'AFFIRMED'
+    && item.semanticConfidence !== 'LOW'
+    && !item.prohibitedFor.includes(use)
+    && isEvidenceUsableFor(item, use))
+  const leftItems = eligible.filter((item) => item.semanticConcepts?.includes(left as never))
+  const rightItems = eligible.filter((item) => item.semanticConcepts?.includes(right as never))
+  return leftItems.some((a) => rightItems.some((b) => Math.abs(a.sourceSentenceIndex - b.sourceSentenceIndex) <= maxDistance))
 }
 
 function stripAxisStatementPrefix(value: string | null): string | null {
-  if (!value) return null;
-  const trimmed = value.trim();
-  const colon = trimmed.indexOf(":");
-  if (
-    colon > 0 &&
-    /ponto de fuga|escape point/i.test(trimmed.slice(0, colon))
-  ) {
-    return trimmed.slice(colon + 1).trim() || null;
+  if (!value) return null
+  const trimmed = value.trim()
+  const colon = trimmed.indexOf(':')
+  if (colon > 0 && /ponto de fuga|escape point/i.test(trimmed.slice(0, colon))) {
+    return trimmed.slice(colon + 1).trim() || null
   }
-  return trimmed || null;
+  return trimmed || null
 }
 
 function conciseRootResponse(axis: CanonicalSeraAxis, raw: string): string {
-  const text = raw
-    .trim()
-    .replace(/^por[eé]m,?\s*/i, "")
-    .replace(/^however,?\s*/i, "");
+  const text = raw.trim().replace(/^por[eé]m,?\s*/i, '').replace(/^however,?\s*/i, '')
 
-  if (axis === "P") {
-    const firstLanding = text.match(
-      /identificou\s+(a|o)?\s*([A-Z0-9-]+)\s+como\s+(?:o\s+)?primeiro\s+pouso/i,
-    );
+  if (axis === 'P') {
+    const firstLanding = text.match(/identificou\s+(a|o)?\s*([A-Z0-9-]+)\s+como\s+(?:o\s+)?primeiro\s+pouso/i)
     if (firstLanding) {
-      const article = (firstLanding[1] ?? "").toLowerCase() === "o" ? "o" : "a";
-      return `O operador acreditava que ${article} ${firstLanding[2]} era a unidade prevista para o primeiro pouso.`;
+      const article = (firstLanding[1] ?? '').toLowerCase() === 'o' ? 'o' : 'a'
+      return `O operador acreditava que ${article} ${firstLanding[2]} era a unidade prevista para o primeiro pouso.`
     }
-    const identifiedAsIf = text.match(
-      /(?:identificou|tratou|interpretou)\s+(.{1,70}?)\s+como se fosse\s+(.{1,100}?)(?:[.;,]|\s+e\s+passou|\s+devido\b|\s+porque\b|$)/i,
-    );
-    if (identifiedAsIf)
-      return `O operador acreditava que ${identifiedAsIf[1].trim()} era ${identifiedAsIf[2].trim()}.`;
-    const identifiedAs = text.match(
-      /(?:identificou|tratou|interpretou)\s+(.{1,70}?)\s+como\s+(.{1,100}?)(?:[.;,]|\s+devido\b|\s+porque\b|$)/i,
-    );
-    if (identifiedAs)
-      return `O operador acreditava que ${identifiedAs[1].trim()} correspondia a ${identifiedAs[2].trim()}.`;
-    const imcAwareness = text.match(
-      /(?:viu|vimos|viram|sabia|sabiam|estava ciente|estavam cientes).{0,120}?\bIMC\b/i,
-    );
+    const identifiedAsIf = text.match(/(?:identificou|tratou|interpretou)\s+(.{1,70}?)\s+como se fosse\s+(.{1,100}?)(?:[.;,]|\s+e\s+passou|\s+devido\b|\s+porque\b|$)/i)
+    if (identifiedAsIf) return `O operador acreditava que ${identifiedAsIf[1].trim()} era ${identifiedAsIf[2].trim()}.`
+    const identifiedAs = text.match(/(?:identificou|tratou|interpretou)\s+(.{1,70}?)\s+como\s+(.{1,100}?)(?:[.;,]|\s+devido\b|\s+porque\b|$)/i)
+    if (identifiedAs) return `O operador acreditava que ${identifiedAs[1].trim()} correspondia a ${identifiedAs[2].trim()}.`
+    const imcAwareness = text.match(/(?:viu|vimos|viram|sabia|sabiam|estava ciente|estavam cientes).{0,120}?\bIMC\b/i)
     if (imcAwareness) {
-      const altitude = text.match(/\b(\d{2,4})\s*(?:p[eé]s|ft|feet)\b/i)?.[1];
+      const altitude = text.match(/\b(\d{2,4})\s*(?:p[eé]s|ft|feet)\b/i)?.[1]
       return altitude
         ? `O operador percebia que a operação estava em IMC a ${altitude} pés.`
-        : "O operador percebia que a operação estava em IMC.";
+        : 'O operador percebia que a operação estava em IMC.'
     }
-    const judged = text.match(
-      /(?:eu\s+)?julg(?:uei|ava)\s+que\s+(.{1,180}?)(?:[.;]|$)/i,
-    );
+    const judged = text.match(/(?:eu\s+)?julg(?:uei|ava)\s+que\s+(.{1,180}?)(?:[.;]|$)/i)
     if (judged) {
-      const belief = judged[1]
-        .trim()
-        .replace(/\bmeu lado\b/gi, "seu lado")
-        .replace(/\bminha rota\b/gi, "sua rota");
-      return `O operador acreditava que ${belief}.`;
+      const belief = judged[1].trim().replace(/\bmeu lado\b/gi, 'seu lado').replace(/\bminha rota\b/gi, 'sua rota')
+      return `O operador acreditava que ${belief}.`
     }
-    const believed = text.match(
-      /(?:acreditava|achava|entendeu|entendia|percebia)\s+que\s+(.{1,180}?)(?:[.;]|$)/i,
-    );
-    if (believed) return `O operador acreditava que ${believed[1].trim()}.`;
-    const enIdentified = text.match(
-      /identified\s+(.{1,70}?)\s+as\s+(?:the\s+)?(.{1,100}?)(?:[.;,]|\s+because\b|$)/i,
-    );
-    if (enIdentified)
-      return `The operator believed ${enIdentified[1].trim()} was the ${enIdentified[2].trim()}.`;
+    const believed = text.match(/(?:acreditava|achava|entendeu|entendia|percebia)\s+que\s+(.{1,180}?)(?:[.;]|$)/i)
+    if (believed) return `O operador acreditava que ${believed[1].trim()}.`
+    const enIdentified = text.match(/identified\s+(.{1,70}?)\s+as\s+(?:the\s+)?(.{1,100}?)(?:[.;,]|\s+because\b|$)/i)
+    if (enIdentified) return `The operator believed ${enIdentified[1].trim()} was the ${enIdentified[2].trim()}.`
   }
 
-  if (axis === "O") {
-    if (/\b(?:pra|para) ajudar\b|\bser proativ\w*/i.test(text)) {
-      return "O operador pretendia ajudar o colega, agindo de forma proativa.";
-    }
-    const boundedPlan = text.match(
-      /\b(?:estipulei|determinei|defini)\b.{0,120}?\b(continuar|voar|prosseguir)\b.{0,120}?\b(arremeter|go-around)\b/i,
-    );
-    if (boundedPlan)
-      return "O operador pretendia prosseguir apenas até o limite que havia definido e então arremeter.";
+  if (axis === 'O') {
     if (/pouso\s+seria\s+nessa?\s+primeira\s+unidade/i.test(text)) {
-      return "O operador pretendia realizar o primeiro pouso na unidade que acreditava ser o destino previsto.";
+      return 'O operador pretendia realizar o primeiro pouso na unidade que acreditava ser o destino previsto.'
     }
-    const preparedApproach = text.match(
-      /passou a (?:preparar|conduzir|planejar)\s+(?:a\s+)?aproxima[cç][aã]o\s+para\s+(.{1,90}?)(?:[.;]|$)/i,
-    );
-    if (preparedApproach)
-      return `O operador pretendia realizar a aproximação para ${preparedApproach[1].trim()}.`;
-    if (
-      /called for (?:the )?go-around|chamou (?:pela |a )?arremetida|solicitou (?:a )?arremetida/i.test(
-        text,
-      )
-    ) {
-      return /called for/i.test(text)
-        ? "The operator intended to execute a go-around."
-        : "O operador pretendia executar uma arremetida.";
+    const preparedApproach = text.match(/passou a (?:preparar|conduzir|planejar)\s+(?:a\s+)?aproxima[cç][aã]o\s+para\s+(.{1,90}?)(?:[.;]|$)/i)
+    if (preparedApproach) return `O operador pretendia realizar a aproximação para ${preparedApproach[1].trim()}.`
+    if (/called for (?:the )?go-around|chamou (?:pela |a )?arremetida|solicitou (?:a )?arremetida/i.test(text)) {
+      return /called for/i.test(text) ? 'The operator intended to execute a go-around.' : 'O operador pretendia executar uma arremetida.'
     }
-    if (
-      /\b(?:resolveu|resolveram|resolvemos|decidiu|decidiram|decidimos|optou|optaram)\b.*\bcontinuar\b.*\b(?:tentar|pouso|pousar)\b/i.test(
-        text,
-      )
-    ) {
-      return "O operador pretendia continuar o voo e tentar o pouso.";
+    if (/\b(?:resolveu|resolveram|resolvemos|decidiu|decidiram|decidimos|optou|optaram)\b.*\bcontinuar\b.*\b(?:tentar|pouso|pousar)\b/i.test(text)) {
+      return 'O operador pretendia continuar o voo e tentar o pouso.'
     }
-    const goal = text.match(
-      /(?:objetivo|inten[cç][aã]o|meta)\s+(?:era|foi|consistia em)?\s*:?[\s]*(.{1,180}?)(?:[.;]|$)/i,
-    );
-    if (goal) return `O objetivo do operador era ${goal[1].trim()}.`;
+    const goal = text.match(/(?:objetivo|inten[cç][aã]o|meta)\s+(?:era|foi|consistia em)?\s*:?[\s]*(.{1,180}?)(?:[.;]|$)/i)
+    if (goal) return `O objetivo do operador era ${goal[1].trim()}.`
     if (/\b(?:pra|para) ajudar\b.*\b(?:proativo|proativa)\b/i.test(text)) {
-      return "O operador pretendia ajudar o colega, agindo de forma proativa.";
+      return 'O operador pretendia ajudar o colega, agindo de forma proativa.'
     }
-    const preferredLanding = text.match(
-      /(?:preferi|preferiu|tenha preferido)\s+(?:fazer|realizar)\s+o pouso(?:\s+mesmo[^.;]{0,120})?\s+(?:pelo|por)\s+(meu|seu)\s+lado/i,
-    );
-    if (preferredLanding)
-      return `O operador pretendia realizar o pouso pelo ${preferredLanding[1] === "meu" ? "seu" : preferredLanding[1]} lado.`;
-    const desired = text.match(
-      /(?:desejava|queria|pretendia|buscava|visava)\s+(.{1,180}?)(?:[.;]|$)/i,
-    );
-    if (desired) return `O operador pretendia ${desired[1].trim()}.`;
-    if (
-      /planned\s+(?:route|destination)|intended\s+(?:route|destination)/i.test(
-        text,
-      )
-    ) {
-      return "The operator intended to complete the route or destination believed to be planned.";
+    const preferredLanding = text.match(/(?:preferi|preferiu|tenha preferido)\s+(?:fazer|realizar)\s+o pouso(?:\s+mesmo[^.;]{0,120})?\s+(?:pelo|por)\s+(meu|seu)\s+lado/i)
+    if (preferredLanding) return `O operador pretendia realizar o pouso pelo ${preferredLanding[1] === 'meu' ? 'seu' : preferredLanding[1]} lado.`
+    const desired = text.match(/(?:desejava|queria|pretendia|buscava|visava)\s+(.{1,180}?)(?:[.;]|$)/i)
+    if (desired) return `O operador pretendia ${desired[1].trim()}.`
+    if (/planned\s+(?:route|destination)|intended\s+(?:route|destination)/i.test(text)) {
+      return 'The operator intended to complete the route or destination believed to be planned.'
     }
   }
 
-  if (axis === "A") {
-    if (
-      (/\bmeteu .*comandos\b/i.test(text) ||
-        /\bpuxou .*c[ií]clico\b/i.test(text)) &&
-      /\bcoletivo\b/i.test(text) &&
-      /\bsubir|subida\b/i.test(text)
-    ) {
-      return "O operador tentava iniciar a subida/arremetida atuando diretamente no cíclico e no coletivo.";
-    }
+  if (axis === 'A') {
     if (/\b(?:pra|para) ajudar\b.*\b(?:proativo|proativa)\b/i.test(text)) {
-      return "O operador tentava atingir o objetivo ajudando o colega de forma proativa.";
+      return 'O operador tentava atingir o objetivo ajudando o colega de forma proativa.'
     }
-    const preferredLanding = text.match(
-      /(?:preferi|preferiu|tenha preferido)\s+(?:fazer|realizar)\s+o pouso(?:\s+mesmo[^.;]{0,120})?\s+(?:pelo|por)\s+(meu|seu)\s+lado/i,
-    );
-    if (preferredLanding)
-      return `O operador tentava atingir o objetivo realizando o pouso pelo ${preferredLanding[1] === "meu" ? "seu" : preferredLanding[1]} lado.`;
-    if (
-      /\b(?:tirei|tirou|retirei|retirou|desguarneci)\b.{0,120}\bcoletivo\b.{0,160}\b(?:peguei|pegou)\b.{0,80}\b(?:papel|papelada|documenta[cç][aã]o)\b/i.test(
-        text,
-      )
-    ) {
-      return "O operador tentava atingir o objetivo retirando a mão do coletivo para pegar a documentação.";
+    const preferredLanding = text.match(/(?:preferi|preferiu|tenha preferido)\s+(?:fazer|realizar)\s+o pouso(?:\s+mesmo[^.;]{0,120})?\s+(?:pelo|por)\s+(meu|seu)\s+lado/i)
+    if (preferredLanding) return `O operador tentava atingir o objetivo realizando o pouso pelo ${preferredLanding[1] === 'meu' ? 'seu' : preferredLanding[1]} lado.`
+    if (/\b(?:tirei|tirou|retirei|retirou|desguarneci)\b.{0,120}\bcoletivo\b.{0,160}\b(?:peguei|pegou)\b.{0,80}\b(?:papel|papelada|documenta[cç][aã]o)\b/i.test(text)) {
+      return 'O operador tentava atingir o objetivo retirando a mão do coletivo para pegar a documentação.'
     }
-    const pcp = text.match(
-      /passou a tratar\s+([A-Z0-9-]+)\s+como\s+o destino previsto para o primeiro pouso/i,
-    );
-    if (pcp)
-      return `O operador passou a planejar e conduzir a aproximação para ${pcp[1]}, que tratava como o destino previsto para o primeiro pouso.`;
-    const wrongAlternativeEn = text.match(
-      /(?:pulled|pushed)\s+(.{1,100}?)\s+instead of\s+(.{1,100}?)(?:[.;]|$)/i,
-    );
-    if (wrongAlternativeEn)
-      return `The operator was trying to respond by ${text.match(/(pulled|pushed)/i)?.[1]?.toLowerCase()}ing ${wrongAlternativeEn[1].trim()} instead of ${wrongAlternativeEn[2].trim()}.`;
-    const wrongAlternativePt = text.match(
-      /(?:puxou|empurrou)\s+(.{1,100}?)\s+(?:em vez de|ao inv[eé]s de)\s+(.{1,100}?)(?:[.;]|$)/i,
-    );
-    if (wrongAlternativePt)
-      return `O operador tentava responder por meio do comando ${wrongAlternativePt[1].trim()}, em vez de ${wrongAlternativePt[2].trim()}.`;
-    const insertedSelection = text.match(
-      /(?:inseriu|programou|selecionou|ajustou)\s+(.{1,180}?)(?:[.;]|$)/i,
-    );
-    if (insertedSelection)
-      return `O operador tentava atingir o objetivo por meio da seleção/configuração de ${insertedSelection[1].trim()}.`;
-    if (
-      /\b(?:colocou|aplicou|usou|utilizou|put|applied|used)\b.{0,100}\b(?:barra na barra|pitch down|c[ií]clico|cyclic|comando|control)\b/i.test(
-        text,
-      )
-    ) {
+    const pcp = text.match(/passou a tratar\s+([A-Z0-9-]+)\s+como\s+o destino previsto para o primeiro pouso/i)
+    if (pcp) return `O operador passou a planejar e conduzir a aproximação para ${pcp[1]}, que tratava como o destino previsto para o primeiro pouso.`
+    const wrongAlternativeEn = text.match(/(?:pulled|pushed)\s+(.{1,100}?)\s+instead of\s+(.{1,100}?)(?:[.;]|$)/i)
+    if (wrongAlternativeEn) return `The operator was trying to respond by ${text.match(/(pulled|pushed)/i)?.[1]?.toLowerCase()}ing ${wrongAlternativeEn[1].trim()} instead of ${wrongAlternativeEn[2].trim()}.`
+    const wrongAlternativePt = text.match(/(?:puxou|empurrou)\s+(.{1,100}?)\s+(?:em vez de|ao inv[eé]s de)\s+(.{1,100}?)(?:[.;]|$)/i)
+    if (wrongAlternativePt) return `O operador tentava responder por meio do comando ${wrongAlternativePt[1].trim()}, em vez de ${wrongAlternativePt[2].trim()}.`
+    const insertedSelection = text.match(/(?:inseriu|programou|selecionou|ajustou)\s+(.{1,180}?)(?:[.;]|$)/i)
+    if (insertedSelection) return `O operador tentava atingir o objetivo por meio da seleção/configuração de ${insertedSelection[1].trim()}.`
+    if (/\b(?:colocou|aplicou|usou|utilizou|put|applied|used)\b.{0,100}\b(?:barra na barra|pitch down|c[ií]clico|cyclic|comando|control)\b/i.test(text)) {
       return /barra na barra/i.test(text)
-        ? "O operador tentava atingir o objetivo aplicando a técnica de barra na barra."
-        : "O operador tentava atingir o objetivo por meio do comando/técnica descrito no relato.";
+        ? 'O operador tentava atingir o objetivo aplicando a técnica de barra na barra.'
+        : 'O operador tentava atingir o objetivo por meio do comando/técnica descrito no relato.'
     }
-    if (/did not initiate a go-around/i.test(text))
-      return "The operator was trying to continue the approach without initiating a go-around.";
-    if (
-      /n[aã]o (?:iniciou|executou|realizou) (?:uma |a )?arremetida/i.test(text)
-    )
-      return "O operador tentava prosseguir a aproximação sem iniciar a arremetida.";
-    const hesitation = text.match(
-      /(?:hesitou|demorou|esperou).{0,80}?antes de (executar|iniciar|realizar)\s+(.{1,100}?)(?:[.;]|$)/i,
-    );
-    if (hesitation)
-      return `O operador pretendia atingir o objetivo por meio da execução de ${hesitation[2].trim()}, mas hesitou antes de executá-la.`;
-    const prepared = text.match(
-      /passou a (?:preparar|conduzir|planejar)\s+(?:a\s+)?aproxima[cç][aã]o\s+para\s+(.{1,90}?)(?:[.;]|$)/i,
-    );
-    if (prepared)
-      return `O operador tentava atingir o objetivo preparando e conduzindo a aproximação para ${prepared[1].trim()}.`;
-    if (
-      /\b(?:resolveu|resolveram|resolvemos|decidiu|decidiram|decidimos|optou|optaram)\b.*\bcontinuar\b.*\b(?:tentar|pouso|pousar)\b/i.test(
-        text,
-      )
-    ) {
-      return "O operador tentava atingir o objetivo continuando o voo e tentando o pouso.";
+    if (/did not initiate a go-around/i.test(text)) return 'The operator was trying to continue the approach without initiating a go-around.'
+    if (/n[aã]o (?:iniciou|executou|realizou) (?:uma |a )?arremetida/i.test(text)) return 'O operador tentava prosseguir a aproximação sem iniciar a arremetida.'
+    const hesitation = text.match(/(?:hesitou|demorou|esperou).{0,80}?antes de (executar|iniciar|realizar)\s+(.{1,100}?)(?:[.;]|$)/i)
+    if (hesitation) return `O operador pretendia atingir o objetivo por meio da execução de ${hesitation[2].trim()}, mas hesitou antes de executá-la.`
+    const prepared = text.match(/passou a (?:preparar|conduzir|planejar)\s+(?:a\s+)?aproxima[cç][aã]o\s+para\s+(.{1,90}?)(?:[.;]|$)/i)
+    if (prepared) return `O operador tentava atingir o objetivo preparando e conduzindo a aproximação para ${prepared[1].trim()}.`
+    if (/\b(?:resolveu|resolveram|resolvemos|decidiu|decidiram|decidimos|optou|optaram)\b.*\bcontinuar\b.*\b(?:tentar|pouso|pousar)\b/i.test(text)) {
+      return 'O operador tentava atingir o objetivo continuando o voo e tentando o pouso.'
     }
-    const plannedMeans = text.match(
-      /(?:decidiu|optou|planejava|pretendia|tentava)\s+(?:por\s+)?(?:usar|utilizar|empregar|executar|realizar|conduzir)\s+(.{1,180}?)(?:[.;]|$)/i,
-    );
-    if (plannedMeans)
-      return `O operador tentava atingir o objetivo usando ${plannedMeans[1].trim()}.`;
-    const approach = text.match(
-      /(?:planej|conduz|inici|prosseg|continu)\w*\s+(.{1,180}?)(?:[.;]|$)/i,
-    );
-    if (approach)
-      return `O operador tentou alcançar o objetivo por meio de ${approach[1].trim()}.`;
+    const plannedMeans = text.match(/(?:decidiu|optou|planejava|pretendia|tentava)\s+(?:por\s+)?(?:usar|utilizar|empregar|executar|realizar|conduzir)\s+(.{1,180}?)(?:[.;]|$)/i)
+    if (plannedMeans) return `O operador tentava atingir o objetivo usando ${plannedMeans[1].trim()}.`
+    const approach = text.match(/(?:planej|conduz|inici|prosseg|continu)\w*\s+(.{1,180}?)(?:[.;]|$)/i)
+    if (approach) return `O operador tentou alcançar o objetivo por meio de ${approach[1].trim()}.`
   }
 
-  const isEnglish =
-    /\b(the|operator|crew|pilot|planned|intended|believed|identified|used|selected|approach)\b/i.test(
-      text,
-    );
-  if (axis === "P")
-    return isEnglish
-      ? `The operator believed that ${text.replace(/[.]$/, "")}.`
-      : `O operador acreditava que ${text.replace(/[.]$/, "")}.`;
-  if (axis === "O")
-    return isEnglish
-      ? `The operator intended to ${text.replace(/[.]$/, "")}.`
-      : `O operador pretendia ${text.replace(/[.]$/, "")}.`;
-  return isEnglish
-    ? `The operator was trying to achieve the goal by ${text.replace(/[.]$/, "")}.`
-    : `O operador tentava atingir o objetivo por meio de ${text.replace(/[.]$/, "")}.`;
+  const isEnglish = /\b(the|operator|crew|pilot|planned|intended|believed|identified|used|selected|approach)\b/i.test(text)
+  if (axis === 'P') return isEnglish ? `The operator believed that ${text.replace(/[.]$/, '')}.` : `O operador acreditava que ${text.replace(/[.]$/, '')}.`
+  if (axis === 'O') return isEnglish ? `The operator intended to ${text.replace(/[.]$/, '')}.` : `O operador pretendia ${text.replace(/[.]$/, '')}.`
+  return isEnglish ? `The operator was trying to achieve the goal by ${text.replace(/[.]$/, '')}.` : `O operador tentava atingir o objetivo por meio de ${text.replace(/[.]$/, '')}.`
 }
 
-function insufficientRootResponse(
-  axis: CanonicalSeraAxis,
-  locale: "pt-BR" | "en" = "pt-BR",
-): string {
-  if (locale === "en") {
-    if (axis === "P")
-      return "The available evidence does not establish what the operator believed was happening in relation to the goal.";
-    if (axis === "O")
-      return "The available evidence does not establish the intent or goal the operator was trying to achieve.";
-    return "The available evidence does not establish the plan or strategy by which the operator was trying to achieve the goal.";
+function insufficientRootResponse(axis: CanonicalSeraAxis, locale: 'pt-BR' | 'en' = 'pt-BR'): string {
+  if (locale === 'en') {
+    if (axis === 'P') return 'The available evidence does not establish what the operator believed was happening in relation to the goal.'
+    if (axis === 'O') return 'The available evidence does not establish the intent or goal the operator was trying to achieve.'
+    return 'The available evidence does not establish the plan or strategy by which the operator was trying to achieve the goal.'
   }
-  if (axis === "P")
-    return "Não é possível determinar, com a evidência disponível, o que o operador acreditava estar acontecendo em relação ao objetivo.";
-  if (axis === "O")
-    return "Não é possível determinar, com a evidência disponível, qual era a intenção ou o objetivo que o operador pretendia alcançar.";
-  return "Não é possível determinar, com a evidência disponível, qual era o plano ou a estratégia pela qual o operador tentava atingir o objetivo.";
+  if (axis === 'P') return 'Não é possível determinar, com a evidência disponível, o que o operador acreditava estar acontecendo em relação ao objetivo.'
+  if (axis === 'O') return 'Não é possível determinar, com a evidência disponível, qual era a intenção ou o objetivo que o operador pretendia alcançar.'
+  return 'Não é possível determinar, com a evidência disponível, qual era o plano ou a estratégia pela qual o operador tentava atingir o objetivo.'
 }
 
-function rootResponseText(
-  ctx: SeraNodeEvidenceContext,
-  supportingEvidence: string[],
-): string | null {
+function rootResponseText(ctx: SeraNodeEvidenceContext, supportingEvidence: string[]): string | null {
   // Hendy Step 2 asks for substantive P/O/A statements before the ladders. START is only
   // an internal branch token; the user-facing answer must directly answer the root question.
   // When the investigator answered this exact root question, preserve the factual response
   // verbatim instead of trying to reconstruct it from lexical patterns.
-  const directClarification = directNodeClarificationStatements(ctx).find(
-    (statement) => supportingEvidence.includes(statement),
-  );
-  if (directClarification) return directClarification;
-  const fromStatement = stripAxisStatementPrefix(ctx.statementAtEscapePoint);
-  if (ctx.axis === "P") {
-    const explicitTargetBelief = supportingEvidence.find((text) => {
-      const normalized = text
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase();
-      return (
-        /\b(identific|trat|reconhec|confund|associ)\w*/.test(normalized) &&
-        /\b(primeiro pouso|destino (?:previsto|planejado|programado)|como se fosse|unidade prevista)\b/.test(
-          normalized,
-        )
-      );
-    });
-    if (explicitTargetBelief)
-      return conciseRootResponse(ctx.axis, explicitTargetBelief);
+  const directClarification = directNodeClarificationStatements(ctx)
+    .find((statement) => supportingEvidence.includes(statement))
+  if (directClarification) return directClarification
+  const fromStatement = stripAxisStatementPrefix(ctx.statementAtEscapePoint)
+  if (ctx.axis === 'A') {
+    const candidates = [...(fromStatement ? [fromStatement] : []), ...supportingEvidence]
+    const concrete = candidates.find((text) => /\b(tirei|tirou|retirei|retirou|desguarneci|peguei|pegou|puxei|puxou|empurrei|empurrou|coloquei|colocou|apliquei|aplicou|preferi|preferiu|tenha preferido|assumir|assumiu|barra na barra|pitch down|removed|pulled|pushed|applied|preferred|took over)\b/i.test(text))
+    if (concrete) return conciseRootResponse(ctx.axis, concrete)
   }
-  if (ctx.axis === "A") {
-    const candidates = [
-      ...(fromStatement ? [fromStatement] : []),
-      ...supportingEvidence,
-    ];
-    const concrete = candidates.find((text) =>
-      /\b(tirei|tirou|retirei|retirou|desguarneci|peguei|pegou|puxei|puxou|empurrei|empurrou|coloquei|colocou|apliquei|aplicou|preferi|preferiu|tenha preferido|assumir|assumiu|barra na barra|pitch down|removed|pulled|pushed|applied|preferred|took over)\b/i.test(
-        text,
-      ),
-    );
-    if (concrete) return conciseRootResponse(ctx.axis, concrete);
-  }
-  const prioritized =
-    ctx.axis === "O"
-      ? supportingEvidence.find((text) =>
-          /\b(?:pra|para) ajudar\b|\bser proativ\w*|\b(objetiv|inten[cç][aã]o|pretend|queria|desej|estipulei|determinei|preferi|decidi|resolvi)\w*/i.test(
-            text,
-          ),
-        )
-      : ctx.axis === "P"
-        ? supportingEvidence.find((text) =>
-            /\b(acredit|ach|pens|entend|perceb|julg|sabia|ciente)\w*/i.test(
-              text,
-            ),
-          )
-        : undefined;
-  const support = (prioritized ?? supportingEvidence[0])?.trim();
-  if (support) return conciseRootResponse(ctx.axis, support);
-  return fromStatement ? conciseRootResponse(ctx.axis, fromStatement) : null;
+  const support = supportingEvidence[0]?.trim()
+  if (support) return conciseRootResponse(ctx.axis, support)
+  return fromStatement ? conciseRootResponse(ctx.axis, fromStatement) : null
 }
 
-function decideP(
-  nodeId: string,
-  statements: string[],
-  ctx: SeraNodeEvidenceContext,
-): Decision {
-  const c = (conceptName: SeraEvidenceConcept) =>
-    unique([
-      ...concept(statements, conceptName),
-      ...semanticConceptStatements(ctx, conceptName),
-    ]);
-  const cn = (conceptName: SeraEvidenceConcept) =>
-    unique([
-      ...matchingConceptStatementsWithoutNegation(statements, conceptName),
-      ...semanticConceptStatements(ctx, conceptName),
-    ]);
-  const any = (conceptNames: SeraEvidenceConcept[]) =>
-    conceptNames.some((conceptName) => c(conceptName).length > 0);
-  const conceptWindow = (
-    left: SeraEvidenceConcept,
-    right: SeraEvidenceConcept,
-    maxDistance: number,
-  ) =>
-    conceptsWithinWindow(statements, left, right, maxDistance) ||
-    semanticConceptsWithinWindow(ctx, left, right, maxDistance);
+function decideP(nodeId: string, statements: string[], ctx: SeraNodeEvidenceContext): Decision {
+  const c = (conceptName: SeraEvidenceConcept) => unique([...concept(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
+  const cn = (conceptName: SeraEvidenceConcept) => unique([...matchingConceptStatementsWithoutNegation(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
+  const any = (conceptNames: SeraEvidenceConcept[]) => conceptNames.some((conceptName) => c(conceptName).length > 0)
+  const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => conceptsWithinWindow(statements, left, right, maxDistance) || semanticConceptsWithinWindow(ctx, left, right, maxDistance)
   switch (nodeId) {
-    case "P_ROOT": {
+    case 'P_ROOT': {
       const perceivedState = unique([
-        ...c("inadequateAssessment"),
-        ...c("adequateAssessment"),
-        ...semanticRoleStatements(ctx, "PERCEPTION_STATE"),
-        ...matching(statements, [
-          /\b(acreditava|achava|entendia|percebia|identificou|interpretou|reconheceu|viu|vimos|viram|sabia|sabiam|ciente|consciente|believed|understood|perceived|identified|interpreted|recognized|saw|knew|aware)\b/i,
-        ]),
-      ]);
-      if (!perceivedState.length)
-        return {
-          answer: "INSUFFICIENT_EVIDENCE",
-          supportingEvidence: [],
-          rationale:
-            "The descriptive root requires evidence of what the operator believed or perceived; environmental/system state alone cannot substitute for that belief.",
-        };
-      return {
-        answer: "START",
-        supportingEvidence: perceivedState.slice(0, 2),
-        rationale:
-          "Root node establishes the operator perceived state before that assessment is tested.",
-      };
+        ...c('inadequateAssessment'),
+        ...c('adequateAssessment'),
+        ...semanticRoleStatements(ctx, 'PERCEPTION_STATE'),
+        ...matching(statements, [/\b(acreditava|achava|entendia|percebia|identificou|interpretou|reconheceu|viu|vimos|viram|sabia|sabiam|ciente|consciente|believed|understood|perceived|identified|interpreted|recognized|saw|knew|aware)\b/i]),
+      ])
+      if (!perceivedState.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of what the operator believed or perceived; environmental/system state alone cannot substitute for that belief.' }
+      return { answer: 'START', supportingEvidence: perceivedState.slice(0, 2), rationale: 'Root node establishes the operator perceived state before that assessment is tested.' }
     }
-    case "P_ASSESSMENT": {
-      const positive = c("adequateAssessment");
-      const negative = c("inadequateAssessment");
-      const explicitAccurateState = unique([
-        ...c("informationAvailableCorrect"),
-        ...matching(statements, [
-          /\b(?:viu|vimos|viram|sabia|sabiam|ciente)\b.{0,100}\bIMC\b.{0,140}\b(?:mesmo assim|ainda assim|decid|resolv|continu|prossegu)\w*/i,
-          /\b(?:fora da regra|fora do limite)\b.{0,140}\b(?:mesmo assim|decid|resolv|continu|prossegu)\w*/i,
-        ]),
-      ]);
-      if (
-        explicitAccurateState.length > 0 &&
-        negative.length > 0 &&
-        negative.every((item) =>
-          /\b(?:mesmo assim|ainda assim|decid|resolv|continu|prossegu)\w*/i.test(
-            item,
-          ),
-        )
-      )
-        return {
-          answer: "SIM",
-          supportingEvidence: explicitAccurateState,
-          rationale:
-            "The actor explicitly perceived the relevant unsafe state; the subsequent choice to continue belongs to Objective/Action and is not double-counted as a perception failure.",
-        };
-      if (negative.length > 0)
-        return {
-          answer: "NÃO",
-          supportingEvidence: negative,
-          rationale:
-            "Pre-escape evidence supports inaccurate or inadequate situation assessment.",
-        };
-      if (positive.length > 0)
-        return {
-          answer: "SIM",
-          supportingEvidence: positive,
-          rationale:
-            "Pre-escape evidence supports adequate perception or timely recognition.",
-        };
-      return {
-        answer: "INSUFFICIENT_EVIDENCE",
-        supportingEvidence: [],
-        rationale:
-          "No pre-escape evidence answers whether assessment was adequate.",
-      };
+    case 'P_ASSESSMENT': {
+      const positive = c('adequateAssessment')
+      const negative = c('inadequateAssessment')
+      if (negative.length > 0) return { answer: 'NÃO', supportingEvidence: negative, rationale: 'Pre-escape evidence supports inaccurate or inadequate situation assessment.' }
+      if (positive.length > 0) return { answer: 'SIM', supportingEvidence: positive, rationale: 'Pre-escape evidence supports adequate perception or timely recognition.' }
+      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'No pre-escape evidence answers whether assessment was adequate.' }
     }
-    case "P_CAPABILITY": {
-      const sensory = c("sensoryLimitation");
-      const knowledge = c("knowledgeLimitation");
-      const capabilityPresent = c("perceptionCapabilityPresent");
-      if (sensory.length > 0)
-        return {
-          answer: "NÃO_SENSORIAL",
-          supportingEvidence: sensory,
-          rationale:
-            "Evidence localizes the perception issue to sensory/perceptual capability.",
-        };
-      if (knowledge.length > 0)
-        return {
-          answer: "NÃO_CONHECIMENTO",
-          supportingEvidence: knowledge,
-          rationale:
-            "Evidence localizes the perception issue to knowledge/training capability.",
-        };
+    case 'P_CAPABILITY': {
+      const sensory = c('sensoryLimitation')
+      const knowledge = c('knowledgeLimitation')
+      const capabilityPresent = c('perceptionCapabilityPresent')
+      if (sensory.length > 0) return { answer: 'NÃO_SENSORIAL', supportingEvidence: sensory, rationale: 'Evidence localizes the perception issue to sensory/perceptual capability.' }
+      if (knowledge.length > 0) return { answer: 'NÃO_CONHECIMENTO', supportingEvidence: knowledge, rationale: 'Evidence localizes the perception issue to knowledge/training capability.' }
       const informationQuality = unique([
-        ...c("informationAvailableCorrect"),
-        ...c("informationAmbiguous"),
-        ...c("informationUnavailable"),
-      ]);
-      if (capabilityPresent.length > 0 || informationQuality.length > 0)
-        return {
-          answer: "SIM",
-          supportingEvidence: unique([
-            ...capabilityPresent,
-            ...informationQuality,
-          ]),
-          rationale:
-            "Positive evidence shows that the issue can be evaluated in the information/attention branches rather than being assumed to be sensory or knowledge incapacity.",
-        };
-      return {
-        answer: "INSUFFICIENT_EVIDENCE",
-        supportingEvidence: [],
-        rationale: "The text does not identify a canonical capability subtype.",
-      };
-    }
-    case "P_TIME_PRESSURE": {
-      const attention = c("attentionPressure");
-      const management = c("timeManagementPressure");
-      if (management.length > 0 && attention.length > 0)
-        return {
-          answer: "SIM_ATENCAO",
-          supportingEvidence: unique([...attention, ...management]),
-          rationale:
-            "Attention impairment is supported together with explicit excessive time/urgency pressure.",
-        };
-      if (management.length > 0)
-        return {
-          answer: "SIM_GERENCIAMENTO",
-          supportingEvidence: management,
-          rationale:
-            "Explicit excessive time-management pressure is supported.",
-        };
-      if (
-        attention.length > 0 ||
-        any([
-          "informationAmbiguous",
-          "informationAvailableCorrect",
-          "informationUnavailable",
-        ])
-      ) {
-        return {
-          answer: "NÃO",
-          supportingEvidence:
-            attention.length > 0 ? attention : statements.slice(0, 2),
-          rationale:
-            "Attention-demand evidence exists without explicit excessive time pressure; continue to information-quality branches and retain attention as contextual evidence only.",
-        };
+        ...c('informationAvailableCorrect'),
+        ...c('informationAmbiguous'),
+        ...c('informationUnavailable'),
+      ])
+      if (capabilityPresent.length > 0 || informationQuality.length > 0) return {
+        answer: 'SIM',
+        supportingEvidence: unique([...capabilityPresent, ...informationQuality]),
+        rationale: 'Positive evidence shows that the issue can be evaluated in the information/attention branches rather than being assumed to be sensory or knowledge incapacity.',
       }
-      return {
-        answer: "INSUFFICIENT_EVIDENCE",
-        supportingEvidence: [],
-        rationale:
-          "No evidence answers whether perceived time pressure was excessive.",
-      };
+      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The text does not identify a canonical capability subtype.' }
     }
-    case "P_INFORMATION_AMBIGUOUS": {
-      const ambiguous = c("informationAmbiguous");
-      if (ambiguous.length > 0)
-        return {
-          answer: "SIM",
-          supportingEvidence: ambiguous,
-          rationale: "Information ambiguity is explicit.",
-        };
-      if (any(["informationAvailableCorrect", "informationUnavailable"])) {
-        return {
-          answer: "NÃO",
-          supportingEvidence: statements.slice(0, 2),
-          rationale:
-            "Information evidence is present but ambiguity is not supported.",
-        };
+    case 'P_TIME_PRESSURE': {
+      const attention = c('attentionPressure')
+      const management = c('timeManagementPressure')
+      if (management.length > 0 && attention.length > 0) return { answer: 'SIM_ATENCAO', supportingEvidence: unique([...attention, ...management]), rationale: 'Attention impairment is supported together with explicit excessive time/urgency pressure.' }
+      if (management.length > 0) return { answer: 'SIM_GERENCIAMENTO', supportingEvidence: management, rationale: 'Explicit excessive time-management pressure is supported.' }
+      if (attention.length > 0 || any(['informationAmbiguous', 'informationAvailableCorrect', 'informationUnavailable'])) {
+        return { answer: 'NÃO', supportingEvidence: attention.length > 0 ? attention : statements.slice(0, 2), rationale: 'Attention-demand evidence exists without explicit excessive time pressure; continue to information-quality branches and retain attention as contextual evidence only.' }
       }
-      return {
-        answer: "INSUFFICIENT_EVIDENCE",
-        supportingEvidence: [],
-        rationale: "No explicit information-quality evidence is available.",
-      };
+      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'No evidence answers whether perceived time pressure was excessive.' }
     }
-    case "P_INFORMATION_AVAILABLE": {
-      const available = c("informationAvailableCorrect");
-      const unavailable = c("informationUnavailable");
-      if (available.length > 0)
-        return {
-          answer: "SIM",
-          supportingEvidence: available,
-          rationale:
-            "Evidence supports information being available and correct.",
-        };
-      if (unavailable.length > 0)
-        return {
-          answer: "NÃO",
-          supportingEvidence: unavailable,
-          rationale: "Evidence supports missing or unavailable information.",
-        };
-      return {
-        answer: "INSUFFICIENT_EVIDENCE",
-        supportingEvidence: [],
-        rationale:
-          "Available/correct information is not established strongly enough for a P-G/P-H leaf.",
-      };
+    case 'P_INFORMATION_AMBIGUOUS': {
+      const ambiguous = c('informationAmbiguous')
+      if (ambiguous.length > 0) return { answer: 'SIM', supportingEvidence: ambiguous, rationale: 'Information ambiguity is explicit.' }
+      if (any(['informationAvailableCorrect', 'informationUnavailable'])) {
+        return { answer: 'NÃO', supportingEvidence: statements.slice(0, 2), rationale: 'Information evidence is present but ambiguity is not supported.' }
+      }
+      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'No explicit information-quality evidence is available.' }
+    }
+    case 'P_INFORMATION_AVAILABLE': {
+      const available = c('informationAvailableCorrect')
+      const unavailable = c('informationUnavailable')
+      if (available.length > 0) return { answer: 'SIM', supportingEvidence: available, rationale: 'Evidence supports information being available and correct.' }
+      if (unavailable.length > 0) return { answer: 'NÃO', supportingEvidence: unavailable, rationale: 'Evidence supports missing or unavailable information.' }
+      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Available/correct information is not established strongly enough for a P-G/P-H leaf.' }
     }
     default:
-      return {
-        answer: "INSUFFICIENT_EVIDENCE",
-        supportingEvidence: [],
-        rationale: `Unsupported perception node ${nodeId}.`,
-      };
+      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: `Unsupported perception node ${nodeId}.` }
   }
 }
 
-function decideO(
-  nodeId: string,
-  statements: string[],
-  ctx: SeraNodeEvidenceContext,
-): Decision {
-  const c = (conceptName: SeraEvidenceConcept) =>
-    unique([
-      ...concept(statements, conceptName),
-      ...semanticConceptStatements(ctx, conceptName),
-    ]);
-  const cn = (conceptName: SeraEvidenceConcept) =>
-    unique([
-      ...matchingConceptStatementsWithoutNegation(statements, conceptName),
-      ...semanticConceptStatements(ctx, conceptName),
-    ]);
-  const any = (conceptNames: SeraEvidenceConcept[]) =>
-    conceptNames.some((conceptName) => c(conceptName).length > 0);
-  const conceptWindow = (
-    left: SeraEvidenceConcept,
-    right: SeraEvidenceConcept,
-    maxDistance: number,
-  ) =>
-    conceptsWithinWindow(statements, left, right, maxDistance) ||
-    semanticConceptsWithinWindow(ctx, left, right, maxDistance);
+function decideO(nodeId: string, statements: string[], ctx: SeraNodeEvidenceContext): Decision {
+  const c = (conceptName: SeraEvidenceConcept) => unique([...concept(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
+  const cn = (conceptName: SeraEvidenceConcept) => unique([...matchingConceptStatementsWithoutNegation(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
+  const any = (conceptNames: SeraEvidenceConcept[]) => conceptNames.some((conceptName) => c(conceptName).length > 0)
+  const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => conceptsWithinWindow(statements, left, right, maxDistance) || semanticConceptsWithinWindow(ctx, left, right, maxDistance)
   switch (nodeId) {
-    case "O_ROOT": {
+    case 'O_ROOT': {
       const intendedGoal = unique([
         // The root must answer Hendy's explicit goal/intention question. A procedure that
         // should have been executed (safeGoal) is not evidence of what this actor intended.
-        ...c("efficiencyObjective"),
-        ...semanticRoleStatements(ctx, "OBJECTIVE_INTENT"),
+        ...c('efficiencyObjective'),
+        ...semanticRoleStatements(ctx, 'OBJECTIVE_INTENT'),
         ...matching(statements, [
           /\b(objetiv|inten[cç][aã]o|pretend|planej|meta|queria|desej|buscava|visava|goal|intent|planned|planning)\w*/i,
           /\b(decidiu|decidiram|decidimos|resolveu|resolveram|resolvemos|optou|optaram|escolheu|escolheram|decided|resolved|chose|opted)\b.{0,120}\b(continuar|continuou|prosseguir|prosseguiu|tentar|decolar|decolou|pousar|pousou|aproximar|aproximou|descer|desceu|subir|subiu|continue|continued|proceed|proceeded|try|take off|took off|land|landed|approach|approached|descend|descended|climb|climbed)\b/i,
           /\b(decidiu|resolveu|decided|resolved)\b.{0,80}\b(violar|descumprir|desrespeitar|violate|breach|disregard)\b.{0,100}\b(continuar|continuou|prosseguir|prosseguiu|seguir|seguiu|continue|continued|proceed|proceeded|press on|pressed on)\b/i,
           /\b((?:passou|come[cç]ou) a (?:preparar|conduzir|planejar)|iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|preparou|conduziu)\b.{0,90}\b(aproxima[cç][aã]o|approach|pouso|landing|destino|destination|unidade|unit-|plataforma|helideck)\b/i,
           /\b(called for|requested|solicitou|chamou (?:pela |a )?)\b.{0,60}\b(go-around|go around|arremetida)\b/i,
-          /\b(?:pra|para) ajudar\b|\bser proativ\w*/i,
-          /\b(?:estipulei|determinei|defini)\b.{0,160}\b(?:arremeter|go-around|continuar|prosseguir)\b/i,
         ]),
-      ]);
-      if (!intendedGoal.length)
-        return {
-          answer: "INSUFFICIENT_EVIDENCE",
-          supportingEvidence: [],
-          rationale:
-            "The descriptive root requires evidence of the actor intended objective. The observed unsafe action, a rule deviation, or the outcome cannot substitute for intent.",
-        };
-      return {
-        answer: "START",
-        supportingEvidence: intendedGoal.slice(0, 2),
-        rationale:
-          "Root node establishes the operator intended goal before rule/risk consistency is tested.",
-      };
+      ])
+      if (!intendedGoal.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of the actor intended objective. The observed unsafe action, a rule deviation, or the outcome cannot substitute for intent.' }
+      return { answer: 'START', supportingEvidence: intendedGoal.slice(0, 2), rationale: 'Root node establishes the operator intended goal before rule/risk consistency is tested.' }
     }
-    case "O_RULES": {
-      const safeGoal = c("safeGoal");
+    case 'O_RULES': {
+      const safeGoal = c('safeGoal')
       const violationPrerequisites = unique([
-        ...cn("knownRule"),
-        ...cn("explicitAwareness"),
-        ...cn("consciousDeviation"),
-      ]);
-      const unmanagedRisk = c("unmanagedRisk");
-      const mistakenTarget = c("inadequateAssessment").filter((statement) =>
-        /\b(unit-[a-z0-9-]+|pcp-?[0-9]+|unidade|plataforma|pista|destino|helideck|runway|surface|destination|deck)\b/i.test(
-          statement,
-        ),
-      );
-      const plannedTargetEvidence = c("informationAvailableCorrect");
+        ...cn('knownRule'),
+        ...cn('explicitAwareness'),
+        ...cn('consciousDeviation'),
+      ])
+      const unmanagedRisk = c('unmanagedRisk')
+      const mistakenTarget = c('inadequateAssessment').filter((statement) =>
+        /\b(unit-[a-z0-9-]+|pcp-?[0-9]+|unidade|plataforma|pista|destino|helideck|runway|surface|destination|deck)\b/i.test(statement),
+      )
+      const plannedTargetEvidence = c('informationAvailableCorrect')
 
-      if (safeGoal.length > 0)
+      if (safeGoal.length > 0) return { answer: 'SIM', supportingEvidence: safeGoal, rationale: 'Objective evidence supports a safe or rule-consistent goal.' }
+      if (mistakenTarget.length > 0 && plannedTargetEvidence.length > 0 && violationPrerequisites.length === 0 && unmanagedRisk.length === 0) {
         return {
-          answer: "SIM",
-          supportingEvidence: safeGoal,
-          rationale:
-            "Objective evidence supports a safe or rule-consistent goal.",
-        };
-      if (
-        mistakenTarget.length > 0 &&
-        plannedTargetEvidence.length > 0 &&
-        violationPrerequisites.length === 0 &&
-        unmanagedRisk.length === 0
-      ) {
-        return {
-          answer: "SIM",
-          supportingEvidence: unique([
-            ...mistakenTarget,
-            ...plannedTargetEvidence,
-          ]),
-          rationale:
-            "Evidence supports a planned/authorized target together with mistaken target identification; this supports a rule-consistent objective without treating the perception error as a conscious objective deviation.",
-        };
+          answer: 'SIM',
+          supportingEvidence: unique([...mistakenTarget, ...plannedTargetEvidence]),
+          rationale: 'Evidence supports a planned/authorized target together with mistaken target identification; this supports a rule-consistent objective without treating the perception error as a conscious objective deviation.',
+        }
       }
 
       // Conservative known-rule anchor retained: a rule mention alone never
       // opens O-C or converts a documented violation into O-D.
       // Three-tier violation detection (all negation-aware):
       // Tier 1 — Strict triad with contextual window (≤ 3 sentences apart)
-      const knownRuleWindow = cn("knownRule");
-      const explicitAwarenessWindow = cn("explicitAwareness");
-      const consciousDeviationWindow = cn("consciousDeviation");
+      const knownRuleWindow = cn('knownRule')
+      const explicitAwarenessWindow = cn('explicitAwareness')
+      const consciousDeviationWindow = cn('consciousDeviation')
 
-      const hasKnownRule = knownRuleWindow.length > 0;
-      const hasAwareness = explicitAwarenessWindow.length > 0;
-      const hasConscious = consciousDeviationWindow.length > 0;
+      const hasKnownRule = knownRuleWindow.length > 0
+      const hasAwareness = explicitAwarenessWindow.length > 0
+      const hasConscious = consciousDeviationWindow.length > 0
 
       // Tier 1: All three present within contextual window
-      const windowPair1 = conceptWindow("knownRule", "explicitAwareness", 3);
-      const windowPair2 = conceptWindow(
-        "explicitAwareness",
-        "consciousDeviation",
-        3,
-      );
+      const windowPair1 = conceptWindow('knownRule', 'explicitAwareness', 3)
+      const windowPair2 = conceptWindow('explicitAwareness', 'consciousDeviation', 3)
 
-      if (
-        hasKnownRule &&
-        hasAwareness &&
-        hasConscious &&
-        (windowPair1 || windowPair2)
-      ) {
-        return {
-          answer: "NÃO",
-          supportingEvidence: violationPrerequisites,
-          rationale:
-            "Violation path opened by known-rule, awareness, and conscious-deviation evidence within contextual proximity.",
-        };
+      if (hasKnownRule && hasAwareness && hasConscious && (windowPair1 || windowPair2)) {
+        return { answer: 'NÃO', supportingEvidence: violationPrerequisites, rationale: 'Violation path opened by known-rule, awareness, and conscious-deviation evidence within contextual proximity.' }
       }
 
       // Tier 2: All three present (negation-aware) without window constraint
       if (hasKnownRule && hasAwareness && hasConscious) {
-        return {
-          answer: "NÃO",
-          supportingEvidence: violationPrerequisites,
-          rationale:
-            "Violation path opened by known-rule, awareness, and conscious-deviation evidence (all three present without negation).",
-        };
+        return { answer: 'NÃO', supportingEvidence: violationPrerequisites, rationale: 'Violation path opened by known-rule, awareness, and conscious-deviation evidence (all three present without negation).' }
       }
 
       // A documented formal violation cannot be reinterpreted as the O-D
       // non-violation branch merely because the complete O-C triad is absent.
       // It remains unresolved until the missing awareness evidence is supplied.
       if (hasKnownRule && hasConscious) {
-        return {
-          answer: "INSUFFICIENT_EVIDENCE",
-          supportingEvidence: violationPrerequisites,
-          rationale:
-            "Known-rule plus conscious-deviation evidence blocks the non-violation risk-management branch until explicit awareness completes the O-C evidence.",
-        };
+        return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: violationPrerequisites, rationale: 'Known-rule plus conscious-deviation evidence blocks the non-violation risk-management branch until explicit awareness completes the O-C evidence.' }
       }
 
-      if (unmanagedRisk.length > 0)
-        return {
-          answer: "SIM",
-          supportingEvidence: unmanagedRisk,
-          rationale:
-            "Goal evidence is rule-compatible enough to test risk-management adequacy without inferring violation.",
-        };
-      return {
-        answer: "INSUFFICIENT_EVIDENCE",
-        supportingEvidence: [],
-        rationale: "No pre-escape goal evidence answers rule/risk consistency.",
-      };
+      if (unmanagedRisk.length > 0) return { answer: 'SIM', supportingEvidence: unmanagedRisk, rationale: 'Goal evidence is rule-compatible enough to test risk-management adequacy without inferring violation.' }
+      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'No pre-escape goal evidence answers rule/risk consistency.' }
     }
-    case "O_ROUTINE": {
-      const routine = cn("routineDeviation");
-      const exceptional = cn("exceptionalDeviation");
+    case 'O_ROUTINE': {
+      const routine = cn('routineDeviation')
+      const exceptional = cn('exceptionalDeviation')
       const awareness = unique([
-        ...cn("knownRule"),
-        ...cn("explicitAwareness"),
-        ...cn("consciousDeviation"),
-      ]);
-      if (routine.length > 0 && awareness.length > 0)
-        return {
-          answer: "SIM",
-          supportingEvidence: unique([...routine, ...awareness]),
-          rationale:
-            "Routine violation requires positive normalization/habit evidence together with rule awareness.",
-        };
-      if (exceptional.length > 0 && awareness.length > 0)
-        return {
-          answer: "NÃO",
-          supportingEvidence: unique([...exceptional, ...awareness]),
-          rationale:
-            "Exceptional violation is explicitly supported together with rule awareness.",
-        };
-      const known = cn("knownRule");
-      const explicit = cn("explicitAwareness");
-      const conscious = cn("consciousDeviation");
-      if (
-        known.length > 0 &&
-        explicit.length > 0 &&
-        conscious.length > 0 &&
-        routine.length === 0
-      ) {
-        return {
-          answer: "NÃO",
-          supportingEvidence: unique([...known, ...explicit, ...conscious]),
-          rationale:
-            "A conscious rule deviation is established and no positive evidence of normalization/habit exists; the canonical non-routine branch is O-C.",
-        };
+        ...cn('knownRule'),
+        ...cn('explicitAwareness'),
+        ...cn('consciousDeviation'),
+      ])
+      if (routine.length > 0 && awareness.length > 0) return { answer: 'SIM', supportingEvidence: unique([...routine, ...awareness]), rationale: 'Routine violation requires positive normalization/habit evidence together with rule awareness.' }
+      if (exceptional.length > 0 && awareness.length > 0) return { answer: 'NÃO', supportingEvidence: unique([...exceptional, ...awareness]), rationale: 'Exceptional violation is explicitly supported together with rule awareness.' }
+      const known = cn('knownRule')
+      const explicit = cn('explicitAwareness')
+      const conscious = cn('consciousDeviation')
+      if (known.length > 0 && explicit.length > 0 && conscious.length > 0 && routine.length === 0) {
+        return { answer: 'NÃO', supportingEvidence: unique([...known, ...explicit, ...conscious]), rationale: 'A conscious rule deviation is established and no positive evidence of normalization/habit exists; the canonical non-routine branch is O-C.' }
       }
-      return {
-        answer: "INSUFFICIENT_EVIDENCE",
-        supportingEvidence: [],
-        rationale: "Violation subtype is not established.",
-      };
+      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Violation subtype is not established.' }
     }
-    case "O_MANAGED_RISK": {
-      const managed = c("managedRisk");
-      const safeGoal = c("safeGoal");
-      const unmanaged = c("unmanagedRisk");
-      const efficiencyObjective = c("efficiencyObjective");
-      const mistakenTarget = c("inadequateAssessment").filter((statement) =>
-        /\b(unit-[a-z0-9-]+|pcp-?[0-9]+|unidade|plataforma|pista|destino|helideck|runway|surface|destination|deck)\b/i.test(
-          statement,
-        ),
-      );
-      const plannedTargetEvidence = c("informationAvailableCorrect");
+    case 'O_MANAGED_RISK': {
+      const managed = c('managedRisk')
+      const safeGoal = c('safeGoal')
+      const unmanaged = c('unmanagedRisk')
+      const efficiencyObjective = c('efficiencyObjective')
+      const mistakenTarget = c('inadequateAssessment').filter((statement) =>
+        /\b(unit-[a-z0-9-]+|pcp-?[0-9]+|unidade|plataforma|pista|destino|helideck|runway|surface|destination|deck)\b/i.test(statement),
+      )
+      const plannedTargetEvidence = c('informationAvailableCorrect')
       // The exact PT question is negative: it asks whether the goal did not
       // manage or limit risk. Keep its answer polarity identical in EN, the
       // evaluator, and the canonical branch map.
-      if (efficiencyObjective.length > 0)
-        return {
-          answer: "SIM",
-          supportingEvidence: unique([...efficiencyObjective, ...unmanaged]),
-          rationale:
-            "O-D requires positive evidence of an efficiency, economy, time, schedule, cost, or productivity objective; that goal evidence is present.",
-        };
-      if (unmanaged.length > 0)
-        return {
-          answer: "INSUFFICIENT_EVIDENCE",
-          supportingEvidence: unmanaged,
-          rationale:
-            "Risk-management concern alone does not establish O-D without a positive efficiency/economy/time/productivity objective.",
-        };
-      if (managed.length > 0 || safeGoal.length > 0)
-        return {
-          answer: "NÃO",
-          supportingEvidence: unique([...managed, ...safeGoal]),
-          rationale:
-            "Positive evidence supports a nominal rule-consistent operational goal; no independent unsafe objective is established.",
-        };
-      if (mistakenTarget.length > 0 && plannedTargetEvidence.length > 0)
-        return {
-          answer: "NÃO",
-          supportingEvidence: unique([
-            ...mistakenTarget,
-            ...plannedTargetEvidence,
-          ]),
-          rationale:
-            "Planned or authorized target evidence plus mistaken target identification supports no independent unsafe objective or unmanaged-risk goal at the escape point.",
-        };
-      return {
-        answer: "INSUFFICIENT_EVIDENCE",
-        supportingEvidence: [],
-        rationale: "Managed-risk status is not established.",
-      };
+      if (efficiencyObjective.length > 0) return {
+        answer: 'SIM',
+        supportingEvidence: unique([...efficiencyObjective, ...unmanaged]),
+        rationale: 'O-D requires positive evidence of an efficiency, economy, time, schedule, cost, or productivity objective; that goal evidence is present.',
+      }
+      if (unmanaged.length > 0) return {
+        answer: 'INSUFFICIENT_EVIDENCE',
+        supportingEvidence: unmanaged,
+        rationale: 'Risk-management concern alone does not establish O-D without a positive efficiency/economy/time/productivity objective.',
+      }
+      if (managed.length > 0 || safeGoal.length > 0) return { answer: 'NÃO', supportingEvidence: unique([...managed, ...safeGoal]), rationale: 'Positive evidence supports a nominal rule-consistent operational goal; no independent unsafe objective is established.' }
+      if (mistakenTarget.length > 0 && plannedTargetEvidence.length > 0) return {
+        answer: 'NÃO',
+        supportingEvidence: unique([...mistakenTarget, ...plannedTargetEvidence]),
+        rationale: 'Planned or authorized target evidence plus mistaken target identification supports no independent unsafe objective or unmanaged-risk goal at the escape point.',
+      }
+      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Managed-risk status is not established.' }
     }
     default:
-      return {
-        answer: "INSUFFICIENT_EVIDENCE",
-        supportingEvidence: [],
-        rationale: `Unsupported objective node ${nodeId}.`,
-      };
+      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: `Unsupported objective node ${nodeId}.` }
   }
 }
 
-function decideA(
-  nodeId: string,
-  statements: string[],
-  ctx: SeraNodeEvidenceContext,
-): Decision {
-  const c = (conceptName: SeraEvidenceConcept) =>
-    unique([
-      ...concept(statements, conceptName),
-      ...semanticConceptStatements(ctx, conceptName),
-    ]);
-  const cn = (conceptName: SeraEvidenceConcept) =>
-    unique([
-      ...matchingConceptStatementsWithoutNegation(statements, conceptName),
-      ...semanticConceptStatements(ctx, conceptName),
-    ]);
-  const any = (conceptNames: SeraEvidenceConcept[]) =>
-    conceptNames.some((conceptName) => c(conceptName).length > 0);
-  const conceptWindow = (
-    left: SeraEvidenceConcept,
-    right: SeraEvidenceConcept,
-    maxDistance: number,
-  ) =>
-    conceptsWithinWindow(statements, left, right, maxDistance) ||
-    semanticConceptsWithinWindow(ctx, left, right, maxDistance);
+function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceContext): Decision {
+  const c = (conceptName: SeraEvidenceConcept) => unique([...concept(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
+  const cn = (conceptName: SeraEvidenceConcept) => unique([...matchingConceptStatementsWithoutNegation(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
+  const any = (conceptNames: SeraEvidenceConcept[]) => conceptNames.some((conceptName) => c(conceptName).length > 0)
+  const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => conceptsWithinWindow(statements, left, right, maxDistance) || semanticConceptsWithinWindow(ctx, left, right, maxDistance)
   switch (nodeId) {
-    case "A_ROOT": {
+    case 'A_ROOT': {
       const actionStrategy = unique([
-        ...semanticRoleStatements(ctx, "ACTION_STRATEGY"),
-        ...c("selectionSubtype"),
+        ...semanticRoleStatements(ctx, 'ACTION_STRATEGY'),
+        ...c('selectionSubtype'),
         // Hendy asks HOW the actor was trying to achieve the goal — the plan/means.
         // A bare observed control movement is not sufficient to establish that strategy.
         ...matching(statements, [
@@ -1058,321 +515,142 @@ function decideA(
           /\b(hesitou|demorou|esperou|hesitated|delayed|waited)\b.{0,100}\b(antes de|before)\b.{0,100}\b(executar|iniciar|realizar|execute|initiate|perform)\b/i,
           /\b(por meio de|atrav[eé]s de|by means of|by using|using)\b.{0,160}/i,
           /\b(inspe[cç][aã]o (?:de )?pr[eé][ -]?voo|preflight inspection|inspe[cç][aã]o visual)\b.{0,140}\b(conclu[ií]d[ao]|realizad[ao]|completed|performed|nada de anormal|nenhuma anormalidade|no abnormality)\b/i,
-          /\b(barra na barra|pitch down)\b/i,
-          /\b(meteu .*comandos|puxou .*c[ií]clico|puxou .*coletivo)\b.{0,160}\b(subir|subida|climb)\b/i,
-          /\b(tirei|tirou|retirei|retirou)\b.{0,80}\bm[aã]o\b.{0,80}\bcoletivo\b.{0,160}\b(peguei|pegou|papelada|documenta[cç][aã]o)\b/i,
           /\b(associou|identificou|tratou)\b.{0,140}\b(unidade|plataforma|pista|destino)\b.{0,220}\b(conduzindo|conduzir|aproxima[cç][aã]o|pouso|landing|approach)\b/i,
         ]),
-      ]);
-      if (!actionStrategy.length)
-        return {
-          answer: "INSUFFICIENT_EVIDENCE",
-          supportingEvidence: [],
-          rationale:
-            "The descriptive root requires evidence of the actor plan, strategy, or means for achieving the goal; an observed movement or control input alone cannot substitute for that plan.",
-        };
-      return {
-        answer: "START",
-        supportingEvidence: actionStrategy.slice(0, 2),
-        rationale:
-          "Root node establishes how the operator was trying to achieve the goal before implementation and adequacy are tested.",
-      };
+      ])
+      if (!actionStrategy.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of the actor plan, strategy, or means for achieving the goal; an observed movement or control input alone cannot substitute for that plan.' }
+      return { answer: 'START', supportingEvidence: actionStrategy.slice(0, 2), rationale: 'Root node establishes how the operator was trying to achieve the goal before implementation and adequacy are tested.' }
     }
-    case "A_IMPLEMENTED": {
-      const safeAction = c("safeAction");
-      const implemented = c("implementedAction");
-      const perceptionDriven = c("inadequateAssessment");
-      const feedbackFailure = c("feedbackImplementationFailure").filter(
-        (statement) =>
-          /\b(pr[oó]pria a[cç][aã]o|pr[oó]prio comando|own action|own command|resultado da a[cç][aã]o|resultado do comando|fma|modo ativo|post[- ]?checklist)\b/i.test(
-            statement,
-          ),
-      );
-      const slipOrLapse = c("slipLapse");
-      const selected = c("selectionSubtype");
-      const timed = c("timeManagementAction");
+    case 'A_IMPLEMENTED': {
+      const safeAction = c('safeAction')
+      const implemented = c('implementedAction')
+      const perceptionDriven = c('inadequateAssessment')
+      const feedbackFailure = c('feedbackImplementationFailure').filter((statement) =>
+        /\b(pr[oó]pria a[cç][aã]o|pr[oó]prio comando|own action|own command|resultado da a[cç][aã]o|resultado do comando|fma|modo ativo|post[- ]?checklist)\b/i.test(statement)
+      )
+      const slipOrLapse = c('slipLapse')
+      const selected = c('selectionSubtype')
+      const timed = c('timeManagementAction')
       const intendedAction = matching(statements, [
         /\b(pretendia|intencionava|queria|tentava|planejava|decidiu|optou|escolheu|selecionou|prosseguiu|continuou|intended|wanted|was trying|planned to|decided|opted|chose|selected|proceeded|continued)\b/i,
         /\b((?:passou|come[cç]ou) a (?:trat[aá](?:-l[ao])?|planejar|conduzir|preparar)|iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|conduziu a aproxima[cç][aã]o|preparou a aproxima[cç][aã]o|comprometeu(?:-se)?|tratava .* como (?:o )?destino)\b/i,
         /\b(associou|identificou|tratou)\b.{0,140}\b(unidade|plataforma|pista|destino)\b.{0,220}\b(conduzindo|conduzir|aproxima[cç][aã]o|pouso|landing|approach)\b/i,
         /\b(inspe[cç][aã]o (?:de )?pr[eé][ -]?voo|preflight inspection|inspe[cç][aã]o visual)\b.{0,140}\b(conclu[ií]d[ao]|realizad[ao]|completed|performed|nada de anormal|nenhuma anormalidade|no abnormality)\b/i,
         /\b(a[cç][aã]o pretendida|comando pretendido|intended action|intended command)\b/i,
-      ]);
+      ])
       const observedDeliberateAction = matching(statements, [
         /\b((?:passou|come[cç]ou) a (?:planejar|conduzir|aproximar|preparar)|iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|conduziu a aproxima[cç][aã]o|preparou a aproxima[cç][aã]o|conduzindo (?:o )?pouso|associou .* unidade|compromet(?:eu|endo).*aproxima[cç][aã]o)\b/i,
-      ]);
+      ])
       const explicitCorrespondence = matching(statements, [
         /\b(como pretendia|conforme pretendia|correspondeu ao que pretendia|implementad[ao] como pretendid[ao]|as intended|matched the intended|corresponded to the intended)\b/i,
-      ]);
-      if (feedbackFailure.length > 0)
+      ])
+      if (feedbackFailure.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: feedbackFailure, rationale: 'Evidence supports an independent failure in feedback/verification of the actor own action.' }
+      if (slipOrLapse.length > 0 && perceptionDriven.length === 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: slipOrLapse, rationale: 'Evidence supports an independent slip/lapse/error in action implementation before the consequence.' }
+      if (explicitCorrespondence.length > 0 || selected.length > 0 || timed.length > 0 || safeAction.length > 0 || (intendedAction.length > 0 && (implemented.length > 0 || perceptionDriven.length > 0 || observedDeliberateAction.length > 0))) {
         return {
-          answer: "NÃO_FEEDBACK",
-          supportingEvidence: feedbackFailure,
-          rationale:
-            "Evidence supports an independent failure in feedback/verification of the actor own action.",
-        };
-      if (slipOrLapse.length > 0 && perceptionDriven.length === 0)
-        return {
-          answer: "NÃO_DESLIZE_LAPSO_ERRO",
-          supportingEvidence: slipOrLapse,
-          rationale:
-            "Evidence supports an independent slip/lapse/error in action implementation before the consequence.",
-        };
-      if (
-        explicitCorrespondence.length > 0 ||
-        selected.length > 0 ||
-        timed.length > 0 ||
-        safeAction.length > 0 ||
-        (intendedAction.length > 0 &&
-          (implemented.length > 0 ||
-            perceptionDriven.length > 0 ||
-            observedDeliberateAction.length > 0))
-      ) {
-        return {
-          answer: "SIM",
-          supportingEvidence: unique([
-            ...explicitCorrespondence,
-            ...intendedAction,
-            ...observedDeliberateAction,
-            ...safeAction,
-            ...selected,
-            ...timed,
-            ...implemented,
-            ...perceptionDriven,
-          ]),
-          rationale:
-            perceptionDriven.length > 0
-              ? "Evidence establishes an intended action and an implemented action consistent with the actor perceived state; perception-linked wording is not double-counted as an independent implementation failure."
-              : "Evidence establishes both the intended action and an implemented action, allowing implementation-as-intended to be tested.",
-        };
+          answer: 'SIM',
+          supportingEvidence: unique([...explicitCorrespondence, ...intendedAction, ...observedDeliberateAction, ...safeAction, ...selected, ...timed, ...implemented, ...perceptionDriven]),
+          rationale: perceptionDriven.length > 0
+            ? 'Evidence establishes an intended action and an implemented action consistent with the actor perceived state; perception-linked wording is not double-counted as an independent implementation failure.'
+            : 'Evidence establishes both the intended action and an implemented action, allowing implementation-as-intended to be tested.',
+        }
       }
-      if (
-        implemented.length > 0 ||
-        safeAction.length > 0 ||
-        selected.length > 0 ||
-        timed.length > 0 ||
-        observedDeliberateAction.length > 0
-      ) {
-        return {
-          answer: "INSUFFICIENT_EVIDENCE",
-          supportingEvidence: unique([
-            ...implemented,
-            ...observedDeliberateAction,
-            ...safeAction,
-            ...selected,
-            ...timed,
-          ]),
-          rationale:
-            "An observed action is supported, but the actor intended action is not established; implementation cannot be judged against intention.",
-        };
+      if (implemented.length > 0 || safeAction.length > 0 || selected.length > 0 || timed.length > 0 || observedDeliberateAction.length > 0) {
+        return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: unique([...implemented, ...observedDeliberateAction, ...safeAction, ...selected, ...timed]), rationale: 'An observed action is supported, but the actor intended action is not established; implementation cannot be judged against intention.' }
       }
-      return {
-        answer: "INSUFFICIENT_EVIDENCE",
-        supportingEvidence: [],
-        rationale:
-          "No pre-escape evidence establishes both the intended and implemented action.",
-      };
+      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'No pre-escape evidence establishes both the intended and implemented action.' }
     }
-    case "A_CORRECT": {
-      const correct = c("correctAction");
-      const incorrect = c("incorrectAction");
-      const perceptionDriven = c("inadequateAssessment");
+    case 'A_CORRECT': {
+      const correct = c('correctAction')
+      const incorrect = c('incorrectAction')
+      const perceptionDriven = c('inadequateAssessment')
       const independentSelectionError = matching(statements, [
         /\b(selected|selecionou|escolheu|acionou|apertou|programou|inseriu)\b.*\b(wrong|errad[oa]|incorret[oa]|modo|mode|valor|value|comando|control)\b/i,
         /\bwrong checklist|checklist errado|wrong switch|interruptor errado|wrong control|comando errado\b/i,
-      ]);
-      const selectionSubtype = c("selectionSubtype");
-      const timingSubtype = c("timeManagementAction");
-      if (timingSubtype.length > 0)
-        return {
-          answer: "NÃO",
-          supportingEvidence: timingSubtype,
-          rationale:
-            "The response was eventually executed, but explicit delay/hesitation makes execution timing independently inadequate.",
-        };
-      if (correct.length > 0)
-        return {
-          answer: "SIM",
-          supportingEvidence: correct,
-          rationale: "Action evidence supports an adequate response.",
-        };
-      if (
-        perceptionDriven.length > 0 &&
-        independentSelectionError.length === 0 &&
-        selectionSubtype.length === 0
-      )
-        return {
-          answer: "SIM",
-          supportingEvidence: perceptionDriven,
-          rationale:
-            "The action was coherent with the actor incorrect perceived state and no independent action-selection/implementation mechanism is established; A-axis double counting is avoided.",
-        };
-      if (
-        incorrect.length > 0 ||
-        independentSelectionError.length > 0 ||
-        selectionSubtype.length > 0 ||
-        timingSubtype.length > 0
-      )
-        return {
-          answer: "NÃO",
-          supportingEvidence: unique([
-            ...incorrect,
-            ...independentSelectionError,
-            ...selectionSubtype,
-            ...timingSubtype,
-          ]),
-          rationale:
-            "Evidence supports an independent implemented but inadequate action, selection, or execution timing.",
-        };
-      return {
-        answer: "INSUFFICIENT_EVIDENCE",
-        supportingEvidence: [],
-        rationale: "Correctness of action is not established.",
-      };
+      ])
+      const selectionSubtype = c('selectionSubtype')
+      const timingSubtype = c('timeManagementAction')
+      if (timingSubtype.length > 0) return { answer: 'NÃO', supportingEvidence: timingSubtype, rationale: 'The response was eventually executed, but explicit delay/hesitation makes execution timing independently inadequate.' }
+      if (correct.length > 0) return { answer: 'SIM', supportingEvidence: correct, rationale: 'Action evidence supports an adequate response.' }
+      if (perceptionDriven.length > 0 && independentSelectionError.length === 0 && selectionSubtype.length === 0) return { answer: 'SIM', supportingEvidence: perceptionDriven, rationale: 'The action was coherent with the actor incorrect perceived state and no independent action-selection/implementation mechanism is established; A-axis double counting is avoided.' }
+      if (incorrect.length > 0 || independentSelectionError.length > 0 || selectionSubtype.length > 0 || timingSubtype.length > 0) return { answer: 'NÃO', supportingEvidence: unique([...incorrect, ...independentSelectionError, ...selectionSubtype, ...timingSubtype]), rationale: 'Evidence supports an independent implemented but inadequate action, selection, or execution timing.' }
+      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Correctness of action is not established.' }
     }
-    case "A_CAPABILITY": {
-      const physical = c("physicalActionLimitation");
-      const knowledge = c("actionKnowledgeLimitation");
-      const capabilityPresent = c("actionCapabilityPresent");
-      if (physical.length > 0)
-        return {
-          answer: "NÃO_INABILIDADE",
-          supportingEvidence: physical,
-          rationale: "Evidence supports physical/capability limitation.",
-        };
-      if (knowledge.length > 0)
-        return {
-          answer: "NÃO_CONHECIMENTO",
-          supportingEvidence: knowledge,
-          rationale: "Evidence supports knowledge/skill limitation.",
-        };
+    case 'A_CAPABILITY': {
+      const physical = c('physicalActionLimitation')
+      const knowledge = c('actionKnowledgeLimitation')
+      const capabilityPresent = c('actionCapabilityPresent')
+      if (physical.length > 0) return { answer: 'NÃO_INABILIDADE', supportingEvidence: physical, rationale: 'Evidence supports physical/capability limitation.' }
+      if (knowledge.length > 0) return { answer: 'NÃO_CONHECIMENTO', supportingEvidence: knowledge, rationale: 'Evidence supports knowledge/skill limitation.' }
       const specificActionMechanism = unique([
-        ...c("selectionSubtype"),
-        ...c("feedbackSubtype"),
-        ...c("timeManagementAction"),
-      ]);
-      if (capabilityPresent.length > 0 || specificActionMechanism.length > 0)
-        return {
-          answer: "SIM",
-          supportingEvidence: unique([
-            ...capabilityPresent,
-            ...specificActionMechanism,
-          ]),
-          rationale:
-            "A specific executed/omitted action mechanism provides positive evidence to continue subtype discrimination; capability is not inferred merely from absence of limitation.",
-        };
-      return {
-        answer: "INSUFFICIENT_EVIDENCE",
-        supportingEvidence: [],
-        rationale:
-          "Action capability cannot be assumed without positive evidence.",
-      };
+        ...c('selectionSubtype'),
+        ...c('feedbackSubtype'),
+        ...c('timeManagementAction'),
+      ])
+      if (capabilityPresent.length > 0 || specificActionMechanism.length > 0) return {
+        answer: 'SIM',
+        supportingEvidence: unique([...capabilityPresent, ...specificActionMechanism]),
+        rationale: 'A specific executed/omitted action mechanism provides positive evidence to continue subtype discrimination; capability is not inferred merely from absence of limitation.',
+      }
+      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Action capability cannot be assumed without positive evidence.' }
     }
-    case "A_TIME_PRESSURE": {
-      const feedbackFailed = c("feedbackUnderPressureFailed");
-      const selectionFailed = c("selectionUnderPressureFailed");
-      const feedback = c("feedbackSubtype");
-      const rushed = c("timeManagementAction");
-      const selection = c("selectionSubtype");
-      if (selectionFailed.length > 0)
-        return {
-          answer: "SIM_SELECAO",
-          supportingEvidence: selectionFailed,
-          rationale:
-            "Evidence supports selection failure under excessive time pressure.",
-        };
-      if (feedbackFailed.length > 0)
-        return {
-          answer: "SIM_FEEDBACK",
-          supportingEvidence: feedbackFailed,
-          rationale:
-            "Evidence supports feedback or communication failure under excessive time pressure.",
-        };
-      if (feedback.length > 0)
-        return {
-          answer: "NÃO_FEEDBACK",
-          supportingEvidence: feedback,
-          rationale:
-            "Evidence supports third-party feedback, supervision, or coordination failure without dominant time pressure.",
-        };
-      if (selection.length > 0)
-        return {
-          answer: "NÃO_SELECAO",
-          supportingEvidence: selection,
-          rationale:
-            "Evidence supports action-selection failure without dominant time pressure.",
-        };
-      if (rushed.length > 0)
-        return {
-          answer: "SIM_GERENCIAMENTO",
-          supportingEvidence: rushed,
-          rationale: "Evidence supports time-management action subtype.",
-        };
-      return {
-        answer: "INSUFFICIENT_EVIDENCE",
-        supportingEvidence: [],
-        rationale: "Action subtype under time pressure is not established.",
-      };
+    case 'A_TIME_PRESSURE': {
+      const feedbackFailed = c('feedbackUnderPressureFailed')
+      const selectionFailed = c('selectionUnderPressureFailed')
+      const feedback = c('feedbackSubtype')
+      const rushed = c('timeManagementAction')
+      const selection = c('selectionSubtype')
+      if (selectionFailed.length > 0) return { answer: 'SIM_SELECAO', supportingEvidence: selectionFailed, rationale: 'Evidence supports selection failure under excessive time pressure.' }
+      if (feedbackFailed.length > 0) return { answer: 'SIM_FEEDBACK', supportingEvidence: feedbackFailed, rationale: 'Evidence supports feedback or communication failure under excessive time pressure.' }
+      if (feedback.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: feedback, rationale: 'Evidence supports third-party feedback, supervision, or coordination failure without dominant time pressure.' }
+      if (selection.length > 0) return { answer: 'NÃO_SELECAO', supportingEvidence: selection, rationale: 'Evidence supports action-selection failure without dominant time pressure.' }
+      if (rushed.length > 0) return { answer: 'SIM_GERENCIAMENTO', supportingEvidence: rushed, rationale: 'Evidence supports time-management action subtype.' }
+      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Action subtype under time pressure is not established.' }
     }
     default:
-      return {
-        answer: "INSUFFICIENT_EVIDENCE",
-        supportingEvidence: [],
-        rationale: `Unsupported action node ${nodeId}.`,
-      };
+      return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: `Unsupported action node ${nodeId}.` }
   }
 }
 
-export function evaluateCanonicalNode(
-  ctx: SeraNodeEvidenceContext,
-): SeraNodeAnswer {
-  const statements = usableStatements(ctx);
-  const directRootClarification = ctx.node.nodeId.endsWith("_ROOT")
+export function evaluateCanonicalNode(ctx: SeraNodeEvidenceContext): SeraNodeAnswer {
+  const statements = usableStatements(ctx)
+  const directRootClarification = ctx.node.nodeId.endsWith('_ROOT')
     ? directNodeClarificationStatements(ctx)
-    : [];
+    : []
   // Root questions are descriptive (Hendy Step 2), not binary classification
   // decisions. A substantive response explicitly linked to the active canonical root
   // is sufficient to establish the descriptive P/O/A statement and continue to the
   // first decision node. It never selects a terminal code by itself.
-  const decision: Decision =
-    directRootClarification.length > 0
-      ? {
-          answer: "START",
-          supportingEvidence: directRootClarification.slice(0, 2),
-          rationale:
-            "A factual clarification response directly answers this canonical descriptive root; traversal may continue without inferring a leaf from that response alone.",
-        }
-      : ctx.axis === "P"
-        ? decideP(ctx.node.nodeId, statements, ctx)
-        : ctx.axis === "O"
-          ? decideO(ctx.node.nodeId, statements, ctx)
-          : decideA(ctx.node.nodeId, statements, ctx);
+  const decision: Decision = directRootClarification.length > 0
+    ? {
+        answer: 'START',
+        supportingEvidence: directRootClarification.slice(0, 2),
+        rationale: 'A factual clarification response directly answers this canonical descriptive root; traversal may continue without inferring a leaf from that response alone.',
+      }
+    : ctx.axis === 'P'
+      ? decideP(ctx.node.nodeId, statements, ctx)
+      : ctx.axis === 'O'
+        ? decideO(ctx.node.nodeId, statements, ctx)
+        : decideA(ctx.node.nodeId, statements, ctx)
 
-  const branchTarget =
-    decision.answer === "INSUFFICIENT_EVIDENCE"
-      ? null
-      : ctx.node.branchMap[decision.answer];
+  const branchTarget = decision.answer === 'INSUFFICIENT_EVIDENCE'
+    ? null
+    : ctx.node.branchMap[decision.answer]
 
-  const terminalCode = branchTarget?.includes("-") ? branchTarget : null;
-  const nextNodeId = branchTarget && !terminalCode ? branchTarget : null;
-  const supportingEvidence = unique(decision.supportingEvidence).slice(0, 4);
-  const counterEvidence = hasText(statements, [
-    /\b(does not establish|not established|not clearly established|unclear whether)\b/i,
-  ])
-    ? matching(statements, [
-        /\b(does not establish|not established|not clearly established|unclear whether)\b/i,
-      ]).slice(0, 3)
-    : [];
+  const terminalCode = branchTarget?.includes('-') ? branchTarget : null
+  const nextNodeId = branchTarget && !terminalCode ? branchTarget : null
+  const supportingEvidence = unique(decision.supportingEvidence).slice(0, 4)
+  const counterEvidence = hasText(statements, [/\b(does not establish|not established|not clearly established|unclear whether)\b/i])
+    ? matching(statements, [/\b(does not establish|not established|not clearly established|unclear whether)\b/i]).slice(0, 3)
+    : []
 
   return {
     nodeId: ctx.node.nodeId,
     question: ctx.node.question,
     exactQuestionTextENAnchor: ctx.node.exactQuestionTextENAnchor,
-    answer: branchTarget ? decision.answer : "INSUFFICIENT_EVIDENCE",
-    responseText: ctx.node.nodeId.endsWith("_ROOT")
-      ? branchTarget
-        ? rootResponseText(ctx, supportingEvidence)
-        : insufficientRootResponse(ctx.axis, ctx.locale)
+    answer: branchTarget ? decision.answer : 'INSUFFICIENT_EVIDENCE',
+    responseText: ctx.node.nodeId.endsWith('_ROOT')
+      ? (branchTarget ? rootResponseText(ctx, supportingEvidence) : insufficientRootResponse(ctx.axis, ctx.locale))
       : null,
     nextNodeId,
     terminalCode,
@@ -1380,8 +658,6 @@ export function evaluateCanonicalNode(
     counterEvidence,
     prohibitedInferenceChecks: ctx.node.prohibitedInferences,
     confidence: confidenceFromEvidence(supportingEvidence.length),
-    rationale: branchTarget
-      ? decision.rationale
-      : `${decision.rationale} Traversal stops without a reconstructed leaf.`,
-  };
+    rationale: branchTarget ? decision.rationale : `${decision.rationale} Traversal stops without a reconstructed leaf.`,
+  }
 }
