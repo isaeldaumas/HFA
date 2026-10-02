@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { DEFAULT_TRIAL_DAYS, DEFAULT_TRIAL_LIMIT } from '@/lib/product/trial'
 
 function randomSlug(base: string): string {
   const clean = base
@@ -13,7 +14,8 @@ function randomSlug(base: string): string {
 
 export async function POST(req: Request) {
   try {
-    const { email, password, company_name, slug } = (await req.json()) as {
+    const { full_name, email, password, company_name, slug } = (await req.json()) as {
+      full_name?: string
       email?: string
       password?: string
       company_name?: string
@@ -73,13 +75,19 @@ export async function POST(req: Request) {
       ? `${finalSlug}-${Math.random().toString(36).slice(2, 8)}`
       : finalSlug
 
+    const trialStartedAt = new Date()
+    const trialExpiresAt = new Date(trialStartedAt.getTime() + DEFAULT_TRIAL_DAYS * 86_400_000)
+
     const { data: tenantData, error: tenantErr } = await admin
       .from('tenants')
       .insert({
         name: company_name.slice(0, 255),
         slug: uniqueSlug,
         plan: 'trial',
-        credits_balance: 3,
+        credits_balance: DEFAULT_TRIAL_LIMIT,
+        trial_case_limit: DEFAULT_TRIAL_LIMIT,
+        trial_started_at: trialStartedAt.toISOString(),
+        trial_expires_at: trialExpiresAt.toISOString(),
       })
       .select('id')
       .single()
@@ -125,7 +133,7 @@ export async function POST(req: Request) {
       id: userId,
       tenant_id: tenantId,
       email,
-      full_name: company_name.slice(0, 255),
+      full_name: (full_name?.trim() || company_name).slice(0, 255),
       role: 'admin',
       is_active: true,
     })

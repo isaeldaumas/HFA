@@ -3,10 +3,11 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { apiCall } from '@/lib/api'
+import { supabase } from '@/lib/supabase'
 
 export default function RegisterPage() {
   const router = useRouter()
-  const [form, setForm] = useState({ email: '', password: '', company_name: '', slug: '' })
+  const [form, setForm] = useState({ full_name: '', email: '', password: '', company_name: '', slug: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -25,7 +26,15 @@ export default function RegisterPage() {
     setError('')
     try {
       await apiCall('/auth/register', { method: 'POST', body: JSON.stringify(form) })
-      router.push('/login?registered=true')
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: form.email,
+        password: form.password,
+      })
+      if (signInError) {
+        router.push('/login?registered=true')
+        return
+      }
+      router.push('/onboarding')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Falha ao criar conta')
       setLoading(false)
@@ -37,7 +46,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <span className="text-2xl font-bold text-blue-400">HFA Platform</span>
-          <p className="text-slate-400 mt-2">Crie sua conta — 3 análises grátis</p>
+          <p className="text-slate-400 mt-2">Piloto de 60 dias · até 15 análises · sem cartão</p>
         </div>
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 space-y-4">
           {error && (
@@ -47,6 +56,12 @@ export default function RegisterPage() {
           )}
 
           <form onSubmit={handleRegister} className="space-y-4">
+          <div>
+            <label className="block text-sm text-slate-400 mb-1">Seu nome</label>
+            <input name="full_name" value={form.full_name} onChange={handleChange}
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+              placeholder="Nome e sobrenome" required />
+          </div>
           <div>
             <label className="block text-sm text-slate-400 mb-1">Nome da empresa</label>
             <input name="company_name" value={form.company_name} onChange={handleChange}

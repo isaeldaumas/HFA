@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { writeAuditLog } from '@/lib/observability/audit'
 import { getOrCreateRequestId } from '@/lib/observability/request-id'
 import { resolveAuthorizedUserContext } from '@/lib/server/authorized-user-context'
+import { DEFAULT_TRIAL_DAYS, DEFAULT_TRIAL_LIMIT } from '@/lib/product/trial'
 
 type BootstrapFailureCategory =
   | 'network_or_transient'
@@ -230,13 +231,18 @@ export async function POST(req: Request) {
     if (foundTenantId) {
       tenantId = foundTenantId
     } else {
+      const trialStartedAt = new Date()
+      const trialExpiresAt = new Date(trialStartedAt.getTime() + DEFAULT_TRIAL_DAYS * 86_400_000)
       const tenantIns = await admin
         .from('tenants')
         .insert({
           name: local.slice(0, 255),
           slug: randomSlug(local),
           plan: 'trial',
-          credits_balance: 3,
+          credits_balance: DEFAULT_TRIAL_LIMIT,
+          trial_case_limit: DEFAULT_TRIAL_LIMIT,
+          trial_started_at: trialStartedAt.toISOString(),
+          trial_expires_at: trialExpiresAt.toISOString(),
         })
         .select('id')
         .single()

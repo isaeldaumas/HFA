@@ -6,8 +6,8 @@ import { TrialUsageCard } from '@/components/product/TrialUsageCard'
 const RECOMMENDED_FLOW = [
   {
     step: '1',
-    title: 'Registrar um evento',
-    description: 'Descreva o evento, contexto operacional e evidências disponíveis.',
+    title: 'Comparar uma ocorrência já investigada',
+    description: 'Comece com um caso histórico da sua empresa e compare a análise HFA com a investigação já concluída.',
     cta: 'Ir para novo evento',
     href: '/events/new',
   },
@@ -63,12 +63,12 @@ export default function OnboardingPage() {
       </div>
 
       <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-5 space-y-2">
-        <p className="text-blue-300 text-sm font-semibold uppercase tracking-wide">10 análises gratuitas para formar o primeiro perfil</p>
+        <p className="text-blue-300 text-sm font-semibold uppercase tracking-wide">Piloto guiado · 60 dias · até 15 análises · sem cartão</p>
         <p className="text-slate-300 text-sm leading-relaxed">
-          Use as primeiras análises para registrar eventos reais ou casos de treinamento. A partir delas, o sistema começa a identificar padrões recorrentes, confiança dos dados e tendência qualitativa.
+          Comece por uma ocorrência histórica já investigada para comparar os resultados. Depois, use o HFA em eventos reais durante o piloto e acompanhe os padrões organizacionais que começam a emergir.
         </p>
         <p className="text-slate-400 text-xs">
-          Com menos dados, a consolidação permanece em formação e deve ser interpretada como sinal inicial, não como conclusão definitiva.
+          O piloto não exige compromisso de contratação. Análises e dados permanecem rastreáveis para revisão humana e avaliação interna da empresa.
         </p>
         <div className="pt-2">
           <TrialUsageCard compact />

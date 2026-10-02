@@ -54,9 +54,9 @@ export default function Home() {
       desc: 'O HFA/SERA é fruto aplicado de um trabalho acadêmico: levar a pesquisa sobre MDC + SERA para uma ferramenta utilizável em investigações reais.',
     },
     {
-      title: 'Ferramenta gratuita',
-      meta: 'Disponibilização da metodologia',
-      desc: 'O objetivo é ampliar o acesso à ferramenta e à metodologia, apoiando investigações mais consistentes sem criar barreira inicial de uso.',
+      title: 'Piloto guiado sem cartão',
+      meta: '60 dias · até 15 análises',
+      desc: 'A empresa pode começar com uma ocorrência já investigada, comparar resultados e testar o HFA com seus próprios dados antes de decidir pela contratação.',
     },
     {
       title: 'Segurança operacional',
@@ -146,7 +146,7 @@ export default function Home() {
               </a>
               <Link href="/login" style={{ fontSize: '14px', color: '#94A3B8', textDecoration: 'none', fontWeight: 400 }}>Entrar</Link>
               <Link href="/register" style={{ backgroundColor: '#2563EB', color: '#fff', padding: '8px 18px', borderRadius: '8px', fontSize: '14px', fontWeight: 500, textDecoration: 'none' }}>
-                Acessar plataforma grátis
+                Testar com uma ocorrência real
               </Link>
             </div>
           </div>
@@ -181,13 +181,12 @@ export default function Home() {
             </div>
 
             <h1 className="animate-fade-up delay-2" style={{ fontFamily: "'DM Serif Display', serif", fontSize: '64px', lineHeight: 1.12, margin: '0 0 24px', fontWeight: 400 }}>
-              Análise de Fatores Humanos<br />
-              <span style={{ color: '#60A5FA' }}>com rigor científico</span>
+              Sua investigação encontrou a causa certa?<br />
+              <span style={{ color: '#60A5FA' }}>Compare com uma análise HFA.</span>
             </h1>
 
             <p className="animate-fade-up delay-3" style={{ fontSize: '20px', color: '#94A3B8', lineHeight: 1.65, marginBottom: '40px', maxWidth: '660px', margin: '0 auto 40px' }}>
-              A metodologia SERA transforma relatórios operacionais em análises estruturadas, auditáveis e logicamente consistentes,
-              separando percepção, objetivo e ação.
+              Escolha uma ocorrência que sua empresa já investigou. O HFA analisa as mesmas evidências com metodologia estruturada, rastreabilidade e revisão humana. Compare os resultados antes de decidir se vale a pena contratar.
             </p>
 
             <div className="animate-fade-up delay-3" style={{
@@ -257,7 +256,7 @@ export default function Home() {
             </div>
 
             <div className="animate-fade-up delay-3" style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '34px' }}>
-              {['Metodologia em validação técnica', 'Ferramenta gratuita', 'Arquitetura determinística', 'Base metodológica', 'DRDC Canada'].map((badge) => (
+              {['Metodologia em validação técnica', 'Piloto de 60 dias · sem cartão', 'Arquitetura determinística', 'Base metodológica', 'DRDC Canada'].map((badge) => (
                 <span key={badge} style={{
                   border: '1px solid rgba(96,165,250,0.22)',
                   backgroundColor: 'rgba(15,23,42,0.52)',
@@ -285,7 +284,7 @@ export default function Home() {
                 border: '1px solid rgba(147,197,253,0.18)',
                 textDecoration: 'none',
               }}>
-                Acessar plataforma grátis
+                Testar com uma ocorrência real
               </Link>
               <button
                 onClick={() => document.getElementById('metodologia')?.scrollIntoView({ behavior: 'smooth' })}
@@ -332,7 +331,7 @@ export default function Home() {
                   Do relato bruto ao perfil de risco da organização.
                 </h2>
                 <p style={{ fontSize: '16px', color: '#94A3B8', lineHeight: 1.8, margin: 0, textAlign: 'justify' }}>
-                  O HFA/SERA é uma plataforma gratuita para apoiar análises de fatores humanos. Você envia os dados brutos do evento,
+                  O HFA/SERA é uma plataforma especializada para apoiar análises de fatores humanos. Você envia os dados brutos do evento,
                   em PDF ou colando o texto disponível, e o sistema aplica a metodologia passo a passo para transformar informação dispersa
                   em uma análise estruturada, rastreável e útil para gestão de segurança.
                 </p>
@@ -1087,7 +1086,7 @@ export default function Home() {
               O objetivo não é substituir o investigador humano.
             </h2>
             <p style={{ fontSize: '17px', color: '#94A3B8', marginBottom: '40px', lineHeight: 1.7 }}>
-              Disponibilizado gratuitamente, o HFA/SERA foi desenvolvido para auxiliar investigadores e organizações a produzir análises
+              O HFA/SERA foi desenvolvido para auxiliar investigadores e organizações a produzir análises
               de fatores humanos mais consistentes, rastreáveis e operacionalmente úteis.
             </p>
             <Link href="/register" style={{
@@ -1101,7 +1100,7 @@ export default function Home() {
               textDecoration: 'none',
               marginBottom: '20px',
             }}>
-                Acessar plataforma grátis →
+                Iniciar piloto de 60 dias →
             </Link>
             <div style={{ marginBottom: '48px' }}>
               <Link href="/login" style={{ fontSize: '14px', color: '#64748B', textDecoration: 'none' }}>

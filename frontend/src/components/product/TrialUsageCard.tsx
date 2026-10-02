@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { buildTrialUsage, type TrialUsage } from '@/lib/product/trial'
+import { DEFAULT_TRIAL_LIMIT, buildTrialUsage, type TrialUsage } from '@/lib/product/trial'
 
 type TrialUsageCardProps = {
   used?: number
@@ -28,11 +28,16 @@ const STATUS_STYLES: Record<TrialUsage['status'], { badge: string; bar: string; 
     bar: 'bg-red-500',
     panel: 'border-red-500/20 bg-red-500/10',
   },
+  expired: {
+    badge: 'text-red-300 bg-red-500/10 border-red-500/20',
+    bar: 'bg-red-500',
+    panel: 'border-red-500/20 bg-red-500/10',
+  },
 }
 
 export function TrialUsageCard({
   used,
-  limit = 10,
+  limit = DEFAULT_TRIAL_LIMIT,
   compact = false,
   showCreateCta = true,
 }: TrialUsageCardProps) {
@@ -103,13 +108,15 @@ export function TrialUsageCard({
       <div className={`flex ${compact ? 'flex-col gap-3' : 'flex-col sm:flex-row sm:items-start sm:justify-between gap-4'}`}>
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-white text-sm font-semibold">{usage.limit} analises gratuitas</p>
+            <p className="text-white text-sm font-semibold">Piloto gratuito · até {usage.limit} análises</p>
             <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${styles.badge}`}>
               {usage.status === 'available'
                 ? 'Trial ativo'
                 : usage.status === 'near_limit'
                   ? 'Perto do limite'
-                  : 'Limite inicial concluido'}
+                  : usage.status === 'expired'
+                    ? 'Piloto encerrado'
+                    : 'Limite concluído'}
             </span>
           </div>
           <p className="text-slate-300 text-sm">
@@ -121,7 +128,7 @@ export function TrialUsageCard({
           <p className="text-slate-400 text-sm leading-relaxed">{usage.message}</p>
         </div>
 
-        {showCreateCta && usage.status !== 'limit_reached' && (
+        {showCreateCta && !['limit_reached', 'expired'].includes(usage.status) && (
           <div className="shrink-0">
             <Link
               href="/events/new"
@@ -138,15 +145,15 @@ export function TrialUsageCard({
           <div className={`h-full rounded-full ${styles.bar}`} style={{ width: `${progress}%` }} />
         </div>
         <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
-          <span>Perfil inicial em formacao</span>
+          <span>{usage.daysRemaining != null ? `${usage.daysRemaining} dias restantes` : 'Perfil inicial em formação'}</span>
           <span>{usage.used}/{usage.limit}</span>
         </div>
       </div>
 
-      {usage.status === 'limit_reached' && (
+      {['limit_reached', 'expired'].includes(usage.status) && (
         <div className="mt-4 border-t border-white/10 pt-4">
           <p className="text-sm text-slate-300">
-            Entre em contato para continuar apos o trial inicial sem perder a rastreabilidade do perfil organizacional.
+            Continue com o HFA sem perder o histórico, as análises e a rastreabilidade do perfil organizacional.
           </p>
         </div>
       )}
