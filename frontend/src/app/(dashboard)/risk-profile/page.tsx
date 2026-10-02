@@ -1818,7 +1818,7 @@ export default function RiskProfilePage() {
               >
                 Criar primeira análise
               </Link>
-              <p className="text-slate-500 text-xs">10 análises gratuitas por empresa</p>
+              <p className="text-slate-500 text-xs">Piloto gratuito: até 15 análises em 60 dias</p>
             </div>
           </div>
         </div>

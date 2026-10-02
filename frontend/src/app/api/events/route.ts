@@ -171,12 +171,16 @@ export async function POST(req: Request) {
     stage = 'fetch-tenant'
     const { data: tenant, error: terr } = await admin
       .from('tenants')
-      .select('plan, credits_balance')
+      .select('plan, credits_balance, trial_expires_at')
       .eq('id', user.tenantId)
       .single()
     if (terr || !tenant) return jsonError('Tenant não encontrado', 400)
 
     const isEnterprise = tenant.plan === 'enterprise'
+    const trialExpiresAt = tenant.trial_expires_at ? Date.parse(String(tenant.trial_expires_at)) : Number.NaN
+    if (tenant.plan === 'trial' && Number.isFinite(trialExpiresAt) && trialExpiresAt <= Date.now()) {
+      return jsonError('O piloto gratuito de 60 dias foi concluído. Entre em contato para continuar.', 402)
+    }
     if (!isEnterprise && (tenant.credits_balance ?? 0) < 1) return jsonError('Créditos insuficientes', 402)
 
     stage = 'insert-event'
