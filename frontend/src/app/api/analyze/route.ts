@@ -216,7 +216,7 @@ export async function POST(req: Request) {
 
       const analysisNarrative = latestVNext
         ? mergeCanonicalReanalysisNarrative({
-            baseNarrative: String(latestVNext.narrative ?? ev.raw_input ?? ''),
+            baseNarrative: String(latestVNext?.narrative ?? ev.raw_input ?? ''),
             submittedNarrative: rawInput,
             originalNarrative: String(ev.raw_input ?? ''),
           })
