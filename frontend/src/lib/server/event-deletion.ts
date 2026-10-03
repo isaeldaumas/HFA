@@ -285,6 +285,13 @@ export async function getEventDeletionImpact(
     throw new Error('EVENT_DELETE_IMPACT_LOOKUP_FAILED')
   }
 
+  const eventDocuments = await admin
+    .from('event_documents')
+    .select('id, storage_path')
+    .eq('tenant_id', tenantId)
+    .eq('event_id', eventId)
+  if (eventDocuments.error) throw new Error('EVENT_DELETE_IMPACT_LOOKUP_FAILED')
+
   const unknownDependencies: string[] = []
   const storageObjects: DeletionStorageObject[] = []
   if (legacyAnalysis?.source_file_url) {
@@ -298,6 +305,20 @@ export async function getEventDeletionImpact(
         exists: await storageObjectExists(admin, parsed),
       })
     }
+  }
+
+  for (const document of eventDocuments.data ?? []) {
+    const path = typeof document.storage_path === 'string' ? document.storage_path : ''
+    if (!path) {
+      unknownDependencies.push(`event_document_path_missing:${document.id}`)
+      continue
+    }
+    const parsed = { bucket: 'analysis-documents', path }
+    storageObjects.push({
+      ...parsed,
+      category: 'safety_event_document',
+      exists: await storageObjectExists(admin, parsed),
+    })
   }
 
   const actionMap = new Map<string, { id: string; status: string }>()
@@ -322,7 +343,7 @@ export async function getEventDeletionImpact(
     analysisEvents: eventRows.length,
     auditLogs: auditLogs.count ?? 0,
     evidenceItems: vnextRows.reduce((total, row) => total + countEvidenceValues(row), 0),
-    attachments: legacyAnalysis?.source_file_url ? 1 : 0,
+    attachments: (legacyAnalysis?.source_file_url ? 1 : 0) + (eventDocuments.data?.length ?? 0),
     storageObjects,
     exports: eventRows.filter((item) => item.event_type === 'analysis.exported').length,
     correctiveActionsOpen: actionCounts.open,

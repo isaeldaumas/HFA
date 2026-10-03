@@ -8,7 +8,7 @@ import { useT } from '@/lib/i18n'
 import { computeHfaErcCategoryFromCodes, describeHfaErcCategory } from '@/lib/risk-profile/erc'
 
 const statusLabel: Record<string, { label: string; color: string }> = {
-  received: { label: 'Recebido', color: 'text-yellow-400' },
+  received: { label: 'Registrado', color: 'text-yellow-400' },
   processing: { label: 'Analisando…', color: 'text-blue-400' },
   completed: { label: 'Concluído', color: 'text-green-400' },
   failed: { label: 'Erro', color: 'text-red-400' },
@@ -27,6 +27,12 @@ type EventItem = {
   is_excluded_from_risk_profile?: boolean
   risk_profile_exclusion_id?: string | null
   risk_profile_exclusion_reason?: string | null
+  event_kind?: 'SAFETY_REPORT' | 'HFA_ANALYSIS' | null
+  triage_status?: string | null
+  investigation_path?: string | null
+  confidentiality_level?: string | null
+  credits_used?: number | null
+  analysis_engine?: string | null
 }
 
 type DeletionImpact = {
@@ -416,14 +422,14 @@ export default function EventsPage() {
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">{t('events.title')}</h1>
-          <p className="text-slate-400">Histórico de análises da sua operação</p>
+          <p className="text-slate-400">Gestão de eventos de Safety, triagem e análises de fatores humanos</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/events/deleted" className="rounded-lg border border-slate-700 px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-slate-500">
             Eventos excluídos
           </Link>
           <Link href="/events/new" className="rounded-lg bg-blue-600 px-6 py-3 text-sm font-medium text-white transition hover:bg-blue-500">
-            + {t('events.newAnalysis')}
+            + Novo evento
           </Link>
         </div>
       </div>
@@ -440,7 +446,7 @@ export default function EventsPage() {
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-12 text-center">
           <p className="mb-4 text-slate-400">{t('events.noEvents')}</p>
           <Link href="/events/new" className="text-blue-400 hover:underline">
-            {t('events.startAnalysis')}
+            Registrar primeiro evento
           </Link>
         </div>
       ) : (
@@ -459,6 +465,15 @@ export default function EventsPage() {
                     </p>
                   </Link>
                   <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                    <span className={`rounded border px-2 py-0.5 text-xs font-semibold ${event.event_kind === 'SAFETY_REPORT' ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200' : 'border-blue-500/20 bg-blue-500/10 text-blue-200'}`}>
+                      {event.event_kind === 'SAFETY_REPORT' ? 'Safety' : 'HFA'}
+                    </span>
+                    <span className="rounded border border-slate-700 bg-slate-950 px-2 py-0.5 text-xs text-slate-300">
+                      {event.triage_status ?? 'UNTRIAGED'}
+                    </span>
+                    {event.confidentiality_level === 'CONFIDENTIAL' && (
+                      <span className="rounded border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-200">Confidencial</span>
+                    )}
                     {event.is_excluded_from_risk_profile && (
                       <span className="rounded border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-200">
                         Desconsiderado no perfil
@@ -479,7 +494,7 @@ export default function EventsPage() {
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {canManageProfile && (
+                    {canManageProfile && event.analysis_engine && (
                       event.is_excluded_from_risk_profile ? (
                         <button
                           type="button"

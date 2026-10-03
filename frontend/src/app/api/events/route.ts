@@ -116,8 +116,6 @@ export async function POST(req: Request) {
     }
 
     const admin = getSupabaseAdmin()
-    stage = 'load-ai-settings'
-    await applyUserAiSettingsToEnv(admin, user.userId)
     const ct = req.headers.get('content-type') || ''
     let title: string
     let raw_input: string
@@ -125,6 +123,8 @@ export async function POST(req: Request) {
     let aircraft_type: string | null = null
     let occurred_at: string | null = null
     let locale: 'pt-BR' | 'en' = 'pt-BR'
+    let analysisMode: 'register_only' | 'hfa' = 'hfa'
+    let confidentialityLevel: 'STANDARD' | 'CONFIDENTIAL' = 'STANDARD'
     let input_type: 'text' | 'pdf' | 'docx' = 'text'
     const sourceMeta: SourceMeta = { sourceType: 'text' }
     let sourceFile: File | null = null
@@ -137,6 +137,8 @@ export async function POST(req: Request) {
       aircraft_type = form.get('aircraft_type') ? String(form.get('aircraft_type')) : null
       occurred_at = form.get('occurred_at') ? String(form.get('occurred_at')) : null
       locale = form.get('locale') === 'en' ? 'en' : 'pt-BR'
+      analysisMode = form.get('analysis_mode') === 'register_only' ? 'register_only' : 'hfa'
+      confidentialityLevel = form.get('confidentiality_level') === 'CONFIDENTIAL' ? 'CONFIDENTIAL' : 'STANDARD'
       const it = form.get('input_type')
       if (it === 'pdf' || it === 'docx' || it === 'text') input_type = it
       const st = form.get('source_type')
@@ -155,6 +157,8 @@ export async function POST(req: Request) {
       aircraft_type = body.aircraft_type != null ? String(body.aircraft_type) : null
       occurred_at = body.occurred_at != null ? String(body.occurred_at) : null
       locale = body.locale === 'en' ? 'en' : 'pt-BR'
+      analysisMode = body.analysis_mode === 'register_only' ? 'register_only' : 'hfa'
+      confidentialityLevel = body.confidentiality_level === 'CONFIDENTIAL' ? 'CONFIDENTIAL' : 'STANDARD'
       const it = body.input_type
       if (it === 'pdf' || it === 'docx' || it === 'text') input_type = it
       const st = body.source_type
@@ -177,11 +181,13 @@ export async function POST(req: Request) {
     if (terr || !tenant) return jsonError('Tenant não encontrado', 400)
 
     const isEnterprise = tenant.plan === 'enterprise'
-    const trialExpiresAt = tenant.trial_expires_at ? Date.parse(String(tenant.trial_expires_at)) : Number.NaN
-    if (tenant.plan === 'trial' && Number.isFinite(trialExpiresAt) && trialExpiresAt <= Date.now()) {
-      return jsonError('O piloto gratuito de 60 dias foi concluído. Entre em contato para continuar.', 402)
+    if (analysisMode === 'hfa') {
+      const trialExpiresAt = tenant.trial_expires_at ? Date.parse(String(tenant.trial_expires_at)) : Number.NaN
+      if (tenant.plan === 'trial' && Number.isFinite(trialExpiresAt) && trialExpiresAt <= Date.now()) {
+        return jsonError('O piloto gratuito de 60 dias foi concluído. O registro de eventos continua disponível, mas novas análises HFA exigem continuidade do plano.', 402)
+      }
+      if (!isEnterprise && (tenant.credits_balance ?? 0) < 1) return jsonError('Créditos insuficientes para iniciar a análise HFA.', 402)
     }
-    if (!isEnterprise && (tenant.credits_balance ?? 0) < 1) return jsonError('Créditos insuficientes', 402)
 
     stage = 'insert-event'
     const { data: eventRow, error: eerr } = await admin
@@ -196,6 +202,13 @@ export async function POST(req: Request) {
         aircraft_type,
         occurred_at: occurred_at || inferOccurrenceDateFromNarrative(raw_input) || null,
         status: 'received',
+        event_kind: analysisMode === 'register_only' ? 'SAFETY_REPORT' : 'HFA_ANALYSIS',
+        triage_status: analysisMode === 'register_only' ? 'UNTRIAGED' : 'HFA_SELECTED',
+        investigation_path: analysisMode === 'register_only' ? 'NONE' : 'HFA',
+        source_system: 'HFA',
+        confidentiality_level: confidentialityLevel,
+        triaged_at: analysisMode === 'register_only' ? null : new Date().toISOString(),
+        triaged_by: analysisMode === 'register_only' ? null : submittedById,
       })
       .select('id')
       .single()
@@ -207,8 +220,49 @@ export async function POST(req: Request) {
       tenantId: user.tenantId, userId: user.userId, requestId,
       eventType: 'event_created', entityType: 'event', entityId: eventId,
       route: '/api/events', method: 'POST',
-      metadata: { source_type: sourceMeta.sourceType ?? input_type, engine_role: 'PRIMARY' },
+      metadata: { source_type: sourceMeta.sourceType ?? input_type, analysis_mode: analysisMode, engine_role: analysisMode === 'hfa' ? 'PRIMARY' : 'NONE' },
     })
+
+    if (analysisMode === 'register_only') {
+      if (sourceFile) {
+        try {
+          assertFileSize(sourceFile.size)
+          const buf = Buffer.from(await sourceFile.arrayBuffer())
+          const kind = detectDocumentKind(buf)
+          const ext = sourceFile.name.toLowerCase().endsWith('.docx') || kind === 'docx' ? 'docx' : 'pdf'
+          if (!kind || (ext === 'docx' && kind !== 'docx') || (ext === 'pdf' && kind !== 'pdf')) throw new Error('Tipo de arquivo inválido para armazenamento')
+          const safeName = sourceFile.name.replace(/[^\w.\-]/g, '_').slice(0, 180)
+          const path = `events/${submittedById}/${eventId}/${safeName}`
+          const { error: uploadError } = await admin.storage.from('analysis-documents').upload(path, buf, {
+            contentType: sourceFile.type || (kind === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+            upsert: false,
+          })
+          if (uploadError) throw uploadError
+          const documentInsert = await admin.from('event_documents').insert({
+            tenant_id: user.tenantId,
+            event_id: eventId,
+            uploaded_by: submittedById,
+            file_name: sourceFile.name,
+            storage_path: path,
+            mime_type: sourceFile.type || null,
+            size_bytes: sourceFile.size,
+          })
+          if (documentInsert.error) throw documentInsert.error
+        } catch (documentError) {
+          logEventsError(documentError, 'store-safety-event-document', { requestId, eventId })
+        }
+      }
+      await writeAuditLog({
+        tenantId: user.tenantId, userId: user.userId, requestId,
+        eventType: 'safety_event_reported', entityType: 'event', entityId: eventId,
+        route: '/api/events', method: 'POST', status: 'success',
+        metadata: { triage_status: 'UNTRIAGED', investigation_path: 'NONE', credits_used: 0 },
+      })
+      return NextResponse.json({ event_id: eventId, status: 'received', analysis_started: false, credits_used: 0 }, { status: 201, headers: { 'x-request-id': requestId } })
+    }
+
+    stage = 'load-ai-settings'
+    await applyUserAiSettingsToEnv(admin, user.userId)
 
     let creditDebited = false
     let success = false

@@ -2,7 +2,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "events": "Eventos",
-    "newAnalysis": "Nova Análise",
+    "newAnalysis": "Novo Evento",
     "actions": "Ações Corretivas",
     "riskProfile": "Perfil de Risco",
     "methodology": "Metodologia SERA",
@@ -49,8 +49,8 @@
   },
   "events": {
     "title": "Eventos",
-    "subtitle": "análises realizadas",
-    "newAnalysis": "Nova Análise",
+    "subtitle": "eventos registrados e análises realizadas",
+    "newAnalysis": "Novo Evento",
     "search": "Buscar eventos...",
     "all": "Todos",
     "analyzed": "Analisado",
@@ -60,10 +60,10 @@
     "newest": "Mais recente",
     "oldest": "Mais antigo",
     "noEvents": "Nenhum evento encontrado",
-    "noEventsSubtitle": "Comece analisando seu primeiro evento.",
+    "noEventsSubtitle": "Comece registrando seu primeiro evento.",
     "noResults": "Nenhum resultado para os filtros aplicados",
-    "startAnalysis": "Analisar primeiro evento",
-    "viewAnalysis": "Ver análise →"
+    "startAnalysis": "Registrar primeiro evento",
+    "viewAnalysis": "Abrir evento →"
   },
   "analysis": {
     "title": "Nova Análise SERA",

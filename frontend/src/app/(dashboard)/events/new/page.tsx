@@ -9,6 +9,8 @@ import { useMe } from '@/hooks/useMe'
 import { useI18n } from '@/lib/i18n'
 
 type Tab = 'text' | 'upload'
+type SubmissionMode = 'register_only' | 'hfa'
+type ConfidentialityLevel = 'STANDARD' | 'CONFIDENTIAL'
 
 const PROGRESS_STEPS = [
   { delay: 0,     text: 'Iniciando análise SERA...' },
@@ -25,6 +27,8 @@ export default function NewEventPage() {
   const me = useMe()
   const noCredits = !me.loading && !me.isUnlimited && me.credits === 0
   const [tab, setTab] = useState<Tab>('text')
+  const [analysisMode, setAnalysisMode] = useState<SubmissionMode>('register_only')
+  const [confidentialityLevel, setConfidentialityLevel] = useState<ConfidentialityLevel>('STANDARD')
   const [form, setForm] = useState({
     title: '',
     raw_input: '',
@@ -80,6 +84,7 @@ export default function NewEventPage() {
           occurred_at: payload.occurred_at ?? p.occurred_at,
         }))
         setFromInterview(true)
+        setAnalysisMode('hfa')
         if (payload.operation_type || payload.aircraft_type) setShowDetails(true)
       }, 0)
     } catch {
@@ -94,7 +99,8 @@ export default function NewEventPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    startProgress()
+    if (analysisMode === 'hfa') startProgress()
+    else setProgressText('Registrando evento de Safety...')
     try {
       const {
         data: { session },
@@ -111,6 +117,8 @@ export default function NewEventPage() {
         fd.set('aircraft_type', form.aircraft_type)
         fd.set('occurred_at', form.occurred_at)
         fd.set('locale', locale)
+        fd.set('analysis_mode', analysisMode)
+        fd.set('confidentiality_level', confidentialityLevel)
         const kind = sourceFile.name.toLowerCase().endsWith('.docx') ? 'docx' : 'pdf'
         fd.set('input_type', kind)
         fd.set('source_type', kind)
@@ -147,6 +155,8 @@ export default function NewEventPage() {
           input_type: 'text',
           source_type: 'text',
           locale,
+          analysis_mode: analysisMode,
+          confidentiality_level: confidentialityLevel,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -178,7 +188,7 @@ export default function NewEventPage() {
         </div>
       )}
       <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-bold text-white">Nova Análise SERA</h1>
+        <h1 className="text-2xl font-bold text-white">Novo Evento</h1>
         {!me.loading && (
           me.isUnlimited ? (
             <span className="text-xs text-amber-400/80 font-medium bg-amber-400/10 border border-amber-400/20 px-2.5 py-1 rounded-full">
@@ -187,11 +197,13 @@ export default function NewEventPage() {
           ) : null
         )}
       </div>
-      <p className="text-slate-400 mb-8">Insira o relato do evento para análise assistida pela metodologia SERA</p>
+      <p className="text-slate-400 mb-8">Registre o evento primeiro. A análise HFA/SERA é opcional e pode ser iniciada agora ou após a triagem de Safety.</p>
 
-      <div className="mb-6">
-        <TrialUsageCard compact showCreateCta={false} />
-      </div>
+      {analysisMode === 'hfa' && (
+        <div className="mb-6">
+          <TrialUsageCard compact showCreateCta={false} />
+        </div>
+      )}
 
       {fromInterview && (
         <div className="mb-6 bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-4">
@@ -202,12 +214,31 @@ export default function NewEventPage() {
         </div>
       )}
 
-      {noCredits && (
+      {noCredits && analysisMode === 'hfa' && (
         <div className="mb-6 bg-red-950/40 border border-red-900/50 rounded-xl p-4 text-sm">
           <p className="text-red-300 font-medium mb-1">Este ambiente nao tem analises adicionais liberadas no momento</p>
-          <p className="text-red-400/80">O trial inicial ja foi apresentado no produto. Para continuidade neste ambiente, entre em contato.</p>
+          <p className="text-red-400/80">Você ainda pode registrar eventos de Safety sem custo. O bloqueio se aplica somente a novas análises HFA.</p>
         </div>
       )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+        <button
+          type="button"
+          onClick={() => setAnalysisMode('register_only')}
+          className={`text-left rounded-xl border p-4 transition ${analysisMode === 'register_only' ? 'border-emerald-500 bg-emerald-500/10' : 'border-slate-800 bg-slate-900 hover:border-slate-700'}`}
+        >
+          <p className="text-sm font-semibold text-white">Registrar evento de Safety</p>
+          <p className="text-xs text-slate-400 mt-1">Não consome crédito. O evento entra na fila de triagem e a análise HFA pode ser iniciada depois.</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setAnalysisMode('hfa')}
+          className={`text-left rounded-xl border p-4 transition ${analysisMode === 'hfa' ? 'border-blue-500 bg-blue-500/10' : 'border-slate-800 bg-slate-900 hover:border-slate-700'}`}
+        >
+          <p className="text-sm font-semibold text-white">Registrar + analisar fatores humanos</p>
+          <p className="text-xs text-slate-400 mt-1">Executa o HFA/SERA agora e consome 1 análise do plano quando concluída.</p>
+        </button>
+      </div>
 
       <div className="flex gap-2 mb-6">
         <button
@@ -288,6 +319,17 @@ export default function NewEventPage() {
                 </div>
               </div>
               <div>
+                <label className="block text-sm text-slate-400 mb-1">Tratamento do relato</label>
+                <select
+                  value={confidentialityLevel}
+                  onChange={(e) => setConfidentialityLevel(e.target.value === 'CONFIDENTIAL' ? 'CONFIDENTIAL' : 'STANDARD')}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="STANDARD">Padrão</option>
+                  <option value="CONFIDENTIAL">Confidencial</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm text-slate-400 mb-1">Data do evento</label>
                 <input
                   type="date"
@@ -342,10 +384,10 @@ export default function NewEventPage() {
         <div className="flex gap-4">
           <button
             type="submit"
-            disabled={loading || noCredits}
+            disabled={loading || (analysisMode === 'hfa' && noCredits)}
             className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed px-8 py-3 rounded-lg font-medium transition text-white"
           >
-            🔍 Iniciar Análise SERA
+            {analysisMode === 'hfa' ? '🔍 Registrar e iniciar análise HFA' : 'Registrar evento de Safety'}
           </button>
           <button
             type="button"
@@ -357,8 +399,9 @@ export default function NewEventPage() {
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-sm text-slate-400">
-          ⚡ Esta analise contara para a formacao do perfil inicial da organizacao. O relatorio
-          sera gerado com apoio de IA seguindo as 7 etapas da metodologia SERA — a conclusao final e do investigador.
+          {analysisMode === 'hfa'
+            ? 'Esta análise contará para a formação do perfil organizacional. O relatório será gerado com apoio de IA seguindo a metodologia SERA — a conclusão final é do investigador.'
+            : 'O registro do evento não consome crédito e não executa IA. Após a triagem, você poderá encaminhá-lo para investigação geral ou análise especializada de fatores humanos.'}
         </div>
       </form>
     </div>
