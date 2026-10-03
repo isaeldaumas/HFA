@@ -6,6 +6,8 @@ import { writeAuditLog } from '@/lib/observability/audit'
 
 const SUPPORTED_RELATIONSHIPS = new Set(['ENABLING_PRECONDITION', 'CONTEXTUAL_PRECONDITION'])
 const VALID_ACTION_KINDS = new Set(['CORRECTIVE_PREVENTIVE', 'INVESTIGATION'])
+const VALID_PRIORITIES = new Set(['low', 'medium', 'high', 'critical'])
+const VALID_CATEGORIES = new Set(['TREINAMENTO', 'PROCEDIMENTO', 'EQUIPAMENTO', 'SUPERVISAO', 'COMUNICACAO', 'OUTRO'])
 
 type EnginePrecondition = {
   id?: unknown
@@ -31,7 +33,7 @@ export async function GET(req: Request) {
 
     const { data, error } = await admin
       .from('corrective_actions')
-      .select('id, title, description, related_failure, status, responsible, due_date, completed_at, effectiveness_status, effectiveness_notes, effectiveness_review_due_date, effectiveness_reviewed_at, created_at, analysis_id, sera_vnext_analysis_id, source_event_id, precondition_id, precondition_category, action_kind')
+      .select('id, title, description, related_failure, status, responsible, due_date, completed_at, effectiveness_status, effectiveness_notes, effectiveness_review_due_date, effectiveness_reviewed_at, created_at, analysis_id, sera_vnext_analysis_id, source_event_id, precondition_id, precondition_category, action_kind, priority, owner_user_id, category')
       .eq('tenant_id', user.tenantId)
       .order('created_at', { ascending: false })
     if (error) return jsonError(error.message, 500)
@@ -88,7 +90,7 @@ export async function GET(req: Request) {
       }
     }
 
-    const rows = (data ?? []).flatMap((row) => {
+    const rows = (data ?? []).flatMap<Record<string, unknown>>((row) => {
       const currentId = row.sera_vnext_analysis_id as string | null
       const legacyId = row.analysis_id as string | null
       const sourceEventId = eventIdForRow(row)
@@ -96,8 +98,36 @@ export async function GET(req: Request) {
       // from the active queue. Restoring the event makes the same rows visible again.
       if (!sourceEventId || !activeEventById.has(sourceEventId)) return []
       if (requestedEventId && sourceEventId !== requestedEventId) return []
-      // The operational queue only contains current SERA treatment records with explicit
-      // event + precondition traceability. Legacy rows remain in the database for audit.
+      if (row.action_kind === 'GENERAL_SAFETY') {
+        return [{
+          id: row.id,
+          title: row.title,
+          description: row.description,
+          related_failure: row.related_failure,
+          status: row.status,
+          responsible: row.responsible,
+          due_date: row.due_date,
+          completed_at: row.completed_at,
+          effectiveness_status: row.effectiveness_status,
+          effectiveness_notes: row.effectiveness_notes,
+          effectiveness_review_due_date: row.effectiveness_review_due_date,
+          effectiveness_reviewed_at: row.effectiveness_reviewed_at,
+          created_at: row.created_at,
+          analysis_id: null,
+          analysis_engine: 'SAFETY_EVENT',
+          event_id: sourceEventId,
+          event_title: activeEventById.get(sourceEventId) ?? 'Evento',
+          precondition_id: null,
+          precondition_category: null,
+          action_kind: 'GENERAL_SAFETY',
+          linkage_status: 'EVENT_ONLY',
+          current_analysis_id: latestCurrentByEvent.get(sourceEventId)?.id ?? null,
+          priority: row.priority,
+          owner_user_id: row.owner_user_id,
+          category: row.category,
+        }]
+      }
+      // SERA-derived actions remain strict: current analysis + explicit precondition traceability.
       if (!currentId || typeof row.precondition_id !== 'string' || typeof row.precondition_category !== 'string' || typeof row.action_kind !== 'string') return []
       const latest = latestCurrentByEvent.get(sourceEventId)
       const currentSupportedCategories = new Set(
@@ -136,6 +166,9 @@ export async function GET(req: Request) {
         action_kind: row.action_kind,
         linkage_status: linkageStatus,
         current_analysis_id: latest?.id ?? null,
+        priority: row.priority,
+        owner_user_id: row.owner_user_id,
+        category: row.category,
       }]
     })
     return NextResponse.json(rows, { headers: { 'x-request-id': requestId } })
@@ -151,6 +184,9 @@ export async function POST(req: Request) {
   const jsonError = (message: string, status: number) => buildErrorResponse(message, status, requestId)
   try {
     const user = await requireBearerUser(req)
+    if (!['admin', 'analyst'].includes(String(user.role).toLowerCase())) {
+      return jsonError('Permissão insuficiente para criar ações de Safety.', 403)
+    }
     assertServiceRoleEnv()
     const admin = getSupabaseAdmin()
     const body = await req.json().catch(() => ({})) as Record<string, unknown>
@@ -160,8 +196,78 @@ export async function POST(req: Request) {
     const preconditionId = typeof body.precondition_id === 'string' ? body.precondition_id.trim() : ''
     const preconditionCategory = typeof body.precondition_category === 'string' ? body.precondition_category.trim() : ''
     const actionKind = typeof body.action_kind === 'string' ? body.action_kind.trim() : ''
+    const requestedEventId = typeof body.event_id === 'string' ? body.event_id.trim() : ''
+    const priority = typeof body.priority === 'string' && VALID_PRIORITIES.has(body.priority) ? body.priority : 'medium'
+    const category = typeof body.category === 'string' && VALID_CATEGORIES.has(body.category) ? body.category : null
+    const ownerUserId = typeof body.owner_user_id === 'string' && body.owner_user_id.trim() ? body.owner_user_id.trim() : null
+    const responsible = typeof body.responsible === 'string' && body.responsible.trim() ? body.responsible.trim().slice(0, 255) : null
+    const dueDate = typeof body.due_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.due_date) ? body.due_date : null
 
-    if (!analysisId || !title) return jsonError('analysis_id e title são obrigatórios', 400)
+    if (!title) return jsonError('title é obrigatório', 400)
+    if (actionKind === 'GENERAL_SAFETY') {
+      if (!requestedEventId) return jsonError('event_id é obrigatório para ação geral de Safety.', 400)
+      const activeEvent = await admin
+        .from('events')
+        .select('id, title')
+        .eq('id', requestedEventId)
+        .eq('tenant_id', user.tenantId)
+        .is('deleted_at', null)
+        .maybeSingle()
+      if (activeEvent.error) return jsonError('Não foi possível validar o evento da ação.', 500)
+      if (!activeEvent.data) return jsonError('Evento não encontrado ou inativo.', 404)
+
+      if (ownerUserId) {
+        const owner = await admin.from('users').select('id').eq('id', ownerUserId).eq('tenant_id', user.tenantId).eq('is_active', true).maybeSingle()
+        if (owner.error) return jsonError('Não foi possível validar o responsável.', 500)
+        if (!owner.data) return jsonError('Responsável não pertence à organização ou está inativo.', 400)
+      }
+
+      const created = await admin
+        .from('corrective_actions')
+        .insert({
+          analysis_id: null,
+          sera_vnext_analysis_id: null,
+          source_event_id: requestedEventId,
+          tenant_id: user.tenantId,
+          title,
+          description: description || null,
+          related_failure: null,
+          precondition_id: null,
+          precondition_category: null,
+          action_kind: 'GENERAL_SAFETY',
+          status: 'pending',
+          priority,
+          category,
+          owner_user_id: ownerUserId,
+          responsible,
+          due_date: dueDate,
+        })
+        .select('id, title, description, status, source_event_id, action_kind, priority, category, owner_user_id, responsible, due_date')
+        .single()
+      if (created.error || !created.data) return jsonError(created.error?.message || 'Não foi possível criar a ação.', 500)
+
+      await writeAuditLog({
+        tenantId: user.tenantId, userId: user.userId, requestId,
+        eventType: 'safety_action_created', entityType: 'corrective_action', entityId: created.data.id,
+        route: '/api/actions', method: 'POST',
+        metadata: { source_event_id: requestedEventId, action_kind: 'GENERAL_SAFETY', priority, category },
+      })
+      return NextResponse.json({
+        ...created.data,
+        analysis_id: null,
+        analysis_engine: 'SAFETY_EVENT',
+        event_id: requestedEventId,
+        event_title: activeEvent.data.title,
+        linkage_status: 'EVENT_ONLY',
+      }, { status: 201, headers: { 'x-request-id': requestId } })
+    }
+
+    if (!analysisId) return jsonError('analysis_id é obrigatório para ação derivada do SERA.', 400)
+    if (ownerUserId) {
+      const owner = await admin.from('users').select('id').eq('id', ownerUserId).eq('tenant_id', user.tenantId).eq('is_active', true).maybeSingle()
+      if (owner.error) return jsonError('Não foi possível validar o responsável.', 500)
+      if (!owner.data) return jsonError('Responsável não pertence à organização ou está inativo.', 400)
+    }
     if (!preconditionId || !preconditionCategory || !VALID_ACTION_KINDS.has(actionKind)) {
       return jsonError('Toda nova ação deve estar vinculada a uma pré-condição SERA identificada.', 400)
     }
@@ -250,8 +356,13 @@ export async function POST(req: Request) {
         precondition_category: preconditionCategory,
         action_kind: actionKind,
         status: 'pending',
+        priority,
+        category,
+        owner_user_id: ownerUserId,
+        responsible,
+        due_date: dueDate,
       })
-      .select('id, title, status, related_failure, sera_vnext_analysis_id, source_event_id, precondition_id, precondition_category, action_kind')
+      .select('id, title, status, related_failure, sera_vnext_analysis_id, source_event_id, precondition_id, precondition_category, action_kind, priority, category, owner_user_id, responsible, due_date')
       .single()
     if (error) return jsonError(error.message, 500)
 
@@ -282,6 +393,11 @@ export async function POST(req: Request) {
       precondition_id: data.precondition_id,
       precondition_category: data.precondition_category,
       action_kind: data.action_kind,
+      priority: data.priority,
+      category: data.category,
+      owner_user_id: data.owner_user_id,
+      responsible: data.responsible,
+      due_date: data.due_date,
     }, { status: 201, headers: { 'x-request-id': requestId } })
   } catch (e) {
     if (e instanceof Response) return e

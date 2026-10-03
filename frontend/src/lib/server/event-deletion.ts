@@ -36,6 +36,7 @@ export type CompleteDeletionImpact = {
   exports: number
   correctiveActionsOpen: number
   correctiveActionsClosed: number
+  riskAssessments: number
   riskProfileExclusions: number
   relatedEventIds: string[]
   unknownDependencies: string[]
@@ -263,13 +264,15 @@ export async function getEventDeletionImpact(
   const vnextRows = [...vnextMap.values()]
   const vnextIds = [...vnextMap.keys()]
 
-  const [legacyActions, currentActions, revisions, reviews, analysisEvents] = await Promise.all([
+  const [legacyActions, currentActions, eventActions, riskAssessments, revisions, reviews, analysisEvents] = await Promise.all([
     legacyAnalysisId
       ? admin.from('corrective_actions').select('id, status').eq('tenant_id', tenantId).eq('analysis_id', legacyAnalysisId)
       : Promise.resolve({ data: [] as Array<{ id: string; status: string }>, error: null }),
     vnextIds.length > 0
       ? admin.from('corrective_actions').select('id, status').eq('tenant_id', tenantId).in('sera_vnext_analysis_id', vnextIds)
       : Promise.resolve({ data: [] as Array<{ id: string; status: string }>, error: null }),
+    admin.from('corrective_actions').select('id, status').eq('tenant_id', tenantId).eq('source_event_id', eventId),
+    admin.from('event_risk_assessments').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('event_id', eventId),
     vnextIds.length > 0
       ? admin.from('sera_vnext_analysis_revisions').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).in('analysis_id', vnextIds)
       : Promise.resolve({ count: 0, error: null }),
@@ -281,7 +284,7 @@ export async function getEventDeletionImpact(
       : Promise.resolve({ data: [] as Array<{ id: string; event_type: string }>, error: null }),
   ])
 
-  if (legacyActions.error || currentActions.error || revisions.error || reviews.error || analysisEvents.error) {
+  if (legacyActions.error || currentActions.error || eventActions.error || riskAssessments.error || revisions.error || reviews.error || analysisEvents.error) {
     throw new Error('EVENT_DELETE_IMPACT_LOOKUP_FAILED')
   }
 
@@ -322,7 +325,7 @@ export async function getEventDeletionImpact(
   }
 
   const actionMap = new Map<string, { id: string; status: string }>()
-  for (const action of [...(legacyActions.data ?? []), ...(currentActions.data ?? [])] as Array<{ id: string; status: string }>) {
+  for (const action of [...(legacyActions.data ?? []), ...(currentActions.data ?? []), ...(eventActions.data ?? [])] as Array<{ id: string; status: string }>) {
     actionMap.set(action.id, action)
   }
   const actionCounts = countByStatuses([...actionMap.values()])
@@ -348,6 +351,7 @@ export async function getEventDeletionImpact(
     exports: eventRows.filter((item) => item.event_type === 'analysis.exported').length,
     correctiveActionsOpen: actionCounts.open,
     correctiveActionsClosed: actionCounts.closed,
+    riskAssessments: riskAssessments.count ?? 0,
     riskProfileExclusions: (riskExclusions.data ?? []).length,
     relatedEventIds: [eventId],
     unknownDependencies,

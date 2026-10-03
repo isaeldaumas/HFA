@@ -8,6 +8,8 @@ export type AuditEventType =
   | 'event_created'
   | 'safety_event_reported'
   | 'safety_event_triaged'
+  | 'safety_risk_assessment_created'
+  | 'safety_action_created'
   | 'event.deletion_impact_viewed'
   | 'event.deletion_requested'
   | 'event.soft_deleted'
@@ -43,6 +45,8 @@ const CRITICAL_AUDIT_EVENTS: ReadonlySet<AuditEventType> = new Set<AuditEventTyp
   'analysis_failed',
   'event_created',
   'safety_event_triaged',
+  'safety_risk_assessment_created',
+  'safety_action_created',
   'event.deletion_requested',
   'event.soft_deleted',
   'event.restored',
