@@ -1,9 +1,10 @@
 {
   "nav": {
     "dashboard": "Dashboard",
+    "safety": "Safety Intelligence",
     "events": "Eventos",
     "newAnalysis": "Novo Evento",
-    "actions": "Ações Corretivas",
+    "actions": "Ações de Safety",
     "riskProfile": "Perfil de Risco",
     "methodology": "Metodologia SERA",
     "settings": "Configurações IA",
