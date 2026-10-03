@@ -11,6 +11,7 @@ import {
   BarChart2,
   BookOpen,
   Settings,
+  Plug,
   CreditCard,
   ShieldAlert,
   ShieldCheck,
@@ -61,6 +62,7 @@ const navGroups: NavGroup[] = [
 
 const bottomNav: NavItem[] = [
   { href: '/settings/ai', labelKey: 'nav.settings', icon: Settings },
+  { href: '/settings/integrations', labelKey: 'nav.integrations', icon: Plug },
   { href: '/credits',     labelKey: 'nav.credits',  icon: CreditCard },
 ]
 
@@ -73,6 +75,7 @@ const ROUTE_LABELS: Record<string, string> = {
   '/actions':      'Ações Corretivas',
   '/risk-profile': 'Perfil de Risco',
   '/settings/ai':       'Configurações › IA',
+  '/settings/integrations': 'Configurações › Integrações',
   '/credits':           'Créditos',
   '/learn':                  'Metodologia SERA',
   '/learn/pipeline':         'Metodologia SERA › Pipeline',
