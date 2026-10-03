@@ -13,6 +13,7 @@ import {
   Settings,
   CreditCard,
   ShieldAlert,
+  ShieldCheck,
   LogOut,
   Menu,
   X,
@@ -43,6 +44,7 @@ const navGroups: NavGroup[] = [
     labelKey: 'nav.groupAnalysis',
     items: [
       { href: '/dashboard',    labelKey: 'nav.dashboard',   icon: LayoutDashboard },
+      { href: '/safety',       labelKey: 'nav.safety',      icon: ShieldCheck },
       { href: '/events',       labelKey: 'nav.events',      icon: FileText },
       { href: '/actions',      labelKey: 'nav.actions',     icon: ClipboardList },
       { href: '/risk-profile', labelKey: 'nav.riskProfile', icon: BarChart2 },
@@ -65,6 +67,7 @@ const bottomNav: NavItem[] = [
 /* ── Breadcrumb map ─────────────────────────────────────────── */
 const ROUTE_LABELS: Record<string, string> = {
   '/dashboard':    'Dashboard',
+  '/safety':       'Safety Intelligence',
   '/events':       'Eventos',
   '/events/new':   'Novo Evento',
   '/actions':      'Ações Corretivas',
