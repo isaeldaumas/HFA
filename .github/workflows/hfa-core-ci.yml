@@ -88,3 +88,10 @@ jobs:
 
       - name: Tenant isolation contract
         run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/tenant-isolation/tenant-isolation-contract-trial-001.ts
+
+
+      - name: Commercial trial contract
+        run: ./frontend/node_modules/.bin/tsx tests/product/test-trial-usage.ts
+
+      - name: Safety event workflow contract
+        run: ./frontend/node_modules/.bin/tsx tests/product/test-safety-event-workflow.ts

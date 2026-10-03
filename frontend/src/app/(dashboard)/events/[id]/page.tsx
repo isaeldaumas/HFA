@@ -99,6 +99,11 @@ type EventPayload = {
   created_at: string
   raw_input?: string | null
   occurred_at?: string | null
+  credits_used?: number | null
+  event_kind?: 'SAFETY_REPORT' | 'HFA_ANALYSIS' | null
+  triage_status?: 'UNTRIAGED' | 'MONITOR_ONLY' | 'GENERAL_INVESTIGATION' | 'HFA_SELECTED' | 'CLOSED' | null
+  investigation_path?: 'NONE' | 'GENERAL' | 'HFA' | 'BOTH' | null
+  confidentiality_level?: 'STANDARD' | 'CONFIDENTIAL' | null
   deleted_at?: string | null
   recoverable_until?: string | null
   deletion_status?: string | null
@@ -370,8 +375,13 @@ export default function EventDetailPage() {
   const [vnextPdfState, setVnextPdfState] = useState<PdfState>('idle')
   const [vnextReanalyzeState, setVnextReanalyzeState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [vnextReanalyzeError, setVnextReanalyzeError] = useState<string | null>(null)
+  const [firstHfaState, setFirstHfaState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  const [firstHfaError, setFirstHfaError] = useState<string | null>(null)
   const [vnextAdditionalInformation, setVnextAdditionalInformation] = useState('')
   const [canManageDelete, setCanManageDelete] = useState(false)
+  const [canTriage, setCanTriage] = useState(false)
+  const [triageBusy, setTriageBusy] = useState(false)
+  const [triageError, setTriageError] = useState<string | null>(null)
   const [showLegacyHistorical, setShowLegacyHistorical] = useState(false)
   const [deletionBusy, setDeletionBusy] = useState(false)
   const [deletionError, setDeletionError] = useState<string | null>(null)
@@ -391,13 +401,16 @@ export default function EventDetailPage() {
         })
         if (meRes.ok) {
           const me = await meRes.json()
-          setCanManageDelete(Boolean(me.is_admin) || String(me.role ?? '').toLowerCase() === 'admin')
+          const role = String(me.role ?? '').toLowerCase()
+          setCanManageDelete(Boolean(me.is_admin) || role === 'admin')
+          setCanTriage(Boolean(me.is_admin) || role === 'admin' || role === 'analyst')
         } else {
           setCanManageDelete(false)
         }
       } catch (error) {
         console.error('Falha ao carregar /api/auth/me para permissões de UI', error)
         setCanManageDelete(false)
+        setCanTriage(false)
       }
       const scope = searchParams?.get('scope') === 'deleted' ? 'deleted' : 'active'
       const data = await apiCall(`/events/${id}?scope=${scope}`, {}, session.access_token) as EventPayload
@@ -479,6 +492,60 @@ export default function EventDetailPage() {
       setVnextReanalyzeState('error')
     }
   }, [event, token, searchParams, locale, vnextAdditionalInformation])
+
+  const updateTriage = useCallback(async (triageStatus: string) => {
+    if (!event || !token || !canTriage) return
+    setTriageBusy(true)
+    setTriageError(null)
+    try {
+      const res = await fetch(`/api/events/${event.id}/triage`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ triage_status: triageStatus }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(String(json?.error?.message ?? json?.detail ?? 'Não foi possível atualizar a triagem.'))
+      setEvent((current) => current ? {
+        ...current,
+        triage_status: json.triage_status ?? current.triage_status,
+        investigation_path: json.investigation_path ?? current.investigation_path,
+      } : current)
+    } catch (error) {
+      setTriageError(error instanceof Error ? error.message : 'Não foi possível atualizar a triagem.')
+    } finally {
+      setTriageBusy(false)
+    }
+  }, [canTriage, event, token])
+
+  const startFirstHfaAnalysis = useCallback(async () => {
+    if (!event || !token || event.vnext_analysis || analysis) return
+    setFirstHfaState('loading')
+    setFirstHfaError(null)
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId: event.id,
+          eventoNarrativa: event.raw_input ?? '',
+          title: event.title ?? undefined,
+          locale,
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(String(json?.error?.message ?? json?.detail ?? 'Não foi possível iniciar a análise HFA.'))
+      }
+      const refreshed = await apiCall(`/events/${event.id}`, {}, token) as EventPayload
+      setEvent(refreshed)
+      if (refreshed?.analyses) setAnalysis(refreshed.analyses)
+      setFirstHfaState('done')
+      setTimeout(() => setFirstHfaState('idle'), 3000)
+    } catch (error) {
+      setFirstHfaError(error instanceof Error ? error.message : 'Não foi possível iniciar a análise HFA.')
+      setFirstHfaState('error')
+    }
+  }, [analysis, event, locale, token])
 
   const downloadVNextPdf = useCallback(async () => {
     if (!event?.vnext_analysis?.id || !token) return
@@ -725,6 +792,17 @@ export default function EventDetailPage() {
             {event.operation_type} • {event.aircraft_type} •{' '}
             {eventOccurrenceDateLabel}
           </p>
+          <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+            <span className="rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-slate-300">
+              {event.event_kind === 'SAFETY_REPORT' ? 'Evento de Safety' : 'Evento HFA'}
+            </span>
+            <span className="rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-slate-300">
+              Triagem: {event.triage_status ?? 'UNTRIAGED'}
+            </span>
+            {event.confidentiality_level === 'CONFIDENTIAL' && (
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-amber-200">Confidencial</span>
+            )}
+          </div>
         </div>
         <div className="flex gap-2 shrink-0">
           {canManageDelete && !event.deleted_at && (
@@ -755,7 +833,37 @@ export default function EventDetailPage() {
               Relatorio do evento
             </a>
           )}
-          {event.vnext_analysis && (
+          {canTriage && !event.deleted_at && (
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-white">Triagem de Safety</p>
+              <p className="mt-1 text-xs text-slate-400">Defina o tratamento do evento sem obrigar uma análise de fatores humanos.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                ['MONITOR_ONLY', 'Monitorar'],
+                ['GENERAL_INVESTIGATION', 'Investigação geral'],
+                ['HFA_SELECTED', 'Encaminhar para HFA'],
+                ['CLOSED', 'Encerrar'],
+              ].map(([status, label]) => (
+                <button
+                  key={status}
+                  type="button"
+                  disabled={triageBusy}
+                  onClick={() => void updateTriage(status)}
+                  className={`rounded-lg border px-3 py-2 text-xs font-medium transition disabled:opacity-50 ${event.triage_status === status ? 'border-blue-500 bg-blue-500/15 text-blue-200' : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-500'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {triageError && <p className="mt-3 text-xs text-red-300">{triageError}</p>}
+        </div>
+      )}
+
+      {event.vnext_analysis && (
             <button
               onClick={downloadVNextPdf}
               disabled={vnextPdfState === 'loading'}
@@ -913,14 +1021,34 @@ export default function EventDetailPage() {
         </div>
       )}
 
-      {/* Pending / processing state */}
+      {/* Evento registrado sem análise HFA ou análise em processamento */}
       {!analysis && !event.vnext_analysis && event.status !== 'completed' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center">
-          <p className="text-slate-400">
-            {event.status === 'processing'
-              ? 'Análise em andamento. A página atualiza automaticamente.'
-              : 'Análise pendente.'}
-          </p>
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
+          {event.status === 'processing' ? (
+            <p className="text-slate-400">Análise HFA em andamento. A página atualiza automaticamente.</p>
+          ) : (
+            <>
+              <div>
+                <p className="text-white font-semibold">Evento registrado — análise HFA ainda não iniciada</p>
+                <p className="text-slate-400 text-sm mt-1">
+                  O relato permanece disponível para triagem e gestão de Safety. Registrar o evento não consome crédito.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => void startFirstHfaAnalysis()}
+                  disabled={firstHfaState === 'loading' || !event.raw_input?.trim()}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {firstHfaState === 'loading' ? 'Analisando fatores humanos…' : 'Analisar fatores humanos'}
+                </button>
+                <span className="text-xs text-slate-500">A primeira análise HFA deste evento consome 1 análise do plano; reanálises posteriores não geram novo débito.</span>
+              </div>
+              {firstHfaError && <p className="text-xs text-red-300">{firstHfaError}</p>}
+              {firstHfaState === 'done' && <p className="text-xs text-emerald-300">Análise HFA concluída.</p>}
+            </>
+          )}
         </div>
       )}
 

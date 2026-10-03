@@ -165,7 +165,7 @@ export async function POST(req: Request) {
     if (body.eventId) {
       const { data: ev, error: evErr } = await admin
         .from('events')
-        .select('id, tenant_id, title, raw_input')
+        .select('id, tenant_id, title, raw_input, event_kind, triage_status, investigation_path')
         .eq('id', body.eventId)
         .eq('tenant_id', user.tenantId)
         .is('deleted_at', null)
@@ -180,23 +180,66 @@ export async function POST(req: Request) {
         .is('deleted_at', null)
         .order('updated_at', { ascending: false })
       const latestVNext = vnextHistory?.[0] ?? null
-      const reanalysisNarrative = mergeCanonicalReanalysisNarrative({
-        baseNarrative: String(latestVNext?.narrative ?? ev.raw_input ?? ''),
-        submittedNarrative: rawInput,
-        originalNarrative: String(ev.raw_input ?? ''),
-      })
+      const firstHfaAnalysis = !latestVNext
+      let firstCreditDebited = false
+      let firstAnalysisEnterprise = false
+      let success = false
+
+      if (firstHfaAnalysis) {
+        const { data: tenant, error: tenantError } = await admin
+          .from('tenants')
+          .select('plan, credits_balance, trial_expires_at')
+          .eq('id', user.tenantId)
+          .single()
+        if (tenantError || !tenant) return buildErrorResponse('ANALYZE_FORBIDDEN', requestId, 403)
+
+        firstAnalysisEnterprise = tenant.plan === 'enterprise'
+        const trialExpiresAt = tenant.trial_expires_at ? Date.parse(String(tenant.trial_expires_at)) : Number.NaN
+        if (tenant.plan === 'trial' && Number.isFinite(trialExpiresAt) && trialExpiresAt <= Date.now()) {
+          return buildErrorResponse('ANALYZE_FORBIDDEN', requestId, 403)
+        }
+        if (!firstAnalysisEnterprise && (tenant.credits_balance ?? 0) < 1) {
+          return buildErrorResponse('ANALYZE_FORBIDDEN', requestId, 403)
+        }
+
+        await debitCreditForEvent({
+          admin,
+          tenantId: user.tenantId,
+          submittedById,
+          eventId: body.eventId,
+          title: String(ev.title ?? body.title ?? `SERA ${body.eventId}`),
+          isEnterprise: firstAnalysisEnterprise,
+          currentBalance: tenant.credits_balance ?? 0,
+        })
+        firstCreditDebited = true
+      }
+
+      const analysisNarrative = latestVNext
+        ? mergeCanonicalReanalysisNarrative({
+            baseNarrative: String(latestVNext?.narrative ?? ev.raw_input ?? ''),
+            submittedNarrative: rawInput,
+            originalNarrative: String(ev.raw_input ?? ''),
+          })
+        : String(ev.raw_input ?? rawInput)
 
       await admin
         .from('events')
-        .update({ status: 'processing' })
+        .update({
+          status: 'processing',
+          triage_status: 'HFA_SELECTED',
+          investigation_path: ev.investigation_path === 'GENERAL' ? 'BOTH' : 'HFA',
+          triaged_at: new Date().toISOString(),
+          triaged_by: submittedById,
+        })
         .eq('id', body.eventId)
         .eq('tenant_id', user.tenantId)
         .is('deleted_at', null)
 
+      const auditSource = firstHfaAnalysis ? 'existing_event_first_hfa_analysis' : 'reanalysis'
       await writeAuditLog({
         tenantId: user.tenantId, userId: user.userId, requestId,
         eventType: 'analysis_started', entityType: 'event', entityId: body.eventId,
-        route: '/api/analyze', method: 'POST', metadata: { source: 'reanalysis', engine_role: 'PRIMARY' },
+        route: '/api/analyze', method: 'POST', metadata: { source: auditSource, engine_role: 'PRIMARY' },
       })
 
       try {
@@ -204,23 +247,52 @@ export async function POST(req: Request) {
           admin,
           eventId: body.eventId,
           title: String(ev.title ?? body.title ?? `SERA ${body.eventId}`),
-          narrative: reanalysisNarrative,
-          mode: 'REANALYSIS',
+          narrative: analysisNarrative,
+          mode: firstHfaAnalysis ? 'INITIAL' : 'REANALYSIS',
           tenantId: user.tenantId,
           publicUserId: submittedById,
           authUserId: user.userId,
           role: user.role,
           email: user.email ?? null,
           requestId,
-          auditSource: 'reanalysis',
+          creditsUsed: firstHfaAnalysis ? 1 : undefined,
+          auditSource,
           locale: body.locale === 'en' ? 'en' : 'pt-BR',
-          supplementalEvidence: mergeCanonicalSupplementalEvidence((vnextHistory ?? []).map((item) => item.engine_input)),
+          supplementalEvidence: firstHfaAnalysis
+            ? undefined
+            : mergeCanonicalSupplementalEvidence((vnextHistory ?? []).map((item) => item.engine_input)),
         })
+        success = true
         return NextResponse.json(canonicalAnalyzeResponse(result, body.eventId), { headers: { 'x-request-id': requestId } })
       } catch (err) {
-        await admin.from('events').update({ status: 'failed' }).eq('id', body.eventId).eq('tenant_id', user.tenantId)
-        logAnalyzeError('reanalysis_failed', requestId, err)
+        await admin
+          .from('events')
+          .update({ status: firstHfaAnalysis ? 'received' : 'failed' })
+          .eq('id', body.eventId)
+          .eq('tenant_id', user.tenantId)
+        logAnalyzeError(firstHfaAnalysis ? 'first_hfa_analysis_failed' : 'reanalysis_failed', requestId, err)
         return buildErrorResponse('ANALYZE_ENGINE_UNAVAILABLE', requestId, 500)
+      } finally {
+        if (firstCreditDebited && !success) {
+          try {
+            const { data: currentTenant } = await admin
+              .from('tenants')
+              .select('credits_balance')
+              .eq('id', user.tenantId)
+              .single()
+            await refundCreditForFailedAnalysis({
+              admin,
+              tenantId: user.tenantId,
+              submittedById,
+              eventId: body.eventId,
+              title: String(ev.title ?? body.title ?? `SERA ${body.eventId}`),
+              isEnterprise: firstAnalysisEnterprise,
+              currentBalanceAfterDebit: currentTenant?.credits_balance ?? 0,
+            })
+          } catch (refundError) {
+            logAnalyzeError('first_hfa_analysis_refund_failed', requestId, refundError, { eventId: body.eventId })
+          }
+        }
       }
     }
 

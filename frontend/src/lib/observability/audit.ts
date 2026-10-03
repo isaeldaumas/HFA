@@ -6,6 +6,8 @@ import { getSupabaseAdmin } from '@/lib/server/supabase-admin'
  */
 export type AuditEventType =
   | 'event_created'
+  | 'safety_event_reported'
+  | 'safety_event_triaged'
   | 'event.deletion_impact_viewed'
   | 'event.deletion_requested'
   | 'event.soft_deleted'
@@ -40,6 +42,7 @@ const CRITICAL_AUDIT_EVENTS: ReadonlySet<AuditEventType> = new Set<AuditEventTyp
   'analysis_partial',
   'analysis_failed',
   'event_created',
+  'safety_event_triaged',
   'event.deletion_requested',
   'event.soft_deleted',
   'event.restored',

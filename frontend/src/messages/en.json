@@ -2,7 +2,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "events": "Events",
-    "newAnalysis": "New Analysis",
+    "newAnalysis": "New Event",
     "actions": "Corrective Actions",
     "riskProfile": "Risk Profile",
     "methodology": "SERA Methodology",
@@ -49,8 +49,8 @@
   },
   "events": {
     "title": "Events",
-    "subtitle": "analyses performed",
-    "newAnalysis": "New Analysis",
+    "subtitle": "reported events and completed analyses",
+    "newAnalysis": "New Event",
     "search": "Search events...",
     "all": "All",
     "analyzed": "Analyzed",
@@ -60,10 +60,10 @@
     "newest": "Newest first",
     "oldest": "Oldest first",
     "noEvents": "No events found",
-    "noEventsSubtitle": "Start by analyzing your first event.",
+    "noEventsSubtitle": "Start by reporting your first event.",
     "noResults": "No results for the applied filters",
-    "startAnalysis": "Analyze first event",
-    "viewAnalysis": "View analysis →"
+    "startAnalysis": "Report first event",
+    "viewAnalysis": "Open event →"
   },
   "analysis": {
     "title": "New SERA Analysis",
