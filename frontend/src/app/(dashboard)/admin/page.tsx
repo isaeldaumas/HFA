@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { ArrowUpRight, BarChart2, Zap, Building2 } from 'lucide-react'
+import { ArrowUpRight, BarChart2, Zap, Building2, Link2 } from 'lucide-react'
 
 interface Stats {
   total_tenants: number
@@ -75,6 +76,15 @@ export default function AdminPage() {
           )
         })}
       </div>
+
+      <Link href="/admin/integrations" className="mb-6 flex items-center justify-between rounded-xl border border-blue-800/50 bg-blue-950/20 p-5 transition hover:border-blue-600/60">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-blue-300">HFA API</p>
+          <p className="mt-1 text-base font-semibold text-white">Integrações</p>
+          <p className="mt-1 text-sm text-slate-400">Conecte o SGSO do AirTrust ao HFA com credenciais revogáveis por organização.</p>
+        </div>
+        <Link2 className="size-5 text-blue-300" />
+      </Link>
 
       {stats && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">

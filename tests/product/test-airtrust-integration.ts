@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+const root = process.cwd()
+const read = (path: string) => readFileSync(resolve(root, path), 'utf8')
+const migration = read('supabase/migrations/20261003015000_airtrust_integration_v1.sql')
+const token = read('frontend/src/lib/integrations/integration-token.ts')
+const externalRoute = read('frontend/src/app/api/integrations/airtrust/events/route.ts')
+const adminRoute = read('frontend/src/app/api/admin/integrations/airtrust/route.ts')
+
+assert.match(migration, /create table if not exists public\.integration_connections/)
+assert.match(migration, /token_hash text not null unique/)
+assert.match(migration, /scopes text\[\]/)
+assert.match(migration, /add column if not exists revoked_at/)
+assert.match(migration, /enable row level security/)
+assert.match(token, /createHash\('sha256'\)/)
+assert.match(token, /randomBytes\(32\)/)
+assert.match(externalRoute, /source_system: 'AIRTRUST'/)
+assert.match(externalRoute, /event_kind: 'SAFETY_REPORT'/)
+assert.match(externalRoute, /triage_status: 'UNTRIAGED'/)
+assert.match(externalRoute, /investigation_path: 'NONE'/)
+assert.match(externalRoute, /credits_used: 0/)
+assert.match(externalRoute, /analysis_started: false/)
+assert.match(externalRoute, /lockedForAnalysis/)
+assert.match(externalRoute, /events:write/)
+assert.match(externalRoute, /events:read/)
+assert.doesNotMatch(externalRoute, /createCanonicalEventAnalysis/)
+assert.doesNotMatch(externalRoute, /debitCreditForEvent/)
+assert.match(adminRoute, /integration_connection_rotated/)
+assert.match(adminRoute, /integration_connection_revoked/)
+console.log('AirTrust integration contract: PASS')
