@@ -8,6 +8,8 @@ function jsonError(message: string, status: number) {
 
 const VALID_STATUSES = ['pending', 'in_progress', 'completed', 'cancelled']
 const VALID_EFFECTIVENESS = ['NOT_ASSESSED', 'PENDING_VERIFICATION', 'EFFECTIVE', 'PARTIALLY_EFFECTIVE', 'INEFFECTIVE']
+const VALID_PRIORITIES = ['low', 'medium', 'high', 'critical']
+const VALID_CATEGORIES = ['TREINAMENTO', 'PROCEDIMENTO', 'EQUIPAMENTO', 'SUPERVISAO', 'COMUNICACAO', 'OUTRO']
 
 export async function PATCH(
   req: Request,
@@ -15,18 +17,24 @@ export async function PATCH(
 ) {
   try {
     const user = await requireBearerUser(req)
+    if (!['admin', 'analyst'].includes(String(user.role).toLowerCase())) {
+      return jsonError('Permissão insuficiente para atualizar ações.', 403)
+    }
     assertServiceRoleEnv()
     const admin = getSupabaseAdmin()
     const { id } = await params
 
     const body = await req.json().catch(() => ({}))
-    const { status, responsible, due_date, effectiveness_status, effectiveness_notes, effectiveness_review_due_date } = body as {
+    const { status, responsible, due_date, effectiveness_status, effectiveness_notes, effectiveness_review_due_date, priority, category, owner_user_id } = body as {
       status?: string
       responsible?: string | null
       due_date?: string | null
       effectiveness_status?: string
       effectiveness_notes?: string | null
       effectiveness_review_due_date?: string | null
+      priority?: string
+      category?: string | null
+      owner_user_id?: string | null
     }
 
     const { data: current, error: currentError } = await admin
@@ -63,6 +71,25 @@ export async function PATCH(
       updates.due_date = due_date || null
     }
 
+    if (priority !== undefined) {
+      if (!VALID_PRIORITIES.includes(priority)) return jsonError('priority inválida', 400)
+      updates.priority = priority
+    }
+
+    if (category !== undefined) {
+      if (category !== null && !VALID_CATEGORIES.includes(category)) return jsonError('category inválida', 400)
+      updates.category = category || null
+    }
+
+    if (owner_user_id !== undefined) {
+      if (owner_user_id) {
+        const owner = await admin.from('users').select('id').eq('id', owner_user_id).eq('tenant_id', user.tenantId).eq('is_active', true).maybeSingle()
+        if (owner.error) return jsonError('Não foi possível validar o responsável.', 500)
+        if (!owner.data) return jsonError('Responsável não pertence à organização ou está inativo.', 400)
+      }
+      updates.owner_user_id = owner_user_id || null
+    }
+
     if (effectiveness_status !== undefined) {
       if (!VALID_EFFECTIVENESS.includes(effectiveness_status)) return jsonError('effectiveness_status inválido', 400)
       const effectiveActionStatus = status ?? current.status
@@ -87,7 +114,7 @@ export async function PATCH(
       .update(updates)
       .eq('id', id)
       .eq('tenant_id', user.tenantId)
-      .select('id, status, responsible, due_date, completed_at, effectiveness_status, effectiveness_notes, effectiveness_review_due_date, effectiveness_reviewed_at')
+      .select('id, status, responsible, due_date, completed_at, effectiveness_status, effectiveness_notes, effectiveness_review_due_date, effectiveness_reviewed_at, priority, category, owner_user_id')
       .single()
 
     if (error) return jsonError(error.message, 500)

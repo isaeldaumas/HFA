@@ -88,8 +88,11 @@ type ActionItem = {
   event_title?: string | null
   precondition_id?: string | null
   precondition_category?: string | null
-  action_kind?: 'CORRECTIVE_PREVENTIVE' | 'INVESTIGATION' | null
-  linkage_status?: 'CURRENT' | 'STALE_PRECONDITION_LINK' | 'INVESTIGATION_TASK' | null
+  action_kind?: 'CORRECTIVE_PREVENTIVE' | 'INVESTIGATION' | 'GENERAL_SAFETY' | null
+  linkage_status?: 'CURRENT' | 'STALE_PRECONDITION_LINK' | 'INVESTIGATION_TASK' | 'EVENT_ONLY' | null
+  priority?: 'low' | 'medium' | 'high' | 'critical'
+  category?: 'TREINAMENTO' | 'PROCEDIMENTO' | 'EQUIPAMENTO' | 'SUPERVISAO' | 'COMUNICACAO' | 'OUTRO' | null
+  owner_user_id?: string | null
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -109,6 +112,8 @@ export default function ActionsPage() {
     effectiveness_status: 'NOT_ASSESSED',
     effectiveness_notes: '',
     effectiveness_review_due_date: '',
+    priority: 'medium',
+    category: '',
   })
   const [saving, setSaving]     = useState(false)
 
@@ -193,6 +198,8 @@ export default function ActionsPage() {
       effectiveness_status: action.effectiveness_status ?? 'NOT_ASSESSED',
       effectiveness_notes: action.effectiveness_notes ?? '',
       effectiveness_review_due_date: action.effectiveness_review_due_date ?? '',
+      priority: action.priority ?? 'medium',
+      category: action.category ?? '',
     })
   }
 
@@ -202,6 +209,8 @@ export default function ActionsPage() {
       await patchAction(id, {
         responsible: editForm.responsible.trim() || null,
         due_date: editForm.due_date || null,
+        priority: editForm.priority,
+        category: editForm.category || null,
         ...(actions.find((action) => action.id === id)?.status === 'completed' ? {
           effectiveness_status: editForm.effectiveness_status,
           effectiveness_notes: editForm.effectiveness_notes.trim() || null,
@@ -251,15 +260,15 @@ export default function ActionsPage() {
   return (
     <div className="p-8 max-w-4xl">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">Ações Corretivas e Preventivas</h1>
-        <p className="text-slate-400">Derivadas das pré-condições identificadas nas análises SERA</p>
+        <h1 className="text-2xl font-bold text-white">Ações de Safety</h1>
+        <p className="text-slate-400">Ações gerais de Safety e tratamentos derivados das análises SERA</p>
       </div>
 
       <div className="mb-6 rounded-xl border border-blue-800/60 bg-blue-950/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-blue-300">Ciclo de tratamento SERA</p>
-            <p className="mt-1 text-sm text-slate-300">Investigação → pré-condições → ação → verificação de eficácia → Perfil de Risco.</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-blue-300">Ciclo de tratamento de Safety</p>
+            <p className="mt-1 text-sm text-slate-300">Evento → triagem → risco/investigação → ação → verificação de eficácia.</p>
           </div>
           <a href="/risk-profile" className="text-xs font-medium text-blue-300 hover:text-blue-200 border border-blue-800 px-3 py-1.5 rounded-lg">Ver Perfil de Risco →</a>
         </div>
@@ -283,7 +292,7 @@ export default function ActionsPage() {
             {eventOptions.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}
           </select>
           <span className="text-xs text-slate-500">
-            Ações e sugestões são sempre vinculadas ao evento e à pré-condição que lhes deu origem.
+            Ações gerais ficam vinculadas ao evento; ações SERA preservam também a pré-condição de origem.
           </span>
         </div>
       </div>
@@ -412,6 +421,10 @@ export default function ActionsPage() {
                           <span>Pré-condição: <span className="text-slate-300">{preconditionLabel(action.precondition_category)}</span></span>
                         )}
                         {action.action_kind === 'INVESTIGATION' && <span className="text-amber-300">Tarefa de investigação</span>}
+                        {action.action_kind === 'GENERAL_SAFETY' && <span className="text-emerald-300">Ação geral de Safety</span>}
+                        {action.priority && (
+                          <span className="text-slate-400">Prioridade: <span className="text-slate-200">{action.priority}</span></span>
+                        )}
                         {action.linkage_status === 'STALE_PRECONDITION_LINK' && (
                           <span className="text-amber-300">Vínculo metodológico alterado na reanálise — revisar esta ação</span>
                         )}

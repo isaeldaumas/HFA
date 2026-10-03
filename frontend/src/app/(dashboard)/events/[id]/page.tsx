@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { apiCall, resolveApiUrl } from '@/lib/api'
@@ -20,6 +20,8 @@ import { SeraClarificationForm } from '@/components/sera-vnext/SeraClarification
 import type { SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
 import { inferOccurrenceDateFromNarrative } from '@/lib/sera-vnext/occurrence-date'
 import { localizeActor } from '@/lib/sera-vnext/engine-v0/localization'
+import { EventRiskPanel } from '@/components/safety/EventRiskPanel'
+import { EventSafetyActionPanel } from '@/components/safety/EventSafetyActionPanel'
 
 const FlowDiagram = dynamic(() => import('@/components/FlowDiagram'), { ssr: false })
 
@@ -124,6 +126,7 @@ type DeletionImpact = {
   exports: number
   correctiveActionsOpen: number
   correctiveActionsClosed: number
+  riskAssessments: number
   riskProfileExclusions: number
   relatedEventIds: string[]
   unknownDependencies: string[]
@@ -363,6 +366,7 @@ function HfacsSection({ hfacs }: { hfacs: HfacsResult }) {
 
 export default function EventDetailPage() {
   const { locale } = useI18n()
+  const router = useRouter()
   const { id } = useParams()
   const searchParams = useSearchParams()
   const [event, setEvent]         = useState<EventPayload | null>(null)
@@ -610,7 +614,7 @@ export default function EventDetailPage() {
       })
       const body = await response.json().catch(() => ({})) as { error?: { message?: string } }
       if (!response.ok) throw new Error(body.error?.message ?? 'Não foi possível excluir o evento.')
-      window.location.assign('/events/deleted')
+      router.push('/events/deleted')
     } catch (error) {
       setDeletionError(error instanceof Error ? error.message : 'Não foi possível excluir o evento.')
     } finally {
@@ -629,7 +633,7 @@ export default function EventDetailPage() {
       })
       const body = await response.json().catch(() => ({})) as { error?: { message?: string } }
       if (!response.ok) throw new Error(body.error?.message ?? 'Não foi possível restaurar o evento.')
-      window.location.assign('/events')
+      router.push('/events')
     } catch (error) {
       setDeletionError(error instanceof Error ? error.message : 'Não foi possível restaurar o evento.')
     } finally {
@@ -717,7 +721,7 @@ export default function EventDetailPage() {
               <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 text-slate-300">Anexos/storage: <strong>{deletionImpact ? `${deletionImpact.attachments}/${deletionImpact.storageObjects.length}` : '-'}</strong></div>
               <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 text-slate-300">Perfil de Risco: <strong>{deletionImpact?.riskProfileExclusions ?? '-'}</strong></div>
               <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 text-slate-300 sm:col-span-3">
-                Ações corretivas: <strong>{deletionImpact ? `${deletionImpact.correctiveActionsOpen} abertas / ${deletionImpact.correctiveActionsClosed} encerradas` : '-'}</strong>
+                Ações de Safety: <strong>{deletionImpact ? `${deletionImpact.correctiveActionsOpen} abertas / ${deletionImpact.correctiveActionsClosed} encerradas` : '-'}</strong> · Avaliações de risco: <strong>{deletionImpact?.riskAssessments ?? '-'}</strong>
               </div>
             </div>
 
@@ -861,6 +865,14 @@ export default function EventDetailPage() {
           </div>
           {triageError && <p className="mt-3 text-xs text-red-300">{triageError}</p>}
         </div>
+      )}
+
+      {!event.deleted_at && (
+        <EventRiskPanel eventId={event.id} canEdit={canTriage} />
+      )}
+
+      {!event.deleted_at && (
+        <EventSafetyActionPanel eventId={event.id} canEdit={canTriage} />
       )}
 
       {event.vnext_analysis && (
