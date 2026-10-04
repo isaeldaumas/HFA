@@ -195,6 +195,17 @@ export function runStep06DirectActor(input: {
           : 'The P/O/A anchor sentence itself attributes the decision jointly to the crew; P/O/A stays collective only for that shared decision.'],
       }
     }
+    const explicitPm = /\b(piloto monitorando|pilot monitoring|monitoring pilot|pm)\b/.test(escapeText)
+    const explicitPf = /\b(piloto voando|pilot flying|flying pilot|pf)\b/.test(escapeText)
+    if (explicitPm !== explicitPf) {
+      return {
+        actor: explicitPm ? (input.engineInput.locale === 'pt-BR' ? 'piloto monitorando (PM)' : 'pilot monitoring (PM)') : (input.engineInput.locale === 'pt-BR' ? 'piloto voando (PF)' : 'pilot flying (PF)'),
+        status: 'IDENTIFIED',
+        alternatives: ['tripulação'],
+        actorMigrationWarnings: [],
+      }
+    }
+
     // Explicit numbered pilot labels in operational narratives are actor identities, not generic
     // mentions. Preserve them so a later critical act by "piloto 2" is not collapsed to "pilot".
     const numberedPilot = escapeText.match(/\bpiloto\s*([12])\b/)
@@ -281,9 +292,17 @@ export function runStep06DirectActor(input: {
             : 'The operational omission at the escape point is supported, but the sentence itself does not identify which crewmember was responsible for execution. The actor cannot be inferred from support facts from another moment.'],
         }
       }
+      return {
+        actor: null,
+        status: 'AMBIGUOUS',
+        alternatives: [input.engineInput.locale === 'pt-BR' ? 'responsável pela preparação/execução do item omitido' : 'actor responsible for the omitted preparation/execution item'],
+        actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
+          ? 'A omissão no ponto de fuga está sustentada, mas a frase é passiva e não identifica quem deixou de executar o item. A travessia P/O/A permanece bloqueada até a atribuição factual do ator.'
+          : 'The omission at the escape point is supported, but the sentence is passive and does not identify who failed to execute the item. P/O/A remains blocked until factual actor attribution is established.'],
+      }
     }
     const genericPilotUnsafeAction = /\bpiloto\b.{0,120}\b(iniciou|iniciado|iniciada|executou|continuou|prosseguiu|manteve|selecionou|moveu|desceu|subiu|initiated|executed|continued|proceeded|maintained|selected|moved|descended|climbed)\b/.test(escapeText)
-      || /\bpiloto\b.{0,120}\b(nao notou|nao percebeu|nao processou|nao monitorou|nao verificou|did not notice|did not perceive|did not process|did not monitor|did not verify)\b/.test(escapeText)
+      || /\bpiloto\b.{0,120}\b(nao notou|nao percebeu|nao processou|nao acompanhou|nao monitorou|nao verificou|deixou de acompanhar|deixou de monitorar|did not notice|did not perceive|did not process|did not monitor|did not verify|stopped monitoring)\b/.test(escapeText)
     if (genericPilotUnsafeAction && !escapeHasCaptain && !escapeHasCollectiveCrew) {
       return { actor: 'piloto', status: 'IDENTIFIED', alternatives: ['tripulação'], actorMigrationWarnings: [] }
     }

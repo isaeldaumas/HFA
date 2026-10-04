@@ -182,6 +182,8 @@ function conciseRootResponse(axis: CanonicalSeraAxis, raw: string): string {
       const belief = judged[1].trim().replace(/\bmeu lado\b/gi, 'seu lado').replace(/\bminha rota\b/gi, 'sua rota')
       return `O operador acreditava que ${belief}.`
     }
+    const resumedChecklist = text.match(/retomou\s+(?:a\s+)?checklist\s+a partir do ponto em que acreditava ter parado/i)
+    if (resumedChecklist) return 'O operador acreditava ter retomado a checklist a partir do ponto em que havia parado.'
     const believed = text.match(/(?:acreditava|achava|entendeu|entendia|percebia)\s+que\s+(.{1,180}?)(?:[.;]|$)/i)
     if (believed) return `O operador acreditava que ${believed[1].trim()}.`
     const enIdentified = text.match(/identified\s+(.{1,70}?)\s+as\s+(?:the\s+)?(.{1,100}?)(?:[.;,]|\s+because\b|$)/i)
@@ -229,6 +231,9 @@ function conciseRootResponse(axis: CanonicalSeraAxis, raw: string): string {
     if (wrongAlternativeEn) return `The operator was trying to respond by ${text.match(/(pulled|pushed)/i)?.[1]?.toLowerCase()}ing ${wrongAlternativeEn[1].trim()} instead of ${wrongAlternativeEn[2].trim()}.`
     const wrongAlternativePt = text.match(/(?:puxou|empurrou)\s+(.{1,100}?)\s+(?:em vez de|ao inv[eé]s de)\s+(.{1,100}?)(?:[.;]|$)/i)
     if (wrongAlternativePt) return `O operador tentava responder por meio do comando ${wrongAlternativePt[1].trim()}, em vez de ${wrongAlternativePt[2].trim()}.`
+    const proceduralOmission = text.match(/(?:omitiu|n[aã]o executou|n[aã]o realizou|deixou de executar|deixou de realizar|foi omitid[oa])\s+(.{0,160}?\b(?:checklist|item|etapa|passo|procedimento)\b.{0,120}?)(?:[.;]|$)/i)
+      ?? text.match(/(.{0,120}?\b(?:checklist|item|etapa|passo|procedimento)\b.{0,120}?)\s+(?:n[aã]o foi executad[oa]|foi omitid[oa])(?:[.;]|$)/i)
+    if (proceduralOmission) return `O operador tentava executar o fluxo procedural descrito, mas ${proceduralOmission[0].trim().replace(/[.]$/, '')}.`
     const insertedSelection = text.match(/(?:inseriu|programou|selecionou|ajustou)\s+(.{1,180}?)(?:[.;]|$)/i)
     if (insertedSelection) return `O operador tentava atingir o objetivo por meio da seleção/configuração de ${insertedSelection[1].trim()}.`
     if (/\b(?:colocou|aplicou|usou|utilizou|put|applied|used)\b.{0,100}\b(?:barra na barra|pitch down|c[ií]clico|cyclic|comando|control)\b/i.test(text)) {
@@ -365,6 +370,8 @@ function decideO(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
   const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => conceptsWithinWindow(statements, left, right, maxDistance) || semanticConceptsWithinWindow(ctx, left, right, maxDistance)
   switch (nodeId) {
     case 'O_ROOT': {
+      const actionIntentOnly = (statement: string): boolean =>
+        /\b(?:selecionou|configurou|programou|ajustou|selected|configured|programmed|set)\b.{0,180}\b(?:diferente d(?:aquele|aquela|o|a) que pretendia|different from (?:what|the one) (?:he|she|the operator) intended|not what (?:he|she|the operator) intended)\b/i.test(statement)
       const intendedGoal = unique([
         // The root must answer Hendy's explicit goal/intention question. A procedure that
         // should have been executed (safeGoal) is not evidence of what this actor intended.
@@ -377,8 +384,8 @@ function decideO(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
           /\b((?:passou|come[cç]ou) a (?:preparar|conduzir|planejar)|iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|preparou|conduziu)\b.{0,90}\b(aproxima[cç][aã]o|approach|pouso|landing|destino|destination|unidade|unit-|plataforma|helideck)\b/i,
           /\b(called for|requested|solicitou|chamou (?:pela |a )?)\b.{0,60}\b(go-around|go around|arremetida)\b/i,
         ]),
-      ])
-      if (!intendedGoal.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of the actor intended objective. The observed unsafe action, a rule deviation, or the outcome cannot substitute for intent.' }
+      ]).filter((statement) => !actionIntentOnly(statement))
+      if (!intendedGoal.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of the actor intended objective. The observed unsafe action, intended control/configuration, a rule deviation, or the outcome cannot substitute for the operational goal.' }
       return { answer: 'START', supportingEvidence: intendedGoal.slice(0, 2), rationale: 'Root node establishes the operator intended goal before rule/risk consistency is tested.' }
     }
     case 'O_RULES': {
@@ -518,6 +525,14 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
           /\b(associou|identificou|tratou)\b.{0,140}\b(unidade|plataforma|pista|destino)\b.{0,220}\b(conduzindo|conduzir|aproxima[cç][aã]o|pouso|landing|approach)\b/i,
         ]),
       ])
+      const specificProceduralOmission = matching(statements, [
+        /\b(?:omitiu|omitiram|omitted|skipped)\b.{0,160}\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b/i,
+        /\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b.{0,180}\b(?:n[aã]o foi executad[oa]|n[aã]o foram executad[oa]s?|foi omitid[oa]|foram omitid[oa]s?|was not executed|were not executed|was omitted|were omitted)\b/i,
+        /\b(?:n[aã]o executou|n[aã]o realizou|deixou de executar|deixou de realizar|failed to execute|failed to perform|did not execute|did not perform)\b.{0,160}\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b/i,
+      ])
+      if (!actionStrategy.length && specificProceduralOmission.length) {
+        return { answer: 'START', supportingEvidence: specificProceduralOmission.slice(0, 2), rationale: 'A specific expected procedural step was omitted. Under the active SERA taxonomy this establishes the procedural execution strategy sufficiently to test implementation, without inferring Perception or Objective.' }
+      }
       if (!actionStrategy.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of the actor plan, strategy, or means for achieving the goal; an observed movement or control input alone cannot substitute for that plan.' }
       return { answer: 'START', supportingEvidence: actionStrategy.slice(0, 2), rationale: 'Root node establishes how the operator was trying to achieve the goal before implementation and adequacy are tested.' }
     }
@@ -544,7 +559,18 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
       const explicitCorrespondence = matching(statements, [
         /\b(como pretendia|conforme pretendia|correspondeu ao que pretendia|implementad[ao] como pretendid[ao]|as intended|matched the intended|corresponded to the intended)\b/i,
       ])
+      const explicitImplementationMismatch = matching(statements, [
+        /\b(?:selecionou|configurou|programou|ajustou|selected|configured|programmed|set)\b.{0,180}\b(?:diferente d(?:aquele|aquela|o|a) que pretendia|different from (?:what|the one) (?:he|she|the operator) intended|not what (?:he|she|the operator) intended)\b/i,
+      ])
+      const specificProceduralOmission = matching(statements, [
+        /\b(?:omitiu|omitiram|omitted|skipped)\b.{0,160}\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b/i,
+        /\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b.{0,180}\b(?:n[aã]o foi executad[oa]|n[aã]o foram executad[oa]s?|foi omitid[oa]|foram omitid[oa]s?|was not executed|were not executed|was omitted|were omitted)\b/i,
+        /\b(?:n[aã]o executou|n[aã]o realizou|deixou de executar|deixou de realizar|failed to execute|failed to perform|did not execute|did not perform)\b.{0,160}\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b/i,
+      ])
+      const deliberateOmission = cn('consciousDeviation').length > 0 && cn('explicitAwareness').length > 0
       if (feedbackFailure.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: feedbackFailure, rationale: 'Evidence supports an independent failure in feedback/verification of the actor own action.' }
+      if (explicitImplementationMismatch.length > 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: explicitImplementationMismatch, rationale: 'The observed selection/configuration is explicitly different from what the actor intended, so implementation was not as intended.' }
+      if (specificProceduralOmission.length > 0 && !deliberateOmission) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: specificProceduralOmission, rationale: 'A specific expected procedural step was omitted; the active taxonomy treats this as the minimum evidence for A-B unless positive evidence establishes a deliberate objective deviation.' }
       if (slipOrLapse.length > 0 && perceptionDriven.length === 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: slipOrLapse, rationale: 'Evidence supports an independent slip/lapse/error in action implementation before the consequence.' }
       if (explicitCorrespondence.length > 0 || selected.length > 0 || timed.length > 0 || safeAction.length > 0 || (intendedAction.length > 0 && (implemented.length > 0 || perceptionDriven.length > 0 || observedDeliberateAction.length > 0))) {
         return {

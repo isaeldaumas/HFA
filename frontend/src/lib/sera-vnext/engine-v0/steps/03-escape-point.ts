@@ -4,6 +4,10 @@ import { isOperationalEventStatement } from '../factual-extraction-helpers'
 import { excludedPostEscapeEvidence } from '../utils'
 import { trimSemanticLandmarkToEventMoment } from '../../evidence/semantic-integrity'
 
+function normalizeLandmarkText(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
 function formatEscapeStatement(candidate: string | null, locale: SeraVNextEngineInput['locale']): string | null {
   if (!candidate) return null
   const clean = candidate
@@ -47,6 +51,32 @@ function formatEscapeStatement(candidate: string | null, locale: SeraVNextEngine
     .trim()
   const prefix = locale === 'pt-BR' ? 'Quando' : 'When'
   return `${prefix}${temporalLead ? ',' : ''} ${neutral.replace(/^[A-ZÁÉÍÓÚÃÕÇ]/, (m: string) => m.toLowerCase())}`
+}
+
+
+function splitCompoundEscapeLandmark(value: string): { first: string; later: string } | null {
+  const candidates = [
+    /\s*(?:,\s*)?(?:e\s*,?\s*)?(?:logo depois|em seguida|depois disso|posteriormente)\s*,?\s*/i,
+    /\s*,?\s*(?:and\s+)?(?:shortly after|then|next|after that)\s*,?\s*/i,
+  ]
+  for (const pattern of candidates) {
+    const match = pattern.exec(value)
+    if (!match?.index || match.index < 20) continue
+    const first = value.slice(0, match.index).trim().replace(/[;,]+$/g, '')
+    const later = value.slice(match.index + match[0].length).trim().replace(/^[,;]+/g, '')
+    if (first && later && classifyHumanFactorEscapeStatement(first)) return { first, later }
+  }
+
+  // A procedural omission followed in the same sentence by an aircraft-state consequence
+  // is still two methodological landmarks. Keep the omission as the first departure and the
+  // aircraft state as downstream evolution; do not make consequence part of the P/O/A anchor.
+  const consequence = /\s*,?\s+e\s+(?=(?:a|o)\s+(?:aeronave|aircraft)\b)/i.exec(value)
+  if (consequence?.index && consequence.index >= 20) {
+    const first = value.slice(0, consequence.index).trim().replace(/[;,]+$/g, '')
+    const later = value.slice(consequence.index + consequence[0].length).trim().replace(/^[,;]+/g, '')
+    if (first && later && classifyHumanFactorEscapeStatement(first)) return { first, later }
+  }
+  return null
 }
 
 function usableDirectEscapeClarification(statement: string): boolean {
@@ -122,15 +152,28 @@ export function runStep03EscapePoint(input: {
       ? directClarificationWindow
       : legacyWindow
   const selectedFromNarrative = selectedWindow === legacyWindow && Boolean(legacyWindow.statement)
+  const rawFirstDepartureCandidate = selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate ?? ''
+  const rawCriticalUnsafeActCandidate = selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.latestCandidate ?? ''
+  const compoundLandmark = splitCompoundEscapeLandmark(rawFirstDepartureCandidate)
   const firstDepartureCandidate = trimSemanticLandmarkToEventMoment(
-    selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate ?? '',
+    compoundLandmark?.first ?? rawFirstDepartureCandidate,
   ) || null
+  const sameRawLandmark = Boolean(rawFirstDepartureCandidate && rawCriticalUnsafeActCandidate &&
+    rawFirstDepartureCandidate.trim() === rawCriticalUnsafeActCandidate.trim())
+  const laterCompoundHumanFactor = compoundLandmark?.later
+    ? classifyHumanFactorEscapeStatement(compoundLandmark.later) !== null
+    : false
   const criticalUnsafeActCandidate = trimSemanticLandmarkToEventMoment(
-    selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.latestCandidate ?? '',
+    sameRawLandmark && compoundLandmark
+      ? (laterCompoundHumanFactor ? compoundLandmark.later : compoundLandmark.first)
+      : rawCriticalUnsafeActCandidate,
   ) || null
-  const poaAnchorCandidate = trimSemanticLandmarkToEventMoment(
-    selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate ?? '',
-  ) || null
+  const poaAnchorCandidate = firstDepartureCandidate
+  const effectiveAnchorBasis = firstDepartureCandidate && criticalUnsafeActCandidate
+    ? normalizeLandmarkText(firstDepartureCandidate) === normalizeLandmarkText(criticalUnsafeActCandidate)
+      ? 'FIRST_DEPARTURE_AND_CRITICAL_ACT' as const
+      : 'FIRST_DEPARTURE_PRIMARY' as const
+    : selectedWindow.anchorBasis
 
   const latestSentenceIndex = selectedFromNarrative
     ? input.factualExtraction.timeline.find((item) => firstDepartureCandidate && (item.statement === firstDepartureCandidate || item.statement.includes(firstDepartureCandidate) || firstDepartureCandidate.includes(item.statement)))?.sourceSentenceIndex ?? null
@@ -160,11 +203,15 @@ export function runStep03EscapePoint(input: {
     criticalUnsafeActCandidate,
     criticalCandidateAlternatives: selectedWindow.criticalCandidateAlternatives ?? [],
     irreversibilityBoundaryCandidate: selectedWindow.irreversibilityBoundaryCandidate ?? null,
-    anchorBasis: selectedWindow.anchorBasis,
-    firstDepartureSupportingEvidence: selectedWindow.firstDepartureSupportingEvidence,
-    criticalUnsafeActSupportingEvidence: selectedWindow.criticalUnsafeActSupportingEvidence,
+    anchorBasis: effectiveAnchorBasis,
+    firstDepartureSupportingEvidence: firstDepartureCandidate
+      ? [firstDepartureCandidate, ...selectedWindow.firstDepartureSupportingEvidence.filter((item) => item !== rawFirstDepartureCandidate)]
+      : selectedWindow.firstDepartureSupportingEvidence,
+    criticalUnsafeActSupportingEvidence: criticalUnsafeActCandidate
+      ? [criticalUnsafeActCandidate, ...selectedWindow.criticalUnsafeActSupportingEvidence.filter((item) => item !== rawCriticalUnsafeActCandidate)]
+      : selectedWindow.criticalUnsafeActSupportingEvidence,
     poaAnchorCandidate,
-    poaAnchorSupportingEvidence: selectedWindow.firstDepartureSupportingEvidence ?? [],
+    poaAnchorSupportingEvidence: firstDepartureCandidate ? [firstDepartureCandidate] : [],
     poaAnchorBasis: firstDepartureCandidate ? 'FIRST_DEPARTURE' : 'UNRESOLVED',
     directActor: null,
     supportingEvidence: selectedWindow.supportingEvidence,

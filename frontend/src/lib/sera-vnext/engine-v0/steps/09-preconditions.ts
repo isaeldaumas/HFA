@@ -541,6 +541,37 @@ export function runStep09Preconditions(input: {
     }
   })
 
+  const dutyExposureEvidence = input.factualExtraction.evidence
+    .filter((item) => item.occurrenceScope !== 'HISTORICAL_COMPARATOR')
+    .filter((item) => item.assertionStatus === 'AFFIRMED')
+    .filter((item) => /\b(dia operacional prolongad[oa]|jornada prolongad[ao]|jornada operacional prolongad[ao]|long operational day|extended duty day|prolonged duty day|terceiro setor|quarto setor|third sector|fourth sector)\b/i.test(item.statement))
+    .map((item) => item.statement)
+    .filter((text, index, all) => all.indexOf(text) === index)
+    .slice(0, 3)
+  if (dutyExposureEvidence.length && !evidencedCandidates.some((item) => item.canonicalCategory === 'PERSONAL_READINESS' || item.canonicalCategory === 'PHYSIOLOGICAL')) {
+    evidencedCandidates.push({
+      id: 'PC-EVIDENCE-DUTY-EXPOSURE',
+      label: 'ATTENTION_WORKLOAD_CONTEXT',
+      description: input.locale === 'pt-BR'
+        ? 'A jornada/posição na sequência de setores foi registrada como contexto de prontidão a investigar. Este achado não equivale a fadiga confirmada e não recebe vínculo causal sem evidência adicional.'
+        : 'Duty duration/position in the sequence of sectors is retained as a readiness context to investigate. This does not establish fatigue and is not causally linked without additional evidence.',
+      category: 'ATTENTION_WORKLOAD_CONTEXT',
+      evidence: dutyExposureEvidence,
+      relationship: 'UNRELATED_OR_UNSUPPORTED',
+      sourceEvidence: [],
+      sourceRuleIds: ['SERA-HENDY-ANNEX-B-PERSONAL_READINESS'],
+      linkedActor: input.directActor.actor,
+      explicitlyNotEscapePoint: true,
+      basedOnCandidateCode: false,
+      nonFinal: true,
+      confidence: 'LOW',
+      canonicalCategory: 'PERSONAL_READINESS',
+      canonicalLevel: SERA_PRECONDITION_META.PERSONAL_READINESS.level,
+      likelyForActiveFailureCodes: [],
+      methodologyMatch: 'HYPOTHESIS_ONLY',
+    })
+  }
+
   evidencedCandidates.sort((left, right) => {
     const leftIndex = left.canonicalCategory ? likelyTraversalIndex.get(left.canonicalCategory) : undefined
     const rightIndex = right.canonicalCategory ? likelyTraversalIndex.get(right.canonicalCategory) : undefined
