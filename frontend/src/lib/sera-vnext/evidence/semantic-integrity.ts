@@ -3,6 +3,7 @@ import type {
   SeraSemanticEvidenceAnnotation,
   SeraSemanticEvidenceRole,
 } from "../engine-contract";
+import { splitNarrativeIntoSentenceRecords } from "../engine-v0/factual-extraction-helpers";
 
 function norm(value: string): string {
   return value
@@ -217,11 +218,92 @@ function validRoles(
   });
 }
 
+function resolveSourceRecord(narrative: string, quote: string) {
+  const nq = norm(quote);
+  if (!nq) return null;
+  for (const record of splitNarrativeIntoSentenceRecords(narrative)) {
+    const ns = norm(record.statement);
+    if (ns === nq || ns.includes(nq)) return record;
+  }
+  return null;
+}
+
+function semanticPosition(narrative: string, annotation: SeraSemanticEvidenceAnnotation): number {
+  const record = resolveSourceRecord(narrative, annotation.sourceQuote);
+  if (!record) return Number.MAX_SAFE_INTEGER;
+  const sourceNorm = norm(record.statement);
+  const quoteNorm = norm(annotation.sourceQuote);
+  const offset = Math.max(0, sourceNorm.indexOf(quoteNorm));
+  return record.sourceSentenceIndex * 1_000_000 + offset;
+}
+
+function enforceV2StructuralIntegrity(args: {
+  annotations: SeraSemanticEvidenceAnnotation[];
+  narrative: string;
+}): SeraSemanticEvidenceAnnotation[] {
+  const result: SeraSemanticEvidenceAnnotation[] = [];
+  const seen = new Set<string>();
+
+  for (const item of args.annotations) {
+    const sourceQuote = item.sourceQuote.trim();
+    const source = resolveSourceRecord(args.narrative, sourceQuote);
+    if (!source) continue;
+
+    let roles = [...new Set(item.roles)];
+    // Investigator questions are not event evidence. This is a provenance/format guard,
+    // not a semantic classifier: the model remains responsible for interpreting answers.
+    if (isInvestigatorQuestion(sourceQuote)) {
+      roles = roles.filter((role) => ![
+        "PERCEPTION_STATE", "OBJECTIVE_INTENT", "ACTION_STRATEGY", "PRECONDITION",
+        "CRITICAL_UNSAFE_ACT", "FIRST_DEPARTURE", "DIRECT_ACTOR",
+      ].includes(role));
+    }
+    if (!roles.length) continue;
+
+    const sourceAssertion = source.assertionStatus;
+    const assertionStatus = sourceAssertion && sourceAssertion !== "AFFIRMED"
+      ? sourceAssertion
+      : item.assertionStatus;
+    const hasPrecondition = roles.includes("PRECONDITION");
+    const candidate: SeraSemanticEvidenceAnnotation = {
+      ...item,
+      sourceQuote,
+      sourceSentenceIndex: source.sourceSentenceIndex,
+      roles,
+      assertionStatus,
+      preconditionCategory: hasPrecondition ? item.preconditionCategory ?? null : null,
+      preconditionCausalStatus: hasPrecondition ? item.preconditionCausalStatus ?? null : null,
+      concepts: [...new Set(item.concepts ?? [])],
+    };
+    const key = `${candidate.sourceSentenceIndex}:${norm(candidate.sourceQuote)}:${candidate.roles.join(",")}:${candidate.actor ?? ""}:${candidate.preconditionCategory ?? ""}:${candidate.preconditionCausalStatus ?? ""}:${candidate.concepts?.join(",") ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(candidate);
+  }
+
+  const firstDeparture = result
+    .filter((item) => item.assertionStatus === "AFFIRMED" && item.confidence !== "LOW" && item.roles.includes("FIRST_DEPARTURE"))
+    .sort((a, b) => semanticPosition(args.narrative, a) - semanticPosition(args.narrative, b))[0];
+  if (!firstDeparture) return result;
+  const firstPosition = semanticPosition(args.narrative, firstDeparture);
+  return result.map((item) => {
+    const position = semanticPosition(args.narrative, item);
+    if (position > firstPosition && item.roles.some((role) => role === "CRITICAL_UNSAFE_ACT" || role === "OUTCOME")) {
+      return { ...item, temporalRelation: "POST_ESCAPE" as const };
+    }
+    return item;
+  });
+}
+
 export function enforceSemanticEvidenceIntegrity(args: {
   annotations?: SeraSemanticEvidenceAnnotation[] | null;
   narrative: string;
+  schemaVersion?: "SERA_SEMANTIC_AI_V1" | "SERA_SEMANTIC_AI_V2" | null;
 }): SeraSemanticEvidenceAnnotation[] {
   if (!args.annotations?.length) return [];
+  if (args.schemaVersion === "SERA_SEMANTIC_AI_V2") {
+    return enforceV2StructuralIntegrity({ annotations: args.annotations, narrative: args.narrative });
+  }
   const normalizedNarrative = norm(args.narrative);
   const result: SeraSemanticEvidenceAnnotation[] = [];
   const seen = new Set<string>();

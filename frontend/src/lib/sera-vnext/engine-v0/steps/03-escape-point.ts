@@ -154,17 +154,34 @@ export function runStep03EscapePoint(input: {
   const selectedFromNarrative = selectedWindow === legacyWindow && Boolean(legacyWindow.statement)
   const rawFirstDepartureCandidate = selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate ?? ''
   const rawCriticalUnsafeActCandidate = selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.latestCandidate ?? ''
-  const compoundLandmark = splitCompoundEscapeLandmark(rawFirstDepartureCandidate)
-  const firstDepartureCandidate = trimSemanticLandmarkToEventMoment(
-    compoundLandmark?.first ?? rawFirstDepartureCandidate,
-  ) || null
+  const semanticFirstDeparture = Boolean(rawFirstDepartureCandidate && input.factualExtraction.timeline.some((item) =>
+    item.id.startsWith('TIME-SEM-')
+    && item.statement === rawFirstDepartureCandidate
+    && item.semanticConfidence !== 'LOW'
+    && item.semanticRoles?.includes('FIRST_DEPARTURE'),
+  ))
+  const semanticCriticalAct = Boolean(rawCriticalUnsafeActCandidate && input.factualExtraction.timeline.some((item) =>
+    item.id.startsWith('TIME-SEM-')
+    && item.statement === rawCriticalUnsafeActCandidate
+    && item.semanticConfidence !== 'LOW'
+    && item.semanticRoles?.includes('CRITICAL_UNSAFE_ACT'),
+  ))
+  // Canonical AI path already supplies semantically isolated verbatim spans. Compound
+  // sentence splitting and event-moment trimming remain only as deterministic fallback
+  // for analyses without semantic landmark extraction.
+  const compoundLandmark = semanticFirstDeparture ? null : splitCompoundEscapeLandmark(rawFirstDepartureCandidate)
+  const firstDepartureCandidate = semanticFirstDeparture
+    ? rawFirstDepartureCandidate || null
+    : trimSemanticLandmarkToEventMoment(compoundLandmark?.first ?? rawFirstDepartureCandidate) || null
   const sameRawLandmark = Boolean(rawFirstDepartureCandidate && rawCriticalUnsafeActCandidate &&
     rawFirstDepartureCandidate.trim() === rawCriticalUnsafeActCandidate.trim())
-  const criticalUnsafeActCandidate = trimSemanticLandmarkToEventMoment(
-    sameRawLandmark && compoundLandmark
-      ? compoundLandmark.later
-      : rawCriticalUnsafeActCandidate,
-  ) || null
+  const criticalUnsafeActCandidate = semanticCriticalAct
+    ? rawCriticalUnsafeActCandidate || null
+    : trimSemanticLandmarkToEventMoment(
+        sameRawLandmark && compoundLandmark
+          ? compoundLandmark.later
+          : rawCriticalUnsafeActCandidate,
+      ) || null
   const poaAnchorCandidate = firstDepartureCandidate
   const effectiveAnchorBasis = firstDepartureCandidate && criticalUnsafeActCandidate
     ? normalizeLandmarkText(firstDepartureCandidate) === normalizeLandmarkText(criticalUnsafeActCandidate)

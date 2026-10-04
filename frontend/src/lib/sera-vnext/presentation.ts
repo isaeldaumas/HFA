@@ -120,8 +120,16 @@ export function buildExecutiveSummary(args: {
   const pt = args.pt !== false
   const sentence = (value: string) => value.trim().replace(/[.\s]+$/, '')
   const firstDeparture = sentence(args.output.escapePoint.firstDepartureCandidate ?? args.output.escapePoint.statement ?? (pt ? 'primeira saída não estabelecida' : 'first departure not established'))
-  const laterCriticalAct = sentence(args.output.escapePoint.criticalUnsafeActCandidate ?? (pt ? 'nenhum ato crítico posterior distinto estabelecido' : 'no distinct later critical act established'))
-  const laterCriticalActor = args.output.escapePoint.criticalUnsafeActActor ?? (pt ? 'não individualizado' : 'not individually resolved')
+  const rawLaterCritical = args.output.escapePoint.criticalUnsafeActCandidate
+  const sameLandmark = rawLaterCritical
+    ? sentence(rawLaterCritical).localeCompare(firstDeparture, undefined, { sensitivity: 'base' }) === 0
+    : false
+  const laterCriticalAct = sentence(!sameLandmark && rawLaterCritical
+    ? rawLaterCritical
+    : (pt ? 'nenhum ato crítico posterior distinto estabelecido' : 'no distinct later critical act established'))
+  const laterCriticalActor = !sameLandmark && rawLaterCritical
+    ? args.output.escapePoint.criticalUnsafeActActor ?? (pt ? 'não atribuído / não aplicável' : 'not attributed / not applicable')
+    : (pt ? 'não aplicável' : 'not applicable')
   const escapeActor = args.output.escapePoint.firstDepartureActor ?? args.output.directActor.actor ?? (pt ? 'não individualizado' : 'not individually resolved')
   const codes = [
     args.output.axes.perception.proposedCode,

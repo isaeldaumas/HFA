@@ -6,21 +6,21 @@ function normalizeText(input: string): string {
   return input.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
-function explicitActorForPassiveProceduralOmission(narrative: string, locale: 'pt-BR' | 'en'): string | null {
-  const text = normalizeText(narrative)
-  const roleEvidence: Array<{ actor: string; pattern: RegExp }> = locale === 'pt-BR'
-    ? [
-        { actor: 'copiloto', pattern: /\b(copiloto|sic)\b[^.]{0,320}\b(nao se lembrou|esqueceu|admitiu que esqueceu|declarou que esqueceu)\b/ },
-        { actor: 'comandante', pattern: /\b(comandante|pic)\b[^.]{0,320}\b(nao se lembrou|esqueceu|admitiu que esqueceu|declarou que esqueceu)\b/ },
-        { actor: 'piloto', pattern: /\bpiloto\b[^.]{0,320}\b(nao se lembrou|esqueceu|admitiu que esqueceu|declarou que esqueceu)\b/ },
-      ]
-    : [
-        { actor: 'first officer', pattern: /\b(first officer|sic)\b[^.]{0,320}\b(did not remember|forgot|admitted (?:that )?he forgot|stated (?:that )?he forgot)\b/ },
-        { actor: 'captain', pattern: /\b(captain|pic)\b[^.]{0,320}\b(did not remember|forgot|admitted (?:that )?he forgot|stated (?:that )?he forgot)\b/ },
-        { actor: 'pilot', pattern: /\bpilot\b[^.]{0,320}\b(did not remember|forgot|admitted (?:that )?he forgot|stated (?:that )?he forgot)\b/ },
-      ]
-  const matches = roleEvidence.filter(({ pattern }) => pattern.test(text)).map(({ actor }) => actor)
-  return matches.length === 1 ? matches[0] : null
+function semanticActorIdentity(actor: string): string {
+  return normalizeText(actor)
+    .replace(/^(?:o|a|os|as|the)\s+/, '')
+    .replace(/\s*\((?:pf|pm|pic|sic)\)\s*$/i, (match) => match.toLowerCase())
+    .trim()
+}
+
+function isSpecificSemanticActor(actor: string): boolean {
+  const value = semanticActorIdentity(actor)
+  if (!value) return false
+  // A semantic actor may resolve a passive sentence by coreference across the source, but
+  // only a specific functional identity may unlock P/O/A. Generic/unknown crew labels
+  // remain fail-closed and require human clarification.
+  return !/^(?:tripulacao(?: de voo)?|flight crew|crew|equipe|team|nao especificad[oa]|nao identificad[oa]|unknown|unidentified|responsavel|actor responsavel|ator responsavel)(?:\b|\s|$)/.test(value)
+    && !/\b(?:nao especificad[oa]|nao identificad[oa]|unknown|unidentified)\b/.test(value)
 }
 
 function roleAssigned(text: string, actor: 'captain' | 'copilot', role: 'pf' | 'pm'): boolean {
@@ -65,9 +65,6 @@ export function runStep06DirectActor(input: {
   const escapeHasCollectiveCrew = /\b(tripulacao|tripulação|flight crew|crew|ambos os pilotos|dois pilotos|nenhum piloto|nenhum dos pilotos|both pilots|neither pilot|nos|we)\b|\ba gente\b/.test(escapeText)
   const passiveOperationalDeparture = isExplicitOperationalOmissionStatement(primaryEscape)
     || isExplicitOperationalDeviationStatement(primaryEscape)
-  const passiveProceduralActor = passiveOperationalDeparture && !escapeHasCopilot && !escapeHasCaptain && !escapeHasCollectiveCrew
-    ? explicitActorForPassiveProceduralOmission(input.engineInput.narrative, input.engineInput.locale)
-    : null
   const escapeHasOtherPilot = /\b(outro piloto|outro tripulante|o cara)\b.{0,220}\b(desacoplou|cancelou|reduziu|colocou|aplicou|puxou|empurrou|meteu|mexeu|pilotou|tentou|executou|subiu|desceu|fez|did|disengaged|cancelled|reduced|put|applied|pulled|pushed|executed)\b/.test(escapeText)
   const escapeHasNarratorAct = /\beu\b.{0,220}\b(decidi|resolvi|optei|escolhi|julguei|preferi|tirei|retirei|desguarneci|peguei|puxei|empurrei|assumi|pousei|fiz|conduzi|executei|tentei|i decided|i chose|i removed|i pulled|i landed)\b/.test(escapeText)
     || /\b(decidi|resolvi|optei|escolhi|julguei|preferi|tirei|retirei|desguarneci|peguei|puxei|empurrei|assumi|pousei|fiz|conduzi|executei|tentei)\b.{0,220}\b(eu|meu|minha)\b/.test(escapeText)
@@ -124,18 +121,65 @@ export function runStep06DirectActor(input: {
     }
   }
 
-  const semanticActors = [...new Set((input.engineInput.semanticEvidence ?? [])
-    .filter((annotation) => annotation.actor && annotation.assertionStatus === 'AFFIRMED')
+  const semanticActorAnnotations = (input.engineInput.semanticEvidence ?? [])
+    .filter((annotation) => annotation.actor && annotation.assertionStatus === 'AFFIRMED' && annotation.confidence !== 'LOW')
     .filter((annotation) => normalizeText(annotation.sourceQuote) === escapeText)
     .filter((annotation) => annotation.roles.includes('DIRECT_ACTOR') || annotation.roles.includes('FIRST_DEPARTURE'))
-    .map((annotation) => annotation.actor!.trim())
-    .filter(Boolean))]
-  if (semanticActors.length === 1 && !(passiveOperationalDeparture && !escapeHasCopilot && !escapeHasCaptain && !escapeHasCollectiveCrew)) {
+  const semanticActors = [...new Set(semanticActorAnnotations.map((annotation) => annotation.actor!.trim()).filter(Boolean))]
+  const semanticActorGroups = new Map<string, string[]>()
+  for (const actor of semanticActors) {
+    const identity = semanticActorIdentity(actor)
+    if (!identity) continue
+    const group = semanticActorGroups.get(identity) ?? []
+    if (!group.includes(actor)) group.push(actor)
+    semanticActorGroups.set(identity, group)
+  }
+  const semanticV2 = input.engineInput.semanticEnrichmentMeta?.schemaVersion === 'SERA_SEMANTIC_AI_V2'
+  if (semanticV2 && semanticActorAnnotations.length > 0) {
+    const specificGroups = [...semanticActorGroups.entries()]
+      .filter(([, actors]) => actors.some((actor) => isSpecificSemanticActor(actor)))
+    if (specificGroups.length === 1) {
+      const actors = specificGroups[0][1]
+      const actor = actors.sort((a, b) => semanticActorIdentity(a).length - semanticActorIdentity(b).length || a.length - b.length)[0]
+      return {
+        actor,
+        status: 'IDENTIFIED',
+        alternatives: [],
+        actorMigrationWarnings: passiveOperationalDeparture && !escapeHasCopilot && !escapeHasCaptain && !escapeHasCollectiveCrew
+          ? [input.engineInput.locale === 'pt-BR'
+              ? 'A frase do ponto de fuga é passiva; a atribuição individual foi resolvida pela camada semântica a partir da correferência explícita do próprio relato. O motor não inferiu o ator por palavra-chave ou posição na cabine.'
+              : 'The escape-point sentence is passive; individual attribution was resolved by the semantic layer from explicit coreference in the source. The engine did not infer the actor from keywords or cockpit position.']
+          : [],
+      }
+    }
     return {
-      actor: semanticActors[0],
-      status: 'IDENTIFIED',
-      alternatives: [],
-      actorMigrationWarnings: [],
+      actor: null,
+      status: 'AMBIGUOUS',
+      alternatives: semanticActors.length ? semanticActors : (input.engineInput.locale === 'pt-BR' ? ['ator não individualizado'] : ['actor not individually resolved']),
+      actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
+        ? 'A camada semântica não individualizou com segurança o ator do ponto de fuga. O motor mantém o gate fechado e não substitui essa lacuna por inferência lexical.'
+        : 'The semantic layer did not safely individualize the escape-point actor. The engine keeps the gate closed and does not replace that gap with lexical inference.'],
+    }
+  }
+  if (semanticActors.length === 1) {
+    const actor = semanticActors[0]
+    const passiveWithoutNamedActor = passiveOperationalDeparture && !escapeHasCopilot && !escapeHasCaptain && !escapeHasCollectiveCrew
+    const highConfidenceSpecific = semanticActorAnnotations.some((annotation) =>
+      annotation.actor?.trim() === actor && annotation.confidence === 'HIGH' && isSpecificSemanticActor(actor),
+    )
+    if (!passiveWithoutNamedActor || highConfidenceSpecific) {
+      return {
+        actor,
+        status: 'IDENTIFIED',
+        alternatives: passiveWithoutNamedActor
+          ? (input.engineInput.locale === 'pt-BR' ? ['atribuição semântica sujeita à revisão humana'] : ['semantic attribution subject to human review'])
+          : [],
+        actorMigrationWarnings: passiveWithoutNamedActor
+          ? [input.engineInput.locale === 'pt-BR'
+              ? 'A frase do ponto de fuga é passiva; a atribuição individual foi resolvida pela camada semântica a partir da correferência explícita do próprio relato. O motor não inferiu o ator por palavra-chave ou posição na cabine.'
+              : 'The escape-point sentence is passive; individual attribution was resolved by the semantic layer from explicit coreference in the source. The engine did not infer the actor from keywords or cockpit position.']
+          : [],
+      }
     }
   }
   if (semanticActors.length > 1) {
@@ -146,17 +190,6 @@ export function runStep06DirectActor(input: {
       actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
         ? 'A extração semântica encontrou mais de um ator explicitamente associado ao ponto de fuga; é necessária revisão humana antes da travessia P/O/A.'
         : 'Semantic extraction found more than one actor explicitly associated with the escape point; human review is required before P/O/A traversal.'],
-    }
-  }
-
-  if (passiveProceduralActor) {
-    return {
-      actor: passiveProceduralActor,
-      status: 'IDENTIFIED',
-      alternatives: input.engineInput.locale === 'pt-BR' ? ['tripulação'] : ['flight crew'],
-      actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
-        ? 'A frase do ponto de fuga é passiva, mas o próprio relato atribui explicitamente ao ator a falha de memória/retomada do procedimento que explica a omissão; a atribuição é preservada sem inferir um ator apenas pela posição na cabine.'
-        : 'The escape-point sentence is passive, but the source explicitly attributes the procedure-resumption memory lapse to this actor; attribution is retained without inferring an actor from cockpit position alone.'],
     }
   }
 

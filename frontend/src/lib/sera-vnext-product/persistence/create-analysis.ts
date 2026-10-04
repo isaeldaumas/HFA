@@ -103,9 +103,9 @@ export async function createSeraVNextAnalysis(args: {
       })
       if (focused.annotations.length > 0) {
         const merged = [...semantic.annotations]
-        const seen = new Set(merged.map((item) => `${item.sourceSentenceIndex}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}`))
+        const seen = new Set(merged.map((item) => `${item.sourceSentenceIndex}:${item.sourceQuote}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}:${item.preconditionCausalStatus ?? ''}`))
         for (const item of focused.annotations) {
-          const key = `${item.sourceSentenceIndex}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}`
+          const key = `${item.sourceSentenceIndex}:${item.sourceQuote}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}:${item.preconditionCausalStatus ?? ''}`
           if (!seen.has(key)) { seen.add(key); merged.push(item) }
         }
         semantic = {

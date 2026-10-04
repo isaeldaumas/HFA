@@ -91,9 +91,6 @@ function matching(statements: string[], patterns: RegExp[]): string[] {
   return statements.filter((statement) => patterns.some((pattern) => pattern.test(statement)))
 }
 
-function hasText(statements: string[], patterns: RegExp[]): boolean {
-  return matching(statements, patterns).length > 0
-}
 
 function concept(statements: string[], evidenceConcept: SeraEvidenceConcept): string[] {
   return matchingConceptStatements(statements, evidenceConcept)
@@ -145,6 +142,66 @@ function semanticConceptsWithinWindow(
   const leftItems = eligible.filter((item) => item.semanticConcepts?.includes(left as never))
   const rightItems = eligible.filter((item) => item.semanticConcepts?.includes(right as never))
   return leftItems.some((a) => rightItems.some((b) => Math.abs(a.sourceSentenceIndex - b.sourceSentenceIndex) <= maxDistance))
+}
+
+function semanticInterpretationPresent(ctx: SeraNodeEvidenceContext): boolean {
+  return ctx.evidence.some((item) =>
+    item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+    && item.semanticSchemaVersion === 'SERA_SEMANTIC_AI_V2',
+  )
+}
+
+function clarificationStatementsForAxis(ctx: SeraNodeEvidenceContext): string[] {
+  const use = axisToEvidenceUse(ctx.axis)
+  return unique(ctx.evidence
+    .filter((item) =>
+      item.collectionSource === 'CLARIFICATION_RESPONSE'
+      && item.clarificationStage === use
+      && item.temporalRelation !== 'POST_ESCAPE'
+      && item.assertionStatus === 'AFFIRMED'
+      && !item.prohibitedFor.includes(use))
+    .map((item) => item.statement))
+}
+
+function decisionConceptStatements(
+  ctx: SeraNodeEvidenceContext,
+  statements: string[],
+  conceptName: SeraEvidenceConcept,
+  negationAware = false,
+): string[] {
+  const semantic = semanticConceptStatements(ctx, conceptName)
+  if (!semanticInterpretationPresent(ctx)) {
+    const lexical = negationAware
+      ? matchingConceptStatementsWithoutNegation(statements, conceptName)
+      : concept(statements, conceptName)
+    return unique([...lexical, ...semantic])
+  }
+  // Canonical AI path: the model owns language interpretation. Only explicit human
+  // clarification responses are still parsed lexically because they are not currently
+  // passed through semantic enrichment.
+  const clarifications = clarificationStatementsForAxis(ctx)
+  const clarificationMatches = negationAware
+    ? matchingConceptStatementsWithoutNegation(clarifications, conceptName)
+    : concept(clarifications, conceptName)
+  return unique([...semantic, ...clarificationMatches])
+}
+
+function decisionMatching(ctx: SeraNodeEvidenceContext, statements: string[], patterns: RegExp[]): string[] {
+  return matching(semanticInterpretationPresent(ctx) ? clarificationStatementsForAxis(ctx) : statements, patterns)
+}
+
+function decisionConceptWindow(
+  ctx: SeraNodeEvidenceContext,
+  statements: string[],
+  left: SeraEvidenceConcept,
+  right: SeraEvidenceConcept,
+  maxDistance: number,
+): boolean {
+  if (!semanticInterpretationPresent(ctx)) {
+    return Boolean(conceptsWithinWindow(statements, left, right, maxDistance)) || semanticConceptsWithinWindow(ctx, left, right, maxDistance)
+  }
+  return semanticConceptsWithinWindow(ctx, left, right, maxDistance)
+    || Boolean(conceptsWithinWindow(clarificationStatementsForAxis(ctx), left, right, maxDistance))
 }
 
 function stripAxisStatementPrefix(value: string | null): string | null {
@@ -298,17 +355,17 @@ function rootResponseText(ctx: SeraNodeEvidenceContext, supportingEvidence: stri
 }
 
 function decideP(nodeId: string, statements: string[], ctx: SeraNodeEvidenceContext): Decision {
-  const c = (conceptName: SeraEvidenceConcept) => unique([...concept(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
-  const cn = (conceptName: SeraEvidenceConcept) => unique([...matchingConceptStatementsWithoutNegation(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
+  const c = (conceptName: SeraEvidenceConcept) => decisionConceptStatements(ctx, statements, conceptName)
+  const cn = (conceptName: SeraEvidenceConcept) => decisionConceptStatements(ctx, statements, conceptName, true)
   const any = (conceptNames: SeraEvidenceConcept[]) => conceptNames.some((conceptName) => c(conceptName).length > 0)
-  const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => conceptsWithinWindow(statements, left, right, maxDistance) || semanticConceptsWithinWindow(ctx, left, right, maxDistance)
+  const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => decisionConceptWindow(ctx, statements, left, right, maxDistance)
   switch (nodeId) {
     case 'P_ROOT': {
       const perceivedState = unique([
         ...c('inadequateAssessment'),
         ...c('adequateAssessment'),
         ...semanticRoleStatements(ctx, 'PERCEPTION_STATE'),
-        ...matching(statements, [/\b(acreditava|achava|entendia|percebia|identificou|interpretou|reconheceu|viu|vimos|viram|sabia|sabiam|ciente|consciente|believed|understood|perceived|identified|interpreted|recognized|saw|knew|aware)\b/i]),
+        ...decisionMatching(ctx, statements, [/\b(acreditava|achava|entendia|percebia|identificou|interpretou|reconheceu|viu|vimos|viram|sabia|sabiam|ciente|consciente|believed|understood|perceived|identified|interpreted|recognized|saw|knew|aware)\b/i]),
       ])
       if (!perceivedState.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of what the operator believed or perceived; environmental/system state alone cannot substitute for that belief.' }
       return { answer: 'START', supportingEvidence: perceivedState.slice(0, 2), rationale: 'Root node establishes the operator perceived state before that assessment is tested.' }
@@ -369,10 +426,10 @@ function decideP(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
 }
 
 function decideO(nodeId: string, statements: string[], ctx: SeraNodeEvidenceContext): Decision {
-  const c = (conceptName: SeraEvidenceConcept) => unique([...concept(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
-  const cn = (conceptName: SeraEvidenceConcept) => unique([...matchingConceptStatementsWithoutNegation(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
+  const c = (conceptName: SeraEvidenceConcept) => decisionConceptStatements(ctx, statements, conceptName)
+  const cn = (conceptName: SeraEvidenceConcept) => decisionConceptStatements(ctx, statements, conceptName, true)
   const any = (conceptNames: SeraEvidenceConcept[]) => conceptNames.some((conceptName) => c(conceptName).length > 0)
-  const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => conceptsWithinWindow(statements, left, right, maxDistance) || semanticConceptsWithinWindow(ctx, left, right, maxDistance)
+  const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => decisionConceptWindow(ctx, statements, left, right, maxDistance)
   switch (nodeId) {
     case 'O_ROOT': {
       const actionIntentOnly = (statement: string): boolean =>
@@ -382,16 +439,19 @@ function decideO(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
         // should have been executed (safeGoal) is not evidence of what this actor intended.
         ...c('efficiencyObjective'),
         ...semanticRoleStatements(ctx, 'OBJECTIVE_INTENT'),
-        ...matching(statements, [
+        ...decisionMatching(ctx, statements, [
           /\b(objetiv|inten[cç][aã]o|pretend|planej|meta|queria|desej|buscava|visava|goal|intent|planned|planning)\w*/i,
           /\b(decidiu|decidiram|decidimos|resolveu|resolveram|resolvemos|optou|optaram|escolheu|escolheram|decided|resolved|chose|opted)\b.{0,120}\b(continuar|continuou|prosseguir|prosseguiu|tentar|decolar|decolou|pousar|pousou|aproximar|aproximou|descer|desceu|subir|subiu|continue|continued|proceed|proceeded|try|take off|took off|land|landed|approach|approached|descend|descended|climb|climbed)\b/i,
           /\b(decidiu|resolveu|decided|resolved)\b.{0,80}\b(violar|descumprir|desrespeitar|violate|breach|disregard)\b.{0,100}\b(continuar|continuou|prosseguir|prosseguiu|seguir|seguiu|continue|continued|proceed|proceeded|press on|pressed on)\b/i,
           /\b((?:passou|come[cç]ou) a (?:preparar|conduzir|planejar)|iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|preparou|conduziu)\b.{0,90}\b(aproxima[cç][aã]o|approach|pouso|landing|destino|destination|unidade|unit-|plataforma|helideck)\b/i,
           /\b(called for|requested|solicitou|chamou (?:pela |a )?)\b.{0,60}\b(go-around|go around|arremetida)\b/i,
         ]),
-      ]).filter((statement) => !actionIntentOnly(statement))
-      if (!intendedGoal.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of the actor intended objective. The observed unsafe action, intended control/configuration, a rule deviation, or the outcome cannot substitute for the operational goal.' }
-      return { answer: 'START', supportingEvidence: intendedGoal.slice(0, 2), rationale: 'Root node establishes the operator intended goal before rule/risk consistency is tested.' }
+      ])
+      const filteredIntendedGoal = semanticInterpretationPresent(ctx)
+        ? intendedGoal
+        : intendedGoal.filter((statement) => !actionIntentOnly(statement))
+      if (!filteredIntendedGoal.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of the actor intended objective. The observed unsafe action, intended control/configuration, a rule deviation, or the outcome cannot substitute for the operational goal.' }
+      return { answer: 'START', supportingEvidence: filteredIntendedGoal.slice(0, 2), rationale: 'Root node establishes the operator intended goal before rule/risk consistency is tested.' }
     }
     case 'O_RULES': {
       const safeGoal = c('safeGoal')
@@ -504,10 +564,10 @@ function decideO(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
 }
 
 function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceContext): Decision {
-  const c = (conceptName: SeraEvidenceConcept) => unique([...concept(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
-  const cn = (conceptName: SeraEvidenceConcept) => unique([...matchingConceptStatementsWithoutNegation(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
+  const c = (conceptName: SeraEvidenceConcept) => decisionConceptStatements(ctx, statements, conceptName)
+  const cn = (conceptName: SeraEvidenceConcept) => decisionConceptStatements(ctx, statements, conceptName, true)
   const any = (conceptNames: SeraEvidenceConcept[]) => conceptNames.some((conceptName) => c(conceptName).length > 0)
-  const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => conceptsWithinWindow(statements, left, right, maxDistance) || semanticConceptsWithinWindow(ctx, left, right, maxDistance)
+  const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => decisionConceptWindow(ctx, statements, left, right, maxDistance)
   switch (nodeId) {
     case 'A_ROOT': {
       const actionStrategy = unique([
@@ -515,7 +575,7 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
         ...c('selectionSubtype'),
         // Hendy asks HOW the actor was trying to achieve the goal — the plan/means.
         // A bare observed control movement is not sufficient to establish that strategy.
-        ...matching(statements, [
+        ...decisionMatching(ctx, statements, [
           /\b(pretendia|intencionava|planejava|decidiu|decidiram|decidimos|resolveu|resolveram|resolvemos|optou|optaram|escolheu|escolheram|tentava|buscava|visava|intended|planned|decided|resolved|opted|chose|was trying|sought|aimed)\b.{0,180}\b(usar|utilizar|executar|realizar|conduzir|prosseguir|continuar|tentar|selecionar|acionar|aproximar|pousar|use|using|execute|perform|conduct|proceed|continue|try|select|activate|approach|land)\b/i,
           /\b(passou|come[cç]ou) a (?:tratar|planejar|conduzir|preparar|executar|usar|utilizar)\b/i,
           /\b(iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|conduziu a aproxima[cç][aã]o|preparou a aproxima[cç][aã]o|planejou a aproxima[cç][aã]o)\b/i,
@@ -530,7 +590,7 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
           /\b(associou|identificou|tratou)\b.{0,140}\b(unidade|plataforma|pista|destino)\b.{0,220}\b(conduzindo|conduzir|aproxima[cç][aã]o|pouso|landing|approach)\b/i,
         ]),
       ])
-      const specificProceduralOmission = matching(statements, [
+      const specificProceduralOmission = decisionMatching(ctx, statements, [
         /\b(?:omitiu|omitiram|omitted|skipped)\b.{0,160}\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b/i,
         /\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b.{0,180}\b(?:n[aã]o foi executad[oa]|n[aã]o foram executad[oa]s?|foi omitid[oa]|foram omitid[oa]s?|was not executed|were not executed|was omitted|were omitted)\b/i,
         /\b(?:n[aã]o executou|n[aã]o realizou|deixou de executar|deixou de realizar|failed to execute|failed to perform|did not execute|did not perform)\b.{0,160}\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b/i,
@@ -551,23 +611,23 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
       const slipOrLapse = c('slipLapse')
       const selected = c('selectionSubtype')
       const timed = c('timeManagementAction')
-      const intendedAction = matching(statements, [
+      const intendedAction = decisionMatching(ctx, statements, [
         /\b(pretendia|intencionava|queria|tentava|planejava|decidiu|optou|escolheu|selecionou|prosseguiu|continuou|intended|wanted|was trying|planned to|decided|opted|chose|selected|proceeded|continued)\b/i,
         /\b((?:passou|come[cç]ou) a (?:trat[aá](?:-l[ao])?|planejar|conduzir|preparar)|iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|conduziu a aproxima[cç][aã]o|preparou a aproxima[cç][aã]o|comprometeu(?:-se)?|tratava .* como (?:o )?destino)\b/i,
         /\b(associou|identificou|tratou)\b.{0,140}\b(unidade|plataforma|pista|destino)\b.{0,220}\b(conduzindo|conduzir|aproxima[cç][aã]o|pouso|landing|approach)\b/i,
         /\b(inspe[cç][aã]o (?:de )?pr[eé][ -]?voo|preflight inspection|inspe[cç][aã]o visual)\b.{0,140}\b(conclu[ií]d[ao]|realizad[ao]|completed|performed|nada de anormal|nenhuma anormalidade|no abnormality)\b/i,
         /\b(a[cç][aã]o pretendida|comando pretendido|intended action|intended command)\b/i,
       ])
-      const observedDeliberateAction = matching(statements, [
+      const observedDeliberateAction = decisionMatching(ctx, statements, [
         /\b((?:passou|come[cç]ou) a (?:planejar|conduzir|aproximar|preparar)|iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|conduziu a aproxima[cç][aã]o|preparou a aproxima[cç][aã]o|conduzindo (?:o )?pouso|associou .* unidade|compromet(?:eu|endo).*aproxima[cç][aã]o)\b/i,
       ])
-      const explicitCorrespondence = matching(statements, [
+      const explicitCorrespondence = decisionMatching(ctx, statements, [
         /\b(como pretendia|conforme pretendia|correspondeu ao que pretendia|implementad[ao] como pretendid[ao]|as intended|matched the intended|corresponded to the intended)\b/i,
       ])
-      const explicitImplementationMismatch = matching(statements, [
+      const explicitImplementationMismatch = decisionMatching(ctx, statements, [
         /\b(?:selecionou|configurou|programou|ajustou|selected|configured|programmed|set)\b.{0,180}\b(?:diferente d(?:aquele|aquela|o|a) que pretendia|different from (?:what|the one) (?:he|she|the operator) intended|not what (?:he|she|the operator) intended)\b/i,
       ])
-      const specificProceduralOmission = matching(statements, [
+      const specificProceduralOmission = decisionMatching(ctx, statements, [
         /\b(?:omitiu|omitiram|omitted|skipped)\b.{0,160}\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b/i,
         /\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b.{0,180}\b(?:n[aã]o foi executad[oa]|n[aã]o foram executad[oa]s?|foi omitid[oa]|foram omitid[oa]s?|was not executed|were not executed|was omitted|were omitted)\b/i,
         /\b(?:n[aã]o executou|n[aã]o realizou|deixou de executar|deixou de realizar|failed to execute|failed to perform|did not execute|did not perform)\b.{0,160}\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b/i,
@@ -595,7 +655,7 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
       const correct = c('correctAction')
       const incorrect = c('incorrectAction')
       const perceptionDriven = c('inadequateAssessment')
-      const independentSelectionError = matching(statements, [
+      const independentSelectionError = decisionMatching(ctx, statements, [
         /\b(selected|selecionou|escolheu|acionou|apertou|programou|inseriu)\b.*\b(wrong|errad[oa]|incorret[oa]|modo|mode|valor|value|comando|control)\b/i,
         /\bwrong checklist|checklist errado|wrong switch|interruptor errado|wrong control|comando errado\b/i,
       ])
@@ -671,8 +731,9 @@ export function evaluateCanonicalNode(ctx: SeraNodeEvidenceContext): SeraNodeAns
   const terminalCode = branchTarget?.includes('-') ? branchTarget : null
   const nextNodeId = branchTarget && !terminalCode ? branchTarget : null
   const supportingEvidence = unique(decision.supportingEvidence).slice(0, 4)
-  const counterEvidence = hasText(statements, [/\b(does not establish|not established|not clearly established|unclear whether)\b/i])
-    ? matching(statements, [/\b(does not establish|not established|not clearly established|unclear whether)\b/i]).slice(0, 3)
+  const counterEvidenceMatches = decisionMatching(ctx, statements, [/\b(does not establish|not established|not clearly established|unclear whether)\b/i])
+  const counterEvidence = counterEvidenceMatches.length
+    ? counterEvidenceMatches.slice(0, 3)
     : []
 
   return {

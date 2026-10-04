@@ -36,6 +36,11 @@ function lexicalActorForLandmark(candidate: string | null | undefined, locale: S
   return null
 }
 
+function semanticallyResolvedActor(actor: string): boolean {
+  const value = normalizeLandmarkText(actor)
+  return Boolean(value) && !/\b(?:nao identificad[oa]|nao especificad[oa]|unknown|unidentified)\b/.test(value)
+}
+
 function semanticActorForLandmark(
   input: SeraVNextEngineInput,
   candidate: string | null | undefined,
@@ -44,7 +49,7 @@ function semanticActorForLandmark(
   if (!candidate) return null
   const target = normalizeLandmarkText(candidate)
   const actors = (input.semanticEvidence ?? [])
-    .filter((item) => item.actor && item.roles.includes(role))
+    .filter((item) => item.actor && semanticallyResolvedActor(item.actor) && item.roles.includes(role))
     .filter((item) => {
       const quote = normalizeLandmarkText(item.sourceQuote)
       return quote === target || quote.includes(target) || target.includes(quote)
@@ -56,7 +61,11 @@ function semanticActorForLandmark(
 export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngineOutput {
   const effectiveInput: SeraVNextEngineInput = {
     ...input,
-    semanticEvidence: enforceSemanticEvidenceIntegrity({ annotations: input.semanticEvidence, narrative: input.narrative }),
+    semanticEvidence: enforceSemanticEvidenceIntegrity({
+      annotations: input.semanticEvidence,
+      narrative: input.narrative,
+      schemaVersion: input.semanticEnrichmentMeta?.schemaVersion ?? null,
+    }),
   }
   const factualExtraction = runStep01FactualExtraction(effectiveInput)
   const initialEvidence = extractEvidenceItems({
@@ -93,6 +102,7 @@ export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngi
     annotations: effectiveInput.semanticEvidence,
     directActor: directActor.actor,
     canonicalEscapeSentenceIndex: poaAnchorSentenceIndex,
+    semanticSchemaVersion: effectiveInput.semanticEnrichmentMeta?.schemaVersion ?? null,
   })
   const supplementalEvidence = extractSupplementalEvidenceItems({
     items: effectiveInput.supplementalEvidence ?? [],

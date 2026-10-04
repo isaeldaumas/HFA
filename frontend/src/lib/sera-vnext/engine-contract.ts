@@ -232,6 +232,10 @@ export type SeraSemanticDecisionConcept =
   | 'feedbackSubtype'
   | 'timeManagementAction'
 
+export type SeraSemanticPreconditionCausalStatus =
+  | 'PRESENT_CONTEXT'
+  | 'SOURCE_LINKED'
+
 export type SeraSemanticEvidenceAnnotation = {
   id: string
   sourceQuote: string
@@ -243,6 +247,15 @@ export type SeraSemanticEvidenceAnnotation = {
   assertionStatus: SeraAssertionStatus
   occurrenceScope: SeraOccurrenceScope
   preconditionCategory?: SeraCanonicalPreconditionCategory | null
+  /**
+   * Semantic interpretation of what the source itself says about a candidate precondition.
+   * PRESENT_CONTEXT means the factor is factually present before/at the escape point but
+   * the source does not explicitly link it to the active failure. SOURCE_LINKED is reserved
+   * for an explicit source statement that the factor contributed to or enabled the failure.
+   * This is evidence interpretation only; the deterministic SERA engine still decides how
+   * the factor may be used methodologically.
+   */
+  preconditionCausalStatus?: SeraSemanticPreconditionCausalStatus | null
   confidence: SeraConfidence
   rationale?: string | null
 }
@@ -260,7 +273,7 @@ export type SeraSemanticEnrichmentMeta = {
   requestedAt: string
   acceptedAnnotations: number
   rejectedAnnotations: number
-  schemaVersion: 'SERA_SEMANTIC_AI_V1'
+  schemaVersion: 'SERA_SEMANTIC_AI_V1' | 'SERA_SEMANTIC_AI_V2'
 }
 
 export type SeraVNextEngineInput = {

@@ -252,7 +252,35 @@ export function runStep09Preconditions(input: {
     }
   }
   const likelyTraversalIndex = new Map(likelyTraversalOrder.map((canonical, index) => [canonical, index]))
-  const categoryEvidence: Record<string, { texts: string[]; sourceEvidence: SeraEvidenceItem[]; investigationOnly: boolean; explicitInvestigationSupport: boolean; rejectedByInvestigation: boolean }> = {}
+  type CategoryEvidenceBucket = {
+    operationalCategory: SeraPreconditionCategory
+    canonicalHint: SeraCanonicalPreconditionCategory | null
+    texts: string[]
+    sourceEvidence: SeraEvidenceItem[]
+    investigationOnly: boolean
+    explicitInvestigationSupport: boolean
+    rejectedByInvestigation: boolean
+  }
+  const categoryEvidence: Record<string, CategoryEvidenceBucket> = {}
+  const bucketKeyFor = (category: SeraPreconditionCategory, item?: SeraEvidenceItem): string => {
+    const semanticCanonical = item && isSemanticV2Item(item)
+      ? item.semanticPreconditionCategory ?? null
+      : null
+    return semanticCanonical ? `${category}::${semanticCanonical}` : category
+  }
+  const ensureBucket = (category: SeraPreconditionCategory, item?: SeraEvidenceItem): CategoryEvidenceBucket => {
+    const key = bucketKeyFor(category, item)
+    categoryEvidence[key] ||= {
+      operationalCategory: category,
+      canonicalHint: item && isSemanticV2Item(item) ? item.semanticPreconditionCategory ?? null : null,
+      texts: [], sourceEvidence: [], investigationOnly: true, explicitInvestigationSupport: false, rejectedByInvestigation: false,
+    }
+    return categoryEvidence[key]
+  }
+  const isSemanticV2Item = (item: SeraEvidenceItem): boolean =>
+    item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+    && item.semanticSchemaVersion === 'SERA_SEMANTIC_AI_V2'
+
   const escapeAnchorText = [
     input.escapePoint.firstDepartureCandidate,
     input.escapePoint.criticalUnsafeActCandidate,
@@ -263,13 +291,15 @@ export function runStep09Preconditions(input: {
     .filter((item) => input.escapePoint.supportingEvidence.includes(item.statement))
     .map((item) => item.sourceSentenceIndex)
   const explicitCausalLinkToSelectedFailure = (item: SeraEvidenceItem): boolean => {
+    // In the canonical semantic path, language interpretation belongs to the AI layer.
+    // The deterministic engine consumes the explicit semantic relationship and never
+    // upgrades a factor to causal from keywords, proximity or lexical overlap.
+    if (isSemanticV2Item(item) && item.semanticRoles?.includes('PRECONDITION')) {
+      return item.semanticPreconditionCausalStatus === 'SOURCE_LINKED'
+    }
+    // Deterministic fallback for non-semantic/legacy inputs only.
     const text = item.statement.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-    const explicitLink = /\b(contribuiu|contribuinte|tornou .* mais provavel|maior problema .* (?:foi|era)|fez com que|deixou .* a ponto de|levou .* a|motivou .* a|por conta d[aeo]|devido a|because of|contributed|made .* more likely|led .* to|caused .* to)\b/.test(text)
-    if (explicitLink) return true
-    const sameActor = item.actorRelation === 'DIRECT_ACTOR'
-    const nearAnchor = escapeIndexes.some((index) => Math.abs(index - item.sourceSentenceIndex) <= 10)
-    const topical = escapeAnchorText ? lexicalOverlap(item.statement, escapeAnchorText) : 0
-    return sameActor && item.semanticConfidence === 'HIGH' && nearAnchor && topical >= 2
+    return /\b(contribuiu|contribuinte|tornou .* mais provavel|maior problema .* (?:foi|era)|fez com que|deixou .* a ponto de|levou .* a|motivou .* a|por conta d[aeo]|devido a|because of|contributed|made .* more likely|led .* to|caused .* to)\b/.test(text)
   }
   const contextRelevance = (item: SeraEvidenceItem): number => {
     let score = item.sourceSection === 'FACTUAL' ? 2 : 0
@@ -277,6 +307,12 @@ export function runStep09Preconditions(input: {
     else if (item.occurrenceScope === 'PRE_EVENT_CAUSAL_HISTORY') score += 2
     else if (item.occurrenceScope === 'HISTORICAL_COMPARATOR') score -= 100
     if (item.temporalRelation === 'PRE_ESCAPE' || item.temporalRelation === 'AT_ESCAPE') score += 2
+    if (item.collectionSource === 'AI_SEMANTIC_EXTRACTION' && item.semanticRoles?.includes('PRECONDITION')) {
+      // Semantic relevance has already been interpreted against the source. No lexical
+      // overlap is required to keep the factor visible.
+      score += item.semanticConfidence === 'HIGH' ? 8 : 5
+      return score
+    }
     const overlap = escapeAnchorText ? lexicalOverlap(item.statement, escapeAnchorText) : 0
     score += Math.min(overlap, 3) * 2
     if (escapeIndexes.some((index) => Math.abs(index - item.sourceSentenceIndex) <= 10)) score += 3
@@ -289,10 +325,7 @@ export function runStep09Preconditions(input: {
     !isProcedureReferenceStatement(statement) &&
     !isSystemDescriptionStatement(statement)
   const isSeparateActiveFailure = (item: SeraEvidenceItem): boolean => {
-    // A source sentence may explicitly connect a contextual factor to the selected act
-    // while also describing the resulting decision. Preserve that causal evidence when
-    // the semantic layer marked it as PRECONDITION; phase compatibility still prevents
-    // a different operational episode from migrating into this traversal.
+    if (item.collectionSource === 'AI_SEMANTIC_EXTRACTION' && item.semanticRoles?.includes('PRECONDITION')) return false
     if (item.semanticRoles?.includes('PRECONDITION') && explicitCausalLinkToSelectedFailure(item)) return false
     return isExplicitOperationalOmissionStatement(item.statement) || isExplicitOperationalDeviationStatement(item.statement)
   }
@@ -392,7 +425,9 @@ export function runStep09Preconditions(input: {
     // of the selected critical act. It needs its own SERA traversal unless separate causal evidence
     // explicitly establishes it as a precondition.
     .filter((item) => !isSeparateActiveFailure(item))
-    .filter((item) => !hasResolvedEscapeAnchor || phaseCompatible(primaryEscapeAnchor, item.statement))
+    .filter((item) => !hasResolvedEscapeAnchor
+      || item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+      || phaseCompatible(primaryEscapeAnchor, item.statement))
     .filter((item) => !hasResolvedEscapeAnchor || contextRelevance(item) >= 3)
     .sort((a, b) => contextRelevance(b) - contextRelevance(a) || a.sourceSentenceIndex - b.sourceSentenceIndex)
   const explicitContributorEvidence = input.factualExtraction.evidence.filter((item) =>
@@ -412,7 +447,9 @@ export function runStep09Preconditions(input: {
   const rejectedEvidence = input.factualExtraction.evidence.filter((item) => item.assertionStatus === 'REJECTED_AS_FACTOR')
 
   for (const item of contextualEvidence) {
-    const category = categoryForPreconditionStatement(item.statement, item.semanticPreconditionCategory)
+    const category = isSemanticV2Item(item) && !item.semanticPreconditionCategory
+      ? null
+      : categoryForPreconditionStatement(item.statement, item.semanticPreconditionCategory)
     if (!category) continue
     const semanticPrecondition = item.semanticSource === 'AI_SEMANTIC_EXTRACTION'
       && Boolean(item.semanticPreconditionCategory)
@@ -427,56 +464,60 @@ export function runStep09Preconditions(input: {
       if (lexicalOverlap(item.statement, escapeAnchorText) < 2 && !nearEscapeAnchor) continue
     }
     if (category === 'ORGANIZATIONAL_CONTEXT' && !semanticPrecondition && !isActualOrganizationalCondition(item.statement)) continue
-    categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true, explicitInvestigationSupport: false, rejectedByInvestigation: false }
+    const bucket = ensureBucket(category, item)
     // A semantic label is not itself proof of causality. Promote a contextual factor to an
     // evidenced precondition only when the source links it to the selected active failure.
     // Otherwise preserve it as an investigation hypothesis (e.g. a parallel equipment fault).
-    if (explicitCausalLinkToSelectedFailure(item)) categoryEvidence[category].investigationOnly = false
-    pushUnique(categoryEvidence[category].texts, item.statement)
-    pushEvidence(categoryEvidence[category].sourceEvidence, item)
+    if (explicitCausalLinkToSelectedFailure(item)) bucket.investigationOnly = false
+    pushUnique(bucket.texts, item.statement)
+    pushEvidence(bucket.sourceEvidence, item)
   }
 
   for (const item of explicitContributorEvidence) {
     const category = categoryForPreconditionStatement(item.statement, item.semanticPreconditionCategory)
     if (!category) continue
-    const existing = categoryEvidence[category]
-    const independentlySupported = existing?.sourceEvidence.some((candidate) => isEvidenceUsableFor(candidate, 'PRECONDITION')) ?? false
-    categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true, explicitInvestigationSupport: false, rejectedByInvestigation: false }
+    const bucket = ensureBucket(category, item)
+    const independentlySupported = bucket.sourceEvidence.some((candidate) => isEvidenceUsableFor(candidate, 'PRECONDITION'))
     // Investigator conclusions may corroborate independently observed event facts, but they
     // must not be displayed or counted as the primary causal evidence for that precondition.
     if (independentlySupported) {
-      categoryEvidence[category].explicitInvestigationSupport = true
+      bucket.explicitInvestigationSupport = true
       continue
     }
-    pushUnique(categoryEvidence[category].texts, item.statement)
-    pushEvidence(categoryEvidence[category].sourceEvidence, item)
+    pushUnique(bucket.texts, item.statement)
+    pushEvidence(bucket.sourceEvidence, item)
   }
 
   for (const item of investigationIndicatedEvidence) {
     const category = categoryForPreconditionStatement(item.statement, item.semanticPreconditionCategory)
     if (!category) continue
-    const existing = categoryEvidence[category]
-    if (existing && !existing.investigationOnly && existing.sourceEvidence.length > 0) continue
-    categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true, explicitInvestigationSupport: false, rejectedByInvestigation: false }
-    pushUnique(categoryEvidence[category].texts, item.statement)
-    pushEvidence(categoryEvidence[category].sourceEvidence, item)
+    const bucket = ensureBucket(category, item)
+    if (!bucket.investigationOnly && bucket.sourceEvidence.length > 0) continue
+    pushUnique(bucket.texts, item.statement)
+    pushEvidence(bucket.sourceEvidence, item)
   }
 
   for (const item of rejectedEvidence) {
     const category = categoryForPreconditionStatement(item.statement, item.semanticPreconditionCategory)
-    if (category && categoryEvidence[category]) categoryEvidence[category].rejectedByInvestigation = true
+    if (!category) continue
+    const key = bucketKeyFor(category, item)
+    if (categoryEvidence[key]) categoryEvidence[key].rejectedByInvestigation = true
   }
 
-  const canonicalProfileFor = (category: string, evidenceSet: (typeof categoryEvidence)[string]) => {
+  const canonicalProfileFor = (category: SeraPreconditionCategory, evidenceSet: CategoryEvidenceBucket) => {
     const canonicalCounts = new Map<SeraCanonicalPreconditionCategory, number>()
     const causalEvidence = evidenceSet.sourceEvidence.filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
     const evidenceForCanonicalization = causalEvidence.length ? causalEvidence : evidenceSet.sourceEvidence
     for (const item of evidenceForCanonicalization) {
-      const canonical = item.semanticPreconditionCategory ?? classifyCanonicalPrecondition(item.statement)
+      const canonical = isSemanticV2Item(item)
+        ? item.semanticPreconditionCategory ?? null
+        : item.semanticPreconditionCategory ?? classifyCanonicalPrecondition(item.statement)
       if (canonical) canonicalCounts.set(canonical, (canonicalCounts.get(canonical) ?? 0) + 1)
     }
     const fallbackCanonical = CANONICAL_FALLBACK_BY_OPERATIONAL_CATEGORY[category] ?? null
-    const countedCanonical = [...canonicalCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+    const countedCanonical = evidenceSet.canonicalHint
+      ?? [...canonicalCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+      ?? null
     const incompatibleWithOperationalCategory =
       (category === 'TECHNICAL_CONTEXT' && countedCanonical === 'ENVIRONMENT') ||
       (category === 'ENVIRONMENTAL_CONTEXT' && countedCanonical === 'EQUIPMENT') ||
@@ -490,7 +531,7 @@ export function runStep09Preconditions(input: {
     return { canonicalCategory, likelyForActiveFailureCodes }
   }
 
-  const confidenceFor = (category: string, evidenceSet: (typeof categoryEvidence)[string]) => {
+  const confidenceFor = (category: SeraPreconditionCategory, evidenceSet: CategoryEvidenceBucket) => {
     const capAtEscape = <T extends 'LOW' | 'MEDIUM' | 'HIGH'>(value: T): T | 'LOW' | 'MEDIUM' | 'HIGH' => {
       const rank = { LOW: 0, MEDIUM: 1, HIGH: 2 } as const
       return rank[value] <= rank[input.escapePoint.confidence] ? value : input.escapePoint.confidence
@@ -506,7 +547,8 @@ export function runStep09Preconditions(input: {
     return capAtEscape(category === 'ATTENTION_WORKLOAD_CONTEXT' && base === 'HIGH' ? 'MEDIUM' as const : base)
   }
 
-  const evidencedCandidates = Object.entries(categoryEvidence).map(([category, evidenceSet]): SeraPreconditionCandidate => {
+  const evidencedCandidates = Object.entries(categoryEvidence).map(([bucketKey, evidenceSet]): SeraPreconditionCandidate => {
+    const category = evidenceSet.operationalCategory
     const canonicalProfile = canonicalProfileFor(category, evidenceSet)
     const usableCausalEvidence = evidenceSet.sourceEvidence.filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
     const evidenceForDisplay = usableCausalEvidence.length ? usableCausalEvidence : evidenceSet.sourceEvidence
@@ -526,7 +568,7 @@ export function runStep09Preconditions(input: {
       ? [...new Set(rankedSourceEvidence.map((item) => displayPreconditionStatement(category, item.statement)))].slice(0, 5)
       : [...new Set(evidenceSet.texts.map((text) => displayPreconditionStatement(category, text)))].slice(0, 5)
     return {
-    id: `PC-EVIDENCE-${category}`,
+    id: `PC-EVIDENCE-${bucketKey.replace('::', '-')}`,
     label: category,
     description: !causalBoundaryResolved
       ? (input.locale === 'pt-BR'
@@ -582,10 +624,12 @@ export function runStep09Preconditions(input: {
   // evidence classifier did not attach a PRECONDITION role. This layer is deliberately
   // narrow: it recognizes only directly stated factor classes and never creates causal
   // support from Table 1 correspondence alone.
-  const explicitFactorEvidence = input.factualExtraction.evidence
-    .filter((item) => item.assertionStatus === 'AFFIRMED')
-    .filter((item) => item.occurrenceScope !== 'HISTORICAL_COMPARATOR')
-    .filter((item) => item.sourceSection !== 'REPORT_ANALYSIS' && item.sourceSection !== 'RECOMMENDATION' && item.sourceSection !== 'ADMINISTRATIVE')
+  const explicitFactorEvidence = hasSemanticInterpretation
+    ? []
+    : input.factualExtraction.evidence
+        .filter((item) => item.assertionStatus === 'AFFIRMED')
+        .filter((item) => item.occurrenceScope !== 'HISTORICAL_COMPARATOR')
+        .filter((item) => item.sourceSection !== 'REPORT_ANALYSIS' && item.sourceSection !== 'RECOMMENDATION' && item.sourceSection !== 'ADMINISTRATIVE')
   const explicitByCanonical = new Map<SeraCanonicalPreconditionCategory, SeraEvidenceItem[]>()
   for (const item of explicitFactorEvidence) {
     for (const canonical of deterministicExplicitCanonicalFactors(item.statement)) {
@@ -659,8 +703,17 @@ export function runStep09Preconditions(input: {
     }
   }
 
-  const explicitAttentionEvidence = explicitFactorEvidence
-    .filter((item) => deterministicAttentionWorkloadContext(item.statement))
+  const semanticAttentionEvidence = input.factualExtraction.evidence
+    .filter((item) => item.collectionSource === 'AI_SEMANTIC_EXTRACTION')
+    .filter((item) => item.assertionStatus === 'AFFIRMED')
+    .filter((item) => item.temporalRelation === 'PRE_ESCAPE' || item.temporalRelation === 'AT_ESCAPE')
+    .filter((item) => item.occurrenceScope !== 'HISTORICAL_COMPARATOR')
+    .filter((item) => item.semanticConcepts?.includes('attentionPressure'))
+    .filter((item) => item.semanticRoles?.some((role) => role === 'PRECONDITION' || role === 'CONTEXT'))
+    .filter((item) => !item.semanticPreconditionCategory)
+  const explicitAttentionEvidence = hasSemanticInterpretation
+    ? semanticAttentionEvidence
+    : explicitFactorEvidence.filter((item) => deterministicAttentionWorkloadContext(item.statement))
   if (explicitAttentionEvidence.length && !evidencedCandidates.some((item) => item.category === 'ATTENTION_WORKLOAD_CONTEXT' && item.canonicalCategory == null)) {
     evidencedCandidates.push({
       id: 'PC-EXPLICIT-ATTENTION-WORKLOAD',
@@ -685,13 +738,15 @@ export function runStep09Preconditions(input: {
     })
   }
 
-  const dutyExposureEvidence = input.factualExtraction.evidence
-    .filter((item) => item.occurrenceScope !== 'HISTORICAL_COMPARATOR')
-    .filter((item) => item.assertionStatus === 'AFFIRMED')
-    .filter((item) => /\b(dia operacional prolongad[oa]|jornada prolongad[ao]|jornada operacional prolongad[ao]|long operational day|extended duty day|prolonged duty day|terceiro setor|quarto setor|third sector|fourth sector)\b/i.test(item.statement))
-    .map((item) => item.statement)
-    .filter((text, index, all) => all.indexOf(text) === index)
-    .slice(0, 3)
+  const dutyExposureEvidence = hasSemanticInterpretation
+    ? []
+    : input.factualExtraction.evidence
+        .filter((item) => item.occurrenceScope !== 'HISTORICAL_COMPARATOR')
+        .filter((item) => item.assertionStatus === 'AFFIRMED')
+        .filter((item) => /\b(dia operacional prolongad[oa]|jornada prolongad[ao]|jornada operacional prolongad[ao]|long operational day|extended duty day|prolonged duty day|terceiro setor|quarto setor|third sector|fourth sector)\b/i.test(item.statement))
+        .map((item) => item.statement)
+        .filter((text, index, all) => all.indexOf(text) === index)
+        .slice(0, 3)
   if (dutyExposureEvidence.length && !evidencedCandidates.some((item) => item.canonicalCategory === 'PERSONAL_READINESS' || item.canonicalCategory === 'PHYSIOLOGICAL')) {
     evidencedCandidates.push({
       id: 'PC-EVIDENCE-DUTY-EXPOSURE',

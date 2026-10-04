@@ -71,7 +71,7 @@ const VALIDATION_LABEL_PT: Record<string, string> = {
 
 function landmarkRelationshipLabel(value: SeraVNextEngineOutput['escapePoint']['anchorBasis'], pt: boolean): string {
   if (value === 'FIRST_DEPARTURE_AND_CRITICAL_ACT') return pt ? 'Primeira saída e ato crítico coincidem.' : 'First departure and critical act coincide.'
-  if (value === 'FIRST_DEPARTURE_PRIMARY') return pt ? 'A primeira saída antecede o ato crítico; ela delimita a trajetória seguro→inseguro, enquanto P/O/A permanece ligado ao ato crítico e ao seu ator direto.' : 'The first departure precedes the critical act; it delimits the safe→unsafe trajectory, while P/O/A remains bound to the critical act and its direct actor.'
+  if (value === 'FIRST_DEPARTURE_PRIMARY') return pt ? 'A primeira saída antecede a evolução crítica posterior; ela é a única âncora P/O/A. O marco posterior permanece apenas como evolução da ocorrência.' : 'The first departure precedes the later critical evolution; it is the sole P/O/A anchor. The later landmark remains occurrence evolution only.'
   if (value === 'FIRST_DEPARTURE_ONLY') return pt ? 'Somente a primeira saída foi estabelecida.' : 'Only the first departure was established.'
   return pt ? 'Relação ainda não determinada.' : 'Relationship not yet determined.'
 }
@@ -95,6 +95,17 @@ type EventPayload = {
     source_flow?: string | null
     engine_output?: SeraVNextEngineOutput | null
   } | null
+}
+
+function normalizeLandmarkForReport(value: string | null | undefined): string {
+  return (value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim().replace(/[.;]+$/, '')
+}
+
+function laterLandmarkForReport(output: SeraVNextEngineOutput): string | null {
+  const first = output.escapePoint.firstDepartureCandidate ?? output.escapePoint.statement
+  const later = output.escapePoint.criticalUnsafeActCandidate ?? output.escapePoint.latestCandidate
+  if (!later) return null
+  return first && normalizeLandmarkForReport(first) === normalizeLandmarkForReport(later) ? null : later
 }
 
 function formatDate(value: string | null | undefined, locale: 'pt-BR' | 'en') {
@@ -384,7 +395,7 @@ export default function EventReportPage() {
             <>
               <div className="report-box space-y-1">
                 <p><strong>{L('Primeira saída da operação segura (Hendy)', 'First departure from safe operation (Hendy)')}:</strong> {vnextOutput.escapePoint.firstDepartureCandidate ?? vnextOutput.escapePoint.earliestCandidate ?? L('Não estabelecida', 'Not established')}</p>
-                <p><strong>{L('Ato/condição insegura crítica (Hendy)', 'Critical unsafe act/condition (Hendy)')}:</strong> {vnextOutput.escapePoint.criticalUnsafeActCandidate ?? vnextOutput.escapePoint.latestCandidate ?? L('Não estabelecido', 'Not established')}</p>
+                <p><strong>{L('Evolução crítica posterior (quando distinta)', 'Later critical evolution (when distinct)')}:</strong> {laterLandmarkForReport(vnextOutput) ?? L('Nenhum marco posterior distinto estabelecido', 'No distinct later landmark established')}</p>
                 {vnextOutput.escapePoint.irreversibilityBoundaryCandidate && (
                   <p><strong>{L('Marco de irreversibilidade / sem retorno', 'Irreversibility / no-return boundary')}:</strong> {vnextOutput.escapePoint.irreversibilityBoundaryCandidate}</p>
                 )}

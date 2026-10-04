@@ -1,5 +1,6 @@
 import type { SeraAssertionStatus, SeraClarificationQuestion, SeraConfidence, SeraEvidenceSourceSection, SeraFactCategory, SeraOccurrenceScope, SeraSemanticDecisionConcept, SeraSemanticEvidenceRole } from '../engine-contract'
 import type { SeraCanonicalPreconditionCategory } from '../precondition-taxonomy'
+import type { SeraSemanticPreconditionCausalStatus } from '../engine-contract'
 
 export type SeraEvidenceTemporalRelation = 'PRE_ESCAPE' | 'AT_ESCAPE' | 'POST_ESCAPE' | 'UNKNOWN'
 
@@ -54,7 +55,9 @@ export type SeraEvidenceItem = {
   semanticRoles?: SeraSemanticEvidenceRole[]
   semanticConcepts?: SeraSemanticDecisionConcept[]
   semanticPreconditionCategory?: SeraCanonicalPreconditionCategory | null
+  semanticPreconditionCausalStatus?: SeraSemanticPreconditionCausalStatus | null
   semanticConfidence?: SeraConfidence
+  semanticSchemaVersion?: 'SERA_SEMANTIC_AI_V1' | 'SERA_SEMANTIC_AI_V2' | null
   semanticSource?: 'AI_SEMANTIC_EXTRACTION'
   rationale: string[]
 }

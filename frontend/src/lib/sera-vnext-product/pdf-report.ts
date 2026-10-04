@@ -31,6 +31,18 @@ function value(v: unknown, fallback = '-'): string {
   return String(v)
 }
 
+function normalizeLandmarkForDisplay(v: string | null | undefined): string {
+  return (v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim().replace(/[.;]+$/, '')
+}
+
+function distinctLaterLandmark(output: SeraVNextEngineOutput): string | null {
+  const first = output.escapePoint.firstDepartureCandidate ?? output.escapePoint.statement
+  const later = output.escapePoint.criticalUnsafeActCandidate
+  if (!later) return null
+  if (first && normalizeLandmarkForDisplay(first) === normalizeLandmarkForDisplay(later)) return null
+  return later
+}
+
 const PDF_COLORS = {
   navy: '#123B5D',
   blue: '#2563A6',
@@ -687,7 +699,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       [
         `${L('Ponto de fuga SERA / primeira saída', 'SERA escape point / first departure')}: ${value(output.escapePoint.firstDepartureCandidate ?? output.escapePoint.statement, L('Não estabelecido.', 'Not established.'))}`,
         `${L('Ator no ponto de fuga (P/O/A)', 'Escape-point actor (P/O/A)')}: ${value(localizeActor(output.escapePoint.firstDepartureActor ?? output.directActor.actor, locale), L('Não individualizado', 'Not individually resolved'))}`,
-        `${L('Evolução crítica posterior', 'Later critical evolution')}: ${value(output.escapePoint.criticalUnsafeActCandidate, L('Nenhum ato posterior distinto estabelecido.', 'No distinct later act established.'))}`,
+        `${L('Evolução crítica posterior', 'Later critical evolution')}: ${value(distinctLaterLandmark(output), L('Nenhum ato posterior distinto estabelecido.', 'No distinct later act established.'))}`,
       ].join('\n'),
       { accent: PDF_COLORS.blue, fill: '#F2F7FC', label: L('Uma única âncora SERA', 'Single SERA anchor'), minHeight: 108 },
     )
@@ -742,7 +754,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       fill: '#FFF9EC',
       label: L('2  -  primeira saída seguro → inseguro / âncora P/O/A', '2  -  first safe → unsafe departure / P/O/A anchor'),
     })
-    infoCard(doc, L('Evolução crítica posterior', 'Later critical evolution'), value(output.escapePoint.criticalUnsafeActCandidate, L('Nenhum ato crítico posterior distinto foi estabelecido.', 'No distinct later critical act was established.')), {
+    infoCard(doc, L('Evolução crítica posterior', 'Later critical evolution'), value(distinctLaterLandmark(output), L('Nenhum ato crítico posterior distinto foi estabelecido.', 'No distinct later critical act was established.')), {
       accent: PDF_COLORS.red,
       fill: '#FFF4F4',
       label: L('3  -  evolução posterior (não ancora P/O/A)', '3  -  later evolution (does not anchor P/O/A)'),
@@ -755,14 +767,20 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
 
     statRow(doc, [
       { label: L('Ator no ponto de fuga (P/O/A)', 'Escape-point actor (P/O/A)'), value: value(localizeActor(output.escapePoint.firstDepartureActor ?? output.directActor.actor, locale), L('Não individualizado', 'Not individually resolved')), accent: PDF_COLORS.blue },
-      { label: L('Ator da evolução posterior', 'Later-evolution actor'), value: value(localizeActor(output.escapePoint.criticalUnsafeActActor ?? null, locale), L('Não individualizado', 'Not individually resolved')), accent: PDF_COLORS.blue },
+      { label: L('Ator da evolução posterior', 'Later-evolution actor'), value: distinctLaterLandmark(output)
+        ? value(localizeActor(output.escapePoint.criticalUnsafeActActor ?? null, locale), L('Não atribuído / não aplicável', 'Not attributed / not applicable'))
+        : L('Não aplicável', 'Not applicable'), accent: PDF_COLORS.blue },
       { label: L('Relação / confiança', 'Relationship / confidence'), value: `${landmarkRelationshipLabel(output.escapePoint.anchorBasis, pt)} · ${confidenceLabel(output.escapePoint.confidence, pt)}`, accent: PDF_COLORS.amber },
     ])
 
     subheading(doc, L('Evidência principal da primeira saída', 'Key evidence for the first departure'))
     bullets(doc, (output.escapePoint.firstDepartureSupportingEvidence ?? []).slice(0, 2), L('Nenhuma evidência específica registrada para este marco.', 'No landmark-specific evidence recorded.'))
     subheading(doc, L('Evidência da evolução crítica posterior', 'Evidence for later critical evolution'))
-    bullets(doc, (output.escapePoint.criticalUnsafeActSupportingEvidence ?? output.escapePoint.supportingEvidence).slice(0, 2), L('Nenhuma evidência específica registrada para este marco.', 'No landmark-specific evidence recorded.'))
+    if (distinctLaterLandmark(output)) {
+      bullets(doc, (output.escapePoint.criticalUnsafeActSupportingEvidence ?? output.escapePoint.supportingEvidence).slice(0, 2), L('Nenhuma evidência específica registrada para este marco.', 'No landmark-specific evidence recorded.'))
+    } else {
+      body(doc, L('Não foi identificado ato/condição posterior distinto do próprio ponto de fuga.', 'No later act/condition distinct from the escape point was identified.'))
+    }
     if (output.canonicalTraversal.paths.length === 0) {
       doc.addPage({ size: 'A4', layout: 'portrait', margin: 44 })
       heading(doc, '2. ' + L('P / O / A - análise interrompida', 'P / O / A - analysis stopped'))
@@ -935,10 +953,17 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
           'A análise apresenta elementos suficientes para revisão humana. Antes do uso formal, recomenda-se confirmar o ponto de fuga, o ator direto, os resultados P/O/A e as pré-condições identificadas.',
           'The candidate analysis has minimum evidence for human review. Before formal use, the reviewer must confirm the escape point, actor, P/O/A candidates, and preconditions.',
         )
-      : L(
-          'A análise ainda não possui evidência suficiente para concluir P/O/A. As perguntas e informações adicionais indicadas no relatório devem ser esclarecidas antes do uso formal.',
-          'The analysis does not have sufficient evidence to close P/O/A. Treat this report as a clarification package: blocking reasons and pending questions must be resolved before any formal classification or operational index.',
-        ), 'justify')
+      : (() => {
+          const axisSummary = [
+            ['Percepção', 'Perception', output.axes.perception.proposedCode],
+            ['Objetivo', 'Objective', output.axes.objective.proposedCode],
+            ['Ação', 'Action', output.axes.action.proposedCode],
+          ].map(([ptLabel, enLabel, code]) => `${pt ? ptLabel : enLabel}: ${code ?? (pt ? 'não resolvido' : 'unresolved')}`).join(' · ')
+          return L(
+            `O fechamento metodológico ainda requer evidência/revisão adicional. Estado atual por eixo: ${axisSummary}. Os eixos já sustentados permanecem como candidatos; as lacunas indicadas devem ser esclarecidas antes do uso formal.`,
+            `Methodological closure still requires additional evidence/review. Current axis state: ${axisSummary}. Supported axes remain candidates; identified gaps must be resolved before formal use.`,
+          )
+        })(), 'justify')
 
     doc.moveDown(0.55)
     heading(doc, '10. ' + L('Referência metodológica', 'Methodological reference'))
