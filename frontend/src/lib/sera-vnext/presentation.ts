@@ -51,11 +51,13 @@ export function directActorStatusLabel(
   return pt ? 'Ambíguo — requer decomposição' : 'Ambiguous — requires decomposition'
 }
 
-export function preconditionMethodologyMatchLabel(value: string, pt = true): string {
+export function preconditionMethodologyMatchLabel(value: string, pt = true, basedOnCandidateCode = false): string {
   const labels: Record<string, [string, string]> = {
     MOST_LIKELY_AND_EVIDENCED: ['Prevista na tabela e sustentada pela evidência', 'Listed as most likely and supported by evidence'],
     EVIDENCED_OUTSIDE_MOST_LIKELY_SET: ['Sustentada pela evidência fora do conjunto mais provável da tabela', 'Supported by evidence outside the table most-likely set'],
-    HYPOTHESIS_ONLY: ['Hipótese da tabela sem confirmação causal', 'Table hypothesis without causal confirmation'],
+    HYPOTHESIS_ONLY: basedOnCandidateCode
+      ? ['Hipótese da tabela sem confirmação causal', 'Table hypothesis without causal confirmation']
+      : ['Hipótese contextual sem confirmação causal', 'Contextual hypothesis without causal confirmation'],
   }
   const label = labels[value]
   return label ? label[pt ? 0 : 1] : value

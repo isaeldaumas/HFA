@@ -810,7 +810,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
         { label: L('Ator', 'Actor'), value: value(localizeActor(pc.linkedActor, locale)), accent },
       ])
       meta(doc, L('Relação com a falha', 'Relationship to the failure'), relationshipLabel(pc.relationship))
-      if (pc.methodologyMatch) meta(doc, L('Correspondência metodológica', 'Methodological match'), preconditionMethodologyMatchLabel(pc.methodologyMatch, pt))
+      if (pc.methodologyMatch) meta(doc, L('Correspondência metodológica', 'Methodological match'), preconditionMethodologyMatchLabel(pc.methodologyMatch, pt, pc.basedOnCandidateCode))
       const contextReadout = buildPreconditionContextReadout(output, pc, pt)
       if (contextReadout) {
         subheading(doc, L('Decomposição do contexto', 'Context decomposition'))

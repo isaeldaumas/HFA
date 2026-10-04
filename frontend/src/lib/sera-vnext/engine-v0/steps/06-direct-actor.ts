@@ -6,6 +6,23 @@ function normalizeText(input: string): string {
   return input.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
+function explicitActorForPassiveProceduralOmission(narrative: string, locale: 'pt-BR' | 'en'): string | null {
+  const text = normalizeText(narrative)
+  const roleEvidence: Array<{ actor: string; pattern: RegExp }> = locale === 'pt-BR'
+    ? [
+        { actor: 'copiloto', pattern: /\b(copiloto|sic)\b[^.]{0,320}\b(nao se lembrou|esqueceu|admitiu que esqueceu|declarou que esqueceu)\b/ },
+        { actor: 'comandante', pattern: /\b(comandante|pic)\b[^.]{0,320}\b(nao se lembrou|esqueceu|admitiu que esqueceu|declarou que esqueceu)\b/ },
+        { actor: 'piloto', pattern: /\bpiloto\b[^.]{0,320}\b(nao se lembrou|esqueceu|admitiu que esqueceu|declarou que esqueceu)\b/ },
+      ]
+    : [
+        { actor: 'first officer', pattern: /\b(first officer|sic)\b[^.]{0,320}\b(did not remember|forgot|admitted (?:that )?he forgot|stated (?:that )?he forgot)\b/ },
+        { actor: 'captain', pattern: /\b(captain|pic)\b[^.]{0,320}\b(did not remember|forgot|admitted (?:that )?he forgot|stated (?:that )?he forgot)\b/ },
+        { actor: 'pilot', pattern: /\bpilot\b[^.]{0,320}\b(did not remember|forgot|admitted (?:that )?he forgot|stated (?:that )?he forgot)\b/ },
+      ]
+  const matches = roleEvidence.filter(({ pattern }) => pattern.test(text)).map(({ actor }) => actor)
+  return matches.length === 1 ? matches[0] : null
+}
+
 function roleAssigned(text: string, actor: 'captain' | 'copilot', role: 'pf' | 'pm'): boolean {
   const actorPattern = actor === 'captain' ? /\b(comandante|captain)\b/g : /\b(copiloto|first officer)\b/g
   const allActorPattern = /\b(comandante|captain|copiloto|first officer)\b/g
@@ -46,6 +63,11 @@ export function runStep06DirectActor(input: {
   const escapeHasCopilot = /\b(copiloto|first officer|sic)\b/.test(escapeText)
   const escapeHasCaptain = /\b(comandante|captain|training captain|pic)\b/.test(escapeText)
   const escapeHasCollectiveCrew = /\b(tripulacao|tripulação|flight crew|crew|ambos os pilotos|dois pilotos|nenhum piloto|nenhum dos pilotos|both pilots|neither pilot|nos|we)\b|\ba gente\b/.test(escapeText)
+  const passiveOperationalDeparture = isExplicitOperationalOmissionStatement(primaryEscape)
+    || isExplicitOperationalDeviationStatement(primaryEscape)
+  const passiveProceduralActor = passiveOperationalDeparture && !escapeHasCopilot && !escapeHasCaptain && !escapeHasCollectiveCrew
+    ? explicitActorForPassiveProceduralOmission(input.engineInput.narrative, input.engineInput.locale)
+    : null
   const escapeHasOtherPilot = /\b(outro piloto|outro tripulante|o cara)\b.{0,220}\b(desacoplou|cancelou|reduziu|colocou|aplicou|puxou|empurrou|meteu|mexeu|pilotou|tentou|executou|subiu|desceu|fez|did|disengaged|cancelled|reduced|put|applied|pulled|pushed|executed)\b/.test(escapeText)
   const escapeHasNarratorAct = /\beu\b.{0,220}\b(decidi|resolvi|optei|escolhi|julguei|preferi|tirei|retirei|desguarneci|peguei|puxei|empurrei|assumi|pousei|fiz|conduzi|executei|tentei|i decided|i chose|i removed|i pulled|i landed)\b/.test(escapeText)
     || /\b(decidi|resolvi|optei|escolhi|julguei|preferi|tirei|retirei|desguarneci|peguei|puxei|empurrei|assumi|pousei|fiz|conduzi|executei|tentei)\b.{0,220}\b(eu|meu|minha)\b/.test(escapeText)
@@ -108,7 +130,7 @@ export function runStep06DirectActor(input: {
     .filter((annotation) => annotation.roles.includes('DIRECT_ACTOR') || annotation.roles.includes('FIRST_DEPARTURE'))
     .map((annotation) => annotation.actor!.trim())
     .filter(Boolean))]
-  if (semanticActors.length === 1) {
+  if (semanticActors.length === 1 && !(passiveOperationalDeparture && !escapeHasCopilot && !escapeHasCaptain && !escapeHasCollectiveCrew)) {
     return {
       actor: semanticActors[0],
       status: 'IDENTIFIED',
@@ -124,6 +146,17 @@ export function runStep06DirectActor(input: {
       actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
         ? 'A extração semântica encontrou mais de um ator explicitamente associado ao ponto de fuga; é necessária revisão humana antes da travessia P/O/A.'
         : 'Semantic extraction found more than one actor explicitly associated with the escape point; human review is required before P/O/A traversal.'],
+    }
+  }
+
+  if (passiveProceduralActor) {
+    return {
+      actor: passiveProceduralActor,
+      status: 'IDENTIFIED',
+      alternatives: input.engineInput.locale === 'pt-BR' ? ['tripulação'] : ['flight crew'],
+      actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
+        ? 'A frase do ponto de fuga é passiva, mas o próprio relato atribui explicitamente ao ator a falha de memória/retomada do procedimento que explica a omissão; a atribuição é preservada sem inferir um ator apenas pela posição na cabine.'
+        : 'The escape-point sentence is passive, but the source explicitly attributes the procedure-resumption memory lapse to this actor; attribution is retained without inferring an actor from cockpit position alone.'],
     }
   }
 
@@ -247,8 +280,6 @@ export function runStep06DirectActor(input: {
           : 'The critical control act is supported, but the selected factual sentence does not identify who applied the input. Control-side position or mentions of other crewmembers in adjacent facts are insufficient for actor attribution.'],
       }
     }
-    const passiveOperationalDeparture = isExplicitOperationalOmissionStatement(primaryEscape)
-      || isExplicitOperationalDeviationStatement(primaryEscape)
     if (passiveOperationalDeparture && !escapeHasCopilot && !escapeHasCaptain && !escapeHasMaintenance) {
       const escapeIsDispatchDecision = /\b(despach\w*|dispatch\w*|mel)\b/.test(escapeText)
       const explicitDispatchActors = [

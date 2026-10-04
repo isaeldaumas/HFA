@@ -160,12 +160,9 @@ export function runStep03EscapePoint(input: {
   ) || null
   const sameRawLandmark = Boolean(rawFirstDepartureCandidate && rawCriticalUnsafeActCandidate &&
     rawFirstDepartureCandidate.trim() === rawCriticalUnsafeActCandidate.trim())
-  const laterCompoundHumanFactor = compoundLandmark?.later
-    ? classifyHumanFactorEscapeStatement(compoundLandmark.later) !== null
-    : false
   const criticalUnsafeActCandidate = trimSemanticLandmarkToEventMoment(
     sameRawLandmark && compoundLandmark
-      ? (laterCompoundHumanFactor ? compoundLandmark.later : compoundLandmark.first)
+      ? compoundLandmark.later
       : rawCriticalUnsafeActCandidate,
   ) || null
   const poaAnchorCandidate = firstDepartureCandidate

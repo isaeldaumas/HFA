@@ -233,7 +233,12 @@ function conciseRootResponse(axis: CanonicalSeraAxis, raw: string): string {
     if (wrongAlternativePt) return `O operador tentava responder por meio do comando ${wrongAlternativePt[1].trim()}, em vez de ${wrongAlternativePt[2].trim()}.`
     const proceduralOmission = text.match(/(?:omitiu|n[aã]o executou|n[aã]o realizou|deixou de executar|deixou de realizar|foi omitid[oa])\s+(.{0,160}?\b(?:checklist|item|etapa|passo|procedimento)\b.{0,120}?)(?:[.;]|$)/i)
       ?? text.match(/(.{0,120}?\b(?:checklist|item|etapa|passo|procedimento)\b.{0,120}?)\s+(?:n[aã]o foi executad[oa]|foi omitid[oa])(?:[.;]|$)/i)
-    if (proceduralOmission) return `O operador tentava executar o fluxo procedural descrito, mas ${proceduralOmission[0].trim().replace(/[.]$/, '')}.`
+    if (proceduralOmission) {
+      const omissionText = proceduralOmission[0].trim().replace(/[.]$/, '').replace(/^[A-ZÁÉÍÓÚÃÕÇ]/, (value) => value.toLowerCase())
+      return `O operador tentava executar o fluxo procedural descrito, mas ${omissionText}.`
+    }
+    const selectionMismatch = text.match(/(?:selecionou|configurou|programou|ajustou)\s+(?:um |uma )?(?:modo|configura[cç][aã]o|valor|setting)[^.;]{0,160}?(?:diferente d(?:aquele|aquela|o|a) que pretendia|different from (?:what|the one) (?:he|she|the operator) intended)/i)
+    if (selectionMismatch) return 'O operador tentava configurar o sistema por meio da seleção de uma alternativa disponível.'
     const insertedSelection = text.match(/(?:inseriu|programou|selecionou|ajustou)\s+(.{1,180}?)(?:[.;]|$)/i)
     if (insertedSelection) return `O operador tentava atingir o objetivo por meio da seleção/configuração de ${insertedSelection[1].trim()}.`
     if (/\b(?:colocou|aplicou|usou|utilizou|put|applied|used)\b.{0,100}\b(?:barra na barra|pitch down|c[ií]clico|cyclic|comando|control)\b/i.test(text)) {

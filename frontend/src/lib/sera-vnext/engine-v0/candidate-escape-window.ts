@@ -482,7 +482,33 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
     return total
   }
 
-  const criticalSelectionPool = selectedPool
+  // The first-departure pool intentionally excludes post-escape material, but a later
+  // human-factor act/omission still belongs in the occurrence sequence as downstream
+  // evolution. Re-admit only concrete later unsafe acts/conditions for critical-landmark
+  // selection; they can never replace the first departure as the P/O/A anchor.
+  const downstreamHumanFactorScored = firstDeparture
+    ? timeline
+        .filter((item) => item.sourceSentenceIndex > firstDeparture.sourceSentenceIndex)
+        .filter((item) => !item.assertionStatus || item.assertionStatus === 'AFFIRMED')
+        .filter((item) => item.sourceSection !== 'REPORT_ANALYSIS' && item.sourceSection !== 'RECOMMENDATION' && item.sourceSection !== 'ADMINISTRATIVE')
+        .filter((item) => !['HISTORICAL_COMPARATOR', 'PRE_EVENT_CAUSAL_HISTORY'].includes(item.occurrenceScope ?? 'UNKNOWN'))
+        .filter((item) => !outcomeItem || item.sourceSentenceIndex < outcomeItem.sourceSentenceIndex)
+        .filter((item) => !hasOutcomeSignal(item.statement))
+        .map((item) => {
+          let score = candidateScore(item.statement)
+          if (item.semanticRoles?.includes('CRITICAL_UNSAFE_ACT')) score += item.semanticConfidence === 'HIGH' ? 12 : 8
+          return { item, score }
+        })
+        .filter(({ score }) => score >= 5)
+        .filter(({ item }) =>
+          classifyHumanFactorEscapeStatement(item.statement) !== null
+          || Boolean(item.semanticConfidence !== 'LOW' && item.semanticRoles?.includes('CRITICAL_UNSAFE_ACT')),
+        )
+    : []
+  const criticalSelectionPool = [
+    ...selectedPool,
+    ...downstreamHumanFactorScored.filter((candidate) => !selectedPool.some((existing) => existing.item.statement === candidate.item.statement)),
+  ]
   const criticalRanked = [...criticalSelectionPool].sort((a, b) =>
     criticalTrajectoryScore(b) - criticalTrajectoryScore(a) ||
     b.item.sourceSentenceIndex - a.item.sourceSentenceIndex,

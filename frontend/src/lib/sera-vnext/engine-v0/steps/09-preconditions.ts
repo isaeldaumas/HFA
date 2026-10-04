@@ -92,6 +92,43 @@ const PRECONDITION_INVESTIGATION_PROMPT_PT: Record<SeraCanonicalPreconditionCate
   OVERSIGHT: 'Verificar mecanismos de auditoria, monitoramento, gerenciamento de risco e correção de problemas sistêmicos existentes antes do evento.',
 }
 
+function normalizeFactorText(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+function deterministicExplicitCanonicalFactors(statement: string): SeraCanonicalPreconditionCategory[] {
+  const text = normalizeFactorText(statement)
+  const factors: SeraCanonicalPreconditionCategory[] = []
+  const add = (factor: SeraCanonicalPreconditionCategory) => { if (!factors.includes(factor)) factors.push(factor) }
+
+  const physiologyNegated = /\b(?:nao havia|nao houve|sem|negou|nao relatou|nao sentia|without)\b.{0,90}\b(?:fadiga|fatigue|cansaco|cansado|cansada|sonol|drows|bocej|yawn)\b/.test(text)
+  const physiologyPositive = /\b(?:fadiga|fatigue|cansaco|cansado|cansada|sonol\w*|drows\w*|bocej\w*|yawn\w*)\b/.test(text)
+    || /\b(?:dormiu|dormido|sleep|slept)\b.{0,80}\b(?:[0-5]|uma|duas|tres|quatro|cinco|one|two|three|four|five)\b.{0,30}\b(?:hora|horas|hour|hours)\b/.test(text)
+  if (physiologyPositive && !physiologyNegated) add('PHYSIOLOGICAL')
+
+  const socialNegated = /\b(?:sem|nao havia|without)\b.{0,80}\b(?:gradiente de autoridade|authority gradient|pressao social|peer pressure)\b/.test(text)
+  if (!socialNegated && /\b(?:gradiente de autoridade|authority gradient|pressao social|peer pressure|pressao dos pares)\b/.test(text)) add('SOCIAL')
+
+  const timePressureNegated = /\b(?:nao havia|nao houve|sem|without)\b.{0,90}\b(?:pressao temporal|pressao de tempo|time pressure|schedule pressure)\b/.test(text)
+  const timePressurePositive = /\b(?:pressao (?:para manter|de tempo|temporal)|time pressure|schedule pressure|pressao de escala|sequencia apressada|preparacao acelerada|rushed preparation|rushed sequence)\b/.test(text)
+    || /\b(?:prioridade|priority)\b.{0,80}\b(?:recuperar atrasos|recover delays|schedule recovery)\b/.test(text)
+    || /\b(?:sem margem para atrasos|no margin for delays|tight schedule)\b/.test(text)
+  if (timePressurePositive && !timePressureNegated) add('TIME_PRESSURE')
+
+  if (/\b(?:supervisor|supervisao|supervision)\b.{0,180}\b(?:nao reavaliou|nao avaliou|nao monitorou|inadequad|degradad|did not reassess|did not evaluate|did not monitor|inadequate|degraded)\b/.test(text)) add('MONITORING_SUPERVISION')
+
+  if (/\b(?:sem tripulacao reserva|sem equipe reserva|no reserve crew|without reserve crew|falta de pessoal|efetivo reduzido|reduced staffing|staff shortage|resource shortage)\b/.test(text)) add('PROVISION_RESOURCES')
+
+  if (/\b(?:dificuldades recorrentes|problemas recorrentes|recurring difficulties|recurring problems|problema sistemico|systemic problem)\b/.test(text)) add('OVERSIGHT')
+
+  return factors
+}
+
+function deterministicAttentionWorkloadContext(statement: string): boolean {
+  const text = normalizeFactorText(statement)
+  return /\b(?:alta carga de trabalho|carga de trabalho elevada|high workload|elevated workload|varias comunicacoes simultaneas|multiplas comunicacoes simultaneas|multiple simultaneous communications|simultaneous communications)\b/.test(text)
+}
+
 const CATEGORY_DESCRIPTION_EN: Record<string, string> = {
   PHYSICAL_CAPABILITY: 'Physical or ergonomic condition potentially relevant to task execution.',
   SENSORY_LIMITATION: 'Sensory condition potentially relevant to situation perception.',
@@ -541,6 +578,113 @@ export function runStep09Preconditions(input: {
     }
   })
 
+  // Preserve explicit source-grounded precondition/context facts even when the generic
+  // evidence classifier did not attach a PRECONDITION role. This layer is deliberately
+  // narrow: it recognizes only directly stated factor classes and never creates causal
+  // support from Table 1 correspondence alone.
+  const explicitFactorEvidence = input.factualExtraction.evidence
+    .filter((item) => item.assertionStatus === 'AFFIRMED')
+    .filter((item) => item.occurrenceScope !== 'HISTORICAL_COMPARATOR')
+    .filter((item) => item.sourceSection !== 'REPORT_ANALYSIS' && item.sourceSection !== 'RECOMMENDATION' && item.sourceSection !== 'ADMINISTRATIVE')
+  const explicitByCanonical = new Map<SeraCanonicalPreconditionCategory, SeraEvidenceItem[]>()
+  for (const item of explicitFactorEvidence) {
+    for (const canonical of deterministicExplicitCanonicalFactors(item.statement)) {
+      const bucket = explicitByCanonical.get(canonical) ?? []
+      pushEvidence(bucket, item)
+      explicitByCanonical.set(canonical, bucket)
+    }
+  }
+
+  for (const [canonical, sourceItems] of explicitByCanonical) {
+    const existing = evidencedCandidates.find((item) => item.canonicalCategory === canonical)
+    if (existing) {
+      // Keep the existing candidate, but enrich it with any explicit source evidence the
+      // generic path missed. Causality remains governed by the same boundary/evidence gate.
+      const mergedSource = dedupeEvidenceByContainment([...existing.sourceEvidence, ...sourceItems]).slice(0, 5)
+      const mergedText = [...new Set([...existing.evidence, ...sourceItems.map((item) => item.statement)])].slice(0, 5)
+      existing.sourceEvidence = mergedSource
+      existing.evidence = mergedText
+      // Never use this deterministic preservation layer to upgrade an existing semantic/
+      // generic candidate's causal status. Existing candidates already passed their own
+      // provenance and causal-boundary rules; here we only prevent explicit source facts
+      // from disappearing from the report.
+      continue
+    }
+
+    const hasExplicitCausalSupport = causalBoundaryResolved && sourceItems.some((item) =>
+      item.relationshipToFailure === 'ENABLING_PRECONDITION' || item.relationshipToFailure === 'CONTEXTUAL_PRECONDITION',
+    )
+    const relationship: SeraEvidenceRelationshipToFailure = hasExplicitCausalSupport
+      ? (sourceItems.some((item) => item.relationshipToFailure === 'ENABLING_PRECONDITION') ? 'ENABLING_PRECONDITION' : 'CONTEXTUAL_PRECONDITION')
+      : 'UNRELATED_OR_UNSUPPORTED'
+    const likelyCodes = activeFailureCodes.filter((code) => (SERA_MOST_LIKELY_PRECONDITIONS[code] ?? []).includes(canonical))
+    evidencedCandidates.push({
+      id: `PC-EXPLICIT-${canonical}`,
+      label: canonical,
+      description: hasExplicitCausalSupport
+        ? (input.locale === 'pt-BR' ? SERA_PRECONDITION_META[canonical].definitionPt : SERA_PRECONDITION_META[canonical].definitionEn)
+        : (input.locale === 'pt-BR'
+            ? 'Fator explicitamente registrado no relato e preservado como hipótese contextual; o vínculo causal com a falha ativa ainda não está estabelecido.'
+            : 'Factor explicitly recorded in the source and retained as contextual hypothesis; a causal link to the active failure is not yet established.'),
+      category: OPERATIONAL_CATEGORY_BY_CANONICAL[canonical],
+      evidence: [...new Set(sourceItems.map((item) => item.statement))].slice(0, 5),
+      relationship,
+      sourceEvidence: dedupeEvidenceByContainment(sourceItems).slice(0, 5),
+      sourceRuleIds: [
+        `SERA-HENDY-ANNEX-B-${canonical}`,
+        ...likelyCodes.map((code) => `SERA-HENDY-TABLE1-${code}-${canonical}`),
+      ],
+      linkedActor: hasExplicitCausalSupport ? input.directActor.actor : null,
+      explicitlyNotEscapePoint: true,
+      basedOnCandidateCode: false,
+      nonFinal: true,
+      confidence: hasExplicitCausalSupport ? (sourceItems.length >= 2 ? 'MEDIUM' : 'LOW') : 'LOW',
+      canonicalCategory: canonical,
+      canonicalLevel: SERA_PRECONDITION_META[canonical].level,
+      likelyForActiveFailureCodes: likelyCodes,
+      methodologyMatch: hasExplicitCausalSupport
+        ? (likelyCodes.length ? 'MOST_LIKELY_AND_EVIDENCED' : 'EVIDENCED_OUTSIDE_MOST_LIKELY_SET')
+        : 'HYPOTHESIS_ONLY',
+    })
+  }
+
+  if (explicitByCanonical.has('PHYSIOLOGICAL')) {
+    const physiologicalStatements = new Set(
+      (explicitByCanonical.get('PHYSIOLOGICAL') ?? []).map((item) => item.statement),
+    )
+    for (let index = evidencedCandidates.length - 1; index >= 0; index -= 1) {
+      const candidate = evidencedCandidates[index]
+      if (candidate.canonicalCategory != null || candidate.category !== 'PHYSICAL_CAPABILITY') continue
+      if (candidate.evidence.some((statement) => physiologicalStatements.has(statement))) evidencedCandidates.splice(index, 1)
+    }
+  }
+
+  const explicitAttentionEvidence = explicitFactorEvidence
+    .filter((item) => deterministicAttentionWorkloadContext(item.statement))
+  if (explicitAttentionEvidence.length && !evidencedCandidates.some((item) => item.category === 'ATTENTION_WORKLOAD_CONTEXT' && item.canonicalCategory == null)) {
+    evidencedCandidates.push({
+      id: 'PC-EXPLICIT-ATTENTION-WORKLOAD',
+      label: 'ATTENTION_WORKLOAD_CONTEXT',
+      description: input.locale === 'pt-BR'
+        ? 'Carga de trabalho ou demandas simultâneas foram explicitamente registradas no relato e permanecem como contexto a investigar, sem vínculo causal presumido.'
+        : 'Workload or simultaneous demands were explicitly recorded in the source and remain context to investigate, without a presumed causal link.',
+      category: 'ATTENTION_WORKLOAD_CONTEXT',
+      evidence: [...new Set(explicitAttentionEvidence.map((item) => item.statement))].slice(0, 5),
+      relationship: 'UNRELATED_OR_UNSUPPORTED',
+      sourceEvidence: dedupeEvidenceByContainment(explicitAttentionEvidence).slice(0, 5),
+      sourceRuleIds: [CATEGORY_RULE_ID.ATTENTION_WORKLOAD_CONTEXT],
+      linkedActor: null,
+      explicitlyNotEscapePoint: true,
+      basedOnCandidateCode: false,
+      nonFinal: true,
+      confidence: 'LOW',
+      canonicalCategory: null,
+      canonicalLevel: null,
+      likelyForActiveFailureCodes: [],
+      methodologyMatch: 'HYPOTHESIS_ONLY',
+    })
+  }
+
   const dutyExposureEvidence = input.factualExtraction.evidence
     .filter((item) => item.occurrenceScope !== 'HISTORICAL_COMPARATOR')
     .filter((item) => item.assertionStatus === 'AFFIRMED')
@@ -578,7 +722,9 @@ export function runStep09Preconditions(input: {
     if (leftIndex !== undefined && rightIndex !== undefined) return leftIndex - rightIndex
     if (leftIndex !== undefined) return -1
     if (rightIndex !== undefined) return 1
-    return left.label.localeCompare(right.label, input.locale === 'pt-BR' ? 'pt-BR' : 'en')
+    const leftLabel = left.canonicalCategory ? SERA_PRECONDITION_META[left.canonicalCategory].pt : left.label
+    const rightLabel = right.canonicalCategory ? SERA_PRECONDITION_META[right.canonicalCategory].pt : right.label
+    return leftLabel.localeCompare(rightLabel, input.locale === 'pt-BR' ? 'pt-BR' : 'en')
   })
 
   if (!causalBoundaryResolved || activeFailureCodes.length === 0) return evidencedCandidates

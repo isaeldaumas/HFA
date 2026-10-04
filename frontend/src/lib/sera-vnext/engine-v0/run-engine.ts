@@ -148,7 +148,10 @@ export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngi
     safeOperationModel,
     escapePoint: {
       ...poaEscapePoint,
-      firstDepartureActor: semanticActorForLandmark(effectiveInput, poaEscapePoint.firstDepartureCandidate, 'FIRST_DEPARTURE') ?? directActor.actor,
+      // The first-departure actor is governed by the direct-actor gate. Semantic actor
+      // annotations may suggest candidates, but cannot override an AMBIGUOUS/UNRESOLVED
+      // actor determination for a passive or otherwise unattributed anchor.
+      firstDepartureActor: directActor.status === 'IDENTIFIED' ? directActor.actor : null,
       criticalUnsafeActActor: semanticActorForLandmark(effectiveInput, poaEscapePoint.criticalUnsafeActCandidate, 'CRITICAL_UNSAFE_ACT')
         ?? lexicalActorForLandmark(poaEscapePoint.criticalUnsafeActCandidate, effectiveInput.locale)
         ?? (poaEscapePoint.criticalUnsafeActCandidate && poaEscapePoint.firstDepartureCandidate

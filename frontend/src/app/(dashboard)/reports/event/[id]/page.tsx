@@ -510,7 +510,7 @@ export default function EventReportPage() {
                       <div key={item.id} className="report-box">
                         <p><strong>{item.canonicalCategory ? (pt ? SERA_PRECONDITION_META[item.canonicalCategory].pt : SERA_PRECONDITION_META[item.canonicalCategory].en) : preconditionCategoryLabel(item.category, pt)}:</strong> {item.description}</p>
                         {item.canonicalLevel ? <p className="text-xs text-slate-500 mt-1">{L('Nível SERA', 'SERA level')}: {item.canonicalLevel}</p> : null}
-                        {item.methodologyMatch ? <p className="text-xs text-slate-500 mt-1">{L('Tabela de pré-condições', 'Precondition table')}: {preconditionMethodologyMatchLabel(item.methodologyMatch, locale === 'pt-BR')}</p> : null}
+                        {item.methodologyMatch ? <p className="text-xs text-slate-500 mt-1">{L('Tabela de pré-condições', 'Precondition table')}: {preconditionMethodologyMatchLabel(item.methodologyMatch, locale === 'pt-BR', item.basedOnCandidateCode)}</p> : null}
                         {item.likelyForActiveFailureCodes?.length ? <p className="text-xs text-slate-500 mt-1">{L('Mais provável para', 'Most likely for')}: {item.likelyForActiveFailureCodes.join(', ')}</p> : null}
                         <p className="text-sm text-slate-700 mt-1">{L('Relação', 'Relationship')}: {preconditionRelationshipLabel(item.relationship, pt)}</p>
                         {contextReadout && (
@@ -535,7 +535,7 @@ export default function EventReportPage() {
                     <div key={item.id} className="report-box bg-amber-50">
                       <p><strong>{item.canonicalCategory ? (pt ? SERA_PRECONDITION_META[item.canonicalCategory].pt : SERA_PRECONDITION_META[item.canonicalCategory].en) : preconditionCategoryLabel(item.category, pt)}:</strong> {item.description}</p>
                       {item.canonicalLevel ? <p className="text-xs text-slate-500 mt-1">{L('Nível SERA', 'SERA level')}: {item.canonicalLevel}</p> : null}
-                      {item.methodologyMatch ? <p className="text-xs text-slate-500 mt-1">{L('Tabela de pré-condições', 'Precondition table')}: {preconditionMethodologyMatchLabel(item.methodologyMatch, locale === 'pt-BR')}</p> : null}
+                      {item.methodologyMatch ? <p className="text-xs text-slate-500 mt-1">{L('Tabela de pré-condições', 'Precondition table')}: {preconditionMethodologyMatchLabel(item.methodologyMatch, locale === 'pt-BR', item.basedOnCandidateCode)}</p> : null}
                       <p className="text-sm text-slate-700 mt-1">{L('Relação', 'Relationship')}: {preconditionRelationshipLabel(item.relationship, pt)}</p>
                       {item.evidence.length > 0 ? <p className="text-sm text-slate-700 mt-1">{L('Evidência contextual', 'Contextual evidence')}: {item.evidence.slice(0, 3).join(' | ')}</p> : null}
                     </div>
