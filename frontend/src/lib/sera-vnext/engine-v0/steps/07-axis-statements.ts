@@ -45,6 +45,14 @@ function evidenceFor(
   const maxDistance = use === 'ACTION' ? 60 : 90
   const criticalAnchorText = (criticalAnchor ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
   const anchorAcknowledgesCrewCue = /\b(acknowledg\w*|recognized|noted|confirmed|reconheceu|confirmou|acusou recebimento|ciente)\b/.test(criticalAnchorText)
+  const firstLandmarkText = (escapePoint.firstDepartureCandidate ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+  const laterLandmarkText = (escapePoint.criticalUnsafeActCandidate ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+  const hasDistinctLaterLandmark = Boolean(firstLandmarkText && laterLandmarkText && firstLandmarkText !== laterLandmarkText)
+  const compoundLandmarkSentence = (statement: string): boolean => {
+    if (!hasDistinctLaterLandmark) return false
+    const normalizedStatement = statement.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    return normalizedStatement.includes(firstLandmarkText) && normalizedStatement.includes(laterLandmarkText)
+  }
   const semanticPassPresent = factualExtraction.evidence.some((item) => item.collectionSource === 'AI_SEMANTIC_EXTRACTION')
   const semanticPoABySentence = new Set(
     factualExtraction.evidence
@@ -56,6 +64,10 @@ function evidenceFor(
   )
   const ranked = factualExtraction.evidence
     .filter((item) => {
+      // If one source sentence contains two sequential operator landmarks, the first clause is
+      // the unique P/O/A anchor. The full compound sentence is unsafe for P/O/A because it would
+      // re-import the later actor/action through lexical or semantic concepts.
+      if (compoundLandmarkSentence(item.statement)) return false
       // In canonical AI-assisted analyses, semantic interpretation is the primary P/O/A layer.
       // Raw lexical evidence remains only as a fallback when no semantic pass exists, plus the
       // exact observable critical act for Action when semantic extraction missed that sentence.

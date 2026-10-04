@@ -790,6 +790,8 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     const hypothesisPreconditions = output.preconditions.filter((pc) =>
       pc.relationship !== 'CONTEXTUAL_PRECONDITION' && pc.relationship !== 'ENABLING_PRECONDITION',
     )
+    const taxonomyOnlyInvestigationGaps = hypothesisPreconditions.filter((pc) => pc.basedOnCandidateCode && pc.evidence.length === 0)
+    const evidenceHypotheses = hypothesisPreconditions.filter((pc) => !(pc.basedOnCandidateCode && pc.evidence.length === 0))
     const renderPrecondition = (pc: typeof output.preconditions[number], hypothesis: boolean) => {
       const reviewCard = reviewerOutput.preconditionReview.cards.find((card) => card.category === pc.category)
       const canonicalMeta = pc.canonicalCategory ? SERA_PRECONDITION_META[pc.canonicalCategory] : null
@@ -835,14 +837,26 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
         subheading(doc, L('Pré-condições sustentadas pela evidência', 'Preconditions supported by the evidence'))
         for (const pc of supportedPreconditions) renderPrecondition(pc, false)
       }
-      if (hypothesisPreconditions.length) {
-        subheading(doc, L('Hipóteses preservadas - não confirmadas causalmente', 'Retained hypotheses - not causally confirmed'))
+      if (evidenceHypotheses.length) {
+        subheading(doc, L('Hipóteses contextuais preservadas - não confirmadas causalmente', 'Retained contextual hypotheses - not causally confirmed'))
         body(doc, L(
-          'Estes itens foram mencionados ou sugeridos no material-fonte, mas não entram como pré-condições confirmadas nem no Perfil de Risco enquanto permanecerem sem suporte causal suficiente.',
-          'These items were mentioned or suggested in the source material, but they do not count as confirmed preconditions or enter the Risk Profile while causal support remains insufficient.',
+          'Estes itens aparecem no material-fonte como contexto potencialmente relevante, mas não entram como pré-condições confirmadas nem no Perfil de Risco enquanto permanecerem sem suporte causal suficiente.',
+          'These items appear in the source material as potentially relevant context, but they do not count as confirmed preconditions or enter the Risk Profile while causal support remains insufficient.',
         ), 'justify')
         doc.moveDown(0.25)
-        for (const pc of hypothesisPreconditions) renderPrecondition(pc, true)
+        for (const pc of evidenceHypotheses) renderPrecondition(pc, true)
+      }
+      if (taxonomyOnlyInvestigationGaps.length) {
+        subheading(doc, L('Rotas de investigação sugeridas pela taxonomia', 'Investigation routes suggested by the taxonomy'))
+        body(doc, L(
+          'As categorias abaixo vêm da correspondência da Tabela 1 com a falha ativa candidata. Elas são perguntas de investigação, não fatores encontrados no relato e não causas presumidas.',
+          'The categories below come from Table 1 correspondence with the candidate active failure. They are investigation prompts, not factors found in the source and not presumed causes.',
+        ), 'justify')
+        bullets(doc, taxonomyOnlyInvestigationGaps.map((pc) => {
+          const meta = pc.canonicalCategory ? SERA_PRECONDITION_META[pc.canonicalCategory] : null
+          const label = meta ? (pt ? meta.pt : meta.en) : categoryLabel(pc.category)
+          return `${label}: ${pc.description}`
+        }))
       }
     }
 
@@ -889,7 +903,10 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       output,
     })
     const correctiveSuggestions = treatmentSuggestions.filter((item) => item.kind === 'CORRECTIVE_PREVENTIVE')
-    const investigationSuggestions = treatmentSuggestions.filter((item) => item.kind === 'INVESTIGATION')
+    const taxonomyOnlyCategories = new Set(taxonomyOnlyInvestigationGaps.map((pc) => pc.canonicalCategory).filter(Boolean))
+    const investigationSuggestions = treatmentSuggestions.filter((item) =>
+      item.kind === 'INVESTIGATION' && !taxonomyOnlyCategories.has(item.canonicalCategory),
+    )
     body(doc, L(
       'O tratamento é derivado das pré-condições, não apenas do código P/O/A. Pré-condições sustentadas geram propostas de controle para decisão humana; hipóteses ainda não confirmadas geram somente tarefas de investigação. Após a implementação, a ação deve ter eficácia verificada e o risco residual acompanhado antes do fechamento do ciclo.',
       'Treatment is derived from preconditions, not merely from P/O/A codes. Evidence-supported preconditions generate control proposals for human decision; unconfirmed hypotheses generate investigation tasks only. After implementation, action effectiveness and residual risk must be reviewed before closing the cycle.',
@@ -905,8 +922,10 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       subheading(doc, L('Lacunas de investigação antes de definir ação', 'Investigation gaps before defining action'))
       bullets(doc, investigationSuggestions.map((item) => `${item.title}: ${item.description}`))
     }
-    if (!treatmentSuggestions.length) {
-      body(doc, L('Nenhuma proposta de tratamento é liberada com a evidência atual. Complete a investigação e valide as pré-condições antes de definir ações.', 'No treatment proposal is released with the current evidence. Complete the investigation and validate preconditions before defining actions.'))
+    if (!correctiveSuggestions.length && !investigationSuggestions.length) {
+      body(doc, taxonomyOnlyInvestigationGaps.length
+        ? L('Nenhuma ação corretiva é proposta com a evidência atual. As rotas de investigação orientadas pela taxonomia estão consolidadas na seção 5 e não são causas presumidas.', 'No corrective action is proposed with the current evidence. Taxonomy-guided investigation routes are consolidated in Section 5 and are not presumed causes.')
+        : L('Nenhuma proposta de tratamento é liberada com a evidência atual. Complete a investigação e valide as pré-condições antes de definir ações.', 'No treatment proposal is released with the current evidence. Complete the investigation and validate preconditions before defining actions.'))
     }
 
     heading(doc, '9. ' + L('Conclusão e próximos passos', 'Conclusion and next steps'))
