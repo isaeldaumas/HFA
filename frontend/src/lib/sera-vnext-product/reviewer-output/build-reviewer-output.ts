@@ -65,7 +65,10 @@ export function buildReviewerOutput(engineOutput: SeraVNextEngineOutput): SeraRe
     escapePointStatus === 'CANDIDATE' || escapePointStatus === 'PROGRESSIVE_ZONE'
 
   let overallUsefulnessWarning: string | undefined
-  if (!hasWorkableCandidate) {
+  if (escapePointStatus === 'NO_HUMAN_ESCAPE_POINT') {
+    overallUsefulnessWarning =
+      'P/O/A não é aplicável enquanto não houver ponto de fuga humano. A revisão deve confirmar essa não aplicabilidade, não buscar um código para preencher os eixos.'
+  } else if (!hasWorkableCandidate) {
     overallUsefulnessWarning =
       'Atenção: o ponto de fuga não está classificado como candidato viável. A análise de eixos abaixo pode ter utilidade limitada.'
   }

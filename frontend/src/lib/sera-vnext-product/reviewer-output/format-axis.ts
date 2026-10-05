@@ -45,6 +45,7 @@ function formatCandidateStatus(status: string): string {
     NO_FAILURE: 'Sem falha neste eixo — evidência indica operação dentro do esperado',
     INSUFFICIENT_EVIDENCE: 'Evidência insuficiente — análise não pôde determinar código candidato',
     UNRESOLVED: 'Não resolvido — eixo permanece em revisão humana',
+    NOT_APPLICABLE: 'Não aplicável — travessia P/O/A não iniciada porque não há ponto de fuga humano',
   }
   return map[status] ?? status
 }
@@ -56,6 +57,24 @@ export function buildAxisReviewerCard(
   const supporting = summarizeEvidence(candidate.supportingEvidence)
   const counter = summarizeEvidence(candidate.counterEvidence)
   const excluded = summarizeEvidence(candidate.excludedPostEscapeEvidence)
+
+  if (candidate.status === 'NOT_APPLICABLE') {
+    return {
+      axis,
+      plainLanguageQuestion: plainLanguageQuestion(axis),
+      candidateStatus: formatCandidateStatus(candidate.status),
+      candidateCode: null,
+      candidateMeaning: null,
+      statementAtEscapePoint: null,
+      whyCandidateWasSuggested: ['Nenhum ponto de fuga humano aplicável foi estabelecido; este eixo não foi percorrido.'],
+      whyItMayBeWrong: ['A revisão humana deve confirmar a não aplicabilidade e reabrir o eixo somente se surgir evidência de uma saída humana anterior ao resultado.'],
+      alternativesConsidered: ['Não se aplica enquanto o gate de ponto de fuga humano permanecer fechado.'],
+      evidenceUsed: [],
+      evidenceExcluded: excluded,
+      confidence: 'não aplicável',
+      reviewerMustDecide: ['Confirmar se P/O/A é realmente não aplicável a este evento ou se existe evidência adicional de ponto de fuga humano.'],
+    }
+  }
 
   const whySuggested: string[] =
     supporting.length > 0

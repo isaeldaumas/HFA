@@ -113,6 +113,26 @@ function buildAxisCandidate(input: {
   }
 }
 
+function notApplicableAxisCandidate(input: {
+  axis: 'P' | 'O' | 'A'
+  confidence: SeraConfidence
+  excludedPostEscapeEvidence: string[]
+}): SeraAxisCandidate {
+  return {
+    axis: input.axis,
+    proposedCode: null,
+    status: 'NOT_APPLICABLE',
+    actor: null,
+    statementAtEscapePoint: null,
+    supportingEvidence: [],
+    counterEvidence: [],
+    excludedPostEscapeEvidence: input.excludedPostEscapeEvidence,
+    alternativesConsidered: [],
+    canonicalPath: [],
+    confidence: input.confidence,
+  }
+}
+
 function unresolvedAxisCandidate(input: {
   axis: CanonicalSeraAxis
   actor: string | null
@@ -150,9 +170,24 @@ export function runStep08CanonicalTraversal(input: {
   axes: SeraVNextEngineOutput['axes']
   canonicalTraversal: SeraVNextEngineOutput['canonicalTraversal']
 } {
+  if (input.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT') {
+    const perception = notApplicableAxisCandidate({ axis: 'P', confidence: input.escapePoint.confidence, excludedPostEscapeEvidence: input.escapePoint.excludedPostEscapeEvidence })
+    const objective = notApplicableAxisCandidate({ axis: 'O', confidence: input.escapePoint.confidence, excludedPostEscapeEvidence: input.escapePoint.excludedPostEscapeEvidence })
+    const action = notApplicableAxisCandidate({ axis: 'A', confidence: input.escapePoint.confidence, excludedPostEscapeEvidence: input.escapePoint.excludedPostEscapeEvidence })
+    return {
+      axes: { perception, objective, action },
+      canonicalTraversal: {
+        status: 'NOT_APPLICABLE',
+        paths: [],
+        unansweredQuestions: [input.locale === 'pt-BR'
+          ? 'P/O/A não aplicáveis: nenhuma ação, decisão, omissão ou percepção humana foi estabelecida como primeira saída da operação segura.'
+          : 'P/O/A not applicable: no human action, decision, omission, or perception was established as the first departure from safe operation.'],
+      },
+    }
+  }
+
   if (
     input.escapePoint.status === 'INSUFFICIENT_EVIDENCE'
-    || input.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT'
     || input.escapePoint.confidence === 'LOW'
     || input.directActor.status !== 'IDENTIFIED'
   ) {

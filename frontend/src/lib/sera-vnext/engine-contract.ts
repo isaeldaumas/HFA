@@ -96,7 +96,7 @@ export type SeraEvidenceTraceItem = {
 export type SeraAxisCandidate = {
   axis: CanonicalSeraAxis
   proposedCode: string | null
-  status: 'CANDIDATE' | 'NO_FAILURE' | 'INSUFFICIENT_EVIDENCE' | 'UNRESOLVED'
+  status: 'CANDIDATE' | 'NO_FAILURE' | 'INSUFFICIENT_EVIDENCE' | 'UNRESOLVED' | 'NOT_APPLICABLE'
   actor: string | null
   statementAtEscapePoint: string | null
   supportingEvidence: string[]
@@ -431,7 +431,7 @@ export type SeraVNextEngineOutput = {
   preconditions: SeraPreconditionCandidate[]
 
   canonicalTraversal: {
-    status: 'COMPLETED_CANDIDATE_ONLY' | 'PARTIAL' | 'REAL_TREE_MISSING' | 'INSUFFICIENT_EVIDENCE'
+    status: 'COMPLETED_CANDIDATE_ONLY' | 'PARTIAL' | 'REAL_TREE_MISSING' | 'INSUFFICIENT_EVIDENCE' | 'NOT_APPLICABLE'
     paths: SeraCanonicalPath[]
     unansweredQuestions: string[]
   }

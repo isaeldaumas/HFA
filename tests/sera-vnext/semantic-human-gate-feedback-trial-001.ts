@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { runSeraVNextEngineV0 } from '../../frontend/src/lib/sera-vnext/engine-v0/run-engine'
 import type { SeraSemanticEvidenceAnnotation, SeraSemanticHumanEscapeDisposition } from '../../frontend/src/lib/sera-vnext/engine-contract'
-import { buildExecutiveSummary } from '../../frontend/src/lib/sera-vnext/presentation'
+import { buildBlockingDiagnostic, buildExecutiveSummary } from '../../frontend/src/lib/sera-vnext/presentation'
 import { buildReviewerOutput } from '../../frontend/src/lib/sera-vnext-product/reviewer-output/build-reviewer-output'
 
 function run(
@@ -84,11 +84,17 @@ assert.equal(technical.escapePoint.firstDepartureCandidate, null)
 assert.equal(technical.escapePoint.statement, null)
 assert.equal(technical.directActor.status, 'NOT_APPLICABLE')
 assert.equal(technical.directActor.actor, null)
+assert.equal(technical.canonicalTraversal.status, 'NOT_APPLICABLE')
 assert.equal(technical.canonicalTraversal.paths.length, 0)
+assert.equal(technical.axes.perception.status, 'NOT_APPLICABLE')
+assert.equal(technical.axes.objective.status, 'NOT_APPLICABLE')
+assert.equal(technical.axes.action.status, 'NOT_APPLICABLE')
 assert.equal(technical.preconditions.length, 0, 'technical cause must not be converted into a SERA human precondition when no human escape point exists')
 const technicalSummary = buildExecutiveSummary({ title: 'generic technical event', output: technical, pt: true })
 assert.match(technicalSummary, /não há ponto de fuga humano nem ator P\/O\/A aplicável/i)
-assert.equal(buildReviewerOutput(technical).humanDecisionGuide.recommendedNextStep, 'REJECT_WORKING_HYPOTHESIS')
+const technicalReviewer = buildReviewerOutput(technical)
+assert.equal(technicalReviewer.humanDecisionGuide.recommendedNextStep, 'REJECT_WORKING_HYPOTHESIS')
+assert.match(technicalReviewer.axisReviews.perception.candidateStatus, /Não aplicável/i)
 
 // When the source only reports an operational state/result and the human mechanism is unknown
 // or conflicting, fail closed as insufficient evidence instead of inventing a crew actor.
@@ -118,5 +124,25 @@ assert.equal(unresolved.escapePoint.statement, null)
 assert.equal(unresolved.directActor.status, 'AMBIGUOUS')
 assert.equal(unresolved.directActor.actor, null)
 assert.equal(unresolved.canonicalTraversal.paths.length, 0)
+
+const unknownDiagnostic = buildBlockingDiagnostic({ narrative: unresolvedNarrative, output: unresolved, pt: true })
+assert.equal(unknownDiagnostic?.kind, 'UNKNOWN_MECHANISM')
+assert.match(unknownDiagnostic?.impact ?? '', /Resultado observado não substitui mecanismo causal/i)
+
+const conflictDiagnostic = buildBlockingDiagnostic({
+  narrative: 'O FDR registra que a aproximação começou a desviar antes da correção. O CVR registra que o desvio começou somente depois da correção. Os dois registros apresentam versões diferentes e não permitem determinar qual versão descreve a primeira saída.',
+  output: unresolved,
+  pt: true,
+})
+assert.equal(conflictDiagnostic?.kind, 'CONFLICTING_SOURCES')
+assert.match(conflictDiagnostic?.reviewerQuestion ?? '', /qual deve prevalecer/i)
+
+const incompleteDiagnostic = buildBlockingDiagnostic({
+  narrative: 'O registro está incompleto e não há registro contemporâneo do que ocorreu imediatamente antes da arremetida.',
+  output: unresolved,
+  pt: true,
+})
+assert.equal(incompleteDiagnostic?.kind, 'INCOMPLETE_RECORD')
+assert.match(incompleteDiagnostic?.impact ?? '', /inferido/i)
 
 console.log('PASS semantic human-factor gate + own-action feedback boundary')
