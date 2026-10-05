@@ -192,6 +192,7 @@ export type SeraSemanticEvidenceRole =
   | 'PERCEPTION_STATE'
   | 'OBJECTIVE_INTENT'
   | 'ACTION_STRATEGY'
+  | 'ACTION_MECHANISM'
   | 'PRECONDITION'
   | 'BARRIER'
   | 'OUTCOME'
@@ -238,6 +239,14 @@ export type SeraSemanticPreconditionCausalStatus =
   | 'PRESENT_CONTEXT'
   | 'SOURCE_LINKED'
 
+export type SeraSemanticActionFailureMechanism =
+  | 'PROCEDURAL_OMISSION'
+  | 'IMPLEMENTATION_MISMATCH'
+  | 'MONITORING_ATTENTION_LAPSE'
+  | 'FEEDBACK_FAILURE'
+  | 'OTHER_ACTION_FAILURE'
+  | 'NONE_OR_UNKNOWN'
+
 export type SeraSemanticEvidenceAnnotation = {
   id: string
   sourceQuote: string
@@ -265,6 +274,14 @@ export type SeraSemanticEvidenceAnnotation = {
    * rather than to another event, consequence, or contextual condition.
    */
   preconditionCausalTargetQuote?: string | null
+  /**
+   * Semantic mechanism of an observed action failure. This is interpretation supplied by
+   * the AI, not a SERA code. The deterministic tree only accepts implementation-failure
+   * branches when the mechanism is explicit and source-anchored.
+   */
+  actionFailureMechanism?: SeraSemanticActionFailureMechanism | null
+  /** Literal source quote that directly supports actionFailureMechanism. */
+  actionMechanismEvidenceQuote?: string | null
   /**
    * Optional display-only normalization for P/O/A descriptive roots. It may improve
    * grammar in the human report, but is never evidence and is never consumed by the

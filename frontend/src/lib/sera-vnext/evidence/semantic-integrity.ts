@@ -265,6 +265,27 @@ function enforceV2StructuralIntegrity(args: {
       ? sourceAssertion
       : item.assertionStatus;
     const hasPrecondition = roles.includes("PRECONDITION");
+    const mechanismEvidenceQuote = item.actionMechanismEvidenceQuote?.trim() || null;
+    const mechanismEvidenceSource = mechanismEvidenceQuote ? resolveSourceRecord(args.narrative, mechanismEvidenceQuote) : null;
+    const requestedMechanism = item.actionFailureMechanism ?? null;
+    const actionFailureMechanism = requestedMechanism === "NONE_OR_UNKNOWN"
+      ? requestedMechanism
+      : requestedMechanism && mechanismEvidenceSource
+        ? requestedMechanism
+        : requestedMechanism
+          ? "NONE_OR_UNKNOWN" as const
+          : null;
+    let concepts = [...new Set(item.concepts ?? [])];
+    // V2 fail-closed contract: concepts are descriptive hints, but implementation-failure
+    // concepts cannot overrule the explicit action mechanism. In particular a monitoring
+    // lapse must not become A-B merely because the model also emitted slipLapse/omission.
+    if (actionFailureMechanism == null || actionFailureMechanism === "MONITORING_ATTENTION_LAPSE" || actionFailureMechanism === "NONE_OR_UNKNOWN") {
+      concepts = concepts.filter((concept) => !["slipLapse", "proceduralOmission", "implementationMismatch"].includes(concept));
+    } else if (actionFailureMechanism === "PROCEDURAL_OMISSION") {
+      concepts = concepts.filter((concept) => concept !== "implementationMismatch");
+    } else if (actionFailureMechanism === "IMPLEMENTATION_MISMATCH") {
+      concepts = concepts.filter((concept) => concept !== "proceduralOmission");
+    }
     const candidate: SeraSemanticEvidenceAnnotation = {
       ...item,
       sourceQuote,
@@ -276,12 +297,16 @@ function enforceV2StructuralIntegrity(args: {
       preconditionCausalTargetQuote: hasPrecondition && item.preconditionCausalStatus === "SOURCE_LINKED"
         ? item.preconditionCausalTargetQuote?.trim() || null
         : null,
+      actionFailureMechanism,
+      actionMechanismEvidenceQuote: actionFailureMechanism && actionFailureMechanism !== "NONE_OR_UNKNOWN" && mechanismEvidenceSource
+        ? mechanismEvidenceQuote
+        : null,
       displayInterpretation: roles.some((role) => role === "PERCEPTION_STATE" || role === "OBJECTIVE_INTENT" || role === "ACTION_STRATEGY")
         ? item.displayInterpretation?.trim() || null
         : null,
-      concepts: [...new Set(item.concepts ?? [])],
+      concepts,
     };
-    const key = `${candidate.sourceSentenceIndex}:${norm(candidate.sourceQuote)}:${candidate.roles.join(",")}:${candidate.actor ?? ""}:${candidate.preconditionCategory ?? ""}:${candidate.preconditionCausalStatus ?? ""}:${candidate.preconditionCausalTargetQuote ?? ""}:${candidate.concepts?.join(",") ?? ""}`;
+    const key = `${candidate.sourceSentenceIndex}:${norm(candidate.sourceQuote)}:${candidate.roles.join(",")}:${candidate.actor ?? ""}:${candidate.preconditionCategory ?? ""}:${candidate.preconditionCausalStatus ?? ""}:${candidate.preconditionCausalTargetQuote ?? ""}:${candidate.actionFailureMechanism ?? ""}:${candidate.actionMechanismEvidenceQuote ?? ""}:${candidate.displayInterpretation ?? ""}:${candidate.concepts?.join(",") ?? ""}`;
     if (seen.has(key)) continue;
     seen.add(key);
     result.push(candidate);
@@ -359,7 +384,7 @@ function enforceV2StructuralIntegrity(args: {
   const deduped: SeraSemanticEvidenceAnnotation[] = [];
   const finalSeen = new Set<string>();
   for (const item of objectiveGuarded) {
-    const key = `${item.sourceSentenceIndex}:${norm(item.sourceQuote)}:${item.roles.join(",")}:${item.actor ?? ""}:${item.preconditionCategory ?? ""}:${item.preconditionCausalStatus ?? ""}:${item.preconditionCausalTargetQuote ?? ""}:${item.concepts?.join(",") ?? ""}`;
+    const key = `${item.sourceSentenceIndex}:${norm(item.sourceQuote)}:${item.roles.join(",")}:${item.actor ?? ""}:${item.preconditionCategory ?? ""}:${item.preconditionCausalStatus ?? ""}:${item.preconditionCausalTargetQuote ?? ""}:${item.actionFailureMechanism ?? ""}:${item.actionMechanismEvidenceQuote ?? ""}:${item.displayInterpretation ?? ""}:${item.concepts?.join(",") ?? ""}`;
     if (finalSeen.has(key)) continue;
     finalSeen.add(key);
     deduped.push(item);

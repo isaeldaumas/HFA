@@ -34,6 +34,8 @@ const sequence = run('SEMANTIC-BOUNDARY-SEQUENCE', sequenceNarrative, [
   {
     id: 'SEQ-FIRST',
     sourceQuote: 'Na aproximação, o PM desviou sua vigilância do mostrador que seguia legível.',
+    actionFailureMechanism: 'MONITORING_ATTENTION_LAPSE',
+    actionMechanismEvidenceQuote: 'Na aproximação, o PM desviou sua vigilância do mostrador que seguia legível.',
     sourceSentenceIndex: 0,
     roles: ['FIRST_DEPARTURE', 'DIRECT_ACTOR', 'ACTION_STRATEGY'],
     concepts: ['slipLapse'],
@@ -45,6 +47,23 @@ const sequence = run('SEMANTIC-BOUNDARY-SEQUENCE', sequenceNarrative, [
     preconditionCausalStatus: null,
     confidence: 'HIGH',
     rationale: 'Primeira transição observável seguro→inseguro.',
+  },
+  {
+    id: 'SEQ-CONFLICTING-ACTION-LABEL',
+    sourceQuote: 'Na aproximação, o PM desviou sua vigilância do mostrador que seguia legível.',
+    sourceSentenceIndex: 0,
+    roles: ['ACTION_STRATEGY'],
+    concepts: ['proceduralOmission'],
+    actor: 'piloto monitorando (PM)',
+    temporalRelation: 'AT_ESCAPE',
+    assertionStatus: 'AFFIRMED',
+    occurrenceScope: 'CURRENT_EVENT',
+    preconditionCategory: null,
+    preconditionCausalStatus: null,
+    actionFailureMechanism: 'PROCEDURAL_OMISSION',
+    actionMechanismEvidenceQuote: 'Na aproximação, o PM desviou sua vigilância do mostrador que seguia legível.',
+    confidence: 'HIGH',
+    rationale: 'Simula uma segunda leitura semântica conflitante; o motor deve falhar fechado em vez de escolher A-B.',
   },
   {
     id: 'SEQ-LATER',
@@ -68,6 +87,7 @@ assert.equal(sequence.escapePoint.anchorBasis, 'FIRST_DEPARTURE_PRIMARY')
 assert.equal(sequence.directActor.actor, 'piloto monitorando (PM)')
 assert.equal(sequence.escapePoint.criticalUnsafeActActor, 'piloto voando (PF)')
 assert.equal(sequence.axes.action.proposedCode, null, 'a semantic slip/lapse label that merely restates a monitoring departure must not unlock A-B')
+assert.match(sequence.canonicalTraversal.paths.find((path) => path.axis === 'A')?.answers.at(-1)?.rationale ?? '', /conflicting source-anchored semantic action mechanisms|monitoring\/attention lapse/i)
 for (const axis of [sequence.axes.perception, sequence.axes.objective, sequence.axes.action]) {
   assert.equal(axis.supportingEvidence.some((text) => text.includes('PF confirmou')), false, 'later PF act must never enter first-departure P/O/A')
 }
@@ -79,6 +99,8 @@ const sameSentence = run('SEMANTIC-SAME-SENTENCE-SPANS', sameSentenceNarrative, 
   {
     id: 'SPAN-FIRST',
     sourceQuote: 'a vigilância do PM saiu do mostrador ainda legível',
+    actionFailureMechanism: 'MONITORING_ATTENTION_LAPSE',
+    actionMechanismEvidenceQuote: 'a vigilância do PM saiu do mostrador ainda legível',
     sourceSentenceIndex: 0,
     roles: ['FIRST_DEPARTURE', 'DIRECT_ACTOR'],
     concepts: [],
@@ -123,6 +145,8 @@ const passiveResolved = run('SEMANTIC-PASSIVE-SPECIFIC', passiveNarrative, [
   {
     id: 'PASSIVE-SPECIFIC',
     sourceQuote: 'Na preparação, a última verificação ficou sem execução.',
+    actionFailureMechanism: 'PROCEDURAL_OMISSION',
+    actionMechanismEvidenceQuote: 'Na preparação, a última verificação ficou sem execução.',
     sourceSentenceIndex: 0,
     roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR', 'ACTION_STRATEGY'],
     concepts: ['slipLapse', 'proceduralOmission'],
@@ -144,6 +168,8 @@ const passiveAmbiguous = run('SEMANTIC-PASSIVE-GENERIC', passiveNarrative, [
   {
     id: 'PASSIVE-GENERIC',
     sourceQuote: 'Na preparação, a última verificação ficou sem execução.',
+    actionFailureMechanism: 'PROCEDURAL_OMISSION',
+    actionMechanismEvidenceQuote: 'Na preparação, a última verificação ficou sem execução.',
     sourceSentenceIndex: 0,
     roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR', 'ACTION_STRATEGY'],
     concepts: ['slipLapse'],
@@ -172,6 +198,8 @@ const contextOnly = run('SEMANTIC-PC-CONTEXT', contextNarrative, [
   {
     id: 'PC-FIRST',
     sourceQuote: 'Na preparação, a última verificação ficou sem execução.',
+    actionFailureMechanism: 'PROCEDURAL_OMISSION',
+    actionMechanismEvidenceQuote: 'Na preparação, a última verificação ficou sem execução.',
     sourceSentenceIndex: 0,
     roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR', 'ACTION_STRATEGY'],
     concepts: ['slipLapse', 'proceduralOmission'],
@@ -212,6 +240,8 @@ assert.equal(contextPhysio?.evidence.some((text) => text.includes('vigília frag
 const unanchoredCausal = run('SEMANTIC-PC-UNANCHORED-CAUSAL', contextNarrative, [
   {
     id: 'PCU-FIRST', sourceQuote: 'Na preparação, a última verificação ficou sem execução.', sourceSentenceIndex: 0,
+    actionFailureMechanism: 'PROCEDURAL_OMISSION',
+    actionMechanismEvidenceQuote: 'Na preparação, a última verificação ficou sem execução.',
     roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR', 'ACTION_STRATEGY'], concepts: ['proceduralOmission'], actor: 'copiloto',
     temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null, confidence: 'HIGH', rationale: 'Primeira saída.'
   },
@@ -231,6 +261,8 @@ const sourceLinked = run('SEMANTIC-PC-LINKED', linkedNarrative, [
   {
     id: 'PCL-FIRST',
     sourceQuote: 'Na preparação, a última verificação ficou sem execução.',
+    actionFailureMechanism: 'PROCEDURAL_OMISSION',
+    actionMechanismEvidenceQuote: 'Na preparação, a última verificação ficou sem execução.',
     sourceSentenceIndex: 0,
     roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR', 'ACTION_STRATEGY'],
     concepts: ['slipLapse', 'proceduralOmission'],
@@ -287,17 +319,23 @@ const actorSurfaceNarrative = 'Na descida, o piloto aplicou uma seleção difere
 const actorSurface = run('SEMANTIC-ACTOR-SURFACE-AND-UNIQUE-FIRST', actorSurfaceNarrative, [
   {
     id: 'ACTOR-FIRST-A', sourceQuote: 'o piloto aplicou uma seleção diferente da pretendida', sourceSentenceIndex: 0,
+    actionFailureMechanism: 'IMPLEMENTATION_MISMATCH',
+    actionMechanismEvidenceQuote: 'o piloto aplicou uma seleção diferente da pretendida',
     roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR', 'ACTION_STRATEGY'], concepts: ['slipLapse', 'implementationMismatch', 'implementedAction'], actor: 'piloto',
     temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null,
     displayInterpretation: 'O operador tentava aplicar a seleção pretendida.', confidence: 'HIGH', rationale: 'Primeiro marco.'
   },
   {
     id: 'ACTOR-FIRST-B', sourceQuote: 'o piloto aplicou uma seleção diferente da pretendida', sourceSentenceIndex: 0,
+    actionFailureMechanism: 'IMPLEMENTATION_MISMATCH',
+    actionMechanismEvidenceQuote: 'o piloto aplicou uma seleção diferente da pretendida',
     roles: ['CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR'], concepts: [], actor: 'o piloto',
     temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null, confidence: 'HIGH', rationale: 'Mesma identidade com artigo.'
   },
   {
     id: 'ACTOR-FALSE-O', sourceQuote: 'o piloto aplicou uma seleção diferente da pretendida', sourceSentenceIndex: 0,
+    actionFailureMechanism: 'IMPLEMENTATION_MISMATCH',
+    actionMechanismEvidenceQuote: 'o piloto aplicou uma seleção diferente da pretendida',
     roles: ['OBJECTIVE_INTENT'], concepts: [], actor: 'piloto',
     temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null,
     displayInterpretation: 'O operador pretendia aplicar uma seleção diferente.', confidence: 'HIGH', rationale: 'Overclassification probe: intended implementation is not an operational objective.'

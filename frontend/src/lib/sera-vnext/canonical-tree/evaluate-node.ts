@@ -129,6 +129,7 @@ function semanticActionStrategyStatements(ctx: SeraNodeEvidenceContext): string[
     item.semanticRoles?.some((role) => role === 'FIRST_DEPARTURE' || role === 'CRITICAL_UNSAFE_ACT'))
   return unique(eligible
     .filter((item) => item.semanticRoles?.includes('ACTION_STRATEGY'))
+    .filter((item) => item.semanticActionFailureMechanism !== 'MONITORING_ATTENTION_LAPSE')
     .filter((item) => {
       const candidate = normalizedSemanticStatement(item.statement)
       if (!candidate) return false
@@ -139,6 +140,41 @@ function semanticActionStrategyStatements(ctx: SeraNodeEvidenceContext): string[
         return candidate === anchor || candidate.includes(anchor) || anchor.includes(candidate)
       })
     })
+    .map((item) => item.statement))
+}
+
+function semanticActionMechanismStatements(
+  ctx: SeraNodeEvidenceContext,
+  mechanism: NonNullable<import('../engine-contract').SeraSemanticActionFailureMechanism>,
+): string[] {
+  const use = axisToEvidenceUse(ctx.axis)
+  return unique(ctx.evidence
+    .filter((item) =>
+      item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+      && item.assertionStatus === 'AFFIRMED'
+      && item.semanticConfidence !== 'LOW'
+      && !item.prohibitedFor.includes(use)
+      && isEvidenceUsableFor(item, use)
+      && item.semanticActionFailureMechanism === mechanism
+      && (mechanism === 'NONE_OR_UNKNOWN' || Boolean(item.semanticActionMechanismEvidenceQuote)))
+    .map((item) => item.statement))
+}
+
+function semanticAuditedActionMechanismStatements(
+  ctx: SeraNodeEvidenceContext,
+  mechanism: NonNullable<import('../engine-contract').SeraSemanticActionFailureMechanism>,
+): string[] {
+  const use = axisToEvidenceUse(ctx.axis)
+  return unique(ctx.evidence
+    .filter((item) =>
+      item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+      && item.assertionStatus === 'AFFIRMED'
+      && item.semanticConfidence !== 'LOW'
+      && item.semanticRoles?.includes('ACTION_MECHANISM')
+      && !item.prohibitedFor.includes(use)
+      && isEvidenceUsableFor(item, use)
+      && item.semanticActionFailureMechanism === mechanism
+      && (mechanism === 'NONE_OR_UNKNOWN' || Boolean(item.semanticActionMechanismEvidenceQuote)))
     .map((item) => item.statement))
 }
 
@@ -380,6 +416,15 @@ function expandSupportingEvidenceToSourceSentence(ctx: SeraNodeEvidenceContext, 
   return containing[0] ?? support
 }
 
+function isDisplayInterpretationWellFormed(axis: CanonicalSeraAxis, text: string): boolean {
+  const value = text.trim()
+  if (!value || value.length < 12) return false
+  // Presentation-only guard. It never interprets source evidence or selects a SERA branch.
+  if (/\b(?:por meio de|atrav[eé]s de|by means of)\s+(?:retomou|selecionou|omitiu|deixou|executou|configurou|programou|resumed|selected|omitted|stopped|executed|configured)\b/i.test(value)) return false
+  if (axis === 'P' && /\b(?:acreditava|percebia|believed|perceived)\s+que\s+(?:a partir d(?:e|o|a)|porque|quando|ap[oó]s|depois d(?:e|o|a)|from|because|when|after)\b/i.test(value)) return false
+  return true
+}
+
 function rootResponseText(ctx: SeraNodeEvidenceContext, supportingEvidence: string[]): string | null {
   // Hendy Step 2 asks for substantive P/O/A statements before the ladders. START is only
   // an internal branch token; the user-facing answer must directly answer the root question.
@@ -394,14 +439,30 @@ function rootResponseText(ctx: SeraNodeEvidenceContext, supportingEvidence: stri
   // never this paraphrase. We only accept it when tied to the exact source evidence selected
   // by the traversal for this axis.
   const expectedRole = ctx.axis === 'P' ? 'PERCEPTION_STATE' : ctx.axis === 'O' ? 'OBJECTIVE_INTENT' : 'ACTION_STRATEGY'
-  const displayInterpretation = ctx.evidence.find((item) =>
-    item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
-    && item.semanticRoles?.includes(expectedRole)
-    && Boolean(item.semanticDisplayInterpretation)
-    && supportingEvidence.includes(item.statement))?.semanticDisplayInterpretation?.trim()
+  const displayCandidates = ctx.evidence
+    .filter((item) =>
+      item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+      && item.semanticRoles?.includes(expectedRole)
+      && Boolean(item.semanticDisplayInterpretation)
+      && supportingEvidence.includes(item.statement))
+    .sort((a, b) => {
+      if (ctx.axis !== 'A') return 0
+      const aFailure = a.semanticActionFailureMechanism && a.semanticActionFailureMechanism !== 'NONE_OR_UNKNOWN' ? 1 : 0
+      const bFailure = b.semanticActionFailureMechanism && b.semanticActionFailureMechanism !== 'NONE_OR_UNKNOWN' ? 1 : 0
+      return aFailure - bFailure
+    })
+  const displayInterpretation = displayCandidates
+    .map((item) => item.semanticDisplayInterpretation?.trim() ?? '')
+    .find((value) => isDisplayInterpretationWellFormed(ctx.axis, value))
   if (displayInterpretation) return displayInterpretation
 
   const fromStatement = stripAxisStatementPrefix(ctx.statementAtEscapePoint)
+  // On the canonical semantic path, natural-language interpretation belongs to the AI.
+  // If its display paraphrase fails presentation validation, fail softly to the verbatim
+  // source evidence instead of reconstructing meaning with handwritten language patterns.
+  if (semanticInterpretationPresent(ctx)) {
+    return supportingEvidence[0]?.trim() || fromStatement || null
+  }
   if (ctx.axis === 'A') {
     const candidates = [...(fromStatement ? [fromStatement] : []), ...supportingEvidence]
     const concrete = candidates.find((text) => /\b(tirei|tirou|retirei|retirou|desguarneci|peguei|pegou|puxei|puxou|empurrei|empurrou|coloquei|colocou|apliquei|aplicou|preferi|preferiu|tenha preferido|assumir|assumiu|barra na barra|pitch down|removed|pulled|pushed|applied|preferred|took over)\b/i.test(text))
@@ -630,10 +691,13 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
     case 'A_ROOT': {
       const proceduralOmission = c('proceduralOmission')
       const implementationMismatch = c('implementationMismatch')
+      const semanticProceduralOmission = semanticActionMechanismStatements(ctx, 'PROCEDURAL_OMISSION')
+      const semanticImplementationMismatch = semanticActionMechanismStatements(ctx, 'IMPLEMENTATION_MISMATCH')
       const actionStrategy = unique([
         ...semanticActionStrategyStatements(ctx),
         ...c('selectionSubtype'),
         ...implementationMismatch,
+        ...semanticImplementationMismatch,
         // Hendy asks HOW the actor was trying to achieve the goal — the plan/means.
         // A bare observed control movement is not sufficient to establish that strategy.
         ...decisionMatching(ctx, statements, [
@@ -656,8 +720,8 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
         /\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b.{0,180}\b(?:n[aã]o foi executad[oa]|n[aã]o foram executad[oa]s?|foi omitid[oa]|foram omitid[oa]s?|was not executed|were not executed|was omitted|were omitted)\b/i,
         /\b(?:n[aã]o executou|n[aã]o realizou|deixou de executar|deixou de realizar|failed to execute|failed to perform|did not execute|did not perform)\b.{0,160}\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b/i,
       ])
-      if (!actionStrategy.length && (proceduralOmission.length || specificProceduralOmission.length)) {
-        return { answer: 'START', supportingEvidence: unique([...proceduralOmission, ...specificProceduralOmission]).slice(0, 2), rationale: 'A specific expected procedural step was semantically identified as omitted. This is sufficient to test implementation under the Action axis without inferring Perception or Objective.' }
+      if (!actionStrategy.length && (semanticProceduralOmission.length || (!semanticInterpretationPresent(ctx) && (proceduralOmission.length || specificProceduralOmission.length)))) {
+        return { answer: 'START', supportingEvidence: unique([...semanticProceduralOmission, ...proceduralOmission, ...specificProceduralOmission]).slice(0, 2), rationale: 'A specific expected procedural step was identified as omitted. This is sufficient to test implementation under the Action axis without inferring Perception or Objective.' }
       }
       if (!actionStrategy.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of the actor plan, strategy, or means for achieving the goal; an observed movement or control input alone cannot substitute for that plan.' }
       return { answer: 'START', supportingEvidence: actionStrategy.slice(0, 2), rationale: 'Root node establishes how the operator was trying to achieve the goal before implementation and adequacy are tested.' }
@@ -672,6 +736,17 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
       const slipOrLapse = c('slipLapse')
       const proceduralOmission = c('proceduralOmission')
       const implementationMismatch = c('implementationMismatch')
+      const semanticProceduralOmission = semanticActionMechanismStatements(ctx, 'PROCEDURAL_OMISSION')
+      const semanticImplementationMismatch = semanticActionMechanismStatements(ctx, 'IMPLEMENTATION_MISMATCH')
+      const semanticMonitoringLapse = semanticActionMechanismStatements(ctx, 'MONITORING_ATTENTION_LAPSE')
+      const semanticFeedbackFailure = semanticActionMechanismStatements(ctx, 'FEEDBACK_FAILURE')
+      const semanticOtherActionFailure = semanticActionMechanismStatements(ctx, 'OTHER_ACTION_FAILURE')
+      const auditedProceduralOmission = semanticAuditedActionMechanismStatements(ctx, 'PROCEDURAL_OMISSION')
+      const auditedImplementationMismatch = semanticAuditedActionMechanismStatements(ctx, 'IMPLEMENTATION_MISMATCH')
+      const auditedMonitoringLapse = semanticAuditedActionMechanismStatements(ctx, 'MONITORING_ATTENTION_LAPSE')
+      const auditedFeedbackFailure = semanticAuditedActionMechanismStatements(ctx, 'FEEDBACK_FAILURE')
+      const auditedOtherActionFailure = semanticAuditedActionMechanismStatements(ctx, 'OTHER_ACTION_FAILURE')
+      const auditedUnknown = semanticAuditedActionMechanismStatements(ctx, 'NONE_OR_UNKNOWN')
       const selected = c('selectionSubtype')
       const timed = c('timeManagementAction')
       const intendedAction = decisionMatching(ctx, statements, [
@@ -696,11 +771,53 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
         /\b(?:n[aã]o executou|n[aã]o realizou|deixou de executar|deixou de realizar|failed to execute|failed to perform|did not execute|did not perform)\b.{0,160}\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b/i,
       ])
       const deliberateOmission = cn('consciousDeviation').length > 0 && cn('explicitAwareness').length > 0
-      if (feedbackFailure.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: feedbackFailure, rationale: 'Evidence supports an independent failure in feedback/verification of the actor own action.' }
-      if (implementationMismatch.length > 0 || explicitImplementationMismatch.length > 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: unique([...implementationMismatch, ...explicitImplementationMismatch]), rationale: 'Semantic evidence establishes that the implemented selection/configuration differed from the actor stated intended implementation.' }
-      if ((proceduralOmission.length > 0 || specificProceduralOmission.length > 0) && !deliberateOmission) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: unique([...proceduralOmission, ...specificProceduralOmission]), rationale: 'Semantic evidence establishes omission of a specific expected procedural step; absent deliberate-deviation evidence, this supports A-B.' }
-      const independentStrategy = semanticActionStrategyStatements(ctx)
-      if (slipOrLapse.length > 0 && perceptionDriven.length === 0 && independentStrategy.length > 0 && implemented.length > 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: unique([...slipOrLapse, ...independentStrategy, ...implemented]), rationale: 'A generic slip/lapse label is accepted only when independent evidence establishes both the intended strategy and an implemented action. A monitoring/attention lapse alone does not satisfy the Action implementation branch.' }
+      if (semanticInterpretationPresent(ctx)) {
+        const mechanismGroups = [
+          ['PROCEDURAL_OMISSION', semanticProceduralOmission],
+          ['IMPLEMENTATION_MISMATCH', semanticImplementationMismatch],
+          ['MONITORING_ATTENTION_LAPSE', semanticMonitoringLapse],
+          ['FEEDBACK_FAILURE', semanticFeedbackFailure],
+          ['OTHER_ACTION_FAILURE', semanticOtherActionFailure],
+        ].filter(([, evidence]) => (evidence as string[]).length > 0)
+        const auditedGroups = [
+          ['PROCEDURAL_OMISSION', auditedProceduralOmission],
+          ['IMPLEMENTATION_MISMATCH', auditedImplementationMismatch],
+          ['MONITORING_ATTENTION_LAPSE', auditedMonitoringLapse],
+          ['FEEDBACK_FAILURE', auditedFeedbackFailure],
+          ['OTHER_ACTION_FAILURE', auditedOtherActionFailure],
+        ].filter(([, evidence]) => (evidence as string[]).length > 0)
+        if (auditedGroups.length > 1 || mechanismGroups.length > 1) {
+          return {
+            answer: 'INSUFFICIENT_EVIDENCE',
+            supportingEvidence: unique([...mechanismGroups, ...auditedGroups].flatMap(([, evidence]) => evidence as string[])),
+            rationale: 'Conflicting source-anchored semantic action mechanisms were returned. The deterministic engine fails closed until the mechanism is resolved.',
+          }
+        }
+        if (auditedUnknown.length > 0) {
+          return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: auditedUnknown, rationale: 'The independent semantic action-mechanism audit could not establish an implementation mechanism; the Action implementation branch remains unresolved.' }
+        }
+        if (auditedGroups.length === 1 && mechanismGroups.length === 1 && auditedGroups[0][0] !== mechanismGroups[0][0]) {
+          return {
+            answer: 'INSUFFICIENT_EVIDENCE',
+            supportingEvidence: unique([...(auditedGroups[0][1] as string[]), ...(mechanismGroups[0][1] as string[])]),
+            rationale: `Primary semantic extraction and the independent action-mechanism audit disagree (${mechanismGroups[0][0]} vs ${auditedGroups[0][0]}). The deterministic engine fails closed.`,
+          }
+        }
+        if (auditedMonitoringLapse.length > 0) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: auditedMonitoringLapse, rationale: 'The independent semantic audit identifies a monitoring/attention lapse, which does not establish implementation different from intention.' }
+        if (auditedFeedbackFailure.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: auditedFeedbackFailure, rationale: 'The independent source-anchored semantic audit establishes an independent feedback/verification failure.' }
+        if (auditedImplementationMismatch.length > 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: auditedImplementationMismatch, rationale: 'The independent source-anchored semantic audit establishes an implementation mismatch between intended and implemented action.' }
+        if (auditedProceduralOmission.length > 0 && !deliberateOmission) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: auditedProceduralOmission, rationale: 'The independent source-anchored semantic audit establishes omission of a specific expected procedural step.' }
+        if (semanticFeedbackFailure.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: semanticFeedbackFailure, rationale: 'Source-anchored semantic evidence establishes an independent feedback/verification failure.' }
+        if (semanticImplementationMismatch.length > 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: semanticImplementationMismatch, rationale: 'Source-anchored semantic evidence establishes an implementation mismatch between intended and implemented action.' }
+        if (semanticProceduralOmission.length > 0 && !deliberateOmission) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: semanticProceduralOmission, rationale: 'Source-anchored semantic evidence establishes omission of a specific expected procedural step; absent deliberate-deviation evidence, this supports A-B.' }
+        if (semanticMonitoringLapse.length > 0) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: semanticMonitoringLapse, rationale: 'A monitoring/attention lapse does not establish that an intended action was implemented differently; the Action implementation branch remains unresolved without independent implementation evidence.' }
+      } else {
+        if (feedbackFailure.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: feedbackFailure, rationale: 'Evidence supports an independent failure in feedback/verification of the actor own action.' }
+        if (implementationMismatch.length > 0 || explicitImplementationMismatch.length > 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: unique([...implementationMismatch, ...explicitImplementationMismatch]), rationale: 'Evidence establishes that the implemented selection/configuration differed from the actor stated intended implementation.' }
+        if ((proceduralOmission.length > 0 || specificProceduralOmission.length > 0) && !deliberateOmission) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: unique([...proceduralOmission, ...specificProceduralOmission]), rationale: 'Evidence establishes omission of a specific expected procedural step; absent deliberate-deviation evidence, this supports A-B.' }
+        const independentStrategy = semanticActionStrategyStatements(ctx)
+        if (slipOrLapse.length > 0 && perceptionDriven.length === 0 && independentStrategy.length > 0 && implemented.length > 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: unique([...slipOrLapse, ...independentStrategy, ...implemented]), rationale: 'A generic slip/lapse label is accepted only when independent evidence establishes both the intended strategy and an implemented action.' }
+      }
       if (explicitCorrespondence.length > 0 || selected.length > 0 || timed.length > 0 || safeAction.length > 0 || (intendedAction.length > 0 && (implemented.length > 0 || perceptionDriven.length > 0 || observedDeliberateAction.length > 0))) {
         return {
           answer: 'SIM',

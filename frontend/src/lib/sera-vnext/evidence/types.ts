@@ -1,4 +1,4 @@
-import type { SeraAssertionStatus, SeraClarificationQuestion, SeraConfidence, SeraEvidenceSourceSection, SeraFactCategory, SeraOccurrenceScope, SeraSemanticDecisionConcept, SeraSemanticEvidenceRole } from '../engine-contract'
+import type { SeraAssertionStatus, SeraClarificationQuestion, SeraConfidence, SeraEvidenceSourceSection, SeraFactCategory, SeraOccurrenceScope, SeraSemanticActionFailureMechanism, SeraSemanticDecisionConcept, SeraSemanticEvidenceRole } from '../engine-contract'
 import type { SeraCanonicalPreconditionCategory } from '../precondition-taxonomy'
 import type { SeraSemanticPreconditionCausalStatus } from '../engine-contract'
 
@@ -57,6 +57,8 @@ export type SeraEvidenceItem = {
   semanticPreconditionCategory?: SeraCanonicalPreconditionCategory | null
   semanticPreconditionCausalStatus?: SeraSemanticPreconditionCausalStatus | null
   semanticPreconditionCausalTargetQuote?: string | null
+  semanticActionFailureMechanism?: SeraSemanticActionFailureMechanism | null
+  semanticActionMechanismEvidenceQuote?: string | null
   /** Presentation-only AI paraphrase; never use for SERA decisions/evidence sufficiency. */
   semanticDisplayInterpretation?: string | null
   semanticConfidence?: SeraConfidence

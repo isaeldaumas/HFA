@@ -227,7 +227,7 @@ export function applySemanticAnnotationsToEvidence(args: {
     if (roles.some((role) => ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR'].includes(role))) pushUnique(supports, 'ESCAPE_POINT')
     if (roles.includes('PERCEPTION_STATE') || concepts.some((concept) => perceptionConcepts.has(concept))) pushUnique(supports, 'PERCEPTION')
     if (roles.includes('OBJECTIVE_INTENT') || concepts.some((concept) => objectiveConcepts.has(concept))) pushUnique(supports, 'OBJECTIVE')
-    if (roles.some((role) => role === 'ACTION_STRATEGY' || role === 'CRITICAL_UNSAFE_ACT') || concepts.some((concept) => actionConcepts.has(concept))) pushUnique(supports, 'ACTION')
+    if (roles.some((role) => role === 'ACTION_STRATEGY' || role === 'ACTION_MECHANISM' || role === 'CRITICAL_UNSAFE_ACT') || annotation.actionFailureMechanism && annotation.actionFailureMechanism !== 'NONE_OR_UNKNOWN' || concepts.some((concept) => actionConcepts.has(concept))) pushUnique(supports, 'ACTION')
     if (roles.some((role) => role === 'PRECONDITION' || role === 'BARRIER')) pushUnique(supports, 'PRECONDITION')
     if (roles.includes('OUTCOME')) pushUnique(supports, 'LIMITATION')
 
@@ -263,7 +263,7 @@ export function applySemanticAnnotationsToEvidence(args: {
     // mixed case, preserve the actionable semantic role as the primary evidence type; treating
     // the entire sentence as OUTCOME would prohibit the very P/O/A evidence it contains.
     const evidenceType: SeraEvidenceItem['evidenceType'] = roles.some((role) =>
-      ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'OBJECTIVE_INTENT', 'ACTION_STRATEGY'].includes(role),
+      ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'OBJECTIVE_INTENT', 'ACTION_STRATEGY', 'ACTION_MECHANISM'].includes(role),
     )
       ? 'ACTION_OR_DECISION'
       : roles.includes('OUTCOME')
@@ -302,6 +302,8 @@ export function applySemanticAnnotationsToEvidence(args: {
       semanticPreconditionCategory: annotation.preconditionCategory ?? null,
       semanticPreconditionCausalStatus: annotation.preconditionCausalStatus ?? null,
       semanticPreconditionCausalTargetQuote: annotation.preconditionCausalTargetQuote ?? null,
+      semanticActionFailureMechanism: annotation.actionFailureMechanism ?? null,
+      semanticActionMechanismEvidenceQuote: annotation.actionMechanismEvidenceQuote ?? null,
       semanticDisplayInterpretation: annotation.displayInterpretation ?? null,
       semanticConfidence: annotation.confidence,
       semanticSchemaVersion: args.semanticSchemaVersion ?? null,

@@ -3,6 +3,7 @@ import type {
   SeraAssertionStatus,
   SeraConfidence,
   SeraOccurrenceScope,
+  SeraSemanticActionFailureMechanism,
   SeraSemanticDecisionConcept,
   SeraSemanticEnrichmentMeta,
   SeraSemanticEvidenceAnnotation,
@@ -13,7 +14,7 @@ import { splitNarrativeIntoSentenceRecords } from '../engine-v0/factual-extracti
 
 const ROLE_VALUES = new Set<SeraSemanticEvidenceRole>([
   'FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR',
-  'PERCEPTION_STATE', 'OBJECTIVE_INTENT', 'ACTION_STRATEGY',
+  'PERCEPTION_STATE', 'OBJECTIVE_INTENT', 'ACTION_STRATEGY', 'ACTION_MECHANISM',
   'PRECONDITION', 'BARRIER', 'OUTCOME', 'CONTEXT',
 ])
 
@@ -24,6 +25,10 @@ const SCOPE_VALUES = new Set<SeraOccurrenceScope>([
 const CONFIDENCE_VALUES = new Set<SeraConfidence>(['LOW', 'MEDIUM', 'HIGH'])
 const TEMPORAL_VALUES = new Set(['PRE_ESCAPE', 'AT_ESCAPE', 'POST_ESCAPE', 'UNKNOWN'])
 const PRECONDITION_CAUSAL_STATUS_VALUES = new Set(['PRESENT_CONTEXT', 'SOURCE_LINKED'])
+const ACTION_FAILURE_MECHANISM_VALUES = new Set<SeraSemanticActionFailureMechanism>([
+  'PROCEDURAL_OMISSION', 'IMPLEMENTATION_MISMATCH', 'MONITORING_ATTENTION_LAPSE',
+  'FEEDBACK_FAILURE', 'OTHER_ACTION_FAILURE', 'NONE_OR_UNKNOWN',
+])
 const PRECONDITION_VALUES = new Set([
   'PHYSIOLOGICAL', 'PSYCHOLOGICAL', 'SOCIAL', 'PHYSICAL_CAPABILITY', 'PERSONAL_READINESS',
   'TRAINING_SELECTION', 'QUALIFICATION_AUTHORIZATION', 'TIME_PRESSURE', 'OBJECTIVES', 'EQUIPMENT',
@@ -114,9 +119,10 @@ Regras obrigatórias:
 11. Para toda annotation PRECONDITION, preconditionCausalStatus é obrigatório: PRESENT_CONTEXT quando o fator está factual e temporalmente presente mas a fonte não o liga explicitamente à falha ativa; SOURCE_LINKED somente quando a própria fonte afirma explicitamente que o fator contribuiu, favoreceu, causou ou tornou a FIRST_DEPARTURE mais provável. Não inferir SOURCE_LINKED por plausibilidade. Se usar SOURCE_LINKED, preconditionCausalTargetQuote é OBRIGATÓRIO e deve copiar literalmente a mesma FIRST_DEPARTURE à qual a fonte liga o fator. Se não houver uma ligação explícita àquela FIRST_DEPARTURE, use PRESENT_CONTEXT e preconditionCausalTargetQuote=null.
 12. Para PRECONDITION com confiança HIGH, preconditionCategory não deve ficar nula quando o fator couber claramente em uma categoria canônica. Interprete o SIGNIFICADO, não palavras-chave. Categorias relevantes incluem: PHYSIOLOGICAL (sono, fadiga, sonolência, estado fisiológico), PSYCHOLOGICAL (atenção, distração, carga mental, estresse/bias), SOCIAL (autoridade, assertividade, pressão/dinâmica de equipe), PERSONAL_READINESS (preparo/descanso pessoal quando não houver estado fisiológico específico), TIME_PRESSURE (restrição/pressão temporal), EQUIPMENT, ENVIRONMENT, MONITORING_SUPERVISION (supervisão/monitoramento inadequado), PROVISION_RESOURCES (pessoal, reserva, ferramentas ou recursos insuficientes), ORGANIZATIONAL_PROCESS_PRACTICES (processo/planejamento organizacional inadequado), ORGANIZATIONAL_CLIMATE e OVERSIGHT (problema recorrente/sistêmico não detectado ou não corrigido). Sem equipe/tripulação reserva é PROVISION_RESOURCES; dificuldade recorrente já conhecida que persiste sem correção pode sustentar OVERSIGHT. Se houver carga de trabalho/demandas simultâneas competindo por atenção sem categoria canônica inequívoca, mantenha PRECONDITION com preconditionCategory=null e concepts=["attentionPressure"] em vez de forçar uma categoria errada.
 13. concepts são propriedades factuais usadas depois por uma árvore determinística; marque somente conceitos diretamente sustentados pelo sourceQuote e pelo contexto explícito do relato. Não deduza um conceito apenas porque ele seria compatível com uma classificação. Em especial: slipLapse = incompatibilidade involuntária entre implementação e intenção, mas NÃO use slipLapse apenas porque o ator deixou de monitorar, acompanhar ou perceber uma indicação; nesses casos é preciso evidência de falha de implementação da ação pretendida. proceduralOmission = etapa/item/passo de checklist ou procedimento explicitamente omitido/não executado, sem evidência de decisão deliberada de omitir. implementationMismatch = seleção/configuração/comando efetivamente realizado diferente daquele que o ator explicitamente pretendia realizar. selectionSubtype = a alternativa/ação inadequada foi conscientemente escolhida e executada conforme escolhida. routineDeviation = o DESVIO/VIOLAÇÃO em si era habitual/normalizado; a mera palavra 'rotineira' qualificando uma etapa de checklist, tarefa ou procedimento NÃO é routineDeviation. attentionPressure = demandas concorrentes/simultâneas, distração, saturação ou carga de trabalho que disputavam atenção; não exige pressão de tempo. feedbackImplementationFailure = falha independente em verificar o resultado da própria ação. implementedAction sozinho NÃO significa que a ação foi implementada como pretendida.
-14. Não transforme consequência pós-ponto de fuga em evidência de percepção, objetivo ou ação anterior. Recuperação, diagnóstico posterior e avaliação pós-pouso são POST_ESCAPE para P/O/A, salvo quando a frase explicitamente relata retrospectivamente o que já existia antes/no ponto de fuga.
-15. safeOperationModel pode sintetizar o contraste operacional seguro somente a partir de fatos/regras presentes no relato. Não introduza números ou requisitos externos. evidenceQuotes deve conter frases literais do relato.
-16. Perguntas, hipóteses e provocações do entrevistador/investigador NÃO são fatos do evento. Uma frase interrogativa não pode ser PERCEPTION_STATE, OBJECTIVE_INTENT, ACTION_STRATEGY, PRECONDITION, FIRST_DEPARTURE ou CRITICAL_UNSAFE_ACT sem uma resposta factual separada.
+14. Para qualquer annotation que descreva falha de ação, preencha actionFailureMechanism. Use PROCEDURAL_OMISSION somente quando a fonte explicita uma etapa/item/passo de checklist/procedimento que não foi executado; IMPLEMENTATION_MISMATCH somente quando a fonte explicita que a ação/comando/configuração implementada diferiu da ação/comando/configuração pretendida; MONITORING_ATTENTION_LAPSE quando o desvio é deixar de monitorar, acompanhar, notar ou manter vigilância sem evidência independente de falha de implementação; FEEDBACK_FAILURE para falha independente de verificação do resultado da própria ação; OTHER_ACTION_FAILURE para outra falha de ação sustentada; NONE_OR_UNKNOWN quando o mecanismo não pode ser estabelecido. actionMechanismEvidenceQuote é obrigatório para qualquer valor diferente de NONE_OR_UNKNOWN e deve ser citação literal da fonte que sustenta o mecanismo. Não trate MONITORING_ATTENTION_LAPSE como PROCEDURAL_OMISSION ou IMPLEMENTATION_MISMATCH apenas porque houve omissão comportamental.
+15. Não transforme consequência pós-ponto de fuga em evidência de percepção, objetivo ou ação anterior. Recuperação, diagnóstico posterior e avaliação pós-pouso são POST_ESCAPE para P/O/A, salvo quando a frase explicitamente relata retrospectivamente o que já existia antes/no ponto de fuga.
+16. safeOperationModel pode sintetizar o contraste operacional seguro somente a partir de fatos/regras presentes no relato. Não introduza números ou requisitos externos. evidenceQuotes deve conter frases literais do relato.
+17. Perguntas, hipóteses e provocações do entrevistador/investigador NÃO são fatos do evento. Uma frase interrogativa não pode ser PERCEPTION_STATE, OBJECTIVE_INTENT, ACTION_STRATEGY, PRECONDITION, FIRST_DEPARTURE ou CRITICAL_UNSAFE_ACT sem uma resposta factual separada.
 17. Preserve os três slots: PERCEPTION_STATE = a representação contemporânea do ator sobre o que estava acontecendo/qual era o estado relevante à tarefa; OBJECTIVE_INTENT = o resultado operacional que pretendia alcançar; ACTION_STRATEGY = o meio/estratégia/ação escolhida para alcançar o objetivo. Não copie uma ação para OBJECTIVE_INTENT nem contexto para PERCEPTION_STATE. Em particular, "selecionou/configurou X diferente do que pretendia" revela a implementação pretendida da AÇÃO, não o objetivo operacional; não emita OBJECTIVE_INTENT apenas a partir da alternativa/comando/configuração que o ator pretendia selecionar. Se uma frase de ação contém uma crença/entendimento contemporâneo explícito do ator (por exemplo, ele agiu a partir do ponto que acreditava ser correto), emita também uma annotation PERCEPTION_STATE para a cláusula literal que expressa essa crença; não a perca só porque a mesma frase também contém ação. Esquecimento/falha de memória ('não se lembrou', 'esqueceu') por si só é mecanismo de implementação/lapso e NÃO substitui PERCEPTION_STATE; só marque P quando houver crença, interpretação, percepção ou entendimento positivo do estado da situação. Conhecer uma regra/procedimento, saber a ação correta, sentir cansaço/sonolência ou relatar estado fisiológico NÃO são PERCEPTION_STATE da situação operacional; preserve isso como CONTEXT/PRECONDITION/knownRule conforme apropriado.
 18. Avaliação retrospectiva ("acho que julguei errado", diagnóstico posterior, constatação após pouso/recuperação) não substitui a crença contemporânea. A frase pode ser fonte de CONTEXT, mas só pode alimentar P/O/A quando descreve explicitamente o estado contemporâneo.
 19. FIRST_DEPARTURE e CRITICAL_UNSAFE_ACT podem ter atores diferentes. Identifique o ator de cada marco independentemente. Não transfira o ator de recuperação, monitoramento ou consequência para outro ato.
@@ -127,9 +133,9 @@ Concepts permitidos:
 adequateAssessment, inadequateAssessment, sensoryLimitation, knowledgeLimitation, perceptionCapabilityPresent, attentionPressure, timeManagementPressure, informationAmbiguous, informationAvailableCorrect, informationUnavailable, safeGoal, knownRule, explicitAwareness, consciousDeviation, routineDeviation, exceptionalDeviation, managedRisk, unmanagedRisk, efficiencyObjective, safeAction, implementedAction, feedbackImplementationFailure, slipLapse, proceduralOmission, implementationMismatch, correctAction, incorrectAction, physicalActionLimitation, actionKnowledgeLimitation, actionCapabilityPresent, selectionUnderPressureFailed, feedbackUnderPressureFailed, selectionSubtype, feedbackSubtype, timeManagementAction.
 
 Retorne SOMENTE JSON neste formato:
-{"safeOperationModel":{"expectedSafeState":"...","expectedSafeAction":"...","evidenceQuotes":["frase literal"],"confidence":"HIGH"},"annotations":[{"sourceQuote":"frase literal","roles":["FIRST_DEPARTURE","CRITICAL_UNSAFE_ACT","DIRECT_ACTOR"],"concepts":["implementedAction"],"actor":"copiloto","temporalRelation":"AT_ESCAPE","assertionStatus":"AFFIRMED","occurrenceScope":"CURRENT_EVENT","preconditionCategory":null,"preconditionCausalStatus":null,"preconditionCausalTargetQuote":null,"displayInterpretation":null,"confidence":"HIGH","rationale":"justificativa curta"},{"sourceQuote":"frase literal de contexto","roles":["PRECONDITION"],"concepts":[],"actor":"copiloto","temporalRelation":"PRE_ESCAPE","assertionStatus":"AFFIRMED","occurrenceScope":"CURRENT_EVENT","preconditionCategory":"PHYSIOLOGICAL","preconditionCausalStatus":"PRESENT_CONTEXT","preconditionCausalTargetQuote":null,"displayInterpretation":null,"confidence":"HIGH","rationale":"fator presente, nexo causal não afirmado pela fonte"}]}
+{"safeOperationModel":{"expectedSafeState":"...","expectedSafeAction":"...","evidenceQuotes":["frase literal"],"confidence":"HIGH"},"annotations":[{"sourceQuote":"frase literal","roles":["FIRST_DEPARTURE","CRITICAL_UNSAFE_ACT","DIRECT_ACTOR"],"concepts":["implementedAction"],"actor":"copiloto","temporalRelation":"AT_ESCAPE","assertionStatus":"AFFIRMED","occurrenceScope":"CURRENT_EVENT","preconditionCategory":null,"preconditionCausalStatus":null,"preconditionCausalTargetQuote":null,"actionFailureMechanism":"NONE_OR_UNKNOWN","actionMechanismEvidenceQuote":null,"displayInterpretation":null,"confidence":"HIGH","rationale":"justificativa curta"},{"sourceQuote":"frase literal de contexto","roles":["PRECONDITION"],"concepts":[],"actor":"copiloto","temporalRelation":"PRE_ESCAPE","assertionStatus":"AFFIRMED","occurrenceScope":"CURRENT_EVENT","preconditionCategory":"PHYSIOLOGICAL","preconditionCausalStatus":"PRESENT_CONTEXT","preconditionCausalTargetQuote":null,"actionFailureMechanism":"NONE_OR_UNKNOWN","actionMechanismEvidenceQuote":null,"displayInterpretation":null,"confidence":"HIGH","rationale":"fator presente, nexo causal não afirmado pela fonte"}]}
 
-Roles permitidos: FIRST_DEPARTURE, CRITICAL_UNSAFE_ACT, DIRECT_ACTOR, PERCEPTION_STATE, OBJECTIVE_INTENT, ACTION_STRATEGY, PRECONDITION, BARRIER, OUTCOME, CONTEXT.
+Roles permitidos: FIRST_DEPARTURE, CRITICAL_UNSAFE_ACT, DIRECT_ACTOR, PERCEPTION_STATE, OBJECTIVE_INTENT, ACTION_STRATEGY, ACTION_MECHANISM, PRECONDITION, BARRIER, OUTCOME, CONTEXT.
 Temporal: PRE_ESCAPE, AT_ESCAPE, POST_ESCAPE, UNKNOWN.
 Assertion: AFFIRMED, REJECTED_AS_FACTOR, UNCERTAIN.
 Occurrence: CURRENT_EVENT, PRE_EVENT_CAUSAL_HISTORY, HISTORICAL_COMPARATOR, GENERAL_CONTEXT, UNKNOWN.
@@ -159,7 +165,7 @@ Regras:
 - Contexto de outro episódio, comparador histórico, recuperação e consequência não pode migrar para P/O/A da FIRST_DEPARTURE.
 - sourceQuote deve copiar literalmente o menor trecho suficiente do texto depois de [S#], sem o identificador. Se houver dois atos na mesma frase, devolva spans distintos para cada marco.
 
-Retorne SOMENTE JSON: {"annotations":[{"sourceQuote":"frase literal","roles":["CRITICAL_UNSAFE_ACT","DIRECT_ACTOR"],"concepts":[],"actor":"ator ou null","temporalRelation":"POST_ESCAPE","assertionStatus":"AFFIRMED","occurrenceScope":"CURRENT_EVENT","preconditionCategory":null,"preconditionCausalStatus":null,"preconditionCausalTargetQuote":null,"displayInterpretation":null,"confidence":"HIGH","rationale":"curta"},{"sourceQuote":"frase literal","roles":["PRECONDITION"],"concepts":[],"actor":"ator ou null","temporalRelation":"PRE_ESCAPE","assertionStatus":"AFFIRMED","occurrenceScope":"CURRENT_EVENT","preconditionCategory":"PHYSIOLOGICAL","preconditionCausalStatus":"PRESENT_CONTEXT","preconditionCausalTargetQuote":null,"displayInterpretation":null,"confidence":"HIGH","rationale":"curta"}]}
+Retorne SOMENTE JSON: {"annotations":[{"sourceQuote":"frase literal","roles":["CRITICAL_UNSAFE_ACT","DIRECT_ACTOR"],"concepts":[],"actor":"ator ou null","temporalRelation":"POST_ESCAPE","assertionStatus":"AFFIRMED","occurrenceScope":"CURRENT_EVENT","preconditionCategory":null,"preconditionCausalStatus":null,"preconditionCausalTargetQuote":null,"actionFailureMechanism":"NONE_OR_UNKNOWN","actionMechanismEvidenceQuote":null,"displayInterpretation":null,"confidence":"HIGH","rationale":"curta"},{"sourceQuote":"frase literal","roles":["PRECONDITION"],"concepts":[],"actor":"ator ou null","temporalRelation":"PRE_ESCAPE","assertionStatus":"AFFIRMED","occurrenceScope":"CURRENT_EVENT","preconditionCategory":"PHYSIOLOGICAL","preconditionCausalStatus":"PRESENT_CONTEXT","preconditionCausalTargetQuote":null,"actionFailureMechanism":"NONE_OR_UNKNOWN","actionMechanismEvidenceQuote":null,"displayInterpretation":null,"confidence":"HIGH","rationale":"curta"}]}
 
 FRASES DO RELATO:
 ${excerpt}`
@@ -205,12 +211,14 @@ ${args.directActor}
 
 Regras obrigatórias:
 - NÃO escreva códigos P/O/A e NÃO mude o ponto de fuga nem o ator.
+- Retorne EXATAMENTE UMA annotation com role ACTION_MECHANISM para o próprio ponto de fuga fornecido. Ela é uma auditoria semântica independente do mecanismo da falha, não uma classificação SERA. Use actionFailureMechanism=PROCEDURAL_OMISSION, IMPLEMENTATION_MISMATCH, MONITORING_ATTENTION_LAPSE, FEEDBACK_FAILURE, OTHER_ACTION_FAILURE ou NONE_OR_UNKNOWN conforme a fonte. Para qualquer valor diferente de NONE_OR_UNKNOWN, actionMechanismEvidenceQuote é obrigatório e deve citar literalmente a evidência. ACTION_MECHANISM não implica ACTION_STRATEGY.
 - P/O/A pertencem exclusivamente ao momento da primeira saída da operação segura. Um ato crítico posterior, recuperação ou consequência NÃO pode substituir esta âncora.
 - Examine os recortes em três perguntas independentes: (P) o que ESTE ator via, percebia, acreditava ou entendia imediatamente antes/no ponto de fuga; (O) para quê/por quê ESTE ator agia, qual objetivo/intenção levou à primeira saída; (A) qual método, estratégia, decisão, comando ou meio ESTE ator usou naquele ponto de fuga.
 - Resolva correferências coloquiais pelo contexto local. Se o ator for coletivo, use somente evidência atribuível à decisão coletiva; não importe estado mental exclusivo de um tripulante.
 - Uma frase pode aparecer muito depois na entrevista e ainda ser PRE_ESCAPE/AT_ESCAPE se ela descrever retrospectivamente o estado que existia antes/no ponto de fuga. Se houver crença, entendimento ou percepção contemporânea explicitamente atribuída ao ator, produza PERCEPTION_STATE mesmo que a mesma frase também descreva uma ação; preserve a cláusula literal que sustenta o estado mental. PERCEPTION_STATE exige uma representação positiva da situação operacional; mero esquecimento/falha de memória ('não se lembrou', 'esqueceu'), conhecimento de regra/procedimento, saber a ação correta, cansaço, sonolência ou outro estado fisiológico NÃO respondem, sozinhos, o que o ator acreditava estar acontecendo e não devem ser marcados como PERCEPTION_STATE.
 - Uma ação concreta pode ser ACTION_STRATEGY quando descreve o meio usado no próprio ponto de fuga, mesmo sem usar a palavra "estratégia". Isso não autoriza inferir OBJECTIVE_INTENT. A alternativa, modo, controle, comando ou configuração que o ator pretendia selecionar é intenção de implementação da ação, NÃO um objetivo operacional; não produza OBJECTIVE_INTENT apenas porque o texto diz que selecionou algo diferente do que pretendia.
 - Para conceitos: slipLapse descreve incompatibilidade involuntária entre implementação e intenção e não deve ser inferido apenas de falha de monitoramento/atenção. proceduralOmission marca etapa/item/passo de checklist ou procedimento explicitamente omitido/não executado sem decisão deliberada de omitir. implementationMismatch marca seleção/configuração/comando efetivamente realizado diferente do que o ator explicitamente pretendia realizar. selectionSubtype descreve escolha inadequada executada conforme escolhida. routineDeviation exige que o DESVIO/VIOLAÇÃO seja habitual/normalizado; 'etapa rotineira', 'item rotineiro' ou 'procedimento rotineiro' não bastam. attentionPressure descreve demandas simultâneas, distração, saturação ou carga de trabalho competindo por atenção e não deve ser confundido com timeManagementPressure. Não use esses conceitos um no lugar do outro.
+- Para falhas de ação, actionFailureMechanism é obrigatório: PROCEDURAL_OMISSION exige uma etapa/item/passo procedural explicitamente não executado; IMPLEMENTATION_MISMATCH exige diferença explícita entre implementação e intenção; MONITORING_ATTENTION_LAPSE é usado para deixar de monitorar/acompanhar/notar sem uma falha independente de implementação; FEEDBACK_FAILURE é verificação independente do resultado da própria ação; OTHER_ACTION_FAILURE cobre outras falhas; NONE_OR_UNKNOWN quando não há mecanismo suficiente. actionMechanismEvidenceQuote deve citar literalmente a evidência do mecanismo e é obrigatório salvo NONE_OR_UNKNOWN.
 - Não use percepção, intenção ou ação de outro ator como se fosse do ator direto.
 - Não use recuperação, diagnóstico posterior, resultado, avaliação pós-evento ou consequência como P/O/A anterior.
 - Atos posteriores podem existir no relato, mas devem ficar fora desta passagem P/O/A.
@@ -220,11 +228,11 @@ Regras obrigatórias:
 - Para cada PERCEPTION_STATE, OBJECTIVE_INTENT ou ACTION_STRATEGY, forneça também displayInterpretation como frase curta e gramatical que responda diretamente ao nó ("O operador acreditava...", "O operador pretendia...", "O operador tentava...") sem acrescentar fatos. Esse campo é apenas de apresentação.
 - Retorne somente evidências realmente sustentadas. Se um eixo não tiver evidência, não produza annotation para ele.
 
-Roles permitidos nesta passagem: PERCEPTION_STATE, OBJECTIVE_INTENT, ACTION_STRATEGY, BARRIER.
+Roles permitidos nesta passagem: PERCEPTION_STATE, OBJECTIVE_INTENT, ACTION_STRATEGY, ACTION_MECHANISM, BARRIER.
 Concepts permitidos: adequateAssessment, inadequateAssessment, sensoryLimitation, knowledgeLimitation, perceptionCapabilityPresent, attentionPressure, timeManagementPressure, informationAmbiguous, informationAvailableCorrect, informationUnavailable, safeGoal, knownRule, explicitAwareness, consciousDeviation, routineDeviation, exceptionalDeviation, managedRisk, unmanagedRisk, efficiencyObjective, safeAction, implementedAction, feedbackImplementationFailure, slipLapse, proceduralOmission, implementationMismatch, correctAction, incorrectAction, physicalActionLimitation, actionKnowledgeLimitation, actionCapabilityPresent, selectionUnderPressureFailed, feedbackUnderPressureFailed, selectionSubtype, feedbackSubtype, timeManagementAction.
 
 Retorne SOMENTE JSON:
-{"annotations":[{"sourceQuote":"frase literal","roles":["PERCEPTION_STATE"],"concepts":[],"actor":"${args.directActor}","temporalRelation":"AT_ESCAPE","assertionStatus":"AFFIRMED","occurrenceScope":"CURRENT_EVENT","preconditionCategory":null,"preconditionCausalStatus":null,"preconditionCausalTargetQuote":null,"displayInterpretation":"O operador acreditava que ...","confidence":"HIGH","rationale":"curta"}]}
+{"annotations":[{"sourceQuote":"frase literal do ponto de fuga","roles":["ACTION_MECHANISM"],"concepts":[],"actor":"${args.directActor}","temporalRelation":"AT_ESCAPE","assertionStatus":"AFFIRMED","occurrenceScope":"CURRENT_EVENT","preconditionCategory":null,"preconditionCausalStatus":null,"preconditionCausalTargetQuote":null,"actionFailureMechanism":"NONE_OR_UNKNOWN","actionMechanismEvidenceQuote":null,"displayInterpretation":null,"confidence":"HIGH","rationale":"auditoria do mecanismo"},{"sourceQuote":"frase literal","roles":["PERCEPTION_STATE"],"concepts":[],"actor":"${args.directActor}","temporalRelation":"AT_ESCAPE","assertionStatus":"AFFIRMED","occurrenceScope":"CURRENT_EVENT","preconditionCategory":null,"preconditionCausalStatus":null,"preconditionCausalTargetQuote":null,"actionFailureMechanism":"NONE_OR_UNKNOWN","actionMechanismEvidenceQuote":null,"displayInterpretation":"O operador acreditava que ...","confidence":"HIGH","rationale":"curta"}]}
 
 RECORTES PRIORIZADOS DO RELATO (os identificadores [S#] servem apenas para contexto; sourceQuote deve copiar somente a frase):
 ${focusedPoaEvidenceExcerpt(args)}`
@@ -247,6 +255,9 @@ function buildAnnotation(raw: Record<string, unknown>, narrative: string, index:
   const preconditionCausalTargetRaw = asString(raw.preconditionCausalTargetQuote)
   const causalTarget = preconditionCausalTargetRaw ? findSourceSentence(narrative, preconditionCausalTargetRaw) : null
   const displayInterpretationRaw = asString(raw.displayInterpretation)
+  const actionFailureMechanismRaw = asString(raw.actionFailureMechanism)
+  const actionMechanismEvidenceRaw = asString(raw.actionMechanismEvidenceQuote)
+  const actionMechanismEvidence = actionMechanismEvidenceRaw ? findSourceSentence(narrative, actionMechanismEvidenceRaw) : null
   const assertionStatus: SeraAssertionStatus = ASSERTION_VALUES.has(assertionRaw as SeraAssertionStatus)
     ? assertionRaw as SeraAssertionStatus
     : 'AFFIRMED'
@@ -267,6 +278,14 @@ function buildAnnotation(raw: Record<string, unknown>, narrative: string, index:
       : null,
     preconditionCausalTargetQuote: preconditionCausalStatusRaw === 'SOURCE_LINKED' && causalTarget
       ? preconditionCausalTargetRaw!.trim()
+      : null,
+    actionFailureMechanism: actionFailureMechanismRaw && ACTION_FAILURE_MECHANISM_VALUES.has(actionFailureMechanismRaw as SeraSemanticActionFailureMechanism)
+      ? actionFailureMechanismRaw === 'NONE_OR_UNKNOWN' || actionMechanismEvidence
+        ? actionFailureMechanismRaw as SeraSemanticActionFailureMechanism
+        : 'NONE_OR_UNKNOWN'
+      : null,
+    actionMechanismEvidenceQuote: actionFailureMechanismRaw && actionFailureMechanismRaw !== 'NONE_OR_UNKNOWN' && actionMechanismEvidence
+      ? actionMechanismEvidenceRaw!.trim()
       : null,
     displayInterpretation: displayInterpretationRaw?.trim().slice(0, 500) || null,
     confidence: CONFIDENCE_VALUES.has(confidenceRaw as SeraConfidence) ? confidenceRaw as SeraConfidence : 'MEDIUM',
@@ -357,7 +376,7 @@ export async function enrichSeraNarrativeSemantically(args: {
       rejected += 1
       continue
     }
-    const key = `${annotation.sourceSentenceIndex}:${annotation.roles.join(',')}:${annotation.actor ?? ''}:${annotation.preconditionCategory ?? ''}:${annotation.preconditionCausalStatus ?? ''}:${annotation.preconditionCausalTargetQuote ?? ''}:${annotation.displayInterpretation ?? ''}`
+    const key = `${annotation.sourceSentenceIndex}:${annotation.roles.join(',')}:${annotation.actor ?? ''}:${annotation.preconditionCategory ?? ''}:${annotation.preconditionCausalStatus ?? ''}:${annotation.preconditionCausalTargetQuote ?? ''}:${annotation.actionFailureMechanism ?? ''}:${annotation.actionMechanismEvidenceQuote ?? ''}:${annotation.displayInterpretation ?? ''}`
     if (seen.has(key)) continue
     seen.add(key)
     accepted.push(annotation)
@@ -391,7 +410,7 @@ export async function enrichSeraNarrativeSemantically(args: {
         rejected += 1
         continue
       }
-      const key = `${annotation.sourceSentenceIndex}:${annotation.roles.join(',')}:${annotation.actor ?? ''}:${annotation.preconditionCategory ?? ''}:${annotation.preconditionCausalStatus ?? ''}:${annotation.preconditionCausalTargetQuote ?? ''}:${annotation.displayInterpretation ?? ''}`
+      const key = `${annotation.sourceSentenceIndex}:${annotation.roles.join(',')}:${annotation.actor ?? ''}:${annotation.preconditionCategory ?? ''}:${annotation.preconditionCausalStatus ?? ''}:${annotation.preconditionCausalTargetQuote ?? ''}:${annotation.actionFailureMechanism ?? ''}:${annotation.actionMechanismEvidenceQuote ?? ''}:${annotation.displayInterpretation ?? ''}`
       if (seen.has(key)) continue
       seen.add(key)
       accepted.push(annotation)
