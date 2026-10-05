@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
-import { applyAuditedFirstDeparture, applyPreconditionSemanticAuditRejections, mergeFocusedPoaSemanticEvidence } from '../../frontend/src/lib/sera-vnext/ai/semantic-enrichment'
+import { applyAuditedFirstDeparture, applyPreconditionSemanticAuditRejections, hasAtomicSemanticSourceQuote, mergeFocusedPoaSemanticEvidence } from '../../frontend/src/lib/sera-vnext/ai/semantic-enrichment'
+import { enforceSemanticEvidenceIntegrity } from '../../frontend/src/lib/sera-vnext/evidence/semantic-integrity'
 import { runSeraVNextEngineV0 } from '../../frontend/src/lib/sera-vnext/engine-v0/run-engine'
 import type { SeraSemanticEvidenceAnnotation } from '../../frontend/src/lib/sera-vnext/engine-contract'
 
@@ -113,9 +114,9 @@ const visualOutput = run('SEMANTIC-VISUAL-REFERENCE-SUPPORT-SEPARATE', visualNar
 ])
 assert.equal(visualOutput.axes.perception.proposedCode, 'P-F')
 
-// A P/O/A display sentence is also a schema-level role cross-check. If a model labels an
-// action sentence as PERCEPTION_STATE but its own presentation says "tentava", that P role
-// must fail closed; a separate source-grounded correct perception remains authoritative.
+// Presentation wording is not a semantic validator. If the semantic layer returns
+// contradictory PERCEPTION_STATE claims, the deterministic engine must fail closed until
+// the focused semantic adjudication resolves the conflict; it may not decide from prose grammar.
 const roleNarrative = 'O comandante reconheceu corretamente o aviso e descreveu o estado do sistema. Em seguida, escolheu uma resposta inadequada.'
 const roleOutput = run('SEMANTIC-ROLE-DISPLAY-CROSSCHECK', roleNarrative, [
   {
@@ -134,7 +135,7 @@ const roleOutput = run('SEMANTIC-ROLE-DISPLAY-CROSSCHECK', roleNarrative, [
     preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, displayInterpretation: 'O operador percebia corretamente o aviso e o estado do sistema.', confidence: 'HIGH', rationale: 'Percepção correta anterior à escolha de ação.'
   },
 ])
-assert.equal(roleOutput.axes.perception.proposedCode, 'P-A')
+assert.equal(roleOutput.axes.perception.proposedCode, null)
 
 const semanticPromptSource = fs.readFileSync('frontend/src/lib/sera-vnext/ai/semantic-enrichment.ts', 'utf8')
 assert.match(semanticPromptSource, /referência visual\/ambiental explicitamente enganosa\/ilusória/)
@@ -231,8 +232,43 @@ const correctPMerged = mergeFocusedPoaSemanticEvidence({ primary: correctPPrimar
 const correctPOutput = run('SEMANTIC-FOCUSED-P-AUTHORITY', correctPPerceptionNarrative, correctPMerged)
 assert.equal(correctPOutput.axes.perception.proposedCode, 'P-A')
 
+
+// Presentation prose is not evidence. A semantically valid role must survive even when
+// displayInterpretation uses a natural actor-specific verb rather than a hard-coded template.
+const presentationNarrative = 'O comandante identificou corretamente o alerta e o estado da aeronave.'
+const presentationEvidence = enforceSemanticEvidenceIntegrity({
+  narrative: presentationNarrative,
+  schemaVersion: 'SERA_SEMANTIC_AI_V2',
+  annotations: [{
+    id: 'PRESENTATION-P', sourceQuote: 'O comandante identificou corretamente o alerta e o estado da aeronave.', sourceSentenceIndex: 0,
+    roles: ['PERCEPTION_STATE'], concepts: ['adequateAssessment'], actor: 'comandante', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT',
+    preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, displayInterpretation: 'O comandante identificou corretamente o alerta e o estado da aeronave.', confidence: 'HIGH', rationale: 'Percepção correta.'
+  }],
+})
+assert.equal(presentationEvidence.some((item) => item.roles.includes('PERCEPTION_STATE')), true, 'presentation grammar must never delete semantic evidence')
+
+// Source provenance is atomic: an annotation may quote a fragment of one source record but
+// may not concatenate two sentences and then be attached to whichever one happens to match.
+assert.equal(hasAtomicSemanticSourceQuote('Primeira frase factual. Segunda frase factual.', 'Primeira frase factual.'), true)
+assert.equal(hasAtomicSemanticSourceQuote('Primeira frase factual. Segunda frase factual.', 'Primeira frase factual. Segunda frase factual.'), false)
+
+// ACTION_MECHANISM and ACTION_STRATEGY are independent. The mandatory mechanism audit must
+// not erase a valid strategy when it did not itself return a replacement strategy.
+const strategyPrimary: SeraSemanticEvidenceAnnotation[] = [{
+  id: 'STRATEGY-PRIMARY', sourceQuote: 'O comandante escolheu a resposta B', sourceSentenceIndex: 0,
+  roles: ['FIRST_DEPARTURE', 'DIRECT_ACTOR', 'ACTION_STRATEGY'], concepts: ['implementedAction', 'incorrectAction'], actor: 'comandante', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT',
+  preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'OTHER_ACTION_FAILURE', actionMechanismEvidenceQuote: 'O comandante escolheu a resposta B', displayInterpretation: 'O comandante aplicou a resposta B.', confidence: 'HIGH', rationale: 'Estratégia primária.'
+}]
+const mechanismOnlyFocused: SeraSemanticEvidenceAnnotation[] = [{
+  id: 'MECHANISM-FOCUSED', sourceQuote: 'O comandante escolheu a resposta B', sourceSentenceIndex: 0,
+  roles: ['ACTION_MECHANISM'], concepts: [], actor: 'comandante', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT',
+  preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'OTHER_ACTION_FAILURE', actionMechanismEvidenceQuote: 'O comandante escolheu a resposta B', displayInterpretation: null, confidence: 'HIGH', rationale: 'Auditoria do mecanismo.'
+}]
+const strategyMerged = mergeFocusedPoaSemanticEvidence({ primary: strategyPrimary, focused: mechanismOnlyFocused, directActor: 'comandante' })
+assert.equal(strategyMerged.some((item) => item.roles.includes('ACTION_STRATEGY')), true, 'mechanism-only audit must preserve an independent action strategy')
+
 assert.match(semanticPromptSource, /crença sobre a CORREÇÃO, ADEQUAÇÃO ou PRESCRIÇÃO da própria ação escolhida/)
-assert.match(semanticPromptSource, /informationUnavailable: informação necessária NÃO CHEGOU ao ator/)
+assert.match(semanticPromptSource, /informationUnavailable: informação OPERACIONAL necessária naquele momento NÃO CHEGOU ao ator/)
 assert.match(semanticPromptSource, /SLOTS AUSENTES/)
 
 console.log('PASS semantic anchor audit boundary — contextual conditions cannot seize P/O/A anchor, focused semantics adjudicate P/O/A, and precondition overclaims can be rejected')
