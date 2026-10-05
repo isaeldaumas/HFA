@@ -218,6 +218,17 @@ function validRoles(
   });
 }
 
+
+function displayInterpretationMatchesRole(role: SeraSemanticEvidenceRole, value: string | null | undefined): boolean {
+  if (!value?.trim()) return true
+  const text = norm(value)
+  const subject = "(?:o operador|o piloto|o comandante|o copiloto|a tripulacao|the operator|the pilot|the captain|the first officer|the crew)"
+  if (role === "PERCEPTION_STATE") return new RegExp(`^${subject} (?:acreditava|percebia|believed|perceived)\\b`).test(text)
+  if (role === "OBJECTIVE_INTENT") return new RegExp(`^${subject} (?:pretendia|intended|aimed|wanted)\\b`).test(text)
+  if (role === "ACTION_STRATEGY") return new RegExp(`^${subject} (?:tentava|was trying|attempted)\\b`).test(text)
+  return true
+}
+
 function resolveSourceRecord(narrative: string, quote: string) {
   const nq = norm(quote);
   if (!nq) return null;
@@ -250,6 +261,13 @@ function enforceV2StructuralIntegrity(args: {
     if (!source) continue;
 
     let roles = [...new Set(item.roles)];
+    // V2 presentation fields are a schema-level cross-check for P/O/A role separation.
+    // The model is required to phrase each display sentence according to the semantic slot;
+    // when its own display contradicts the assigned role, fail closed on that role rather
+    // than allowing an action sentence to become perception (or analogous cross-axis drift).
+    const originalRoles = [...roles];
+    roles = roles.filter((role) => displayInterpretationMatchesRole(role, item.displayInterpretation));
+    const rejectedPerceptionRole = originalRoles.includes("PERCEPTION_STATE") && !roles.includes("PERCEPTION_STATE");
     // Investigator questions are not event evidence. This is a provenance/format guard,
     // not a semantic classifier: the model remains responsible for interpreting answers.
     if (isInvestigatorQuestion(sourceQuote)) {
@@ -281,6 +299,12 @@ function enforceV2StructuralIntegrity(args: {
           ? "NONE_OR_UNKNOWN" as const
           : null;
     let concepts = [...new Set(item.concepts ?? [])];
+    if (rejectedPerceptionRole) {
+      concepts = concepts.filter((concept) => ![
+        "adequateAssessment", "inadequateAssessment", "perceptionCapabilityPresent",
+        "sensoryLimitation", "knowledgeLimitation",
+      ].includes(concept));
+    }
     // TIME_PRESSURE is a semantic claim about an actual operational time constraint, not
     // merely chronological lateness. Require the dedicated semantic concept as a second
     // structured signal. If it is absent, fail closed instead of inferring pressure from

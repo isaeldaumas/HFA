@@ -188,8 +188,10 @@ export function didacticNodeReason(nodeId: string, answer: string, fallback: str
     'A_IMPLEMENTED:SIM': 'A ação foi executada de forma coerente com o estado percebido; o fluxo verifica se existia outra falha independente de ação.',
     'A_IMPLEMENTED:NÃO_DESLIZE_LAPSO_ERRO': 'Há evidência de deslize, lapso ou erro específico na implementação da ação.',
     'A_IMPLEMENTED:NÃO_FEEDBACK': 'Há evidência de falha de feedback ou verificação da própria execução.',
+    'A_IMPLEMENTED:INSUFFICIENT_EVIDENCE': 'A evidência disponível não resolve de forma consistente se a execução correspondeu à intenção; a travessia permanece interrompida até o mecanismo ser esclarecido.',
     'A_CORRECT:SIM': 'Não foi demonstrado mecanismo independente de ação inadequada; a ação era coerente com a percepção e o objetivo do ator, conduzindo a A-A.',
     'A_CORRECT:NÃO': 'A ação implementada era inadequada por mecanismo próprio; o fluxo segue para capacidade e seleção da resposta.',
+    'A_CAPABILITY:INSUFFICIENT_EVIDENCE': 'A evidência disponível não demonstra positivamente capacidade, conhecimento ou habilidade suficientes para continuar a discriminação do subtipo de ação.',
   }
   return map[key] ?? fallback
 }
