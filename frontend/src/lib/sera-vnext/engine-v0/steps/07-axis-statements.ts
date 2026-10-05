@@ -72,7 +72,7 @@ function evidenceFor(
       // If one source sentence contains two sequential operator landmarks, the first clause is
       // the unique P/O/A anchor. The full compound sentence is unsafe for P/O/A because it would
       // re-import the later actor/action through lexical or semantic concepts.
-      if (compoundLandmarkSentence(item.statement)) return false
+      if (compoundLandmarkSentence(item.statement) && item.collectionSource !== 'AI_SEMANTIC_EXTRACTION') return false
       // In canonical AI-assisted analyses, semantic interpretation is the primary P/O/A layer.
       // Raw lexical evidence remains only as a fallback when no semantic pass exists, plus the
       // exact observable critical act for Action when semantic extraction missed that sentence.

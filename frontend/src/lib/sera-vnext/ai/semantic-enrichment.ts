@@ -202,6 +202,7 @@ Definição obrigatória:
 - Uma crença sobre a CORREÇÃO, ADEQUAÇÃO ou PRESCRIÇÃO da própria ação escolhida (por exemplo, acreditar que a resposta executada era a prevista) é evidência de conhecimento/decisão da AÇÃO, não uma divergência perceptiva do estado do ambiente/sistema. Se a primeira saída observável foi escolher/implementar uma resposta inadequada, essa escolha/implementação é a FIRST_DEPARTURE; a crença explicativa não deve tomar sua âncora.
 - Avaliação retrospectiva sobre por que uma ação parecia correta também não antecede artificialmente a própria decisão/ação. Prefira o primeiro ato, decisão, omissão ou percepção operacional que efetivamente alterou a trajetória seguro→inseguro.
 - NÃO escolha como FIRST_DEPARTURE uma condição externa/contextual por si só: meteorologia, atraso, carga de trabalho, programação tornar-se inviável, presença física de objeto/equipamento, estado normal/degradado do ambiente, condição latente, prioridade gerencial, supervisão, planejamento ou outro PRECONDITION. Esses fatores podem explicar a falha, mas não são a âncora P/O/A da tripulação, salvo quando a própria ocorrência focal é explicitamente aquela decisão humana como ato inseguro.
+- DISTINGA a cadeia de controle/organização da execução operacional focal. Quando uma orientação, decisão de supervisão, planejamento ou prioridade antecedente apenas cria pressão/condições para uma ação ou omissão operacional posterior da equipe, mantenha a orientação/decisão antecedente como PRECONDITION e escolha como FIRST_DEPARTURE a primeira ação/omissão/percepção da execução operacional que efetivamente sai do estado seguro. Só use a decisão de supervisão como FIRST_DEPARTURE quando ela própria for o ato inseguro focal e não houver uma falha operacional posterior mais direta na trajetória analisada.
 - Se a fonte contém uma omissão/ação operacional posterior a uma condição contextual, escolha a omissão/ação/percepção humana — não a condição que apenas criou o cenário.
 - Não escolha detecção, recuperação, correção ou consequência posterior.
 - Se o executor do ato não está individualizado (por exemplo, voz passiva ou apenas coletivo), actor=null; não invente identidade individual.
@@ -401,6 +402,47 @@ export function mergeFocusedPoaSemanticEvidence(args: {
   return merged
 }
 
+const ANTECEDENT_CONTROL_PRECONDITIONS = new Set([
+  'MONITORING_SUPERVISION', 'ORGANIZATIONAL_PROCESS_PRACTICES', 'ORGANIZATIONAL_CLIMATE',
+  'OVERSIGHT', 'PROVISION_RESOURCES',
+])
+
+/**
+ * Resolve a semantic contradiction where the same supervisory/organizational span is both
+ * FIRST_DEPARTURE and an antecedent PRECONDITION while a later operational CRITICAL_UNSAFE_ACT
+ * is explicitly preserved. This is a methodology/provenance guard over semantic roles, not a
+ * lexical interpretation rule. It keeps latent/control-chain antecedents from seizing the
+ * frontline P/O/A anchor merely because they occur earlier in time.
+ */
+export function preferOperationalActOverAntecedentControlAnchor(
+  annotations: SeraSemanticEvidenceAnnotation[],
+): SeraSemanticEvidenceAnnotation[] {
+  const current = annotations.find((item) => item.roles.includes('FIRST_DEPARTURE') && item.assertionStatus === 'AFFIRMED' && item.confidence !== 'LOW')
+  if (!current) return annotations
+  const currentQuote = normalizeSourceText(current.sourceQuote)
+  const antecedentControl = annotations.some((item) => {
+    if (!item.roles.includes('PRECONDITION') || !item.preconditionCategory || !ANTECEDENT_CONTROL_PRECONDITIONS.has(item.preconditionCategory)) return false
+    if (item.sourceSentenceIndex !== current.sourceSentenceIndex) return false
+    const quote = normalizeSourceText(item.sourceQuote)
+    return Boolean(quote && currentQuote && (quote.includes(currentQuote) || currentQuote.includes(quote)))
+  })
+  if (!antecedentControl) return annotations
+
+  const candidates = annotations
+    .filter((item) => item.roles.includes('CRITICAL_UNSAFE_ACT'))
+    .filter((item) => item.assertionStatus === 'AFFIRMED' && item.confidence !== 'LOW')
+    .filter((item) => item.sourceSentenceIndex > current.sourceSentenceIndex)
+    .filter((item) => !item.roles.includes('BARRIER') && !item.roles.includes('OUTCOME'))
+    .sort((a, b) => a.sourceSentenceIndex - b.sourceSentenceIndex || Number(Boolean(a.actor)) - Number(Boolean(b.actor)))
+  const operational = candidates[0]
+  if (!operational) return annotations
+  return applyAuditedFirstDeparture(annotations, {
+    ...operational,
+    roles: [...new Set<SeraSemanticEvidenceRole>([...operational.roles, 'FIRST_DEPARTURE'])],
+    temporalRelation: 'AT_ESCAPE',
+  })
+}
+
 function informationQualityAuditPrompt(args: {
   narrative: string
   escapePoint: string
@@ -421,6 +463,60 @@ Regras semânticas obrigatórias:
 
 JSON somente:
 {"claims":[{"sourceQuote":"trecho literal","concept":"informationUnavailable|informationAmbiguous|informationAvailableCorrect","temporalRelation":"PRE_ESCAPE|AT_ESCAPE","rationale":"curta"}]}
+
+RECORTES:
+${focusedPoaEvidenceExcerpt(args)}`
+}
+
+function informationQualityAdjudicationPrompt(args: {
+  narrative: string
+  escapePoint: string
+  directActor: string
+  candidateClaims: unknown[]
+}): string {
+  return `Faça uma SEGUNDA AUDITORIA independente e definitiva da qualidade/disponibilidade das fontes de informação relevantes à Percepção. Não classifique SERA. O resultado desta passagem substituirá os rótulos de qualidade de informação da primeira passagem.
+
+PONTO DE FUGA: ${args.escapePoint}
+ATOR: ${args.directActor}
+
+CANDIDATOS DA PRIMEIRA AUDITORIA (podem estar vazios ou errados):
+${JSON.stringify(args.candidateClaims)}
+
+Contrato semântico:
+- informationUnavailable = informação operacional necessária NÃO chegou integralmente ao ator naquele momento por perda, truncamento, inaudibilidade ou omissão na transmissão. Se a fonte afirma que uma parte crítica/final não foi ouvida ou recebida, classifique a fonte correspondente como informationUnavailable; não devolva claims=[] ignorando esse fato.
+- informationAmbiguous = o estímulo/conteúdo FOI recebido/percebido, porém era em si ambíguo, ilusório, conflitante ou enganoso.
+- informationAvailableCorrect = fonte/indicação/instrumento relevante estava explicitamente disponível e correto/funcional.
+- Ausência de conhecimento/treinamento não é informationUnavailable. Informação parcial tratada como definitiva é inadequateAssessment do ator; a parte que não chegou continua informationUnavailable.
+- Avalie fontes distintas separadamente. Para a MESMA fonte/trecho, informationUnavailable e informationAmbiguous são mutuamente exclusivos.
+- Retorne somente claims sustentados por citação literal exata contida em um único registro [S#]. Se realmente não houver qualquer evidência de qualidade/disponibilidade da informação, use claims=[].
+
+JSON somente:
+{"claims":[{"sourceQuote":"trecho literal","concept":"informationUnavailable|informationAmbiguous|informationAvailableCorrect","temporalRelation":"PRE_ESCAPE|AT_ESCAPE","rationale":"curta"}]}
+
+RECORTES:
+${focusedPoaEvidenceExcerpt(args)}`
+}
+
+function actionFactAuditPrompt(args: {
+  narrative: string
+  escapePoint: string
+  directActor: string
+}): string {
+  return `Audite SOMENTE fatos estruturados da AÇÃO do ator no ponto de fuga. Não classifique SERA e não decida códigos A-*.
+
+PONTO DE FUGA: ${args.escapePoint}
+ATOR: ${args.directActor}
+
+Avalie independentemente, apenas quando explicitamente sustentado:
+- implementedAction: uma ação/resposta/comando foi efetivamente escolhido, executado ou aplicado pelo ator.
+- selectionSubtype: o ator escolheu conscientemente uma alternativa/resposta entre opções e executou a escolha; não implica que a escolha era correta.
+- correctAction / incorrectAction: adequação da ação está explicitamente estabelecida pela fonte.
+- actionKnowledgeLimitation: faltava conhecimento procedimental/decisório necessário para formar ou selecionar a resposta correta.
+- actionCapabilityPresent: somente com evidência POSITIVA independente de conhecimento/habilidade/capacidade; nunca inferir do simples fato de haver uma ação.
+Cada claim deve usar UMA citação literal exata da fonte e um único concept. Não invente intenção, objetivo ou capacidade. Se nenhum fato estiver sustentado, use claims=[].
+
+JSON somente:
+{"claims":[{"sourceQuote":"trecho literal","concept":"implementedAction|selectionSubtype|correctAction|incorrectAction|actionKnowledgeLimitation|actionCapabilityPresent","temporalRelation":"PRE_ESCAPE|AT_ESCAPE","rationale":"curta"}]}
 
 RECORTES:
 ${focusedPoaEvidenceExcerpt(args)}`
@@ -711,6 +807,7 @@ export async function enrichSeraNarrativeSemantically(args: {
     console.warn('[SERA semantic first-departure audit] retaining primary/occurrence semantics', error instanceof Error ? error.message : String(error))
   }
 
+  accepted.splice(0, accepted.length, ...preferOperationalActOverAntecedentControlAnchor(accepted))
   const normalizedAnnotations = normalizePostEscapeSemantics(args.narrative, accepted)
 
   // callAi may load the user's active provider/key from persistence. Capture provenance
@@ -765,49 +862,102 @@ export async function enrichSeraPoaSemantically(args: {
 
   for (const [index, item] of rawAnnotations.entries()) acceptRaw(item, 1000 + index)
 
-  // Information quality is a dedicated semantic adjudication because "ambiguous" and
-  // "unavailable" lead to different canonical P leaves. The audit is authoritative only
-  // for those three information concepts; it never assigns a SERA code.
+  // Information quality is a dedicated two-pass semantic adjudication because "ambiguous"
+  // and "unavailable" lead to different canonical P leaves. The second pass is authoritative
+  // for those concepts and is deliberately semantic (not a lexical fallback in the engine).
   try {
-    const infoAudit = await askJson(
+    const firstInfoAudit = await askJson(
       systemPrompt(args.locale),
       informationQualityAuditPrompt(args),
       'sera-vnext-semantic-information-quality-audit',
       { maxTokens: 2600 },
     )
-    if (Array.isArray(infoAudit.claims)) {
-      for (let i = 0; i < accepted.length; i += 1) {
-        accepted[i] = {
-          ...accepted[i],
-          concepts: (accepted[i].concepts ?? []).filter((concept) => !INFORMATION_QUALITY_CONCEPTS.has(concept)),
-        }
+    const firstClaims = Array.isArray(firstInfoAudit.claims) ? firstInfoAudit.claims.slice(0, 12) : []
+    let finalClaims = firstClaims
+    try {
+      const adjudication = await askJson(
+        systemPrompt(args.locale),
+        informationQualityAdjudicationPrompt({ ...args, candidateClaims: firstClaims }),
+        'sera-vnext-semantic-information-quality-adjudication',
+        { maxTokens: 2800 },
+      )
+      if (Array.isArray(adjudication.claims)) finalClaims = adjudication.claims.slice(0, 12)
+    } catch (error) {
+      console.warn('[SERA semantic information-quality adjudication] retaining first audit', error instanceof Error ? error.message : String(error))
+    }
+    for (let i = 0; i < accepted.length; i += 1) {
+      accepted[i] = {
+        ...accepted[i],
+        concepts: (accepted[i].concepts ?? []).filter((concept) => !INFORMATION_QUALITY_CONCEPTS.has(concept)),
       }
-      for (const [index, raw] of infoAudit.claims.slice(0, 12).entries()) {
-        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { rejected += 1; continue }
-        const claim = raw as Record<string, unknown>
-        const concept = asString(claim.concept)
-        if (!concept || !INFORMATION_QUALITY_CONCEPTS.has(concept as SeraSemanticDecisionConcept)) { rejected += 1; continue }
-        acceptRaw({
-          sourceQuote: claim.sourceQuote,
-          roles: ['CONTEXT'],
-          concepts: [concept],
-          actor: args.directActor,
-          temporalRelation: claim.temporalRelation ?? 'AT_ESCAPE',
-          assertionStatus: 'AFFIRMED',
-          occurrenceScope: 'CURRENT_EVENT',
-          preconditionCategory: null,
-          preconditionCausalStatus: null,
-          preconditionCausalTargetQuote: null,
-          actionFailureMechanism: 'NONE_OR_UNKNOWN',
-          actionMechanismEvidenceQuote: null,
-          displayInterpretation: null,
-          confidence: 'HIGH',
-          rationale: claim.rationale ?? 'Auditoria semântica de qualidade/disponibilidade da informação.',
-        }, 2000 + index)
-      }
+    }
+    for (const [index, raw] of finalClaims.entries()) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { rejected += 1; continue }
+      const claim = raw as Record<string, unknown>
+      const concept = asString(claim.concept)
+      if (!concept || !INFORMATION_QUALITY_CONCEPTS.has(concept as SeraSemanticDecisionConcept)) { rejected += 1; continue }
+      acceptRaw({
+        sourceQuote: claim.sourceQuote,
+        roles: ['CONTEXT'],
+        concepts: [concept],
+        actor: args.directActor,
+        temporalRelation: claim.temporalRelation ?? 'AT_ESCAPE',
+        assertionStatus: 'AFFIRMED',
+        occurrenceScope: 'CURRENT_EVENT',
+        preconditionCategory: null,
+        preconditionCausalStatus: null,
+        preconditionCausalTargetQuote: null,
+        actionFailureMechanism: 'NONE_OR_UNKNOWN',
+        actionMechanismEvidenceQuote: null,
+        displayInterpretation: null,
+        confidence: 'HIGH',
+        rationale: claim.rationale ?? 'Adjudicação semântica de qualidade/disponibilidade da informação.',
+      }, 2000 + index)
     }
   } catch (error) {
     console.warn('[SERA semantic information-quality audit] retaining focused-pass information concepts', error instanceof Error ? error.message : String(error))
+  }
+
+  // Independently structure action facts needed by the canonical Action tree. This pass does
+  // not classify A-*; it only states whether a response was implemented/selected, whether its
+  // adequacy is explicit, and whether knowledge/capability evidence exists.
+  try {
+    const actionAudit = await askJson(
+      systemPrompt(args.locale),
+      actionFactAuditPrompt(args),
+      'sera-vnext-semantic-action-fact-audit',
+      { maxTokens: 2800 },
+    )
+    const allowedActionFacts = new Set<SeraSemanticDecisionConcept>([
+      'implementedAction', 'selectionSubtype', 'correctAction', 'incorrectAction',
+      'actionKnowledgeLimitation', 'actionCapabilityPresent',
+    ])
+    const claims = Array.isArray(actionAudit.claims) ? actionAudit.claims.slice(0, 16) : []
+    for (const [index, raw] of claims.entries()) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { rejected += 1; continue }
+      const claim = raw as Record<string, unknown>
+      const concept = asString(claim.concept)
+      if (!concept || !allowedActionFacts.has(concept as SeraSemanticDecisionConcept)) { rejected += 1; continue }
+      acceptRaw({
+        sourceQuote: claim.sourceQuote,
+        roles: ['CONTEXT'],
+        concepts: [concept],
+        actor: args.directActor,
+        temporalRelation: claim.temporalRelation ?? 'AT_ESCAPE',
+        assertionStatus: 'AFFIRMED',
+        occurrenceScope: 'CURRENT_EVENT',
+        preconditionCategory: null,
+        preconditionCausalStatus: null,
+        preconditionCausalTargetQuote: null,
+        actionFailureMechanism: 'NONE_OR_UNKNOWN',
+        actionMechanismEvidenceQuote: null,
+        displayInterpretation: null,
+        confidence: 'HIGH',
+        rationale: claim.rationale ?? 'Auditoria semântica de fatos da ação.',
+      }, 2200 + index)
+    }
+  } catch (error) {
+    console.warn('[SERA semantic action-fact audit] retaining focused-pass action facts', error instanceof Error ? error.message : String(error))
   }
 
   // If the focused pass omitted a root slot altogether, ask one narrow semantic recovery

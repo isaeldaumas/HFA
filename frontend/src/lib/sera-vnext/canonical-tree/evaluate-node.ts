@@ -125,21 +125,13 @@ function semanticActionStrategyStatements(ctx: SeraNodeEvidenceContext): string[
     && item.semanticConfidence !== 'LOW'
     && !item.prohibitedFor.includes(use)
     && isEvidenceUsableFor(item, use))
-  const landmarks = eligible.filter((item) =>
-    item.semanticRoles?.some((role) => role === 'FIRST_DEPARTURE' || role === 'CRITICAL_UNSAFE_ACT'))
   return unique(eligible
     .filter((item) => item.semanticRoles?.includes('ACTION_STRATEGY'))
     .filter((item) => item.semanticActionFailureMechanism !== 'MONITORING_ATTENTION_LAPSE')
-    .filter((item) => {
-      const candidate = normalizedSemanticStatement(item.statement)
-      if (!candidate) return false
-      return !landmarks.some((landmark) => {
-        if (landmark.sourceSentenceIndex !== item.sourceSentenceIndex) return false
-        const anchor = normalizedSemanticStatement(landmark.statement)
-        if (!anchor) return false
-        return candidate === anchor || candidate.includes(anchor) || anchor.includes(candidate)
-      })
-    })
+    // In V2 the semantic role assignment is authoritative for meaning. A valid strategy may
+    // be expressed by the same literal span as FIRST_DEPARTURE (for example, a deliberately
+    // selected response). Textual overlap with the landmark is therefore not grounds to erase
+    // ACTION_STRATEGY; implementation/mechanism is adjudicated separately.
     .map((item) => item.statement))
 }
 
