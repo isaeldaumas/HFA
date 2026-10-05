@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
-import { applyAuditedFirstDeparture, applyPreconditionSemanticAuditRejections } from '../../frontend/src/lib/sera-vnext/ai/semantic-enrichment'
+import { applyAuditedFirstDeparture, applyPreconditionSemanticAuditRejections, mergeFocusedPoaSemanticEvidence } from '../../frontend/src/lib/sera-vnext/ai/semantic-enrichment'
 import { runSeraVNextEngineV0 } from '../../frontend/src/lib/sera-vnext/engine-v0/run-engine'
 import type { SeraSemanticEvidenceAnnotation } from '../../frontend/src/lib/sera-vnext/engine-contract'
 
@@ -151,7 +151,88 @@ for (const file of [
   const source = fs.readFileSync(file, 'utf8')
   assert.match(source, /\['PERCEPTION', 'OBJECTIVE', 'ACTION'\]\.includes\(question\.stage\)/)
   assert.doesNotMatch(source, /\-\(P\|O\|A\)_ROOT/)
-  assert.match(source, /item\.concepts\?\.join\(','\)/, 'focused semantic concepts must participate in the merge key so a richer second pass is not discarded')
+  assert.match(source, /mergeFocusedPoaSemanticEvidence/, 'focused P/O/A adjudication must replace stale broad-pass semantics instead of union-merging them')
 }
 
-console.log('PASS semantic anchor audit boundary — contextual conditions cannot seize P/O/A anchor, perception may anchor, and precondition overclaims can be rejected')
+// Focused P adjudication is authoritative for the direct actor. A stale broad-pass
+// informationAmbiguous/inadequateAssessment claim must not survive to outvote a focused
+// unavailable/adequate claim in the deterministic tree.
+const mergePrimary: SeraSemanticEvidenceAnnotation[] = [
+  {
+    id: 'MERGE-PRIMARY-P', sourceQuote: 'O piloto recebeu apenas parte da mensagem.', sourceSentenceIndex: 0,
+    roles: ['PERCEPTION_STATE'], concepts: ['inadequateAssessment', 'informationAmbiguous'], actor: 'piloto', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT',
+    preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, displayInterpretation: 'O operador percebia a mensagem parcial como definitiva.', confidence: 'HIGH', rationale: 'Broad pass.'
+  },
+]
+const mergeFocused: SeraSemanticEvidenceAnnotation[] = [
+  {
+    id: 'MERGE-FOCUSED-P', sourceQuote: 'O piloto recebeu apenas parte da mensagem.', sourceSentenceIndex: 0,
+    roles: ['PERCEPTION_STATE'], concepts: ['inadequateAssessment'], actor: 'piloto', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT',
+    preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, displayInterpretation: 'O operador percebia a mensagem parcial como definitiva.', confidence: 'HIGH', rationale: 'Focused pass.'
+  },
+  {
+    id: 'MERGE-FOCUSED-INFO', sourceQuote: 'A parte crítica não chegou ao piloto.', sourceSentenceIndex: 1,
+    roles: ['CONTEXT'], concepts: ['informationUnavailable'], actor: 'piloto', temporalRelation: 'PRE_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT',
+    preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, displayInterpretation: null, confidence: 'HIGH', rationale: 'Information audit.'
+  },
+]
+const mergeResult = mergeFocusedPoaSemanticEvidence({ primary: mergePrimary, focused: mergeFocused, directActor: 'piloto' })
+assert.equal(mergeResult.some((item) => item.concepts?.includes('informationAmbiguous')), false)
+assert.equal(mergeResult.some((item) => item.concepts?.includes('informationUnavailable')), true)
+
+
+// Objective recovery is authoritative when the broad pass loses a contemporaneous purpose.
+// The merge must preserve the FIRST_DEPARTURE while allowing a focused OBJECTIVE_INTENT to
+// drive the canonical objective tree.
+const objectiveNarrative = 'O comandante decidiu abreviar a pausa prevista para recuperar tempo.'
+const objectivePrimary: SeraSemanticEvidenceAnnotation[] = [
+  {
+    id: 'OBJ-FIRST', sourceQuote: 'O comandante decidiu abreviar a pausa prevista', sourceSentenceIndex: 0,
+    roles: ['FIRST_DEPARTURE', 'DIRECT_ACTOR', 'ACTION_STRATEGY'], concepts: ['implementedAction', 'incorrectAction'], actor: 'comandante', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT',
+    preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'OTHER_ACTION_FAILURE', actionMechanismEvidenceQuote: 'O comandante decidiu abreviar a pausa prevista', displayInterpretation: 'O operador tentava abreviar a pausa prevista.', confidence: 'HIGH', rationale: 'Broad pass missed the purpose.'
+  },
+]
+const objectiveFocused: SeraSemanticEvidenceAnnotation[] = [
+  {
+    id: 'OBJ-FOCUSED', sourceQuote: 'para recuperar tempo', sourceSentenceIndex: 0,
+    roles: ['OBJECTIVE_INTENT'], concepts: ['efficiencyObjective', 'unmanagedRisk'], actor: 'comandante', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT',
+    preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, displayInterpretation: 'O operador pretendia recuperar tempo.', confidence: 'HIGH', rationale: 'Finalidade contemporânea.'
+  },
+]
+const objectiveMerged = mergeFocusedPoaSemanticEvidence({ primary: objectivePrimary, focused: objectiveFocused, directActor: 'comandante' })
+const objectiveOutput = run('SEMANTIC-FOCUSED-OBJECTIVE-AUTHORITY', objectiveNarrative, objectiveMerged)
+assert.equal(objectiveOutput.escapePoint.firstDepartureCandidate, 'O comandante decidiu abreviar a pausa prevista')
+assert.equal(objectiveOutput.axes.objective.proposedCode, 'O-D')
+
+// Focused perception adjudication must remove a stale contradictory broad-pass assessment
+// for the same actor. Correctly perceived state + later knowledge-based wrong action remains
+// P-A on Perception rather than being pulled into a false perceptual failure.
+const correctPPerceptionNarrative = 'O comandante identificou corretamente o alerta e o estado da aeronave, mas escolheu uma resposta inadequada porque não conhecia um detalhe do procedimento.'
+const correctPPrimary: SeraSemanticEvidenceAnnotation[] = [
+  {
+    id: 'CP-FIRST', sourceQuote: 'escolheu uma resposta inadequada', sourceSentenceIndex: 0,
+    roles: ['FIRST_DEPARTURE', 'DIRECT_ACTOR', 'ACTION_STRATEGY'], concepts: ['implementedAction', 'incorrectAction', 'selectionSubtype', 'actionKnowledgeLimitation'], actor: 'comandante', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT',
+    preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'OTHER_ACTION_FAILURE', actionMechanismEvidenceQuote: 'escolheu uma resposta inadequada', displayInterpretation: 'O operador tentava responder por meio da alternativa escolhida.', confidence: 'HIGH', rationale: 'Unsafe action.'
+  },
+  {
+    id: 'CP-STALE-P', sourceQuote: 'escolheu uma resposta inadequada', sourceSentenceIndex: 0,
+    roles: ['PERCEPTION_STATE'], concepts: ['inadequateAssessment'], actor: 'comandante', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT',
+    preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, displayInterpretation: 'O operador percebia a resposta escolhida como adequada.', confidence: 'HIGH', rationale: 'Stale broad-pass cross-axis drift.'
+  },
+]
+const correctPFocused: SeraSemanticEvidenceAnnotation[] = [
+  {
+    id: 'CP-FOCUSED-P', sourceQuote: 'O comandante identificou corretamente o alerta e o estado da aeronave', sourceSentenceIndex: 0,
+    roles: ['PERCEPTION_STATE'], concepts: ['adequateAssessment', 'perceptionCapabilityPresent'], actor: 'comandante', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT',
+    preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, displayInterpretation: 'O operador percebia corretamente o alerta e o estado da aeronave.', confidence: 'HIGH', rationale: 'Focused P adjudication.'
+  },
+]
+const correctPMerged = mergeFocusedPoaSemanticEvidence({ primary: correctPPrimary, focused: correctPFocused, directActor: 'comandante' })
+const correctPOutput = run('SEMANTIC-FOCUSED-P-AUTHORITY', correctPPerceptionNarrative, correctPMerged)
+assert.equal(correctPOutput.axes.perception.proposedCode, 'P-A')
+
+assert.match(semanticPromptSource, /crença sobre a CORREÇÃO, ADEQUAÇÃO ou PRESCRIÇÃO da própria ação escolhida/)
+assert.match(semanticPromptSource, /informationUnavailable: informação necessária NÃO CHEGOU ao ator/)
+assert.match(semanticPromptSource, /SLOTS AUSENTES/)
+
+console.log('PASS semantic anchor audit boundary — contextual conditions cannot seize P/O/A anchor, focused semantics adjudicate P/O/A, and precondition overclaims can be rejected')

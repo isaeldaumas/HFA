@@ -195,7 +195,9 @@ function firstDepartureSemanticAuditPrompt(
 
 Definição obrigatória:
 - FIRST_DEPARTURE é a primeira ação, decisão, omissão ou percepção humana observável que faz a operação focal sair do estado seguro.
-- Uma percepção explicitamente errada/enganosa do operador pode ser FIRST_DEPARTURE quando ela própria é a primeira divergência humana da operação segura.
+- Uma percepção explicitamente errada/enganosa do operador pode ser FIRST_DEPARTURE quando ela própria é a primeira divergência humana da operação segura E descreve o estado operacional/ambiental/sistêmico percebido pelo ator.
+- Uma crença sobre a CORREÇÃO, ADEQUAÇÃO ou PRESCRIÇÃO da própria ação escolhida (por exemplo, acreditar que a resposta executada era a prevista) é evidência de conhecimento/decisão da AÇÃO, não uma divergência perceptiva do estado do ambiente/sistema. Se a primeira saída observável foi escolher/implementar uma resposta inadequada, essa escolha/implementação é a FIRST_DEPARTURE; a crença explicativa não deve tomar sua âncora.
+- Avaliação retrospectiva sobre por que uma ação parecia correta também não antecede artificialmente a própria decisão/ação. Prefira o primeiro ato, decisão, omissão ou percepção operacional que efetivamente alterou a trajetória seguro→inseguro.
 - NÃO escolha como FIRST_DEPARTURE uma condição externa/contextual por si só: meteorologia, atraso, carga de trabalho, programação tornar-se inviável, presença física de objeto/equipamento, estado normal/degradado do ambiente, condição latente, prioridade gerencial, supervisão, planejamento ou outro PRECONDITION. Esses fatores podem explicar a falha, mas não são a âncora P/O/A da tripulação, salvo quando a própria ocorrência focal é explicitamente aquela decisão humana como ato inseguro.
 - Se a fonte contém uma omissão/ação operacional posterior a uma condição contextual, escolha a omissão/ação/percepção humana — não a condição que apenas criou o cenário.
 - Não escolha detecção, recuperação, correção ou consequência posterior.
@@ -301,6 +303,146 @@ ${format(local)}
 
 DEMAIS FRASES FACTUAIS DO RELATO PARA INTERPRETAÇÃO SEMÂNTICA (sem pré-filtragem por palavras-chave):
 ${format(remaining)}`
+}
+
+
+const INFORMATION_QUALITY_CONCEPTS = new Set<SeraSemanticDecisionConcept>([
+  'informationAmbiguous', 'informationAvailableCorrect', 'informationUnavailable',
+])
+const PERCEPTION_CORE_CONCEPTS = new Set<SeraSemanticDecisionConcept>([
+  'adequateAssessment', 'inadequateAssessment', 'sensoryLimitation', 'knowledgeLimitation',
+  'perceptionCapabilityPresent',
+])
+const OBJECTIVE_AXIS_CONCEPTS = new Set<SeraSemanticDecisionConcept>([
+  'safeGoal', 'knownRule', 'explicitAwareness', 'consciousDeviation', 'routineDeviation',
+  'exceptionalDeviation', 'managedRisk', 'unmanagedRisk', 'efficiencyObjective',
+])
+const ACTION_MECHANISM_CONCEPTS = new Set<SeraSemanticDecisionConcept>([
+  'feedbackImplementationFailure', 'slipLapse', 'proceduralOmission', 'implementationMismatch',
+])
+
+function sameSemanticActor(left: string | null | undefined, right: string | null | undefined): boolean {
+  if (!left || !right) return false
+  return normalizeSourceText(left) === normalizeSourceText(right)
+}
+
+/**
+ * The focused P/O/A pass is an adjudication layer, not merely additive evidence. Once it
+ * returns an axis for the direct actor, stale/conflicting concepts from the broad pass must
+ * not remain able to outvote it in the deterministic tree. Occurrence landmarks and
+ * preconditions are preserved; only P/O/A roles/concepts for the same actor/moment are
+ * replaced. Information-quality adjudication may also replace actor-neutral CONTEXT spans.
+ */
+export function mergeFocusedPoaSemanticEvidence(args: {
+  primary: SeraSemanticEvidenceAnnotation[]
+  focused: SeraSemanticEvidenceAnnotation[]
+  directActor: string
+}): SeraSemanticEvidenceAnnotation[] {
+  const focusedP = args.focused.some((item) => item.roles.includes('PERCEPTION_STATE'))
+  const focusedO = args.focused.some((item) => item.roles.includes('OBJECTIVE_INTENT'))
+  const focusedA = args.focused.some((item) => item.roles.includes('ACTION_STRATEGY') || item.roles.includes('ACTION_MECHANISM'))
+  // A focused Perception adjudication always owns information-quality semantics for the
+  // direct actor. If the dedicated information audit found no qualifying source, stale
+  // broad-pass ambiguity/unavailability labels must still be removed rather than surviving
+  // by union. If the audit failed, the focused pass itself retains any usable concepts.
+  const focusedInformation = focusedP || args.focused.some((item) => (item.concepts ?? []).some((concept) => INFORMATION_QUALITY_CONCEPTS.has(concept)))
+
+  const cleaned = args.primary.map((item) => {
+    if (item.temporalRelation === 'POST_ESCAPE') return item
+    const actorMatch = sameSemanticActor(item.actor, args.directActor)
+    const actorNeutralInformation = focusedInformation && !item.actor
+    if (!actorMatch && !actorNeutralInformation) return item
+
+    let roles = [...item.roles]
+    let concepts = [...(item.concepts ?? [])]
+    let actionFailureMechanism = item.actionFailureMechanism
+    let actionMechanismEvidenceQuote = item.actionMechanismEvidenceQuote
+
+    if (actorMatch && focusedP) {
+      roles = roles.filter((role) => role !== 'PERCEPTION_STATE')
+      concepts = concepts.filter((concept) => !PERCEPTION_CORE_CONCEPTS.has(concept))
+    }
+    if ((actorMatch || actorNeutralInformation) && focusedInformation) {
+      concepts = concepts.filter((concept) => !INFORMATION_QUALITY_CONCEPTS.has(concept))
+    }
+    if (actorMatch && focusedO) {
+      roles = roles.filter((role) => role !== 'OBJECTIVE_INTENT')
+      concepts = concepts.filter((concept) => !OBJECTIVE_AXIS_CONCEPTS.has(concept))
+    }
+    if (actorMatch && focusedA) {
+      roles = roles.filter((role) => role !== 'ACTION_STRATEGY' && role !== 'ACTION_MECHANISM')
+      // The focused action-mechanism audit is authoritative only for implementation
+      // mechanism. Preserve independent knowledge/capability/selection evidence from the
+      // broad pass unless the focused pass supplies its own evidence; otherwise A-E/A-F
+      // could disappear merely because the adjudicator was answering a narrower question.
+      concepts = concepts.filter((concept) => !ACTION_MECHANISM_CONCEPTS.has(concept))
+      actionFailureMechanism = null
+      actionMechanismEvidenceQuote = null
+    }
+
+    return { ...item, roles, concepts, actionFailureMechanism, actionMechanismEvidenceQuote }
+  }).filter((item) => item.roles.length > 0)
+
+  const merged = [...cleaned]
+  const seen = new Set(merged.map((item) => `${item.sourceSentenceIndex}:${normalizeSourceText(item.sourceQuote)}:${item.roles.join(',')}:${normalizeSourceText(item.actor ?? '')}:${item.preconditionCategory ?? ''}:${item.preconditionCausalStatus ?? ''}:${item.preconditionCausalTargetQuote ?? ''}:${item.actionFailureMechanism ?? ''}:${item.actionMechanismEvidenceQuote ?? ''}:${item.displayInterpretation ?? ''}:${item.concepts?.join(',') ?? ''}`))
+  for (const item of args.focused) {
+    const key = `${item.sourceSentenceIndex}:${normalizeSourceText(item.sourceQuote)}:${item.roles.join(',')}:${normalizeSourceText(item.actor ?? '')}:${item.preconditionCategory ?? ''}:${item.preconditionCausalStatus ?? ''}:${item.preconditionCausalTargetQuote ?? ''}:${item.actionFailureMechanism ?? ''}:${item.actionMechanismEvidenceQuote ?? ''}:${item.displayInterpretation ?? ''}:${item.concepts?.join(',') ?? ''}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      merged.push(item)
+    }
+  }
+  return merged
+}
+
+function informationQualityAuditPrompt(args: {
+  narrative: string
+  escapePoint: string
+  directActor: string
+}): string {
+  return `Audite SOMENTE a qualidade/disponibilidade das fontes de informação relevantes à Percepção no ponto de fuga abaixo. Não classifique SERA e não avalie Objetivo/Ação.
+
+PONTO DE FUGA: ${args.escapePoint}
+ATOR: ${args.directActor}
+
+Regras semânticas obrigatórias:
+- informationUnavailable: informação necessária NÃO CHEGOU ao ator (perda, truncamento, parte crítica inaudível/omitida na transmissão). O fato de o ator depois tratar a mensagem parcial como definitiva é avaliação inadequada do ator, não torna o conteúdo ausente "ambíguo".
+- informationAmbiguous: a informação FOI RECEBIDA/PERCEBIDA, mas o próprio estímulo/conteúdo era semanticamente ambíguo, ilusório, conflitante ou enganoso. Referência visual enganosa/ilusória pertence aqui.
+- informationAvailableCorrect: fonte/indicação/instrumento relevante estava explicitamente disponível e correto/funcional.
+- Os três rótulos são avaliados POR FONTE. Fontes distintas podem ter rótulos diferentes (por exemplo, instrumento correto e referência visual enganosa).
+- Não use informationAmbiguous para conteúdo crítico que simplesmente não foi recebido. Não use informationUnavailable para uma fonte recebida integralmente porém ilusória.
+- Retorne somente afirmações diretamente sustentadas pela fonte, com sourceQuote literal exato. Se nenhuma existir, retorne claims=[].
+
+JSON somente:
+{"claims":[{"sourceQuote":"trecho literal","concept":"informationUnavailable|informationAmbiguous|informationAvailableCorrect","temporalRelation":"PRE_ESCAPE|AT_ESCAPE","rationale":"curta"}]}
+
+RECORTES:
+${focusedPoaEvidenceExcerpt(args)}`
+}
+
+function missingPoaRootAuditPrompt(args: {
+  narrative: string
+  escapePoint: string
+  directActor: string
+  missing: Array<'PERCEPTION_STATE' | 'OBJECTIVE_INTENT' | 'ACTION_STRATEGY'>
+}): string {
+  return `Audite SOMENTE os slots P/O/A raiz que a primeira leitura não conseguiu preencher para o ator e ponto de fuga abaixo. Isto é recuperação semântica, não classificação SERA.
+
+PONTO DE FUGA: ${args.escapePoint}
+ATOR: ${args.directActor}
+SLOTS AUSENTES: ${args.missing.join(', ')}
+
+- PERCEPTION_STATE = representação contemporânea do estado operacional/ambiental/sistêmico percebido pelo ator. Crença sobre a correção da própria ação/procedimento não substitui percepção do estado da situação.
+- OBJECTIVE_INTENT = resultado/finalidade operacional que motivou a decisão. Uma oração final explicitamente ligada à mesma decisão ("para...", "a fim de...") é contemporânea ao ponto de fuga mesmo que apareça depois na frase. Quando a finalidade é tempo/horário/economia/produtividade use efficiencyObjective; se a mesma decisão deliberadamente comprime uma pausa/margem/tarefa de proteção, inclua unmanagedRisk quando a fonte sustentar isso.
+- ACTION_STRATEGY = meio/estratégia independente usada para perseguir o objetivo; não use a própria falha de implementação/omissão como estratégia.
+- Não invente slot ausente. Retorne somente os slots solicitados e efetivamente sustentados.
+- sourceQuote literal; actor=${args.directActor}; temporalRelation PRE_ESCAPE ou AT_ESCAPE; confidence HIGH/MEDIUM; displayInterpretation gramatical conforme o role.
+
+JSON somente:
+{"annotations":[{"sourceQuote":"trecho literal","roles":["OBJECTIVE_INTENT"],"concepts":["efficiencyObjective","unmanagedRisk"],"actor":"${args.directActor}","temporalRelation":"AT_ESCAPE","assertionStatus":"AFFIRMED","occurrenceScope":"CURRENT_EVENT","preconditionCategory":null,"preconditionCausalStatus":null,"preconditionCausalTargetQuote":null,"actionFailureMechanism":"NONE_OR_UNKNOWN","actionMechanismEvidenceQuote":null,"displayInterpretation":"O operador pretendia ...","confidence":"HIGH","rationale":"curta"}]}
+
+RECORTES:
+${focusedPoaEvidenceExcerpt(args)}`
 }
 
 function focusedPoaPrompt(args: {
@@ -602,17 +744,83 @@ export async function enrichSeraPoaSemantically(args: {
   const seen = new Set<string>()
   const allowedRoles = new Set<SeraSemanticEvidenceRole>(['PERCEPTION_STATE', 'OBJECTIVE_INTENT', 'ACTION_STRATEGY', 'ACTION_MECHANISM', 'BARRIER', 'CONTEXT'])
 
-  for (const [index, item] of rawAnnotations.entries()) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) { rejected += 1; continue }
-    const annotation = buildAnnotation(item as Record<string, unknown>, args.narrative, 1000 + index)
-    if (!annotation) { rejected += 1; continue }
+  const acceptRaw = (item: unknown, index: number): void => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) { rejected += 1; return }
+    const annotation = buildAnnotation(item as Record<string, unknown>, args.narrative, index)
+    if (!annotation) { rejected += 1; return }
     const roles = annotation.roles.filter((role) => allowedRoles.has(role))
-    if (!roles.length) { rejected += 1; continue }
+    if (!roles.length) { rejected += 1; return }
     const focused = { ...annotation, roles }
-    const key = `${focused.sourceSentenceIndex}:${roles.join(',')}:${focused.actor ?? ''}`
-    if (seen.has(key)) continue
+    const key = `${focused.sourceSentenceIndex}:${normalizeSourceText(focused.sourceQuote)}:${roles.join(',')}:${normalizeSourceText(focused.actor ?? '')}:${focused.actionFailureMechanism ?? ''}:${focused.actionMechanismEvidenceQuote ?? ''}:${focused.displayInterpretation ?? ''}:${focused.concepts?.join(',') ?? ''}`
+    if (seen.has(key)) return
     seen.add(key)
     accepted.push(focused)
+  }
+
+  for (const [index, item] of rawAnnotations.entries()) acceptRaw(item, 1000 + index)
+
+  // Information quality is a dedicated semantic adjudication because "ambiguous" and
+  // "unavailable" lead to different canonical P leaves. The audit is authoritative only
+  // for those three information concepts; it never assigns a SERA code.
+  try {
+    const infoAudit = await askJson(
+      systemPrompt(args.locale),
+      informationQualityAuditPrompt(args),
+      'sera-vnext-semantic-information-quality-audit',
+      { maxTokens: 2600 },
+    )
+    if (Array.isArray(infoAudit.claims)) {
+      for (let i = 0; i < accepted.length; i += 1) {
+        accepted[i] = {
+          ...accepted[i],
+          concepts: (accepted[i].concepts ?? []).filter((concept) => !INFORMATION_QUALITY_CONCEPTS.has(concept)),
+        }
+      }
+      for (const [index, raw] of infoAudit.claims.slice(0, 12).entries()) {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { rejected += 1; continue }
+        const claim = raw as Record<string, unknown>
+        const concept = asString(claim.concept)
+        if (!concept || !INFORMATION_QUALITY_CONCEPTS.has(concept as SeraSemanticDecisionConcept)) { rejected += 1; continue }
+        acceptRaw({
+          sourceQuote: claim.sourceQuote,
+          roles: ['CONTEXT'],
+          concepts: [concept],
+          actor: args.directActor,
+          temporalRelation: claim.temporalRelation ?? 'AT_ESCAPE',
+          assertionStatus: 'AFFIRMED',
+          occurrenceScope: 'CURRENT_EVENT',
+          preconditionCategory: null,
+          preconditionCausalStatus: null,
+          preconditionCausalTargetQuote: null,
+          actionFailureMechanism: 'NONE_OR_UNKNOWN',
+          actionMechanismEvidenceQuote: null,
+          displayInterpretation: null,
+          confidence: 'HIGH',
+          rationale: claim.rationale ?? 'Auditoria semântica de qualidade/disponibilidade da informação.',
+        }, 2000 + index)
+      }
+    }
+  } catch (error) {
+    console.warn('[SERA semantic information-quality audit] retaining focused-pass information concepts', error instanceof Error ? error.message : String(error))
+  }
+
+  // If the focused pass omitted a root slot altogether, ask one narrow semantic recovery
+  // question instead of inferring the missing meaning deterministically from wording.
+  const missing = (['PERCEPTION_STATE', 'OBJECTIVE_INTENT', 'ACTION_STRATEGY'] as const)
+    .filter((role) => !accepted.some((item) => item.roles.includes(role)))
+  if (missing.length > 0) {
+    try {
+      const recovery = await askJson(
+        systemPrompt(args.locale),
+        missingPoaRootAuditPrompt({ ...args, missing: [...missing] }),
+        'sera-vnext-semantic-poa-root-recovery',
+        { maxTokens: 3600 },
+      )
+      const items = Array.isArray(recovery.annotations) ? recovery.annotations.slice(0, 12) : []
+      for (const [index, item] of items.entries()) acceptRaw(item, 2400 + index)
+    } catch (error) {
+      console.warn('[SERA semantic P/O/A root recovery] retaining unresolved root slot', error instanceof Error ? error.message : String(error))
+    }
   }
 
   const normalized = normalizePostEscapeSemantics(args.narrative, accepted)

@@ -387,8 +387,10 @@ function didacticReason(nodeId: string, answer: string, fallback: string | undef
     'A_IMPLEMENTED:SIM': 'A ação foi implementada como pretendida; a árvore então verifica se existia falha de ação independente.',
     'A_IMPLEMENTED:NÃO_DESLIZE_LAPSO_ERRO': 'Há evidência de deslize, omissão ou lapso específico na execução da ação.',
     'A_IMPLEMENTED:NÃO_FEEDBACK': 'Há evidência de falha de feedback ou verificação durante a própria execução.',
+    'A_IMPLEMENTED:INSUFFICIENT_EVIDENCE': 'A evidência disponível não resolve de forma consistente se a execução correspondeu à intenção; a travessia permanece interrompida até o mecanismo ser esclarecido.',
     'A_CORRECT:SIM': 'Não foi demonstrado mecanismo independente de ação inadequada; a ação permaneceu coerente com a percepção e o objetivo do ator, conduzindo a A-A.',
     'A_CORRECT:NÃO': 'A ação implementada era inadequada por mecanismo próprio; a árvore segue para capacidade, seleção e feedback da resposta.',
+    'A_CAPABILITY:INSUFFICIENT_EVIDENCE': 'A evidência disponível não demonstra positivamente capacidade, conhecimento ou habilidade suficientes para continuar a discriminação do subtipo de ação.',
   }
   return map[key] ?? fallback ?? 'A resposta foi determinada pela evidência utilizável disponível neste nó.'
 }
