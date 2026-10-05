@@ -396,4 +396,46 @@ const lateOnly = run('SEMANTIC-LATE-IS-NOT-TIME-PRESSURE', lateOnlyNarrative, [
 ])
 assert.equal(lateOnly.preconditions.some((item) => !item.basedOnCandidateCode && item.canonicalCategory === 'TIME_PRESSURE'), false)
 
+
+// Communication loss is different from ambiguous content. When the source says a material
+// part of the message never reached the actor and the actor treated the partial message as
+// definitive, the canonical P tree may reach the communication leaf without inventing a
+// different mental state.
+const commLossNarrative = 'O segundo piloto recebeu apenas parte do recado porque o final ficou inaudível. Sem confirmar o trecho ausente, ele informou ao comandante que a área estava liberada como se a mensagem fosse definitiva.'
+const commLoss = run('SEMANTIC-COMMUNICATION-LOSS', commLossNarrative, [
+  { id: 'CL-FIRST', sourceQuote: 'Sem confirmar o trecho ausente', sourceSentenceIndex: 1, roles: ['FIRST_DEPARTURE', 'DIRECT_ACTOR'], concepts: [], actor: 'segundo piloto', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'OTHER_ACTION_FAILURE', actionMechanismEvidenceQuote: 'Sem confirmar o trecho ausente', confidence: 'HIGH', rationale: 'Primeira saída.' },
+  { id: 'CL-P', sourceQuote: 'como se a mensagem fosse definitiva', sourceSentenceIndex: 1, roles: ['PERCEPTION_STATE'], concepts: ['inadequateAssessment'], actor: 'segundo piloto', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, displayInterpretation: 'O operador percebia a mensagem parcial como definitiva.', confidence: 'HIGH', rationale: 'Avaliação contemporânea.' },
+  { id: 'CL-INFO', sourceQuote: 'o final ficou inaudível', sourceSentenceIndex: 0, roles: ['PRECONDITION'], concepts: ['informationUnavailable'], actor: 'segundo piloto', temporalRelation: 'PRE_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: 'PRESENT_CONTEXT', actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, confidence: 'HIGH', rationale: 'Conteúdo necessário não chegou.' },
+])
+assert.equal(commLoss.axes.perception.proposedCode, 'P-H')
+
+// A purpose clause can occur textually after a coordinated action while still describing the
+// objective contemporaneous with the first departure. Text order must not be mistaken for
+// event time.
+const purposeNarrative = 'O comandante encurtou a etapa de preparação e seguiu adiante para preservar a janela de horário, aumentando deliberadamente a carga simultânea de tarefas.'
+const purpose = run('SEMANTIC-PURPOSE-AT-ESCAPE', purposeNarrative, [
+  { id: 'PU-FIRST', sourceQuote: 'encurtou a etapa de preparação', sourceSentenceIndex: 0, roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR'], concepts: [], actor: 'comandante', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'OTHER_ACTION_FAILURE', actionMechanismEvidenceQuote: 'encurtou a etapa de preparação', confidence: 'HIGH', rationale: 'Primeiro desvio.' },
+  { id: 'PU-GOAL', sourceQuote: 'para preservar a janela de horário', sourceSentenceIndex: 0, roles: ['OBJECTIVE_INTENT'], concepts: ['efficiencyObjective', 'unmanagedRisk'], actor: 'comandante', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, displayInterpretation: 'O operador pretendia preservar a janela de horário.', confidence: 'HIGH', rationale: 'Finalidade contemporânea à decisão.' },
+])
+assert.equal(purpose.axes.objective.proposedCode, 'O-D')
+
+// A known action subtype never proves knowledge/capability. Explicit procedural knowledge
+// limitation must take precedence and reach A-E before the selection branch.
+const knowledgeNarrative = 'O piloto escolheu a resposta B e a executou como escolhida, mas não conhecia a ressalva do procedimento necessária para selecionar a resposta correta.'
+const knowledge = run('SEMANTIC-ACTION-KNOWLEDGE-PRECEDENCE', knowledgeNarrative, [
+  { id: 'AK-FIRST', sourceQuote: 'escolheu a resposta B e a executou como escolhida', sourceSentenceIndex: 0, roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR', 'ACTION_STRATEGY'], concepts: ['implementedAction', 'incorrectAction', 'selectionSubtype'], actor: 'piloto', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'OTHER_ACTION_FAILURE', actionMechanismEvidenceQuote: 'escolheu a resposta B e a executou como escolhida', displayInterpretation: 'O operador tentava responder por meio da alternativa B.', confidence: 'HIGH', rationale: 'Seleção deliberadamente implementada.' },
+  { id: 'AK-KNOW', sourceQuote: 'não conhecia a ressalva do procedimento necessária para selecionar a resposta correta', sourceSentenceIndex: 0, roles: ['PRECONDITION'], concepts: ['actionKnowledgeLimitation'], actor: 'piloto', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: 'TRAINING_SELECTION', preconditionCausalStatus: 'SOURCE_LINKED', preconditionCausalTargetQuote: 'escolheu a resposta B e a executou como escolhida', actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, confidence: 'HIGH', rationale: 'Conhecimento procedimental insuficiente.' },
+])
+assert.equal(knowledge.axes.action.proposedCode, 'A-E')
+
+// Conversely, if the semantic layer reports only a selection subtype and no independent
+// evidence of knowledge/capability, the deterministic engine must abstain at capability;
+// it may not assume SIM merely to continue toward A-F.
+const subtypeOnlyNarrative = 'O operador escolheu a opção Y e executou a opção escolhida, que se mostrou inadequada.'
+const subtypeOnly = run('SEMANTIC-SUBTYPE-DOES-NOT-PROVE-CAPABILITY', subtypeOnlyNarrative, [
+  { id: 'SO-FIRST', sourceQuote: 'escolheu a opção Y e executou a opção escolhida', sourceSentenceIndex: 0, roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR', 'ACTION_STRATEGY'], concepts: ['implementedAction', 'incorrectAction', 'selectionSubtype'], actor: 'operador', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'OTHER_ACTION_FAILURE', actionMechanismEvidenceQuote: 'escolheu a opção Y e executou a opção escolhida', displayInterpretation: 'O operador tentava responder por meio da opção Y.', confidence: 'HIGH', rationale: 'Subtipo de seleção sem evidência de capacidade.' },
+])
+assert.equal(subtypeOnly.axes.action.proposedCode, null)
+assert.equal(subtypeOnly.canonicalTraversal.paths.find((path) => path.axis === 'A')?.answers.some((answer) => answer.nodeId === 'A_CAPABILITY' && answer.answer === 'INSUFFICIENT_EVIDENCE'), true)
+
 console.log('PASS semantic-method boundary — AI interprets language; deterministic engine enforces anchor, actor, evidence and causal locks')

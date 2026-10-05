@@ -879,10 +879,24 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
         ...c('feedbackSubtype'),
         ...c('timeManagementAction'),
       ])
-      if (capabilityPresent.length > 0 || specificActionMechanism.length > 0) return {
+      if (capabilityPresent.length > 0) return {
         answer: 'SIM',
-        supportingEvidence: unique([...capabilityPresent, ...specificActionMechanism]),
-        rationale: 'A specific executed/omitted action mechanism provides positive evidence to continue subtype discrimination; capability is not inferred merely from absence of limitation.',
+        supportingEvidence: capabilityPresent,
+        rationale: 'Positive evidence independently establishes the knowledge/capability needed to form and implement an appropriate action.',
+      }
+      if (specificActionMechanism.length > 0) {
+        if (semanticInterpretationPresent(ctx)) return {
+          answer: 'INSUFFICIENT_EVIDENCE',
+          supportingEvidence: specificActionMechanism,
+          rationale: 'An identifiable action subtype does not establish knowledge, skill, or capability. Positive capability evidence is required before subtype discrimination can continue.',
+        }
+        // Historical V1/lexical fixtures predate the explicit actionCapabilityPresent concept.
+        // Preserve their established behavior without weakening the canonical V2 AI contract.
+        return {
+          answer: 'SIM',
+          supportingEvidence: specificActionMechanism,
+          rationale: 'Legacy evidence contract uses a specific action subtype as the capability continuation signal; V2 requires independent positive capability evidence.',
+        }
       }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Action capability cannot be assumed without positive evidence.' }
     }

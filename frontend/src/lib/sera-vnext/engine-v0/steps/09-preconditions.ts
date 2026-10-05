@@ -234,11 +234,14 @@ export function runStep09Preconditions(input: {
 }): SeraPreconditionCandidate[] {
   const activeFailureCodes = [input.axes.perception.proposedCode, input.axes.objective.proposedCode, input.axes.action.proposedCode]
     .filter((code): code is string => Boolean(code) && !['P-A', 'O-A', 'A-A'].includes(code as string))
-  const causalBoundaryResolved =
+  const escapeAnchorResolved =
     input.escapePoint.status !== 'INSUFFICIENT_EVIDENCE' &&
     input.escapePoint.status !== 'NO_HUMAN_ESCAPE_POINT' &&
-    input.escapePoint.confidence !== 'LOW' &&
-    input.directActor.status === 'IDENTIFIED' &&
+    input.escapePoint.confidence !== 'LOW'
+  const directActorResolved = input.directActor.status === 'IDENTIFIED'
+  const causalBoundaryResolved =
+    escapeAnchorResolved &&
+    directActorResolved &&
     activeFailureCodes.length > 0
   const mostLikelyCanonical = mostLikelyPreconditionsForCodes(activeFailureCodes)
   // Hendy Table 1 is the investigation route after the active failure is known.
@@ -571,9 +574,13 @@ export function runStep09Preconditions(input: {
     id: `PC-EVIDENCE-${bucketKey.replace('::', '-')}`,
     label: category,
     description: !causalBoundaryResolved
-      ? (input.locale === 'pt-BR'
-          ? 'Contexto preservado como hipótese não causal porque o ponto de fuga ou o ator direto ainda não está resolvido com evidência suficiente.'
-          : 'Context retained as a non-causal hypothesis because the escape point or direct actor is not yet resolved with sufficient evidence.')
+      ? (!escapeAnchorResolved || !directActorResolved
+          ? (input.locale === 'pt-BR'
+              ? 'Contexto preservado como hipótese não causal porque o ponto de fuga ou o ator direto ainda não está resolvido com evidência suficiente.'
+              : 'Context retained as a non-causal hypothesis because the escape point or direct actor is not yet resolved with sufficient evidence.')
+          : (input.locale === 'pt-BR'
+              ? 'Fator presente no relato e preservado como hipótese contextual; o ponto de fuga e o ator estão resolvidos, mas ainda não há falha ativa P/O/A sustentada e vínculo causal suficiente para promovê-lo a pré-condição confirmada.'
+              : 'Factor present in the source and retained as a contextual hypothesis; the escape point and actor are resolved, but no supported active P/O/A failure and sufficient causal link yet justify promotion to a confirmed precondition.'))
       : evidenceSet.rejectedByInvestigation && !evidenceSet.explicitInvestigationSupport
       ? (input.locale === 'pt-BR'
           ? 'Há evidência contextual nesta categoria, mas a investigação de origem também registra fator equivalente como não contribuinte; mantido apenas como hipótese, sem confirmação causal.'

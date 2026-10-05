@@ -2285,6 +2285,16 @@
     "dataAccess": "NONE"
   },
   {
+    "path": "tests/sera-vnext/human-calibration-second-five-regression-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT",
+    "dataAccess": "NONE"
+  },
+  {
     "path": "tests/sera-vnext/semantic-method-boundary-trial-001.ts",
     "type": "CONTRACT",
     "requiredForRegression": true,
