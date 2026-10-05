@@ -23,6 +23,24 @@ function normalizeLandmarkText(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
+function lexicalActorForLandmark(candidate: string | null | undefined, locale: SeraVNextEngineInput['locale']): string | null {
+  if (!candidate) return null
+  const text = normalizeLandmarkText(candidate)
+  if (/\b(piloto monitorando|pilot monitoring|monitoring pilot|pm)\b/.test(text)) return locale === 'pt-BR' ? 'piloto monitorando (PM)' : 'pilot monitoring (PM)'
+  if (/\b(piloto voando|pilot flying|flying pilot|pf)\b/.test(text)) return locale === 'pt-BR' ? 'piloto voando (PF)' : 'pilot flying (PF)'
+  const numbered = text.match(/\bpiloto\s*([12])\b/)
+  if (numbered?.[1]) return `piloto ${numbered[1]}`
+  if (/\b(?:copiloto|first officer|sic)\b/.test(text)) return locale === 'pt-BR' ? 'copiloto' : 'first officer'
+  if (/\b(?:comandante|captain|pic)\b/.test(text)) return locale === 'pt-BR' ? 'comandante' : 'captain'
+  if (/\b(?:piloto|pilot)\b/.test(text)) return locale === 'pt-BR' ? 'piloto' : 'pilot'
+  return null
+}
+
+function semanticallyResolvedActor(actor: string): boolean {
+  const value = normalizeLandmarkText(actor)
+  return Boolean(value) && !/\b(?:nao identificad[oa]|nao especificad[oa]|unknown|unidentified)\b/.test(value)
+}
+
 function semanticActorForLandmark(
   input: SeraVNextEngineInput,
   candidate: string | null | undefined,
@@ -31,7 +49,7 @@ function semanticActorForLandmark(
   if (!candidate) return null
   const target = normalizeLandmarkText(candidate)
   const actors = (input.semanticEvidence ?? [])
-    .filter((item) => item.actor && item.roles.includes(role))
+    .filter((item) => item.actor && semanticallyResolvedActor(item.actor) && item.roles.includes(role))
     .filter((item) => {
       const quote = normalizeLandmarkText(item.sourceQuote)
       return quote === target || quote.includes(target) || target.includes(quote)
@@ -43,7 +61,11 @@ function semanticActorForLandmark(
 export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngineOutput {
   const effectiveInput: SeraVNextEngineInput = {
     ...input,
-    semanticEvidence: enforceSemanticEvidenceIntegrity({ annotations: input.semanticEvidence, narrative: input.narrative }),
+    semanticEvidence: enforceSemanticEvidenceIntegrity({
+      annotations: input.semanticEvidence,
+      narrative: input.narrative,
+      schemaVersion: input.semanticEnrichmentMeta?.schemaVersion ?? null,
+    }),
   }
   const factualExtraction = runStep01FactualExtraction(effectiveInput)
   const initialEvidence = extractEvidenceItems({
@@ -51,7 +73,12 @@ export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngi
     timeline: factualExtraction.timeline,
   })
   const factualExtractionWithInitialEvidence = { ...factualExtraction, evidence: initialEvidence }
-  const escapePoint = runStep03EscapePoint({ factualExtraction: factualExtractionWithInitialEvidence, supplementalEvidence: effectiveInput.supplementalEvidence, locale: effectiveInput.locale })
+  const escapePoint = runStep03EscapePoint({
+    factualExtraction: factualExtractionWithInitialEvidence,
+    supplementalEvidence: effectiveInput.supplementalEvidence,
+    semanticEnrichmentMeta: effectiveInput.semanticEnrichmentMeta,
+    locale: effectiveInput.locale,
+  })
   const safeOperationModel = runStep02SafeOperationModel({ engineInput: effectiveInput, factualExtraction: factualExtractionWithInitialEvidence, escapePoint })
   const unsafeState = runStep04UnsafeState({ engineInput: effectiveInput, factualExtraction })
   const poaAnchor = escapePoint.firstDepartureCandidate
@@ -80,6 +107,7 @@ export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngi
     annotations: effectiveInput.semanticEvidence,
     directActor: directActor.actor,
     canonicalEscapeSentenceIndex: poaAnchorSentenceIndex,
+    semanticSchemaVersion: effectiveInput.semanticEnrichmentMeta?.schemaVersion ?? null,
   })
   const supplementalEvidence = extractSupplementalEvidenceItems({
     items: effectiveInput.supplementalEvidence ?? [],
@@ -135,8 +163,12 @@ export function runSeraVNextEngineV0(input: SeraVNextEngineInput): SeraVNextEngi
     safeOperationModel,
     escapePoint: {
       ...poaEscapePoint,
-      firstDepartureActor: semanticActorForLandmark(effectiveInput, poaEscapePoint.firstDepartureCandidate, 'FIRST_DEPARTURE') ?? directActor.actor,
+      // The first-departure actor is governed by the direct-actor gate. Semantic actor
+      // annotations may suggest candidates, but cannot override an AMBIGUOUS/UNRESOLVED
+      // actor determination for a passive or otherwise unattributed anchor.
+      firstDepartureActor: directActor.status === 'IDENTIFIED' ? directActor.actor : null,
       criticalUnsafeActActor: semanticActorForLandmark(effectiveInput, poaEscapePoint.criticalUnsafeActCandidate, 'CRITICAL_UNSAFE_ACT')
+        ?? lexicalActorForLandmark(poaEscapePoint.criticalUnsafeActCandidate, effectiveInput.locale)
         ?? (poaEscapePoint.criticalUnsafeActCandidate && poaEscapePoint.firstDepartureCandidate
           && normalizeLandmarkText(poaEscapePoint.criticalUnsafeActCandidate) === normalizeLandmarkText(poaEscapePoint.firstDepartureCandidate)
           ? directActor.actor

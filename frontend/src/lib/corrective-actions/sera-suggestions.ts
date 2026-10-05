@@ -95,7 +95,9 @@ export function buildSeraActionSuggestions(args: {
       title: isSupported ? template.title : `Investigar pré-condição: ${label}`,
       description: isSupported
         ? `${template.control} Base causal: ${label}${linkedCodes.length ? `, associada a ${linkedCodes.join(', ')}` : ''}. A medida deve ser validada pelo responsável técnico e ter eficácia acompanhada.`
-        : `${template.investigate} Esta é uma hipótese orientada pela taxonomia/Tabela 1; não deve ser tratada como causa nem como ação corretiva definitiva antes de evidência factual.`,
+        : item.basedOnCandidateCode
+          ? `${template.investigate} Esta é uma rota de investigação orientada pela taxonomia/Tabela 1; não deve ser tratada como causa nem como ação corretiva definitiva antes de evidência factual.`
+          : `${template.investigate} Esta é uma hipótese contextual preservada do relato; o vínculo causal precisa ser confirmado antes de qualquer ação corretiva definitiva.`,
       relatedFailure: isSupported ? `PC:${canonical}` : `INVESTIGATE:${canonical}`,
       canonicalCategory: canonical,
       preconditionId: item.id,

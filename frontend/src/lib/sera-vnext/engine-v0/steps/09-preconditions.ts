@@ -92,6 +92,43 @@ const PRECONDITION_INVESTIGATION_PROMPT_PT: Record<SeraCanonicalPreconditionCate
   OVERSIGHT: 'Verificar mecanismos de auditoria, monitoramento, gerenciamento de risco e correção de problemas sistêmicos existentes antes do evento.',
 }
 
+function normalizeFactorText(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+function deterministicExplicitCanonicalFactors(statement: string): SeraCanonicalPreconditionCategory[] {
+  const text = normalizeFactorText(statement)
+  const factors: SeraCanonicalPreconditionCategory[] = []
+  const add = (factor: SeraCanonicalPreconditionCategory) => { if (!factors.includes(factor)) factors.push(factor) }
+
+  const physiologyNegated = /\b(?:nao havia|nao houve|sem|negou|nao relatou|nao sentia|without)\b.{0,90}\b(?:fadiga|fatigue|cansaco|cansado|cansada|sonol|drows|bocej|yawn)\b/.test(text)
+  const physiologyPositive = /\b(?:fadiga|fatigue|cansaco|cansado|cansada|sonol\w*|drows\w*|bocej\w*|yawn\w*)\b/.test(text)
+    || /\b(?:dormiu|dormido|sleep|slept)\b.{0,80}\b(?:[0-5]|uma|duas|tres|quatro|cinco|one|two|three|four|five)\b.{0,30}\b(?:hora|horas|hour|hours)\b/.test(text)
+  if (physiologyPositive && !physiologyNegated) add('PHYSIOLOGICAL')
+
+  const socialNegated = /\b(?:sem|nao havia|without)\b.{0,80}\b(?:gradiente de autoridade|authority gradient|pressao social|peer pressure)\b/.test(text)
+  if (!socialNegated && /\b(?:gradiente de autoridade|authority gradient|pressao social|peer pressure|pressao dos pares)\b/.test(text)) add('SOCIAL')
+
+  const timePressureNegated = /\b(?:nao havia|nao houve|sem|without)\b.{0,90}\b(?:pressao temporal|pressao de tempo|time pressure|schedule pressure)\b/.test(text)
+  const timePressurePositive = /\b(?:pressao (?:para manter|de tempo|temporal)|time pressure|schedule pressure|pressao de escala|sequencia apressada|preparacao acelerada|rushed preparation|rushed sequence)\b/.test(text)
+    || /\b(?:prioridade|priority)\b.{0,80}\b(?:recuperar atrasos|recover delays|schedule recovery)\b/.test(text)
+    || /\b(?:sem margem para atrasos|no margin for delays|tight schedule)\b/.test(text)
+  if (timePressurePositive && !timePressureNegated) add('TIME_PRESSURE')
+
+  if (/\b(?:supervisor|supervisao|supervision)\b.{0,180}\b(?:nao reavaliou|nao avaliou|nao monitorou|inadequad|degradad|did not reassess|did not evaluate|did not monitor|inadequate|degraded)\b/.test(text)) add('MONITORING_SUPERVISION')
+
+  if (/\b(?:sem tripulacao reserva|sem equipe reserva|no reserve crew|without reserve crew|falta de pessoal|efetivo reduzido|reduced staffing|staff shortage|resource shortage)\b/.test(text)) add('PROVISION_RESOURCES')
+
+  if (/\b(?:dificuldades recorrentes|problemas recorrentes|recurring difficulties|recurring problems|problema sistemico|systemic problem)\b/.test(text)) add('OVERSIGHT')
+
+  return factors
+}
+
+function deterministicAttentionWorkloadContext(statement: string): boolean {
+  const text = normalizeFactorText(statement)
+  return /\b(?:alta carga de trabalho|carga de trabalho elevada|high workload|elevated workload|varias comunicacoes simultaneas|multiplas comunicacoes simultaneas|multiple simultaneous communications|simultaneous communications)\b/.test(text)
+}
+
 const CATEGORY_DESCRIPTION_EN: Record<string, string> = {
   PHYSICAL_CAPABILITY: 'Physical or ergonomic condition potentially relevant to task execution.',
   SENSORY_LIMITATION: 'Sensory condition potentially relevant to situation perception.',
@@ -195,13 +232,16 @@ export function runStep09Preconditions(input: {
   axes: SeraVNextEngineOutput['axes']
   locale: 'pt-BR' | 'en'
 }): SeraPreconditionCandidate[] {
+  if (input.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT') return []
   const activeFailureCodes = [input.axes.perception.proposedCode, input.axes.objective.proposedCode, input.axes.action.proposedCode]
     .filter((code): code is string => Boolean(code) && !['P-A', 'O-A', 'A-A'].includes(code as string))
-  const causalBoundaryResolved =
+  const escapeAnchorResolved =
     input.escapePoint.status !== 'INSUFFICIENT_EVIDENCE' &&
-    input.escapePoint.status !== 'NO_HUMAN_ESCAPE_POINT' &&
-    input.escapePoint.confidence !== 'LOW' &&
-    input.directActor.status === 'IDENTIFIED' &&
+    input.escapePoint.confidence !== 'LOW'
+  const directActorResolved = input.directActor.status === 'IDENTIFIED'
+  const causalBoundaryResolved =
+    escapeAnchorResolved &&
+    directActorResolved &&
     activeFailureCodes.length > 0
   const mostLikelyCanonical = mostLikelyPreconditionsForCodes(activeFailureCodes)
   // Hendy Table 1 is the investigation route after the active failure is known.
@@ -215,7 +255,35 @@ export function runStep09Preconditions(input: {
     }
   }
   const likelyTraversalIndex = new Map(likelyTraversalOrder.map((canonical, index) => [canonical, index]))
-  const categoryEvidence: Record<string, { texts: string[]; sourceEvidence: SeraEvidenceItem[]; investigationOnly: boolean; explicitInvestigationSupport: boolean; rejectedByInvestigation: boolean }> = {}
+  type CategoryEvidenceBucket = {
+    operationalCategory: SeraPreconditionCategory
+    canonicalHint: SeraCanonicalPreconditionCategory | null
+    texts: string[]
+    sourceEvidence: SeraEvidenceItem[]
+    investigationOnly: boolean
+    explicitInvestigationSupport: boolean
+    rejectedByInvestigation: boolean
+  }
+  const categoryEvidence: Record<string, CategoryEvidenceBucket> = {}
+  const bucketKeyFor = (category: SeraPreconditionCategory, item?: SeraEvidenceItem): string => {
+    const semanticCanonical = item && isSemanticV2Item(item)
+      ? item.semanticPreconditionCategory ?? null
+      : null
+    return semanticCanonical ? `${category}::${semanticCanonical}` : category
+  }
+  const ensureBucket = (category: SeraPreconditionCategory, item?: SeraEvidenceItem): CategoryEvidenceBucket => {
+    const key = bucketKeyFor(category, item)
+    categoryEvidence[key] ||= {
+      operationalCategory: category,
+      canonicalHint: item && isSemanticV2Item(item) ? item.semanticPreconditionCategory ?? null : null,
+      texts: [], sourceEvidence: [], investigationOnly: true, explicitInvestigationSupport: false, rejectedByInvestigation: false,
+    }
+    return categoryEvidence[key]
+  }
+  const isSemanticV2Item = (item: SeraEvidenceItem): boolean =>
+    item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+    && item.semanticSchemaVersion === 'SERA_SEMANTIC_AI_V2'
+
   const escapeAnchorText = [
     input.escapePoint.firstDepartureCandidate,
     input.escapePoint.criticalUnsafeActCandidate,
@@ -226,13 +294,15 @@ export function runStep09Preconditions(input: {
     .filter((item) => input.escapePoint.supportingEvidence.includes(item.statement))
     .map((item) => item.sourceSentenceIndex)
   const explicitCausalLinkToSelectedFailure = (item: SeraEvidenceItem): boolean => {
+    // In the canonical semantic path, language interpretation belongs to the AI layer.
+    // The deterministic engine consumes the explicit semantic relationship and never
+    // upgrades a factor to causal from keywords, proximity or lexical overlap.
+    if (isSemanticV2Item(item) && item.semanticRoles?.includes('PRECONDITION')) {
+      return item.semanticPreconditionCausalStatus === 'SOURCE_LINKED'
+    }
+    // Deterministic fallback for non-semantic/legacy inputs only.
     const text = item.statement.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-    const explicitLink = /\b(contribuiu|contribuinte|tornou .* mais provavel|maior problema .* (?:foi|era)|fez com que|deixou .* a ponto de|levou .* a|motivou .* a|por conta d[aeo]|devido a|because of|contributed|made .* more likely|led .* to|caused .* to)\b/.test(text)
-    if (explicitLink) return true
-    const sameActor = item.actorRelation === 'DIRECT_ACTOR'
-    const nearAnchor = escapeIndexes.some((index) => Math.abs(index - item.sourceSentenceIndex) <= 10)
-    const topical = escapeAnchorText ? lexicalOverlap(item.statement, escapeAnchorText) : 0
-    return sameActor && item.semanticConfidence === 'HIGH' && nearAnchor && topical >= 2
+    return /\b(contribuiu|contribuinte|tornou .* mais provavel|maior problema .* (?:foi|era)|fez com que|deixou .* a ponto de|levou .* a|motivou .* a|por conta d[aeo]|devido a|because of|contributed|made .* more likely|led .* to|caused .* to)\b/.test(text)
   }
   const contextRelevance = (item: SeraEvidenceItem): number => {
     let score = item.sourceSection === 'FACTUAL' ? 2 : 0
@@ -240,6 +310,12 @@ export function runStep09Preconditions(input: {
     else if (item.occurrenceScope === 'PRE_EVENT_CAUSAL_HISTORY') score += 2
     else if (item.occurrenceScope === 'HISTORICAL_COMPARATOR') score -= 100
     if (item.temporalRelation === 'PRE_ESCAPE' || item.temporalRelation === 'AT_ESCAPE') score += 2
+    if (item.collectionSource === 'AI_SEMANTIC_EXTRACTION' && item.semanticRoles?.includes('PRECONDITION')) {
+      // Semantic relevance has already been interpreted against the source. No lexical
+      // overlap is required to keep the factor visible.
+      score += item.semanticConfidence === 'HIGH' ? 8 : 5
+      return score
+    }
     const overlap = escapeAnchorText ? lexicalOverlap(item.statement, escapeAnchorText) : 0
     score += Math.min(overlap, 3) * 2
     if (escapeIndexes.some((index) => Math.abs(index - item.sourceSentenceIndex) <= 10)) score += 3
@@ -252,10 +328,7 @@ export function runStep09Preconditions(input: {
     !isProcedureReferenceStatement(statement) &&
     !isSystemDescriptionStatement(statement)
   const isSeparateActiveFailure = (item: SeraEvidenceItem): boolean => {
-    // A source sentence may explicitly connect a contextual factor to the selected act
-    // while also describing the resulting decision. Preserve that causal evidence when
-    // the semantic layer marked it as PRECONDITION; phase compatibility still prevents
-    // a different operational episode from migrating into this traversal.
+    if (item.collectionSource === 'AI_SEMANTIC_EXTRACTION' && item.semanticRoles?.includes('PRECONDITION')) return false
     if (item.semanticRoles?.includes('PRECONDITION') && explicitCausalLinkToSelectedFailure(item)) return false
     return isExplicitOperationalOmissionStatement(item.statement) || isExplicitOperationalDeviationStatement(item.statement)
   }
@@ -355,7 +428,9 @@ export function runStep09Preconditions(input: {
     // of the selected critical act. It needs its own SERA traversal unless separate causal evidence
     // explicitly establishes it as a precondition.
     .filter((item) => !isSeparateActiveFailure(item))
-    .filter((item) => !hasResolvedEscapeAnchor || phaseCompatible(primaryEscapeAnchor, item.statement))
+    .filter((item) => !hasResolvedEscapeAnchor
+      || item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+      || phaseCompatible(primaryEscapeAnchor, item.statement))
     .filter((item) => !hasResolvedEscapeAnchor || contextRelevance(item) >= 3)
     .sort((a, b) => contextRelevance(b) - contextRelevance(a) || a.sourceSentenceIndex - b.sourceSentenceIndex)
   const explicitContributorEvidence = input.factualExtraction.evidence.filter((item) =>
@@ -375,7 +450,9 @@ export function runStep09Preconditions(input: {
   const rejectedEvidence = input.factualExtraction.evidence.filter((item) => item.assertionStatus === 'REJECTED_AS_FACTOR')
 
   for (const item of contextualEvidence) {
-    const category = categoryForPreconditionStatement(item.statement, item.semanticPreconditionCategory)
+    const category = isSemanticV2Item(item) && !item.semanticPreconditionCategory
+      ? null
+      : categoryForPreconditionStatement(item.statement, item.semanticPreconditionCategory)
     if (!category) continue
     const semanticPrecondition = item.semanticSource === 'AI_SEMANTIC_EXTRACTION'
       && Boolean(item.semanticPreconditionCategory)
@@ -390,56 +467,60 @@ export function runStep09Preconditions(input: {
       if (lexicalOverlap(item.statement, escapeAnchorText) < 2 && !nearEscapeAnchor) continue
     }
     if (category === 'ORGANIZATIONAL_CONTEXT' && !semanticPrecondition && !isActualOrganizationalCondition(item.statement)) continue
-    categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true, explicitInvestigationSupport: false, rejectedByInvestigation: false }
+    const bucket = ensureBucket(category, item)
     // A semantic label is not itself proof of causality. Promote a contextual factor to an
     // evidenced precondition only when the source links it to the selected active failure.
     // Otherwise preserve it as an investigation hypothesis (e.g. a parallel equipment fault).
-    if (explicitCausalLinkToSelectedFailure(item)) categoryEvidence[category].investigationOnly = false
-    pushUnique(categoryEvidence[category].texts, item.statement)
-    pushEvidence(categoryEvidence[category].sourceEvidence, item)
+    if (explicitCausalLinkToSelectedFailure(item)) bucket.investigationOnly = false
+    pushUnique(bucket.texts, item.statement)
+    pushEvidence(bucket.sourceEvidence, item)
   }
 
   for (const item of explicitContributorEvidence) {
     const category = categoryForPreconditionStatement(item.statement, item.semanticPreconditionCategory)
     if (!category) continue
-    const existing = categoryEvidence[category]
-    const independentlySupported = existing?.sourceEvidence.some((candidate) => isEvidenceUsableFor(candidate, 'PRECONDITION')) ?? false
-    categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true, explicitInvestigationSupport: false, rejectedByInvestigation: false }
+    const bucket = ensureBucket(category, item)
+    const independentlySupported = bucket.sourceEvidence.some((candidate) => isEvidenceUsableFor(candidate, 'PRECONDITION'))
     // Investigator conclusions may corroborate independently observed event facts, but they
     // must not be displayed or counted as the primary causal evidence for that precondition.
     if (independentlySupported) {
-      categoryEvidence[category].explicitInvestigationSupport = true
+      bucket.explicitInvestigationSupport = true
       continue
     }
-    pushUnique(categoryEvidence[category].texts, item.statement)
-    pushEvidence(categoryEvidence[category].sourceEvidence, item)
+    pushUnique(bucket.texts, item.statement)
+    pushEvidence(bucket.sourceEvidence, item)
   }
 
   for (const item of investigationIndicatedEvidence) {
     const category = categoryForPreconditionStatement(item.statement, item.semanticPreconditionCategory)
     if (!category) continue
-    const existing = categoryEvidence[category]
-    if (existing && !existing.investigationOnly && existing.sourceEvidence.length > 0) continue
-    categoryEvidence[category] ||= { texts: [], sourceEvidence: [], investigationOnly: true, explicitInvestigationSupport: false, rejectedByInvestigation: false }
-    pushUnique(categoryEvidence[category].texts, item.statement)
-    pushEvidence(categoryEvidence[category].sourceEvidence, item)
+    const bucket = ensureBucket(category, item)
+    if (!bucket.investigationOnly && bucket.sourceEvidence.length > 0) continue
+    pushUnique(bucket.texts, item.statement)
+    pushEvidence(bucket.sourceEvidence, item)
   }
 
   for (const item of rejectedEvidence) {
     const category = categoryForPreconditionStatement(item.statement, item.semanticPreconditionCategory)
-    if (category && categoryEvidence[category]) categoryEvidence[category].rejectedByInvestigation = true
+    if (!category) continue
+    const key = bucketKeyFor(category, item)
+    if (categoryEvidence[key]) categoryEvidence[key].rejectedByInvestigation = true
   }
 
-  const canonicalProfileFor = (category: string, evidenceSet: (typeof categoryEvidence)[string]) => {
+  const canonicalProfileFor = (category: SeraPreconditionCategory, evidenceSet: CategoryEvidenceBucket) => {
     const canonicalCounts = new Map<SeraCanonicalPreconditionCategory, number>()
     const causalEvidence = evidenceSet.sourceEvidence.filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
     const evidenceForCanonicalization = causalEvidence.length ? causalEvidence : evidenceSet.sourceEvidence
     for (const item of evidenceForCanonicalization) {
-      const canonical = item.semanticPreconditionCategory ?? classifyCanonicalPrecondition(item.statement)
+      const canonical = isSemanticV2Item(item)
+        ? item.semanticPreconditionCategory ?? null
+        : item.semanticPreconditionCategory ?? classifyCanonicalPrecondition(item.statement)
       if (canonical) canonicalCounts.set(canonical, (canonicalCounts.get(canonical) ?? 0) + 1)
     }
     const fallbackCanonical = CANONICAL_FALLBACK_BY_OPERATIONAL_CATEGORY[category] ?? null
-    const countedCanonical = [...canonicalCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+    const countedCanonical = evidenceSet.canonicalHint
+      ?? [...canonicalCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+      ?? null
     const incompatibleWithOperationalCategory =
       (category === 'TECHNICAL_CONTEXT' && countedCanonical === 'ENVIRONMENT') ||
       (category === 'ENVIRONMENTAL_CONTEXT' && countedCanonical === 'EQUIPMENT') ||
@@ -453,7 +534,7 @@ export function runStep09Preconditions(input: {
     return { canonicalCategory, likelyForActiveFailureCodes }
   }
 
-  const confidenceFor = (category: string, evidenceSet: (typeof categoryEvidence)[string]) => {
+  const confidenceFor = (category: SeraPreconditionCategory, evidenceSet: CategoryEvidenceBucket) => {
     const capAtEscape = <T extends 'LOW' | 'MEDIUM' | 'HIGH'>(value: T): T | 'LOW' | 'MEDIUM' | 'HIGH' => {
       const rank = { LOW: 0, MEDIUM: 1, HIGH: 2 } as const
       return rank[value] <= rank[input.escapePoint.confidence] ? value : input.escapePoint.confidence
@@ -469,7 +550,8 @@ export function runStep09Preconditions(input: {
     return capAtEscape(category === 'ATTENTION_WORKLOAD_CONTEXT' && base === 'HIGH' ? 'MEDIUM' as const : base)
   }
 
-  const evidencedCandidates = Object.entries(categoryEvidence).map(([category, evidenceSet]): SeraPreconditionCandidate => {
+  const evidencedCandidates = Object.entries(categoryEvidence).map(([bucketKey, evidenceSet]): SeraPreconditionCandidate => {
+    const category = evidenceSet.operationalCategory
     const canonicalProfile = canonicalProfileFor(category, evidenceSet)
     const usableCausalEvidence = evidenceSet.sourceEvidence.filter((item) => isEvidenceUsableFor(item, 'PRECONDITION'))
     const evidenceForDisplay = usableCausalEvidence.length ? usableCausalEvidence : evidenceSet.sourceEvidence
@@ -489,12 +571,16 @@ export function runStep09Preconditions(input: {
       ? [...new Set(rankedSourceEvidence.map((item) => displayPreconditionStatement(category, item.statement)))].slice(0, 5)
       : [...new Set(evidenceSet.texts.map((text) => displayPreconditionStatement(category, text)))].slice(0, 5)
     return {
-    id: `PC-EVIDENCE-${category}`,
+    id: `PC-EVIDENCE-${bucketKey.replace('::', '-')}`,
     label: category,
     description: !causalBoundaryResolved
-      ? (input.locale === 'pt-BR'
-          ? 'Contexto preservado como hipótese não causal porque o ponto de fuga ou o ator direto ainda não está resolvido com evidência suficiente.'
-          : 'Context retained as a non-causal hypothesis because the escape point or direct actor is not yet resolved with sufficient evidence.')
+      ? (!escapeAnchorResolved || !directActorResolved
+          ? (input.locale === 'pt-BR'
+              ? 'Contexto preservado como hipótese não causal porque o ponto de fuga ou o ator direto ainda não está resolvido com evidência suficiente.'
+              : 'Context retained as a non-causal hypothesis because the escape point or direct actor is not yet resolved with sufficient evidence.')
+          : (input.locale === 'pt-BR'
+              ? 'Fator presente no relato e preservado como hipótese contextual; o ponto de fuga e o ator estão resolvidos, mas ainda não há falha ativa P/O/A sustentada e vínculo causal suficiente para promovê-lo a pré-condição confirmada.'
+              : 'Factor present in the source and retained as a contextual hypothesis; the escape point and actor are resolved, but no supported active P/O/A failure and sufficient causal link yet justify promotion to a confirmed precondition.'))
       : evidenceSet.rejectedByInvestigation && !evidenceSet.explicitInvestigationSupport
       ? (input.locale === 'pt-BR'
           ? 'Há evidência contextual nesta categoria, mas a investigação de origem também registra fator equivalente como não contribuinte; mantido apenas como hipótese, sem confirmação causal.'
@@ -541,13 +627,166 @@ export function runStep09Preconditions(input: {
     }
   })
 
+  // Preserve explicit source-grounded precondition/context facts even when the generic
+  // evidence classifier did not attach a PRECONDITION role. This layer is deliberately
+  // narrow: it recognizes only directly stated factor classes and never creates causal
+  // support from Table 1 correspondence alone.
+  const explicitFactorEvidence = hasSemanticInterpretation
+    ? []
+    : input.factualExtraction.evidence
+        .filter((item) => item.assertionStatus === 'AFFIRMED')
+        .filter((item) => item.occurrenceScope !== 'HISTORICAL_COMPARATOR')
+        .filter((item) => item.sourceSection !== 'REPORT_ANALYSIS' && item.sourceSection !== 'RECOMMENDATION' && item.sourceSection !== 'ADMINISTRATIVE')
+  const explicitByCanonical = new Map<SeraCanonicalPreconditionCategory, SeraEvidenceItem[]>()
+  for (const item of explicitFactorEvidence) {
+    for (const canonical of deterministicExplicitCanonicalFactors(item.statement)) {
+      const bucket = explicitByCanonical.get(canonical) ?? []
+      pushEvidence(bucket, item)
+      explicitByCanonical.set(canonical, bucket)
+    }
+  }
+
+  for (const [canonical, sourceItems] of explicitByCanonical) {
+    const existing = evidencedCandidates.find((item) => item.canonicalCategory === canonical)
+    if (existing) {
+      // Keep the existing candidate, but enrich it with any explicit source evidence the
+      // generic path missed. Causality remains governed by the same boundary/evidence gate.
+      const mergedSource = dedupeEvidenceByContainment([...existing.sourceEvidence, ...sourceItems]).slice(0, 5)
+      const mergedText = [...new Set([...existing.evidence, ...sourceItems.map((item) => item.statement)])].slice(0, 5)
+      existing.sourceEvidence = mergedSource
+      existing.evidence = mergedText
+      // Never use this deterministic preservation layer to upgrade an existing semantic/
+      // generic candidate's causal status. Existing candidates already passed their own
+      // provenance and causal-boundary rules; here we only prevent explicit source facts
+      // from disappearing from the report.
+      continue
+    }
+
+    const hasExplicitCausalSupport = causalBoundaryResolved && sourceItems.some((item) =>
+      item.relationshipToFailure === 'ENABLING_PRECONDITION' || item.relationshipToFailure === 'CONTEXTUAL_PRECONDITION',
+    )
+    const relationship: SeraEvidenceRelationshipToFailure = hasExplicitCausalSupport
+      ? (sourceItems.some((item) => item.relationshipToFailure === 'ENABLING_PRECONDITION') ? 'ENABLING_PRECONDITION' : 'CONTEXTUAL_PRECONDITION')
+      : 'UNRELATED_OR_UNSUPPORTED'
+    const likelyCodes = activeFailureCodes.filter((code) => (SERA_MOST_LIKELY_PRECONDITIONS[code] ?? []).includes(canonical))
+    evidencedCandidates.push({
+      id: `PC-EXPLICIT-${canonical}`,
+      label: canonical,
+      description: hasExplicitCausalSupport
+        ? (input.locale === 'pt-BR' ? SERA_PRECONDITION_META[canonical].definitionPt : SERA_PRECONDITION_META[canonical].definitionEn)
+        : (input.locale === 'pt-BR'
+            ? 'Fator explicitamente registrado no relato e preservado como hipótese contextual; o vínculo causal com a falha ativa ainda não está estabelecido.'
+            : 'Factor explicitly recorded in the source and retained as contextual hypothesis; a causal link to the active failure is not yet established.'),
+      category: OPERATIONAL_CATEGORY_BY_CANONICAL[canonical],
+      evidence: [...new Set(sourceItems.map((item) => item.statement))].slice(0, 5),
+      relationship,
+      sourceEvidence: dedupeEvidenceByContainment(sourceItems).slice(0, 5),
+      sourceRuleIds: [
+        `SERA-HENDY-ANNEX-B-${canonical}`,
+        ...likelyCodes.map((code) => `SERA-HENDY-TABLE1-${code}-${canonical}`),
+      ],
+      linkedActor: hasExplicitCausalSupport ? input.directActor.actor : null,
+      explicitlyNotEscapePoint: true,
+      basedOnCandidateCode: false,
+      nonFinal: true,
+      confidence: hasExplicitCausalSupport ? (sourceItems.length >= 2 ? 'MEDIUM' : 'LOW') : 'LOW',
+      canonicalCategory: canonical,
+      canonicalLevel: SERA_PRECONDITION_META[canonical].level,
+      likelyForActiveFailureCodes: likelyCodes,
+      methodologyMatch: hasExplicitCausalSupport
+        ? (likelyCodes.length ? 'MOST_LIKELY_AND_EVIDENCED' : 'EVIDENCED_OUTSIDE_MOST_LIKELY_SET')
+        : 'HYPOTHESIS_ONLY',
+    })
+  }
+
+  if (explicitByCanonical.has('PHYSIOLOGICAL')) {
+    const physiologicalStatements = new Set(
+      (explicitByCanonical.get('PHYSIOLOGICAL') ?? []).map((item) => item.statement),
+    )
+    for (let index = evidencedCandidates.length - 1; index >= 0; index -= 1) {
+      const candidate = evidencedCandidates[index]
+      if (candidate.canonicalCategory != null || candidate.category !== 'PHYSICAL_CAPABILITY') continue
+      if (candidate.evidence.some((statement) => physiologicalStatements.has(statement))) evidencedCandidates.splice(index, 1)
+    }
+  }
+
+  const semanticAttentionEvidence = input.factualExtraction.evidence
+    .filter((item) => item.collectionSource === 'AI_SEMANTIC_EXTRACTION')
+    .filter((item) => item.assertionStatus === 'AFFIRMED')
+    .filter((item) => item.temporalRelation === 'PRE_ESCAPE' || item.temporalRelation === 'AT_ESCAPE')
+    .filter((item) => item.occurrenceScope !== 'HISTORICAL_COMPARATOR')
+    .filter((item) => item.semanticConcepts?.includes('attentionPressure'))
+    .filter((item) => item.semanticRoles?.some((role) => role === 'PRECONDITION' || role === 'CONTEXT'))
+    .filter((item) => !item.semanticPreconditionCategory)
+  const explicitAttentionEvidence = hasSemanticInterpretation
+    ? semanticAttentionEvidence
+    : explicitFactorEvidence.filter((item) => deterministicAttentionWorkloadContext(item.statement))
+  if (explicitAttentionEvidence.length && !evidencedCandidates.some((item) => item.category === 'ATTENTION_WORKLOAD_CONTEXT' && item.canonicalCategory == null)) {
+    evidencedCandidates.push({
+      id: 'PC-EXPLICIT-ATTENTION-WORKLOAD',
+      label: 'ATTENTION_WORKLOAD_CONTEXT',
+      description: input.locale === 'pt-BR'
+        ? 'Carga de trabalho ou demandas simultâneas foram explicitamente registradas no relato e permanecem como contexto a investigar, sem vínculo causal presumido.'
+        : 'Workload or simultaneous demands were explicitly recorded in the source and remain context to investigate, without a presumed causal link.',
+      category: 'ATTENTION_WORKLOAD_CONTEXT',
+      evidence: [...new Set(explicitAttentionEvidence.map((item) => item.statement))].slice(0, 5),
+      relationship: 'UNRELATED_OR_UNSUPPORTED',
+      sourceEvidence: dedupeEvidenceByContainment(explicitAttentionEvidence).slice(0, 5),
+      sourceRuleIds: [CATEGORY_RULE_ID.ATTENTION_WORKLOAD_CONTEXT],
+      linkedActor: null,
+      explicitlyNotEscapePoint: true,
+      basedOnCandidateCode: false,
+      nonFinal: true,
+      confidence: 'LOW',
+      canonicalCategory: null,
+      canonicalLevel: null,
+      likelyForActiveFailureCodes: [],
+      methodologyMatch: 'HYPOTHESIS_ONLY',
+    })
+  }
+
+  const dutyExposureEvidence = hasSemanticInterpretation
+    ? []
+    : input.factualExtraction.evidence
+        .filter((item) => item.occurrenceScope !== 'HISTORICAL_COMPARATOR')
+        .filter((item) => item.assertionStatus === 'AFFIRMED')
+        .filter((item) => /\b(dia operacional prolongad[oa]|jornada prolongad[ao]|jornada operacional prolongad[ao]|long operational day|extended duty day|prolonged duty day|terceiro setor|quarto setor|third sector|fourth sector)\b/i.test(item.statement))
+        .map((item) => item.statement)
+        .filter((text, index, all) => all.indexOf(text) === index)
+        .slice(0, 3)
+  if (dutyExposureEvidence.length && !evidencedCandidates.some((item) => item.canonicalCategory === 'PERSONAL_READINESS' || item.canonicalCategory === 'PHYSIOLOGICAL')) {
+    evidencedCandidates.push({
+      id: 'PC-EVIDENCE-DUTY-EXPOSURE',
+      label: 'ATTENTION_WORKLOAD_CONTEXT',
+      description: input.locale === 'pt-BR'
+        ? 'A jornada/posição na sequência de setores foi registrada como contexto de prontidão a investigar. Este achado não equivale a fadiga confirmada e não recebe vínculo causal sem evidência adicional.'
+        : 'Duty duration/position in the sequence of sectors is retained as a readiness context to investigate. This does not establish fatigue and is not causally linked without additional evidence.',
+      category: 'ATTENTION_WORKLOAD_CONTEXT',
+      evidence: dutyExposureEvidence,
+      relationship: 'UNRELATED_OR_UNSUPPORTED',
+      sourceEvidence: [],
+      sourceRuleIds: ['SERA-HENDY-ANNEX-B-PERSONAL_READINESS'],
+      linkedActor: input.directActor.actor,
+      explicitlyNotEscapePoint: true,
+      basedOnCandidateCode: false,
+      nonFinal: true,
+      confidence: 'LOW',
+      canonicalCategory: 'PERSONAL_READINESS',
+      canonicalLevel: SERA_PRECONDITION_META.PERSONAL_READINESS.level,
+      likelyForActiveFailureCodes: [],
+      methodologyMatch: 'HYPOTHESIS_ONLY',
+    })
+  }
+
   evidencedCandidates.sort((left, right) => {
     const leftIndex = left.canonicalCategory ? likelyTraversalIndex.get(left.canonicalCategory) : undefined
     const rightIndex = right.canonicalCategory ? likelyTraversalIndex.get(right.canonicalCategory) : undefined
     if (leftIndex !== undefined && rightIndex !== undefined) return leftIndex - rightIndex
     if (leftIndex !== undefined) return -1
     if (rightIndex !== undefined) return 1
-    return left.label.localeCompare(right.label, input.locale === 'pt-BR' ? 'pt-BR' : 'en')
+    const leftLabel = left.canonicalCategory ? SERA_PRECONDITION_META[left.canonicalCategory].pt : left.label
+    const rightLabel = right.canonicalCategory ? SERA_PRECONDITION_META[right.canonicalCategory].pt : right.label
+    return leftLabel.localeCompare(rightLabel, input.locale === 'pt-BR' ? 'pt-BR' : 'en')
   })
 
   if (!causalBoundaryResolved || activeFailureCodes.length === 0) return evidencedCandidates

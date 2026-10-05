@@ -198,6 +198,7 @@ export function applySemanticAnnotationsToEvidence(args: {
   annotations?: SeraSemanticEvidenceAnnotation[]
   directActor?: string | null
   canonicalEscapeSentenceIndex?: number | null
+  semanticSchemaVersion?: 'SERA_SEMANTIC_AI_V1' | 'SERA_SEMANTIC_AI_V2' | null
 }): SeraEvidenceItem[] {
   if (!args.annotations?.length) return args.items
 
@@ -212,6 +213,7 @@ export function applySemanticAnnotationsToEvidence(args: {
   ])
   const actionConcepts = new Set([
     'safeAction', 'implementedAction', 'feedbackImplementationFailure', 'slipLapse',
+    'proceduralOmission', 'implementationMismatch',
     'correctAction', 'incorrectAction', 'physicalActionLimitation', 'actionKnowledgeLimitation',
     'actionCapabilityPresent', 'selectionUnderPressureFailed', 'feedbackUnderPressureFailed',
     'selectionSubtype', 'feedbackSubtype', 'timeManagementAction',
@@ -225,7 +227,7 @@ export function applySemanticAnnotationsToEvidence(args: {
     if (roles.some((role) => ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR'].includes(role))) pushUnique(supports, 'ESCAPE_POINT')
     if (roles.includes('PERCEPTION_STATE') || concepts.some((concept) => perceptionConcepts.has(concept))) pushUnique(supports, 'PERCEPTION')
     if (roles.includes('OBJECTIVE_INTENT') || concepts.some((concept) => objectiveConcepts.has(concept))) pushUnique(supports, 'OBJECTIVE')
-    if (roles.some((role) => role === 'ACTION_STRATEGY' || role === 'CRITICAL_UNSAFE_ACT') || concepts.some((concept) => actionConcepts.has(concept))) pushUnique(supports, 'ACTION')
+    if (roles.some((role) => role === 'ACTION_STRATEGY' || role === 'ACTION_MECHANISM' || role === 'CRITICAL_UNSAFE_ACT') || annotation.actionFailureMechanism && annotation.actionFailureMechanism !== 'NONE_OR_UNKNOWN' || concepts.some((concept) => actionConcepts.has(concept))) pushUnique(supports, 'ACTION')
     if (roles.some((role) => role === 'PRECONDITION' || role === 'BARRIER')) pushUnique(supports, 'PRECONDITION')
     if (roles.includes('OUTCOME')) pushUnique(supports, 'LIMITATION')
 
@@ -234,27 +236,34 @@ export function applySemanticAnnotationsToEvidence(args: {
       : annotation.temporalRelation
     const afterCanonicalEscape = args.canonicalEscapeSentenceIndex != null
       && annotation.sourceSentenceIndex > args.canonicalEscapeSentenceIndex
-    const retrospectiveAtEscape = /\b(naquele momento|naquela hora|na hora|eu (?:acreditava|achava|sabia|pretendia|queria)|a percep[cç][aã]o que .* tinha|o objetivo (?:era|foi)|com o objetivo de|pra ajudar|para ajudar|proativ\w*|at that moment|at the time|believed|thought|knew|intended|wanted)\b/i.test(annotation.sourceQuote)
-    const explicitLaterOperationalAct = roles.includes('CRITICAL_UNSAFE_ACT')
-      || /\b(tomei o comando|assumi os comandos|recuperei|abandonei a miss[aã]o|barra na barra|desacoplou|cancelou o automatismo|stick pusher|afterward|took control|recovered)\b/i.test(annotation.sourceQuote)
-    // Semantic timestamps were historically generated relative to a later "critical act".
-    // Rebind them to the frozen SERA boundary: the first safe→unsafe departure. Later
-    // operational acts are POST_ESCAPE even if an older semantic fixture called them AT_ESCAPE.
-    // Retrospective statements that genuinely describe the state/goal at the escape point remain admissible.
-    if (afterCanonicalEscape && (explicitLaterOperationalAct || (source?.temporalRelation === 'POST_ESCAPE' && !retrospectiveAtEscape))) {
-      temporalRelation = 'POST_ESCAPE'
+    if (args.semanticSchemaVersion === 'SERA_SEMANTIC_AI_V2') {
+      // V2 temporal meaning is supplied by the semantic layer and structurally checked by
+      // semantic-integrity. Only a later occurrence landmark/outcome is forced POST_ESCAPE;
+      // retrospective P/O/A/precondition statements keep the time they explicitly describe.
+      if (afterCanonicalEscape && roles.some((role) => role === 'CRITICAL_UNSAFE_ACT' || role === 'OUTCOME')) {
+        temporalRelation = 'POST_ESCAPE'
+      }
+    } else {
+      const retrospectiveAtEscape = /\b(naquele momento|naquela hora|na hora|eu (?:acreditava|achava|sabia|pretendia|queria)|a percep[cç][aã]o que .* tinha|o objetivo (?:era|foi)|com o objetivo de|pra ajudar|para ajudar|proativ\w*|at that moment|at the time|believed|thought|knew|intended|wanted)\b/i.test(annotation.sourceQuote)
+      const explicitLaterOperationalAct = roles.includes('CRITICAL_UNSAFE_ACT')
+        || /\b(tomei o comando|assumi os comandos|recuperei|abandonei a miss[aã]o|barra na barra|desacoplou|cancelou o automatismo|stick pusher|afterward|took control|recovered)\b/i.test(annotation.sourceQuote)
+      if (afterCanonicalEscape && (explicitLaterOperationalAct || (source?.temporalRelation === 'POST_ESCAPE' && !retrospectiveAtEscape))) {
+        temporalRelation = 'POST_ESCAPE'
+      }
     }
     const occurrenceScope = annotation.occurrenceScope === 'UNKNOWN'
       ? source?.occurrenceScope ?? 'UNKNOWN'
       : annotation.occurrenceScope
     const actorRelation = annotation.actor
       ? classifyActorRelationForActor(annotation.actor, args.directActor ?? null)
-      : source?.actorRelation ?? classifyActorRelation({ statement: annotation.sourceQuote, directActor: args.directActor ?? null })
+      : args.semanticSchemaVersion === 'SERA_SEMANTIC_AI_V2'
+        ? 'UNKNOWN' as const
+        : source?.actorRelation ?? classifyActorRelation({ statement: annotation.sourceQuote, directActor: args.directActor ?? null })
     // A sentence may describe an unsafe act/decision and its consequence together. In that
     // mixed case, preserve the actionable semantic role as the primary evidence type; treating
     // the entire sentence as OUTCOME would prohibit the very P/O/A evidence it contains.
     const evidenceType: SeraEvidenceItem['evidenceType'] = roles.some((role) =>
-      ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'OBJECTIVE_INTENT', 'ACTION_STRATEGY'].includes(role),
+      ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'OBJECTIVE_INTENT', 'ACTION_STRATEGY', 'ACTION_MECHANISM'].includes(role),
     )
       ? 'ACTION_OR_DECISION'
       : roles.includes('OUTCOME')
@@ -291,7 +300,13 @@ export function applySemanticAnnotationsToEvidence(args: {
       semanticRoles: roles,
       semanticConcepts: concepts,
       semanticPreconditionCategory: annotation.preconditionCategory ?? null,
+      semanticPreconditionCausalStatus: annotation.preconditionCausalStatus ?? null,
+      semanticPreconditionCausalTargetQuote: annotation.preconditionCausalTargetQuote ?? null,
+      semanticActionFailureMechanism: annotation.actionFailureMechanism ?? null,
+      semanticActionMechanismEvidenceQuote: annotation.actionMechanismEvidenceQuote ?? null,
+      semanticDisplayInterpretation: annotation.displayInterpretation ?? null,
       semanticConfidence: annotation.confidence,
+      semanticSchemaVersion: args.semanticSchemaVersion ?? null,
       semanticSource: 'AI_SEMANTIC_EXTRACTION' as const,
       rationale: [
         ...(annotation.rationale ? [annotation.rationale] : []),
@@ -300,7 +315,12 @@ export function applySemanticAnnotationsToEvidence(args: {
         'semanticSource=AI_SEMANTIC_EXTRACTION',
       ],
     } satisfies Omit<SeraEvidenceItem, 'relationshipToFailure'>
-    return { ...base, relationshipToFailure: classifyRelationship(base) }
+    const relationshipToFailure = roles.includes('PRECONDITION')
+      ? annotation.preconditionCausalStatus === 'SOURCE_LINKED'
+        ? classifyRelationship(base)
+        : 'UNRELATED_OR_UNSUPPORTED' as const
+      : classifyRelationship(base)
+    return { ...base, relationshipToFailure }
   })
 
   return [...args.items, ...semanticItems]

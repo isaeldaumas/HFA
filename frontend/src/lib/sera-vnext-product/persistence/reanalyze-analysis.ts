@@ -1,5 +1,5 @@
 import { runSeraVNextEngineV0 } from '@/lib/sera-vnext/engine-v0/run-engine'
-import { enrichSeraNarrativeSemantically, enrichSeraPoaSemantically } from '@/lib/sera-vnext/ai/semantic-enrichment'
+import { enrichSeraNarrativeSemantically, enrichSeraPoaSemantically, mergeFocusedPoaSemanticEvidence } from '@/lib/sera-vnext/ai/semantic-enrichment'
 import { notFound, SeraVNextProductError } from '../errors'
 import { hashJson } from '../hashing'
 import { assertValidAnalysisTransition } from '../transitions'
@@ -117,7 +117,7 @@ export async function reanalyzeSeraVNextAnalysis(args: {
     && engineOutput.directActor.status === 'IDENTIFIED'
     && Boolean(engineOutput.directActor.actor)
     && Boolean(escapePoint)
-    && engineOutput.evidenceSufficiency.questions.some((question) => /-(P|O|A)_ROOT$/.test(question.id))
+    && engineOutput.evidenceSufficiency.questions.some((question) => ['PERCEPTION', 'OBJECTIVE', 'ACTION'].includes(question.stage))
   if (needsFocusedPoa && semantic && escapePoint && engineOutput.directActor.actor) {
     try {
       const focused = await enrichSeraPoaSemantically({
@@ -127,12 +127,11 @@ export async function reanalyzeSeraVNextAnalysis(args: {
         directActor: engineOutput.directActor.actor,
       })
       if (focused.annotations.length > 0) {
-        const merged = [...semantic.annotations]
-        const seen = new Set(merged.map((item) => `${item.sourceSentenceIndex}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}`))
-        for (const item of focused.annotations) {
-          const key = `${item.sourceSentenceIndex}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}`
-          if (!seen.has(key)) { seen.add(key); merged.push(item) }
-        }
+        const merged = mergeFocusedPoaSemanticEvidence({
+          primary: semantic.annotations,
+          focused: focused.annotations,
+          directActor: engineOutput.directActor.actor,
+        })
         semantic = {
           ...semantic,
           annotations: merged,

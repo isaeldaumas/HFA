@@ -6,6 +6,23 @@ function normalizeText(input: string): string {
   return input.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
+function semanticActorIdentity(actor: string): string {
+  return normalizeText(actor)
+    .replace(/^(?:o|a|os|as|the)\s+/, '')
+    .replace(/\s*\((?:pf|pm|pic|sic)\)\s*$/i, (match) => match.toLowerCase())
+    .trim()
+}
+
+function isSpecificSemanticActor(actor: string): boolean {
+  const value = semanticActorIdentity(actor)
+  if (!value) return false
+  // A semantic actor may resolve a passive sentence by coreference across the source, but
+  // only a specific functional identity may unlock P/O/A. Generic/unknown crew labels
+  // remain fail-closed and require human clarification.
+  return !/^(?:tripulacao(?: de voo)?|flight crew|crew|equipe|team|nao especificad[oa]|nao identificad[oa]|unknown|unidentified|responsavel|actor responsavel|ator responsavel)(?:\b|\s|$)/.test(value)
+    && !/\b(?:nao especificad[oa]|nao identificad[oa]|unknown|unidentified)\b/.test(value)
+}
+
 function roleAssigned(text: string, actor: 'captain' | 'copilot', role: 'pf' | 'pm'): boolean {
   const actorPattern = actor === 'captain' ? /\b(comandante|captain)\b/g : /\b(copiloto|first officer)\b/g
   const allActorPattern = /\b(comandante|captain|copiloto|first officer)\b/g
@@ -35,6 +52,12 @@ export function runStep06DirectActor(input: {
     .map((item) => item.statement)
     .join(' ')
   const text = normalizeText(`${input.engineInput.narrative} ${clarificationActorText}`)
+  const collectiveActorWarning = input.engineInput.locale === 'pt-BR'
+    ? 'Atribuição coletiva à tripulação não é suficiente para fechar P/O/A; identifique o ator direto no ponto de fuga.'
+    : 'Collective crew attribution is not sufficient to close P/O/A; identify the direct actor at the escape point.'
+  const unresolvedActorWarning = input.engineInput.locale === 'pt-BR'
+    ? 'O ator direto permanece não resolvido; evite migrar a atribuição para além da evidência disponível.'
+    : 'Direct actor remains unresolved; avoid actor migration beyond available evidence.'
   const copilotPf = roleAssigned(text, 'copilot', 'pf')
   const captainPf = roleAssigned(text, 'captain', 'pf')
   const captainPm = roleAssigned(text, 'captain', 'pm')
@@ -46,6 +69,8 @@ export function runStep06DirectActor(input: {
   const escapeHasCopilot = /\b(copiloto|first officer|sic)\b/.test(escapeText)
   const escapeHasCaptain = /\b(comandante|captain|training captain|pic)\b/.test(escapeText)
   const escapeHasCollectiveCrew = /\b(tripulacao|tripulação|flight crew|crew|ambos os pilotos|dois pilotos|nenhum piloto|nenhum dos pilotos|both pilots|neither pilot|nos|we)\b|\ba gente\b/.test(escapeText)
+  const passiveOperationalDeparture = isExplicitOperationalOmissionStatement(primaryEscape)
+    || isExplicitOperationalDeviationStatement(primaryEscape)
   const escapeHasOtherPilot = /\b(outro piloto|outro tripulante|o cara)\b.{0,220}\b(desacoplou|cancelou|reduziu|colocou|aplicou|puxou|empurrou|meteu|mexeu|pilotou|tentou|executou|subiu|desceu|fez|did|disengaged|cancelled|reduced|put|applied|pulled|pushed|executed)\b/.test(escapeText)
   const escapeHasNarratorAct = /\beu\b.{0,220}\b(decidi|resolvi|optei|escolhi|julguei|preferi|tirei|retirei|desguarneci|peguei|puxei|empurrei|assumi|pousei|fiz|conduzi|executei|tentei|i decided|i chose|i removed|i pulled|i landed)\b/.test(escapeText)
     || /\b(decidi|resolvi|optei|escolhi|julguei|preferi|tirei|retirei|desguarneci|peguei|puxei|empurrei|assumi|pousei|fiz|conduzi|executei|tentei)\b.{0,220}\b(eu|meu|minha)\b/.test(escapeText)
@@ -91,6 +116,17 @@ export function runStep06DirectActor(input: {
     }
   )
 
+  if (input.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT') {
+    return {
+      actor: null,
+      status: 'NOT_APPLICABLE',
+      alternatives: [],
+      actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
+        ? 'Nenhum ponto de fuga humano foi estabelecido; não atribua um estado técnico/material à tripulação apenas para preencher o ator P/O/A.'
+        : 'No human escape point was established; do not attribute a technical/material state to the crew merely to populate the P/O/A actor.'],
+    }
+  }
+
   if (input.escapePoint.status === 'INSUFFICIENT_EVIDENCE') {
     return {
       actor: null,
@@ -102,18 +138,73 @@ export function runStep06DirectActor(input: {
     }
   }
 
-  const semanticActors = [...new Set((input.engineInput.semanticEvidence ?? [])
-    .filter((annotation) => annotation.actor && annotation.assertionStatus === 'AFFIRMED')
+  const semanticActorCandidates = (input.engineInput.semanticEvidence ?? [])
+    .filter((annotation) => annotation.actor && annotation.assertionStatus === 'AFFIRMED' && annotation.confidence !== 'LOW')
     .filter((annotation) => normalizeText(annotation.sourceQuote) === escapeText)
     .filter((annotation) => annotation.roles.includes('DIRECT_ACTOR') || annotation.roles.includes('FIRST_DEPARTURE'))
-    .map((annotation) => annotation.actor!.trim())
-    .filter(Boolean))]
-  if (semanticActors.length === 1) {
+  // Actor attribution is anchored to the semantic annotation that defines FIRST_DEPARTURE.
+  // DIRECT_ACTOR-only annotations are a fallback, not co-equal votes: a second semantic pass may
+  // paraphrase the same functional actor (for example, "piloto" vs "piloto que configurou a automação")
+  // and must not turn one supported actor into artificial ambiguity.
+  const firstDepartureActorCandidates = semanticActorCandidates.filter((annotation) => annotation.roles.includes('FIRST_DEPARTURE'))
+  const semanticActorAnnotations = firstDepartureActorCandidates.length > 0
+    ? firstDepartureActorCandidates
+    : semanticActorCandidates
+  const semanticActors = [...new Set(semanticActorAnnotations.map((annotation) => annotation.actor!.trim()).filter(Boolean))]
+  const semanticActorGroups = new Map<string, string[]>()
+  for (const actor of semanticActors) {
+    const identity = semanticActorIdentity(actor)
+    if (!identity) continue
+    const group = semanticActorGroups.get(identity) ?? []
+    if (!group.includes(actor)) group.push(actor)
+    semanticActorGroups.set(identity, group)
+  }
+  const semanticV2 = input.engineInput.semanticEnrichmentMeta?.schemaVersion === 'SERA_SEMANTIC_AI_V2'
+  if (semanticV2 && semanticActorAnnotations.length > 0) {
+    const specificGroups = [...semanticActorGroups.entries()]
+      .filter(([, actors]) => actors.some((actor) => isSpecificSemanticActor(actor)))
+    if (specificGroups.length === 1) {
+      const actors = specificGroups[0][1]
+      const actor = actors.sort((a, b) => semanticActorIdentity(a).length - semanticActorIdentity(b).length || a.length - b.length)[0]
+      return {
+        actor,
+        status: 'IDENTIFIED',
+        alternatives: [],
+        actorMigrationWarnings: passiveOperationalDeparture && !escapeHasCopilot && !escapeHasCaptain && !escapeHasCollectiveCrew
+          ? [input.engineInput.locale === 'pt-BR'
+              ? 'A frase do ponto de fuga é passiva; a atribuição individual foi resolvida pela camada semântica a partir da correferência explícita do próprio relato. O motor não inferiu o ator por palavra-chave ou posição na cabine.'
+              : 'The escape-point sentence is passive; individual attribution was resolved by the semantic layer from explicit coreference in the source. The engine did not infer the actor from keywords or cockpit position.']
+          : [],
+      }
+    }
     return {
-      actor: semanticActors[0],
-      status: 'IDENTIFIED',
-      alternatives: [],
-      actorMigrationWarnings: [],
+      actor: null,
+      status: 'AMBIGUOUS',
+      alternatives: semanticActors.length ? semanticActors : (input.engineInput.locale === 'pt-BR' ? ['ator não individualizado'] : ['actor not individually resolved']),
+      actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
+        ? 'A camada semântica não individualizou com segurança o ator do ponto de fuga. O motor mantém o gate fechado e não substitui essa lacuna por inferência lexical.'
+        : 'The semantic layer did not safely individualize the escape-point actor. The engine keeps the gate closed and does not replace that gap with lexical inference.'],
+    }
+  }
+  if (semanticActors.length === 1) {
+    const actor = semanticActors[0]
+    const passiveWithoutNamedActor = passiveOperationalDeparture && !escapeHasCopilot && !escapeHasCaptain && !escapeHasCollectiveCrew
+    const highConfidenceSpecific = semanticActorAnnotations.some((annotation) =>
+      annotation.actor?.trim() === actor && annotation.confidence === 'HIGH' && isSpecificSemanticActor(actor),
+    )
+    if (!passiveWithoutNamedActor || highConfidenceSpecific) {
+      return {
+        actor,
+        status: 'IDENTIFIED',
+        alternatives: passiveWithoutNamedActor
+          ? (input.engineInput.locale === 'pt-BR' ? ['atribuição semântica sujeita à revisão humana'] : ['semantic attribution subject to human review'])
+          : [],
+        actorMigrationWarnings: passiveWithoutNamedActor
+          ? [input.engineInput.locale === 'pt-BR'
+              ? 'A frase do ponto de fuga é passiva; a atribuição individual foi resolvida pela camada semântica a partir da correferência explícita do próprio relato. O motor não inferiu o ator por palavra-chave ou posição na cabine.'
+              : 'The escape-point sentence is passive; individual attribution was resolved by the semantic layer from explicit coreference in the source. The engine did not infer the actor from keywords or cockpit position.']
+          : [],
+      }
     }
   }
   if (semanticActors.length > 1) {
@@ -195,6 +286,17 @@ export function runStep06DirectActor(input: {
           : 'The P/O/A anchor sentence itself attributes the decision jointly to the crew; P/O/A stays collective only for that shared decision.'],
       }
     }
+    const explicitPm = /\b(piloto monitorando|pilot monitoring|monitoring pilot|pm)\b/.test(escapeText)
+    const explicitPf = /\b(piloto voando|pilot flying|flying pilot|pf)\b/.test(escapeText)
+    if (explicitPm !== explicitPf) {
+      return {
+        actor: explicitPm ? (input.engineInput.locale === 'pt-BR' ? 'piloto monitorando (PM)' : 'pilot monitoring (PM)') : (input.engineInput.locale === 'pt-BR' ? 'piloto voando (PF)' : 'pilot flying (PF)'),
+        status: 'IDENTIFIED',
+        alternatives: ['tripulação'],
+        actorMigrationWarnings: [],
+      }
+    }
+
     // Explicit numbered pilot labels in operational narratives are actor identities, not generic
     // mentions. Preserve them so a later critical act by "piloto 2" is not collapsed to "pilot".
     const numberedPilot = escapeText.match(/\bpiloto\s*([12])\b/)
@@ -236,8 +338,6 @@ export function runStep06DirectActor(input: {
           : 'The critical control act is supported, but the selected factual sentence does not identify who applied the input. Control-side position or mentions of other crewmembers in adjacent facts are insufficient for actor attribution.'],
       }
     }
-    const passiveOperationalDeparture = isExplicitOperationalOmissionStatement(primaryEscape)
-      || isExplicitOperationalDeviationStatement(primaryEscape)
     if (passiveOperationalDeparture && !escapeHasCopilot && !escapeHasCaptain && !escapeHasMaintenance) {
       const escapeIsDispatchDecision = /\b(despach\w*|dispatch\w*|mel)\b/.test(escapeText)
       const explicitDispatchActors = [
@@ -281,9 +381,17 @@ export function runStep06DirectActor(input: {
             : 'The operational omission at the escape point is supported, but the sentence itself does not identify which crewmember was responsible for execution. The actor cannot be inferred from support facts from another moment.'],
         }
       }
+      return {
+        actor: null,
+        status: 'AMBIGUOUS',
+        alternatives: [input.engineInput.locale === 'pt-BR' ? 'responsável pela preparação/execução do item omitido' : 'actor responsible for the omitted preparation/execution item'],
+        actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
+          ? 'A omissão no ponto de fuga está sustentada, mas a frase é passiva e não identifica quem deixou de executar o item. A travessia P/O/A permanece bloqueada até a atribuição factual do ator.'
+          : 'The omission at the escape point is supported, but the sentence is passive and does not identify who failed to execute the item. P/O/A remains blocked until factual actor attribution is established.'],
+      }
     }
     const genericPilotUnsafeAction = /\bpiloto\b.{0,120}\b(iniciou|iniciado|iniciada|executou|continuou|prosseguiu|manteve|selecionou|moveu|desceu|subiu|initiated|executed|continued|proceeded|maintained|selected|moved|descended|climbed)\b/.test(escapeText)
-      || /\bpiloto\b.{0,120}\b(nao notou|nao percebeu|nao processou|nao monitorou|nao verificou|did not notice|did not perceive|did not process|did not monitor|did not verify)\b/.test(escapeText)
+      || /\bpiloto\b.{0,120}\b(nao notou|nao percebeu|nao processou|nao acompanhou|nao monitorou|nao verificou|deixou de acompanhar|deixou de monitorar|did not notice|did not perceive|did not process|did not monitor|did not verify|stopped monitoring)\b/.test(escapeText)
     if (genericPilotUnsafeAction && !escapeHasCaptain && !escapeHasCollectiveCrew) {
       return { actor: 'piloto', status: 'IDENTIFIED', alternatives: ['tripulação'], actorMigrationWarnings: [] }
     }
@@ -386,7 +494,7 @@ export function runStep06DirectActor(input: {
         actor: 'flight crew (collective)',
         status: 'AMBIGUOUS',
         alternatives: ['captain', 'first officer', 'PF', 'PM'],
-        actorMigrationWarnings: ['Collective crew attribution is not sufficient to close P/O/A; identify the direct actor at the escape point.'],
+        actorMigrationWarnings: [collectiveActorWarning],
       }
     }
     if (hasAny(text, ['the pilot', 'pilot decided', 'pilot moved', 'pilot continued', 'o piloto', 'piloto decidiu', 'piloto moveu', 'piloto continuou', 'piloto perdeu', 'piloto iniciou'])) {
@@ -430,7 +538,7 @@ export function runStep06DirectActor(input: {
     alternatives: legacy.actorKind === 'crew_collective' ? ['captain', 'first officer', 'PF', 'PM'] : [],
     actorMigrationWarnings:
       legacy.actorKind === 'crew_collective'
-        ? ['Collective crew attribution is not sufficient to close P/O/A; identify the direct actor at the escape point.']
-        : legacy.actorKind === 'unknown' ? ['Direct actor remains unresolved; avoid actor migration beyond available evidence.'] : [],
+        ? [collectiveActorWarning]
+        : legacy.actorKind === 'unknown' ? [unresolvedActorWarning] : [],
   }
 }

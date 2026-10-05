@@ -91,9 +91,6 @@ function matching(statements: string[], patterns: RegExp[]): string[] {
   return statements.filter((statement) => patterns.some((pattern) => pattern.test(statement)))
 }
 
-function hasText(statements: string[], patterns: RegExp[]): boolean {
-  return matching(statements, patterns).length > 0
-}
 
 function concept(statements: string[], evidenceConcept: SeraEvidenceConcept): string[] {
   return matchingConceptStatements(statements, evidenceConcept)
@@ -113,6 +110,63 @@ function semanticRoleStatements(ctx: SeraNodeEvidenceContext, role: import('../e
       && !item.prohibitedFor.includes(use)
       && isEvidenceUsableFor(item, use)
       && item.semanticRoles?.includes(role))
+    .map((item) => item.statement))
+}
+
+function normalizedSemanticStatement(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').replace(/[.!?;,]+$/g, '').trim()
+}
+
+function semanticActionStrategyStatements(ctx: SeraNodeEvidenceContext): string[] {
+  const use = axisToEvidenceUse(ctx.axis)
+  const eligible = ctx.evidence.filter((item) =>
+    item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+    && item.assertionStatus === 'AFFIRMED'
+    && item.semanticConfidence !== 'LOW'
+    && !item.prohibitedFor.includes(use)
+    && isEvidenceUsableFor(item, use))
+  return unique(eligible
+    .filter((item) => item.semanticRoles?.includes('ACTION_STRATEGY'))
+    .filter((item) => item.semanticActionFailureMechanism !== 'MONITORING_ATTENTION_LAPSE')
+    // In V2 the semantic role assignment is authoritative for meaning. A valid strategy may
+    // be expressed by the same literal span as FIRST_DEPARTURE (for example, a deliberately
+    // selected response). Textual overlap with the landmark is therefore not grounds to erase
+    // ACTION_STRATEGY; implementation/mechanism is adjudicated separately.
+    .map((item) => item.statement))
+}
+
+function semanticActionMechanismStatements(
+  ctx: SeraNodeEvidenceContext,
+  mechanism: NonNullable<import('../engine-contract').SeraSemanticActionFailureMechanism>,
+): string[] {
+  const use = axisToEvidenceUse(ctx.axis)
+  return unique(ctx.evidence
+    .filter((item) =>
+      item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+      && item.assertionStatus === 'AFFIRMED'
+      && item.semanticConfidence !== 'LOW'
+      && !item.prohibitedFor.includes(use)
+      && isEvidenceUsableFor(item, use)
+      && item.semanticActionFailureMechanism === mechanism
+      && (mechanism === 'NONE_OR_UNKNOWN' || Boolean(item.semanticActionMechanismEvidenceQuote)))
+    .map((item) => item.statement))
+}
+
+function semanticAuditedActionMechanismStatements(
+  ctx: SeraNodeEvidenceContext,
+  mechanism: NonNullable<import('../engine-contract').SeraSemanticActionFailureMechanism>,
+): string[] {
+  const use = axisToEvidenceUse(ctx.axis)
+  return unique(ctx.evidence
+    .filter((item) =>
+      item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+      && item.assertionStatus === 'AFFIRMED'
+      && item.semanticConfidence !== 'LOW'
+      && item.semanticRoles?.includes('ACTION_MECHANISM')
+      && !item.prohibitedFor.includes(use)
+      && isEvidenceUsableFor(item, use)
+      && item.semanticActionFailureMechanism === mechanism
+      && (mechanism === 'NONE_OR_UNKNOWN' || Boolean(item.semanticActionMechanismEvidenceQuote)))
     .map((item) => item.statement))
 }
 
@@ -145,6 +199,66 @@ function semanticConceptsWithinWindow(
   const leftItems = eligible.filter((item) => item.semanticConcepts?.includes(left as never))
   const rightItems = eligible.filter((item) => item.semanticConcepts?.includes(right as never))
   return leftItems.some((a) => rightItems.some((b) => Math.abs(a.sourceSentenceIndex - b.sourceSentenceIndex) <= maxDistance))
+}
+
+function semanticInterpretationPresent(ctx: SeraNodeEvidenceContext): boolean {
+  return ctx.evidence.some((item) =>
+    item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+    && item.semanticSchemaVersion === 'SERA_SEMANTIC_AI_V2',
+  )
+}
+
+function clarificationStatementsForAxis(ctx: SeraNodeEvidenceContext): string[] {
+  const use = axisToEvidenceUse(ctx.axis)
+  return unique(ctx.evidence
+    .filter((item) =>
+      item.collectionSource === 'CLARIFICATION_RESPONSE'
+      && item.clarificationStage === use
+      && item.temporalRelation !== 'POST_ESCAPE'
+      && item.assertionStatus === 'AFFIRMED'
+      && !item.prohibitedFor.includes(use))
+    .map((item) => item.statement))
+}
+
+function decisionConceptStatements(
+  ctx: SeraNodeEvidenceContext,
+  statements: string[],
+  conceptName: SeraEvidenceConcept,
+  negationAware = false,
+): string[] {
+  const semantic = semanticConceptStatements(ctx, conceptName)
+  if (!semanticInterpretationPresent(ctx)) {
+    const lexical = negationAware
+      ? matchingConceptStatementsWithoutNegation(statements, conceptName)
+      : concept(statements, conceptName)
+    return unique([...lexical, ...semantic])
+  }
+  // Canonical AI path: the model owns language interpretation. Only explicit human
+  // clarification responses are still parsed lexically because they are not currently
+  // passed through semantic enrichment.
+  const clarifications = clarificationStatementsForAxis(ctx)
+  const clarificationMatches = negationAware
+    ? matchingConceptStatementsWithoutNegation(clarifications, conceptName)
+    : concept(clarifications, conceptName)
+  return unique([...semantic, ...clarificationMatches])
+}
+
+function decisionMatching(ctx: SeraNodeEvidenceContext, statements: string[], patterns: RegExp[]): string[] {
+  return matching(semanticInterpretationPresent(ctx) ? clarificationStatementsForAxis(ctx) : statements, patterns)
+}
+
+function decisionConceptWindow(
+  ctx: SeraNodeEvidenceContext,
+  statements: string[],
+  left: SeraEvidenceConcept,
+  right: SeraEvidenceConcept,
+  maxDistance: number,
+): boolean {
+  if (!semanticInterpretationPresent(ctx)) {
+    return Boolean(conceptsWithinWindow(statements, left, right, maxDistance)) || semanticConceptsWithinWindow(ctx, left, right, maxDistance)
+  }
+  return semanticConceptsWithinWindow(ctx, left, right, maxDistance)
+    || Boolean(conceptsWithinWindow(clarificationStatementsForAxis(ctx), left, right, maxDistance))
 }
 
 function stripAxisStatementPrefix(value: string | null): string | null {
@@ -182,6 +296,8 @@ function conciseRootResponse(axis: CanonicalSeraAxis, raw: string): string {
       const belief = judged[1].trim().replace(/\bmeu lado\b/gi, 'seu lado').replace(/\bminha rota\b/gi, 'sua rota')
       return `O operador acreditava que ${belief}.`
     }
+    const resumedChecklist = text.match(/retomou\s+(?:a\s+)?checklist\s+a partir do ponto em que acreditava ter parado/i)
+    if (resumedChecklist) return 'O operador acreditava ter retomado a checklist a partir do ponto em que havia parado.'
     const believed = text.match(/(?:acreditava|achava|entendeu|entendia|percebia)\s+que\s+(.{1,180}?)(?:[.;]|$)/i)
     if (believed) return `O operador acreditava que ${believed[1].trim()}.`
     const enIdentified = text.match(/identified\s+(.{1,70}?)\s+as\s+(?:the\s+)?(.{1,100}?)(?:[.;,]|\s+because\b|$)/i)
@@ -229,6 +345,14 @@ function conciseRootResponse(axis: CanonicalSeraAxis, raw: string): string {
     if (wrongAlternativeEn) return `The operator was trying to respond by ${text.match(/(pulled|pushed)/i)?.[1]?.toLowerCase()}ing ${wrongAlternativeEn[1].trim()} instead of ${wrongAlternativeEn[2].trim()}.`
     const wrongAlternativePt = text.match(/(?:puxou|empurrou)\s+(.{1,100}?)\s+(?:em vez de|ao inv[eé]s de)\s+(.{1,100}?)(?:[.;]|$)/i)
     if (wrongAlternativePt) return `O operador tentava responder por meio do comando ${wrongAlternativePt[1].trim()}, em vez de ${wrongAlternativePt[2].trim()}.`
+    const proceduralOmission = text.match(/(?:omitiu|n[aã]o executou|n[aã]o realizou|deixou de executar|deixou de realizar|foi omitid[oa])\s+(.{0,160}?\b(?:checklist|item|etapa|passo|procedimento)\b.{0,120}?)(?:[.;]|$)/i)
+      ?? text.match(/(.{0,120}?\b(?:checklist|item|etapa|passo|procedimento)\b.{0,120}?)\s+(?:n[aã]o foi executad[oa]|foi omitid[oa])(?:[.;]|$)/i)
+    if (proceduralOmission) {
+      const omissionText = proceduralOmission[0].trim().replace(/[.]$/, '').replace(/^[A-ZÁÉÍÓÚÃÕÇ]/, (value) => value.toLowerCase())
+      return `O operador tentava executar o fluxo procedural descrito, mas ${omissionText}.`
+    }
+    const selectionMismatch = text.match(/(?:selecionou|configurou|programou|ajustou)\s+(?:um |uma )?(?:modo|configura[cç][aã]o|valor|setting)[^.;]{0,160}?(?:diferente d(?:aquele|aquela|o|a) que pretendia|different from (?:what|the one) (?:he|she|the operator) intended)/i)
+    if (selectionMismatch) return 'O operador tentava configurar o sistema por meio da seleção de uma alternativa disponível.'
     const insertedSelection = text.match(/(?:inseriu|programou|selecionou|ajustou)\s+(.{1,180}?)(?:[.;]|$)/i)
     if (insertedSelection) return `O operador tentava atingir o objetivo por meio da seleção/configuração de ${insertedSelection[1].trim()}.`
     if (/\b(?:colocou|aplicou|usou|utilizou|put|applied|used)\b.{0,100}\b(?:barra na barra|pitch down|c[ií]clico|cyclic|comando|control)\b/i.test(text)) {
@@ -268,6 +392,31 @@ function insufficientRootResponse(axis: CanonicalSeraAxis, locale: 'pt-BR' | 'en
   return 'Não é possível determinar, com a evidência disponível, qual era o plano ou a estratégia pela qual o operador tentava atingir o objetivo.'
 }
 
+function expandSupportingEvidenceToSourceSentence(ctx: SeraNodeEvidenceContext, support: string): string {
+  const target = normalizedSemanticStatement(support)
+  if (!target) return support
+  const semanticItem = ctx.evidence.find((item) =>
+    item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+    && normalizedSemanticStatement(item.statement) === target)
+  if (!semanticItem) return support
+  const containing = ctx.evidence
+    .filter((item) => item.sourceSentenceIndex === semanticItem.sourceSentenceIndex)
+    .map((item) => item.statement.trim())
+    .filter(Boolean)
+    .filter((statement) => normalizedSemanticStatement(statement).includes(target))
+    .sort((a, b) => b.length - a.length)
+  return containing[0] ?? support
+}
+
+function isDisplayInterpretationWellFormed(axis: CanonicalSeraAxis, text: string): boolean {
+  const value = text.trim()
+  if (!value || value.length < 12) return false
+  // Presentation-only guard. It never interprets source evidence or selects a SERA branch.
+  if (/\b(?:por meio de|atrav[eé]s de|by means of)\s+(?:retomou|selecionou|omitiu|deixou|executou|configurou|programou|resumed|selected|omitted|stopped|executed|configured)\b/i.test(value)) return false
+  if (axis === 'P' && /\b(?:acreditava|percebia|believed|perceived)\s+que\s+(?:a partir d(?:e|o|a)|porque|quando|ap[oó]s|depois d(?:e|o|a)|from|because|when|after)\b/i.test(value)) return false
+  return true
+}
+
 function rootResponseText(ctx: SeraNodeEvidenceContext, supportingEvidence: string[]): string | null {
   // Hendy Step 2 asks for substantive P/O/A statements before the ladders. START is only
   // an internal branch token; the user-facing answer must directly answer the root question.
@@ -276,29 +425,75 @@ function rootResponseText(ctx: SeraNodeEvidenceContext, supportingEvidence: stri
   const directClarification = directNodeClarificationStatements(ctx)
     .find((statement) => supportingEvidence.includes(statement))
   if (directClarification) return directClarification
+
+  // AI may provide a grammar-normalized display sentence for the descriptive root. It is
+  // deliberately presentation-only: branch decisions above consume sourceQuote/roles/concepts,
+  // never this paraphrase. We only accept it when tied to the exact source evidence selected
+  // by the traversal for this axis.
+  const expectedRole = ctx.axis === 'P' ? 'PERCEPTION_STATE' : ctx.axis === 'O' ? 'OBJECTIVE_INTENT' : 'ACTION_STRATEGY'
+  const displayCandidates = ctx.evidence
+    .filter((item) =>
+      item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+      && item.semanticRoles?.includes(expectedRole)
+      && Boolean(item.semanticDisplayInterpretation)
+      && supportingEvidence.includes(item.statement))
+    .sort((a, b) => {
+      if (ctx.axis !== 'A') return 0
+      const aFailure = a.semanticActionFailureMechanism && a.semanticActionFailureMechanism !== 'NONE_OR_UNKNOWN' ? 1 : 0
+      const bFailure = b.semanticActionFailureMechanism && b.semanticActionFailureMechanism !== 'NONE_OR_UNKNOWN' ? 1 : 0
+      return aFailure - bFailure
+    })
+  const displayInterpretation = displayCandidates
+    .map((item) => item.semanticDisplayInterpretation?.trim() ?? '')
+    .find((value) => isDisplayInterpretationWellFormed(ctx.axis, value))
+  if (displayInterpretation) return displayInterpretation
+
+  if (ctx.axis === 'A' && semanticInterpretationPresent(ctx)) {
+    const mechanismItems = ctx.evidence.filter((item) =>
+      item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+      && supportingEvidence.includes(item.statement)
+      && item.semanticConfidence !== 'LOW')
+    if (mechanismItems.some((item) => item.semanticActionFailureMechanism === 'IMPLEMENTATION_MISMATCH')) {
+      return ctx.locale === 'pt-BR'
+        ? 'A estratégia não está descrita de forma independente; o relato estabelece apenas que a ação implementada diferiu da ação pretendida.'
+        : 'The strategy is not independently described; the source only establishes that the implemented action differed from the intended action.'
+    }
+    if (mechanismItems.some((item) => item.semanticActionFailureMechanism === 'PROCEDURAL_OMISSION')) {
+      return ctx.locale === 'pt-BR'
+        ? 'A estratégia não está descrita de forma independente; o relato estabelece apenas a omissão de uma etapa procedural esperada.'
+        : 'The strategy is not independently described; the source only establishes omission of an expected procedural step.'
+    }
+  }
+
   const fromStatement = stripAxisStatementPrefix(ctx.statementAtEscapePoint)
+  // On the canonical semantic path, natural-language interpretation belongs to the AI.
+  // If its display paraphrase fails presentation validation, fail softly to the verbatim
+  // source evidence instead of reconstructing meaning with handwritten language patterns.
+  if (semanticInterpretationPresent(ctx)) {
+    return supportingEvidence[0]?.trim() || fromStatement || null
+  }
   if (ctx.axis === 'A') {
     const candidates = [...(fromStatement ? [fromStatement] : []), ...supportingEvidence]
     const concrete = candidates.find((text) => /\b(tirei|tirou|retirei|retirou|desguarneci|peguei|pegou|puxei|puxou|empurrei|empurrou|coloquei|colocou|apliquei|aplicou|preferi|preferiu|tenha preferido|assumir|assumiu|barra na barra|pitch down|removed|pulled|pushed|applied|preferred|took over)\b/i.test(text))
     if (concrete) return conciseRootResponse(ctx.axis, concrete)
   }
   const support = supportingEvidence[0]?.trim()
-  if (support) return conciseRootResponse(ctx.axis, support)
+  if (support) return conciseRootResponse(ctx.axis, expandSupportingEvidenceToSourceSentence(ctx, support))
   return fromStatement ? conciseRootResponse(ctx.axis, fromStatement) : null
 }
 
 function decideP(nodeId: string, statements: string[], ctx: SeraNodeEvidenceContext): Decision {
-  const c = (conceptName: SeraEvidenceConcept) => unique([...concept(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
-  const cn = (conceptName: SeraEvidenceConcept) => unique([...matchingConceptStatementsWithoutNegation(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
+  const c = (conceptName: SeraEvidenceConcept) => decisionConceptStatements(ctx, statements, conceptName)
+  const cn = (conceptName: SeraEvidenceConcept) => decisionConceptStatements(ctx, statements, conceptName, true)
   const any = (conceptNames: SeraEvidenceConcept[]) => conceptNames.some((conceptName) => c(conceptName).length > 0)
-  const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => conceptsWithinWindow(statements, left, right, maxDistance) || semanticConceptsWithinWindow(ctx, left, right, maxDistance)
+  const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => decisionConceptWindow(ctx, statements, left, right, maxDistance)
   switch (nodeId) {
     case 'P_ROOT': {
       const perceivedState = unique([
         ...c('inadequateAssessment'),
         ...c('adequateAssessment'),
         ...semanticRoleStatements(ctx, 'PERCEPTION_STATE'),
-        ...matching(statements, [/\b(acreditava|achava|entendia|percebia|identificou|interpretou|reconheceu|viu|vimos|viram|sabia|sabiam|ciente|consciente|believed|understood|perceived|identified|interpreted|recognized|saw|knew|aware)\b/i]),
+        ...decisionMatching(ctx, statements, [/\b(acreditava|achava|entendia|percebia|identificou|interpretou|reconheceu|viu|vimos|viram|sabia|sabiam|ciente|consciente|believed|understood|perceived|identified|interpreted|recognized|saw|knew|aware)\b/i]),
       ])
       if (!perceivedState.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of what the operator believed or perceived; environmental/system state alone cannot substitute for that belief.' }
       return { answer: 'START', supportingEvidence: perceivedState.slice(0, 2), rationale: 'Root node establishes the operator perceived state before that assessment is tested.' }
@@ -359,18 +554,20 @@ function decideP(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
 }
 
 function decideO(nodeId: string, statements: string[], ctx: SeraNodeEvidenceContext): Decision {
-  const c = (conceptName: SeraEvidenceConcept) => unique([...concept(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
-  const cn = (conceptName: SeraEvidenceConcept) => unique([...matchingConceptStatementsWithoutNegation(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
+  const c = (conceptName: SeraEvidenceConcept) => decisionConceptStatements(ctx, statements, conceptName)
+  const cn = (conceptName: SeraEvidenceConcept) => decisionConceptStatements(ctx, statements, conceptName, true)
   const any = (conceptNames: SeraEvidenceConcept[]) => conceptNames.some((conceptName) => c(conceptName).length > 0)
-  const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => conceptsWithinWindow(statements, left, right, maxDistance) || semanticConceptsWithinWindow(ctx, left, right, maxDistance)
+  const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => decisionConceptWindow(ctx, statements, left, right, maxDistance)
   switch (nodeId) {
     case 'O_ROOT': {
+      const actionIntentOnly = (statement: string): boolean =>
+        /\b(?:selecionou|configurou|programou|ajustou|selected|configured|programmed|set)\b.{0,180}\b(?:diferente d(?:aquele|aquela|o|a) que pretendia|different from (?:what|the one) (?:he|she|the operator) intended|not what (?:he|she|the operator) intended)\b/i.test(statement)
       const intendedGoal = unique([
         // The root must answer Hendy's explicit goal/intention question. A procedure that
         // should have been executed (safeGoal) is not evidence of what this actor intended.
         ...c('efficiencyObjective'),
         ...semanticRoleStatements(ctx, 'OBJECTIVE_INTENT'),
-        ...matching(statements, [
+        ...decisionMatching(ctx, statements, [
           /\b(objetiv|inten[cç][aã]o|pretend|planej|meta|queria|desej|buscava|visava|goal|intent|planned|planning)\w*/i,
           /\b(decidiu|decidiram|decidimos|resolveu|resolveram|resolvemos|optou|optaram|escolheu|escolheram|decided|resolved|chose|opted)\b.{0,120}\b(continuar|continuou|prosseguir|prosseguiu|tentar|decolar|decolou|pousar|pousou|aproximar|aproximou|descer|desceu|subir|subiu|continue|continued|proceed|proceeded|try|take off|took off|land|landed|approach|approached|descend|descended|climb|climbed)\b/i,
           /\b(decidiu|resolveu|decided|resolved)\b.{0,80}\b(violar|descumprir|desrespeitar|violate|breach|disregard)\b.{0,100}\b(continuar|continuou|prosseguir|prosseguiu|seguir|seguiu|continue|continued|proceed|proceeded|press on|pressed on)\b/i,
@@ -378,8 +575,11 @@ function decideO(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
           /\b(called for|requested|solicitou|chamou (?:pela |a )?)\b.{0,60}\b(go-around|go around|arremetida)\b/i,
         ]),
       ])
-      if (!intendedGoal.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of the actor intended objective. The observed unsafe action, a rule deviation, or the outcome cannot substitute for intent.' }
-      return { answer: 'START', supportingEvidence: intendedGoal.slice(0, 2), rationale: 'Root node establishes the operator intended goal before rule/risk consistency is tested.' }
+      const filteredIntendedGoal = semanticInterpretationPresent(ctx)
+        ? intendedGoal
+        : intendedGoal.filter((statement) => !actionIntentOnly(statement))
+      if (!filteredIntendedGoal.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of the actor intended objective. The observed unsafe action, intended control/configuration, a rule deviation, or the outcome cannot substitute for the operational goal.' }
+      return { answer: 'START', supportingEvidence: filteredIntendedGoal.slice(0, 2), rationale: 'Root node establishes the operator intended goal before rule/risk consistency is tested.' }
     }
     case 'O_RULES': {
       const safeGoal = c('safeGoal')
@@ -492,18 +692,25 @@ function decideO(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
 }
 
 function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceContext): Decision {
-  const c = (conceptName: SeraEvidenceConcept) => unique([...concept(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
-  const cn = (conceptName: SeraEvidenceConcept) => unique([...matchingConceptStatementsWithoutNegation(statements, conceptName), ...semanticConceptStatements(ctx, conceptName)])
+  const c = (conceptName: SeraEvidenceConcept) => decisionConceptStatements(ctx, statements, conceptName)
+  const cn = (conceptName: SeraEvidenceConcept) => decisionConceptStatements(ctx, statements, conceptName, true)
   const any = (conceptNames: SeraEvidenceConcept[]) => conceptNames.some((conceptName) => c(conceptName).length > 0)
-  const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => conceptsWithinWindow(statements, left, right, maxDistance) || semanticConceptsWithinWindow(ctx, left, right, maxDistance)
+  const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => decisionConceptWindow(ctx, statements, left, right, maxDistance)
   switch (nodeId) {
     case 'A_ROOT': {
+      const proceduralOmission = c('proceduralOmission')
+      const semanticProceduralOmission = semanticActionMechanismStatements(ctx, 'PROCEDURAL_OMISSION')
+      const semanticImplementationMismatch = semanticActionMechanismStatements(ctx, 'IMPLEMENTATION_MISMATCH')
+      const semanticFeedbackFailure = semanticActionMechanismStatements(ctx, 'FEEDBACK_FAILURE')
       const actionStrategy = unique([
-        ...semanticRoleStatements(ctx, 'ACTION_STRATEGY'),
+        ...semanticActionStrategyStatements(ctx),
         ...c('selectionSubtype'),
+        // Failure mechanisms are deliberately not strategy evidence. A source-anchored
+        // omission or implementation mismatch may allow the implementation node to be
+        // tested, but must not be displayed as HOW the actor was trying to achieve a goal.
         // Hendy asks HOW the actor was trying to achieve the goal — the plan/means.
         // A bare observed control movement is not sufficient to establish that strategy.
-        ...matching(statements, [
+        ...decisionMatching(ctx, statements, [
           /\b(pretendia|intencionava|planejava|decidiu|decidiram|decidimos|resolveu|resolveram|resolvemos|optou|optaram|escolheu|escolheram|tentava|buscava|visava|intended|planned|decided|resolved|opted|chose|was trying|sought|aimed)\b.{0,180}\b(usar|utilizar|executar|realizar|conduzir|prosseguir|continuar|tentar|selecionar|acionar|aproximar|pousar|use|using|execute|perform|conduct|proceed|continue|try|select|activate|approach|land)\b/i,
           /\b(passou|come[cç]ou) a (?:tratar|planejar|conduzir|preparar|executar|usar|utilizar)\b/i,
           /\b(iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|conduziu a aproxima[cç][aã]o|preparou a aproxima[cç][aã]o|planejou a aproxima[cç][aã]o)\b/i,
@@ -518,6 +725,20 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
           /\b(associou|identificou|tratou)\b.{0,140}\b(unidade|plataforma|pista|destino)\b.{0,220}\b(conduzindo|conduzir|aproxima[cç][aã]o|pouso|landing|approach)\b/i,
         ]),
       ])
+      const specificProceduralOmission = decisionMatching(ctx, statements, [
+        /\b(?:omitiu|omitiram|omitted|skipped)\b.{0,160}\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b/i,
+        /\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b.{0,180}\b(?:n[aã]o foi executad[oa]|n[aã]o foram executad[oa]s?|foi omitid[oa]|foram omitid[oa]s?|was not executed|were not executed|was omitted|were omitted)\b/i,
+        /\b(?:n[aã]o executou|n[aã]o realizou|deixou de executar|deixou de realizar|failed to execute|failed to perform|did not execute|did not perform)\b.{0,160}\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b/i,
+      ])
+      if (!actionStrategy.length && semanticImplementationMismatch.length) {
+        return { answer: 'START', supportingEvidence: semanticImplementationMismatch.slice(0, 2), rationale: 'The strategy is not independently described. A source-anchored implementation mismatch is sufficient to test implementation without reconstructing the strategy or operational objective.' }
+      }
+      if (!actionStrategy.length && semanticFeedbackFailure.length) {
+        return { answer: 'START', supportingEvidence: semanticFeedbackFailure.slice(0, 2), rationale: 'The strategy is not independently described. A source-anchored failure to verify the result of the actor own action is sufficient to test the implementation/feedback branch without reconstructing the strategy or operational objective.' }
+      }
+      if (!actionStrategy.length && (semanticProceduralOmission.length || (!semanticInterpretationPresent(ctx) && (proceduralOmission.length || specificProceduralOmission.length)))) {
+        return { answer: 'START', supportingEvidence: unique([...semanticProceduralOmission, ...proceduralOmission, ...specificProceduralOmission]).slice(0, 2), rationale: 'The strategy is not independently described. A specific expected procedural step was identified as omitted, which is sufficient to test implementation without reconstructing the strategy, Perception, or Objective.' }
+      }
       if (!actionStrategy.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of the actor plan, strategy, or means for achieving the goal; an observed movement or control input alone cannot substitute for that plan.' }
       return { answer: 'START', supportingEvidence: actionStrategy.slice(0, 2), rationale: 'Root node establishes how the operator was trying to achieve the goal before implementation and adequacy are tested.' }
     }
@@ -529,23 +750,90 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
         /\b(pr[oó]pria a[cç][aã]o|pr[oó]prio comando|own action|own command|resultado da a[cç][aã]o|resultado do comando|fma|modo ativo|post[- ]?checklist)\b/i.test(statement)
       )
       const slipOrLapse = c('slipLapse')
+      const proceduralOmission = c('proceduralOmission')
+      const implementationMismatch = c('implementationMismatch')
+      const semanticProceduralOmission = semanticActionMechanismStatements(ctx, 'PROCEDURAL_OMISSION')
+      const semanticImplementationMismatch = semanticActionMechanismStatements(ctx, 'IMPLEMENTATION_MISMATCH')
+      const semanticMonitoringLapse = semanticActionMechanismStatements(ctx, 'MONITORING_ATTENTION_LAPSE')
+      const semanticFeedbackFailure = semanticActionMechanismStatements(ctx, 'FEEDBACK_FAILURE')
+      const semanticOtherActionFailure = semanticActionMechanismStatements(ctx, 'OTHER_ACTION_FAILURE')
+      const auditedProceduralOmission = semanticAuditedActionMechanismStatements(ctx, 'PROCEDURAL_OMISSION')
+      const auditedImplementationMismatch = semanticAuditedActionMechanismStatements(ctx, 'IMPLEMENTATION_MISMATCH')
+      const auditedMonitoringLapse = semanticAuditedActionMechanismStatements(ctx, 'MONITORING_ATTENTION_LAPSE')
+      const auditedFeedbackFailure = semanticAuditedActionMechanismStatements(ctx, 'FEEDBACK_FAILURE')
+      const auditedOtherActionFailure = semanticAuditedActionMechanismStatements(ctx, 'OTHER_ACTION_FAILURE')
+      const auditedUnknown = semanticAuditedActionMechanismStatements(ctx, 'NONE_OR_UNKNOWN')
       const selected = c('selectionSubtype')
       const timed = c('timeManagementAction')
-      const intendedAction = matching(statements, [
+      const intendedAction = decisionMatching(ctx, statements, [
         /\b(pretendia|intencionava|queria|tentava|planejava|decidiu|optou|escolheu|selecionou|prosseguiu|continuou|intended|wanted|was trying|planned to|decided|opted|chose|selected|proceeded|continued)\b/i,
         /\b((?:passou|come[cç]ou) a (?:trat[aá](?:-l[ao])?|planejar|conduzir|preparar)|iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|conduziu a aproxima[cç][aã]o|preparou a aproxima[cç][aã]o|comprometeu(?:-se)?|tratava .* como (?:o )?destino)\b/i,
         /\b(associou|identificou|tratou)\b.{0,140}\b(unidade|plataforma|pista|destino)\b.{0,220}\b(conduzindo|conduzir|aproxima[cç][aã]o|pouso|landing|approach)\b/i,
         /\b(inspe[cç][aã]o (?:de )?pr[eé][ -]?voo|preflight inspection|inspe[cç][aã]o visual)\b.{0,140}\b(conclu[ií]d[ao]|realizad[ao]|completed|performed|nada de anormal|nenhuma anormalidade|no abnormality)\b/i,
         /\b(a[cç][aã]o pretendida|comando pretendido|intended action|intended command)\b/i,
       ])
-      const observedDeliberateAction = matching(statements, [
+      const observedDeliberateAction = decisionMatching(ctx, statements, [
         /\b((?:passou|come[cç]ou) a (?:planejar|conduzir|aproximar|preparar)|iniciou (?:o )?planejamento|iniciou (?:a )?aproxima[cç][aã]o|conduziu a aproxima[cç][aã]o|preparou a aproxima[cç][aã]o|conduzindo (?:o )?pouso|associou .* unidade|compromet(?:eu|endo).*aproxima[cç][aã]o)\b/i,
       ])
-      const explicitCorrespondence = matching(statements, [
+      const explicitCorrespondence = decisionMatching(ctx, statements, [
         /\b(como pretendia|conforme pretendia|correspondeu ao que pretendia|implementad[ao] como pretendid[ao]|as intended|matched the intended|corresponded to the intended)\b/i,
       ])
-      if (feedbackFailure.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: feedbackFailure, rationale: 'Evidence supports an independent failure in feedback/verification of the actor own action.' }
-      if (slipOrLapse.length > 0 && perceptionDriven.length === 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: slipOrLapse, rationale: 'Evidence supports an independent slip/lapse/error in action implementation before the consequence.' }
+      const explicitImplementationMismatch = decisionMatching(ctx, statements, [
+        /\b(?:selecionou|configurou|programou|ajustou|selected|configured|programmed|set)\b.{0,180}\b(?:diferente d(?:aquele|aquela|o|a) que pretendia|different from (?:what|the one) (?:he|she|the operator) intended|not what (?:he|she|the operator) intended)\b/i,
+      ])
+      const specificProceduralOmission = decisionMatching(ctx, statements, [
+        /\b(?:omitiu|omitiram|omitted|skipped)\b.{0,160}\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b/i,
+        /\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b.{0,180}\b(?:n[aã]o foi executad[oa]|n[aã]o foram executad[oa]s?|foi omitid[oa]|foram omitid[oa]s?|was not executed|were not executed|was omitted|were omitted)\b/i,
+        /\b(?:n[aã]o executou|n[aã]o realizou|deixou de executar|deixou de realizar|failed to execute|failed to perform|did not execute|did not perform)\b.{0,160}\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b/i,
+      ])
+      const deliberateOmission = cn('consciousDeviation').length > 0 && cn('explicitAwareness').length > 0
+      if (semanticInterpretationPresent(ctx)) {
+        const mechanismGroups = [
+          ['PROCEDURAL_OMISSION', semanticProceduralOmission],
+          ['IMPLEMENTATION_MISMATCH', semanticImplementationMismatch],
+          ['MONITORING_ATTENTION_LAPSE', semanticMonitoringLapse],
+          ['FEEDBACK_FAILURE', semanticFeedbackFailure],
+          ['OTHER_ACTION_FAILURE', semanticOtherActionFailure],
+        ].filter(([, evidence]) => (evidence as string[]).length > 0)
+        const auditedGroups = [
+          ['PROCEDURAL_OMISSION', auditedProceduralOmission],
+          ['IMPLEMENTATION_MISMATCH', auditedImplementationMismatch],
+          ['MONITORING_ATTENTION_LAPSE', auditedMonitoringLapse],
+          ['FEEDBACK_FAILURE', auditedFeedbackFailure],
+          ['OTHER_ACTION_FAILURE', auditedOtherActionFailure],
+        ].filter(([, evidence]) => (evidence as string[]).length > 0)
+        if (auditedGroups.length > 1 || mechanismGroups.length > 1) {
+          return {
+            answer: 'INSUFFICIENT_EVIDENCE',
+            supportingEvidence: unique([...mechanismGroups, ...auditedGroups].flatMap(([, evidence]) => evidence as string[])),
+            rationale: 'Conflicting source-anchored semantic action mechanisms were returned. The deterministic engine fails closed until the mechanism is resolved.',
+          }
+        }
+        if (auditedUnknown.length > 0) {
+          return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: auditedUnknown, rationale: 'The independent semantic action-mechanism audit could not establish an implementation mechanism; the Action implementation branch remains unresolved.' }
+        }
+        if (auditedGroups.length === 1 && mechanismGroups.length === 1 && auditedGroups[0][0] !== mechanismGroups[0][0]) {
+          return {
+            answer: 'INSUFFICIENT_EVIDENCE',
+            supportingEvidence: unique([...(auditedGroups[0][1] as string[]), ...(mechanismGroups[0][1] as string[])]),
+            rationale: `Primary semantic extraction and the independent action-mechanism audit disagree (${mechanismGroups[0][0]} vs ${auditedGroups[0][0]}). The deterministic engine fails closed.`,
+          }
+        }
+        if (auditedMonitoringLapse.length > 0) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: auditedMonitoringLapse, rationale: 'The independent semantic audit identifies a monitoring/attention lapse, which does not establish implementation different from intention.' }
+        if (auditedFeedbackFailure.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: auditedFeedbackFailure, rationale: 'The independent source-anchored semantic audit establishes an independent feedback/verification failure.' }
+        if (auditedImplementationMismatch.length > 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: auditedImplementationMismatch, rationale: 'The independent source-anchored semantic audit establishes an implementation mismatch between intended and implemented action.' }
+        if (auditedProceduralOmission.length > 0 && !deliberateOmission) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: auditedProceduralOmission, rationale: 'The independent source-anchored semantic audit establishes omission of a specific expected procedural step.' }
+        if (semanticFeedbackFailure.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: semanticFeedbackFailure, rationale: 'Source-anchored semantic evidence establishes an independent feedback/verification failure.' }
+        if (semanticImplementationMismatch.length > 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: semanticImplementationMismatch, rationale: 'Source-anchored semantic evidence establishes an implementation mismatch between intended and implemented action.' }
+        if (semanticProceduralOmission.length > 0 && !deliberateOmission) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: semanticProceduralOmission, rationale: 'Source-anchored semantic evidence establishes omission of a specific expected procedural step; absent deliberate-deviation evidence, this supports A-B.' }
+        if (semanticMonitoringLapse.length > 0) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: semanticMonitoringLapse, rationale: 'A monitoring/attention lapse does not establish that an intended action was implemented differently; the Action implementation branch remains unresolved without independent implementation evidence.' }
+      } else {
+        if (feedbackFailure.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: feedbackFailure, rationale: 'Evidence supports an independent failure in feedback/verification of the actor own action.' }
+        if (implementationMismatch.length > 0 || explicitImplementationMismatch.length > 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: unique([...implementationMismatch, ...explicitImplementationMismatch]), rationale: 'Evidence establishes that the implemented selection/configuration differed from the actor stated intended implementation.' }
+        if ((proceduralOmission.length > 0 || specificProceduralOmission.length > 0) && !deliberateOmission) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: unique([...proceduralOmission, ...specificProceduralOmission]), rationale: 'Evidence establishes omission of a specific expected procedural step; absent deliberate-deviation evidence, this supports A-B.' }
+        const independentStrategy = semanticActionStrategyStatements(ctx)
+        if (slipOrLapse.length > 0 && perceptionDriven.length === 0 && independentStrategy.length > 0 && implemented.length > 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: unique([...slipOrLapse, ...independentStrategy, ...implemented]), rationale: 'A generic slip/lapse label is accepted only when independent evidence establishes both the intended strategy and an implemented action.' }
+      }
       if (explicitCorrespondence.length > 0 || selected.length > 0 || timed.length > 0 || safeAction.length > 0 || (intendedAction.length > 0 && (implemented.length > 0 || perceptionDriven.length > 0 || observedDeliberateAction.length > 0))) {
         return {
           answer: 'SIM',
@@ -564,7 +852,7 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
       const correct = c('correctAction')
       const incorrect = c('incorrectAction')
       const perceptionDriven = c('inadequateAssessment')
-      const independentSelectionError = matching(statements, [
+      const independentSelectionError = decisionMatching(ctx, statements, [
         /\b(selected|selecionou|escolheu|acionou|apertou|programou|inseriu)\b.*\b(wrong|errad[oa]|incorret[oa]|modo|mode|valor|value|comando|control)\b/i,
         /\bwrong checklist|checklist errado|wrong switch|interruptor errado|wrong control|comando errado\b/i,
       ])
@@ -587,10 +875,24 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
         ...c('feedbackSubtype'),
         ...c('timeManagementAction'),
       ])
-      if (capabilityPresent.length > 0 || specificActionMechanism.length > 0) return {
+      if (capabilityPresent.length > 0) return {
         answer: 'SIM',
-        supportingEvidence: unique([...capabilityPresent, ...specificActionMechanism]),
-        rationale: 'A specific executed/omitted action mechanism provides positive evidence to continue subtype discrimination; capability is not inferred merely from absence of limitation.',
+        supportingEvidence: capabilityPresent,
+        rationale: 'Positive evidence independently establishes the knowledge/capability needed to form and implement an appropriate action.',
+      }
+      if (specificActionMechanism.length > 0) {
+        if (semanticInterpretationPresent(ctx)) return {
+          answer: 'INSUFFICIENT_EVIDENCE',
+          supportingEvidence: specificActionMechanism,
+          rationale: 'An identifiable action subtype does not establish knowledge, skill, or capability. Positive capability evidence is required before subtype discrimination can continue.',
+        }
+        // Historical V1/lexical fixtures predate the explicit actionCapabilityPresent concept.
+        // Preserve their established behavior without weakening the canonical V2 AI contract.
+        return {
+          answer: 'SIM',
+          supportingEvidence: specificActionMechanism,
+          rationale: 'Legacy evidence contract uses a specific action subtype as the capability continuation signal; V2 requires independent positive capability evidence.',
+        }
       }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'Action capability cannot be assumed without positive evidence.' }
     }
@@ -640,8 +942,9 @@ export function evaluateCanonicalNode(ctx: SeraNodeEvidenceContext): SeraNodeAns
   const terminalCode = branchTarget?.includes('-') ? branchTarget : null
   const nextNodeId = branchTarget && !terminalCode ? branchTarget : null
   const supportingEvidence = unique(decision.supportingEvidence).slice(0, 4)
-  const counterEvidence = hasText(statements, [/\b(does not establish|not established|not clearly established|unclear whether)\b/i])
-    ? matching(statements, [/\b(does not establish|not established|not clearly established|unclear whether)\b/i]).slice(0, 3)
+  const counterEvidenceMatches = decisionMatching(ctx, statements, [/\b(does not establish|not established|not clearly established|unclear whether)\b/i])
+  const counterEvidence = counterEvidenceMatches.length
+    ? counterEvidenceMatches.slice(0, 3)
     : []
 
   return {

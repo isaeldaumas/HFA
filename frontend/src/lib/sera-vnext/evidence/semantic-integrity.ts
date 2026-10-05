@@ -3,6 +3,7 @@ import type {
   SeraSemanticEvidenceAnnotation,
   SeraSemanticEvidenceRole,
 } from "../engine-contract";
+import { splitNarrativeIntoSentenceRecords } from "../engine-v0/factual-extraction-helpers";
 
 function norm(value: string): string {
   return value
@@ -217,11 +218,215 @@ function validRoles(
   });
 }
 
+
+function resolveSourceRecord(narrative: string, quote: string) {
+  const nq = norm(quote);
+  if (!nq) return null;
+  for (const record of splitNarrativeIntoSentenceRecords(narrative)) {
+    const ns = norm(record.statement);
+    if (ns === nq || ns.includes(nq)) return record;
+  }
+  return null;
+}
+
+function semanticPosition(narrative: string, annotation: SeraSemanticEvidenceAnnotation): number {
+  const record = resolveSourceRecord(narrative, annotation.sourceQuote);
+  if (!record) return Number.MAX_SAFE_INTEGER;
+  const sourceNorm = norm(record.statement);
+  const quoteNorm = norm(annotation.sourceQuote);
+  const offset = Math.max(0, sourceNorm.indexOf(quoteNorm));
+  return record.sourceSentenceIndex * 1_000_000 + offset;
+}
+
+function enforceV2StructuralIntegrity(args: {
+  annotations: SeraSemanticEvidenceAnnotation[];
+  narrative: string;
+}): SeraSemanticEvidenceAnnotation[] {
+  const result: SeraSemanticEvidenceAnnotation[] = [];
+  const seen = new Set<string>();
+
+  for (const item of args.annotations) {
+    const sourceQuote = item.sourceQuote.trim();
+    const source = resolveSourceRecord(args.narrative, sourceQuote);
+    if (!source) continue;
+
+    let roles = [...new Set(item.roles)];
+    // displayInterpretation is presentation-only. Semantic role validity comes from the
+    // source-anchored AI annotation plus the deterministic methodology gates below; prose
+    // wording must never delete or reclassify evidence. This keeps language interpretation
+    // in the semantic layer instead of reintroducing lexical grammar rules here.
+    // Investigator questions are not event evidence. This is a provenance/format guard,
+    // not a semantic classifier: the model remains responsible for interpreting answers.
+    if (isInvestigatorQuestion(sourceQuote)) {
+      roles = roles.filter((role) => ![
+        "PERCEPTION_STATE", "OBJECTIVE_INTENT", "ACTION_STRATEGY", "PRECONDITION",
+        "CRITICAL_UNSAFE_ACT", "FIRST_DEPARTURE", "DIRECT_ACTOR",
+      ].includes(role));
+    }
+    if (!roles.length) continue;
+
+    const sourceAssertion = source.assertionStatus;
+    const assertionStatus = sourceAssertion && sourceAssertion !== "AFFIRMED"
+      ? sourceAssertion
+      : item.assertionStatus;
+    let hasPrecondition = roles.includes("PRECONDITION");
+    let preconditionCategory = hasPrecondition ? item.preconditionCategory ?? null : null;
+    let preconditionCausalStatus = hasPrecondition ? item.preconditionCausalStatus ?? null : null;
+    let preconditionCausalTargetQuote = hasPrecondition && item.preconditionCausalStatus === "SOURCE_LINKED"
+      ? item.preconditionCausalTargetQuote?.trim() || null
+      : null;
+    const mechanismEvidenceQuote = item.actionMechanismEvidenceQuote?.trim() || null;
+    const mechanismEvidenceSource = mechanismEvidenceQuote ? resolveSourceRecord(args.narrative, mechanismEvidenceQuote) : null;
+    const requestedMechanism = item.actionFailureMechanism ?? null;
+    const actionFailureMechanism = requestedMechanism === "NONE_OR_UNKNOWN"
+      ? requestedMechanism
+      : requestedMechanism && mechanismEvidenceSource
+        ? requestedMechanism
+        : requestedMechanism
+          ? "NONE_OR_UNKNOWN" as const
+          : null;
+    let concepts = [...new Set(item.concepts ?? [])];
+    // TIME_PRESSURE is a semantic claim about an actual operational time constraint, not
+    // merely chronological lateness. Require the dedicated semantic concept as a second
+    // structured signal. If it is absent, fail closed instead of inferring pressure from
+    // wording such as "late", "last-minute" or proximity to another event.
+    if (hasPrecondition && preconditionCategory === "TIME_PRESSURE" && !concepts.includes("timeManagementPressure")) {
+      if (concepts.includes("attentionPressure")) {
+        preconditionCategory = null;
+        preconditionCausalStatus = "PRESENT_CONTEXT";
+        preconditionCausalTargetQuote = null;
+      } else {
+        roles = roles.filter((role) => role !== "PRECONDITION");
+        hasPrecondition = false;
+        preconditionCategory = null;
+        preconditionCausalStatus = null;
+        preconditionCausalTargetQuote = null;
+      }
+    }
+    if (!roles.length) continue;
+    // V2 fail-closed contract: concepts are descriptive hints, but implementation-failure
+    // concepts cannot overrule the explicit action mechanism. In particular a monitoring
+    // lapse must not become A-B merely because the model also emitted slipLapse/omission.
+    if (actionFailureMechanism == null || actionFailureMechanism === "MONITORING_ATTENTION_LAPSE" || actionFailureMechanism === "NONE_OR_UNKNOWN") {
+      concepts = concepts.filter((concept) => !["slipLapse", "proceduralOmission", "implementationMismatch"].includes(concept));
+    } else if (actionFailureMechanism === "PROCEDURAL_OMISSION") {
+      concepts = concepts.filter((concept) => concept !== "implementationMismatch");
+    } else if (actionFailureMechanism === "IMPLEMENTATION_MISMATCH") {
+      concepts = concepts.filter((concept) => concept !== "proceduralOmission");
+    }
+    const candidate: SeraSemanticEvidenceAnnotation = {
+      ...item,
+      sourceQuote,
+      sourceSentenceIndex: source.sourceSentenceIndex,
+      roles,
+      assertionStatus,
+      preconditionCategory,
+      preconditionCausalStatus,
+      preconditionCausalTargetQuote,
+      actionFailureMechanism,
+      actionMechanismEvidenceQuote: actionFailureMechanism && actionFailureMechanism !== "NONE_OR_UNKNOWN" && mechanismEvidenceSource
+        ? mechanismEvidenceQuote
+        : null,
+      displayInterpretation: roles.some((role) => role === "PERCEPTION_STATE" || role === "OBJECTIVE_INTENT" || role === "ACTION_STRATEGY")
+        ? item.displayInterpretation?.trim() || null
+        : null,
+      concepts,
+    };
+    const key = `${candidate.sourceSentenceIndex}:${norm(candidate.sourceQuote)}:${candidate.roles.join(",")}:${candidate.actor ?? ""}:${candidate.preconditionCategory ?? ""}:${candidate.preconditionCausalStatus ?? ""}:${candidate.preconditionCausalTargetQuote ?? ""}:${candidate.actionFailureMechanism ?? ""}:${candidate.actionMechanismEvidenceQuote ?? ""}:${candidate.displayInterpretation ?? ""}:${candidate.concepts?.join(",") ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(candidate);
+  }
+
+  const firstDeparture = result
+    .filter((item) => item.assertionStatus === "AFFIRMED" && item.confidence !== "LOW" && item.roles.includes("FIRST_DEPARTURE"))
+    .sort((a, b) => semanticPosition(args.narrative, a) - semanticPosition(args.narrative, b))[0];
+  if (!firstDeparture) return result;
+  const firstPosition = semanticPosition(args.narrative, firstDeparture);
+  const firstText = norm(firstDeparture.sourceQuote);
+
+  const normalized = result.map((item) => {
+    const position = semanticPosition(args.narrative, item);
+    let next = item;
+    if (position > firstPosition && item.roles.some((role) => role === "CRITICAL_UNSAFE_ACT" || role === "OUTCOME")) {
+      next = { ...next, temporalRelation: "POST_ESCAPE" as const };
+    }
+
+    if (next.roles.includes("PRECONDITION")) {
+      if (next.preconditionCausalStatus !== "SOURCE_LINKED") {
+        next = { ...next, preconditionCausalTargetQuote: null };
+      } else {
+        const target = next.preconditionCausalTargetQuote?.trim() ?? "";
+        const targetRecord = target ? resolveSourceRecord(args.narrative, target) : null;
+        const targetText = norm(target);
+        // Fail closed: SOURCE_LINKED is only accepted when the model anchors the claimed
+        // causal relation to the unique FIRST_DEPARTURE verbatim. A plausible factor or a
+        // causal claim aimed at another landmark remains PRESENT_CONTEXT.
+        const targetsSelectedFirstDeparture = Boolean(
+          targetRecord
+          && targetText
+          && firstText
+          && (targetText === firstText || targetText.includes(firstText)),
+        );
+        if (!targetsSelectedFirstDeparture) {
+          next = {
+            ...next,
+            preconditionCausalStatus: "PRESENT_CONTEXT" as const,
+            preconditionCausalTargetQuote: null,
+          };
+        }
+      }
+    }
+    return next;
+  });
+
+  // Objective is the operational result/goal, not the control/action implementation
+  // the actor meant to perform. If the model labels an overlapping implementation-mismatch
+  // or procedural-omission span as OBJECTIVE_INTENT without any independent objective
+  // concept, fail closed by removing only that objective role. The action evidence remains.
+  const objectiveConcepts = new Set([
+    "safeGoal", "efficiencyObjective", "consciousDeviation", "routineDeviation",
+    "exceptionalDeviation", "managedRisk", "unmanagedRisk",
+  ]);
+  const objectiveGuarded = normalized.map((item, index) => {
+    if (!item.roles.includes("OBJECTIVE_INTENT")) return item;
+    if ((item.concepts ?? []).some((concept) => objectiveConcepts.has(concept))) return item;
+    const current = norm(item.sourceQuote);
+    const overlapsActionImplementation = normalized.some((other, otherIndex) => {
+      if (otherIndex === index || other.sourceSentenceIndex !== item.sourceSentenceIndex) return false;
+      if (!(other.concepts ?? []).some((concept) => concept === "implementationMismatch" || concept === "proceduralOmission")) return false;
+      const actionText = norm(other.sourceQuote);
+      return Boolean(current && actionText && (current.includes(actionText) || actionText.includes(current)));
+    });
+    if (!overlapsActionImplementation) return item;
+    const roles = item.roles.filter((role) => role !== "OBJECTIVE_INTENT");
+    return { ...item, roles };
+  }).filter((item) => item.roles.length > 0);
+
+  // Preserve all source-grounded P/O/A spans. Presentation grammar is handled by the
+  // optional displayInterpretation field; evidence spans themselves are never widened or
+  // discarded merely to improve prose.
+
+  const deduped: SeraSemanticEvidenceAnnotation[] = [];
+  const finalSeen = new Set<string>();
+  for (const item of objectiveGuarded) {
+    const key = `${item.sourceSentenceIndex}:${norm(item.sourceQuote)}:${item.roles.join(",")}:${item.actor ?? ""}:${item.preconditionCategory ?? ""}:${item.preconditionCausalStatus ?? ""}:${item.preconditionCausalTargetQuote ?? ""}:${item.actionFailureMechanism ?? ""}:${item.actionMechanismEvidenceQuote ?? ""}:${item.displayInterpretation ?? ""}:${item.concepts?.join(",") ?? ""}`;
+    if (finalSeen.has(key)) continue;
+    finalSeen.add(key);
+    deduped.push(item);
+  }
+  return deduped;
+}
+
 export function enforceSemanticEvidenceIntegrity(args: {
   annotations?: SeraSemanticEvidenceAnnotation[] | null;
   narrative: string;
+  schemaVersion?: "SERA_SEMANTIC_AI_V1" | "SERA_SEMANTIC_AI_V2" | null;
 }): SeraSemanticEvidenceAnnotation[] {
   if (!args.annotations?.length) return [];
+  if (args.schemaVersion === "SERA_SEMANTIC_AI_V2") {
+    return enforceV2StructuralIntegrity({ annotations: args.annotations, narrative: args.narrative });
+  }
   const normalizedNarrative = norm(args.narrative);
   const result: SeraSemanticEvidenceAnnotation[] = [];
   const seen = new Set<string>();

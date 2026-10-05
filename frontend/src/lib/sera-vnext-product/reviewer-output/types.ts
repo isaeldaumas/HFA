@@ -24,6 +24,7 @@ export type SeraReviewerAxisCard = {
 
 export type SeraReviewerPreconditionCard = {
   category: string
+  canonicalCategory: string | null
   plainLanguageLabel: string
   description: string
   evidence: string[]

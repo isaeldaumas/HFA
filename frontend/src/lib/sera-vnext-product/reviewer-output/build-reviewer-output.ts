@@ -8,12 +8,8 @@ import { reviewDecisionChecklist } from './format-review-prompts'
 
 function inferRecommendedNextStep(output: SeraVNextEngineOutput): SeraReviewerRecommendedNextStep {
   const { escapePoint, axes } = output
-  if (
-    escapePoint.status === 'INSUFFICIENT_EVIDENCE' ||
-    escapePoint.status === 'NO_HUMAN_ESCAPE_POINT'
-  ) {
-    return 'REQUIRES_MORE_EVIDENCE'
-  }
+  if (escapePoint.status === 'NO_HUMAN_ESCAPE_POINT') return 'REJECT_WORKING_HYPOTHESIS'
+  if (escapePoint.status === 'INSUFFICIENT_EVIDENCE') return 'REQUIRES_MORE_EVIDENCE'
   if (escapePoint.status === 'PROGRESSIVE_ZONE') {
     return 'RETURN_FOR_REANALYSIS'
   }
@@ -39,6 +35,7 @@ function inferRationale(output: SeraVNextEngineOutput): string {
     return 'Um ou mais eixos permanecem não resolvidos, ou o ponto de fuga é progressivo. Retorne para reanálise com escopo ou evidência refinada.'
   }
   if (step === 'REJECT_WORKING_HYPOTHESIS') {
+    if (output.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT') return 'A evidência disponível não estabelece uma saída humana da operação segura. Aplique SERA P/O/A somente se revisão humana identificar evidência adicional de ação, omissão, decisão ou percepção humana causal.'
     return 'A evidência contrária supera a evidência de suporte para os eixos candidatos. Rejeite a hipótese de trabalho.'
   }
   return 'Os eixos candidatos são sustentados pela evidência disponível. Esta análise pode ser aceita como hipótese de trabalho não final para fins de revisão interna.'
@@ -68,7 +65,10 @@ export function buildReviewerOutput(engineOutput: SeraVNextEngineOutput): SeraRe
     escapePointStatus === 'CANDIDATE' || escapePointStatus === 'PROGRESSIVE_ZONE'
 
   let overallUsefulnessWarning: string | undefined
-  if (!hasWorkableCandidate) {
+  if (escapePointStatus === 'NO_HUMAN_ESCAPE_POINT') {
+    overallUsefulnessWarning =
+      'P/O/A não é aplicável enquanto não houver ponto de fuga humano. A revisão deve confirmar essa não aplicabilidade, não buscar um código para preencher os eixos.'
+  } else if (!hasWorkableCandidate) {
     overallUsefulnessWarning =
       'Atenção: o ponto de fuga não está classificado como candidato viável. A análise de eixos abaixo pode ter utilidade limitada.'
   }

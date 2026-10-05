@@ -68,9 +68,14 @@ export function runStep01FactualExtraction(input: SeraVNextEngineInput): SeraVNe
     }
   }
 
-  const normalizedTimeline = timeline.map((item: (typeof timeline)[number]) => {
+  const semanticSpanMode = input.semanticEnrichmentMeta?.schemaVersion === 'SERA_SEMANTIC_AI_V2'
+  const landmarkRoles = new Set(['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT'] as const)
+  const normalizedTimelineBase = timeline.map((item: (typeof timeline)[number]) => {
     const semantic = semanticBySentence.get(item.sourceSentenceIndex) ?? []
     const strongest = semantic.find((annotation) => annotation.confidence === 'HIGH') ?? semantic[0]
+    const roles = semanticSpanMode
+      ? semantic.flatMap((annotation) => annotation.roles.filter((role) => !landmarkRoles.has(role as 'FIRST_DEPARTURE' | 'CRITICAL_UNSAFE_ACT')))
+      : semantic.flatMap((annotation) => annotation.roles)
     return {
       id: `TIME-${item.order}`,
       order: item.order,
@@ -85,15 +90,45 @@ export function runStep01FactualExtraction(input: SeraVNextEngineInput): SeraVNe
       occurrenceScope: item.occurrenceScope !== 'UNKNOWN'
         ? item.occurrenceScope
         : strongest?.occurrenceScope ?? item.occurrenceScope,
-      semanticRoles: [...new Set(semantic.flatMap((annotation) => annotation.roles))],
+      semanticRoles: [...new Set(roles)],
       semanticActor: semantic.find((annotation) => annotation.actor)?.actor ?? null,
       semanticConfidence: strongest?.confidence,
     }
   })
 
+  const semanticLandmarkTimeline = semanticSpanMode
+    ? (input.semanticEvidence ?? [])
+        .filter((annotation) => annotation.assertionStatus === 'AFFIRMED' && annotation.confidence !== 'LOW')
+        .filter((annotation) => annotation.roles.some((role) => landmarkRoles.has(role as 'FIRST_DEPARTURE' | 'CRITICAL_UNSAFE_ACT')))
+        .flatMap((annotation, index) => {
+          const source = timeline.find((item) => item.sourceSentenceIndex === annotation.sourceSentenceIndex)
+          if (!source) return []
+          const exactOffset = source.statement.indexOf(annotation.sourceQuote)
+          const normalizedOffset = exactOffset >= 0 ? exactOffset : Math.max(0, source.statement.toLowerCase().indexOf(annotation.sourceQuote.toLowerCase()))
+          const fractionalOrder = (normalizedOffset + 1) / Math.max(1000, source.statement.length * 10)
+          return [{
+            id: `TIME-SEM-${source.order}-${index + 1}`,
+            order: source.order + fractionalOrder,
+            statement: annotation.sourceQuote,
+            temporalCue: source.temporalCue,
+            sourceSentenceIndex: source.sourceSentenceIndex,
+            sourceSection: source.sourceSection,
+            assertionStatus: source.assertionStatus,
+            occurrenceScope: source.occurrenceScope !== 'UNKNOWN' ? source.occurrenceScope : annotation.occurrenceScope,
+            semanticRoles: annotation.roles,
+            semanticActor: annotation.actor,
+            semanticPreconditionCategory: annotation.preconditionCategory ?? null,
+            semanticConfidence: annotation.confidence,
+          }]
+        })
+    : []
+  const normalizedTimeline = [...normalizedTimelineBase, ...semanticLandmarkTimeline]
+    .sort((a, b) => a.order - b.order || a.sourceSentenceIndex - b.sourceSentenceIndex)
+
   const evidence = applySemanticAnnotationsToEvidence({
     items: extractEvidenceItems({ facts: normalizedFacts, timeline: normalizedTimeline }),
     annotations: input.semanticEvidence,
+    semanticSchemaVersion: input.semanticEnrichmentMeta?.schemaVersion ?? null,
   })
 
   return {

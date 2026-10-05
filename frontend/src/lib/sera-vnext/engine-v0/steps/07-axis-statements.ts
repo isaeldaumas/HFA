@@ -45,7 +45,20 @@ function evidenceFor(
   const maxDistance = use === 'ACTION' ? 60 : 90
   const criticalAnchorText = (criticalAnchor ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
   const anchorAcknowledgesCrewCue = /\b(acknowledg\w*|recognized|noted|confirmed|reconheceu|confirmou|acusou recebimento|ciente)\b/.test(criticalAnchorText)
+  const firstLandmarkText = (escapePoint.firstDepartureCandidate ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+  const laterLandmarkText = (escapePoint.criticalUnsafeActCandidate ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+  const hasDistinctLaterLandmark = Boolean(firstLandmarkText && laterLandmarkText && firstLandmarkText !== laterLandmarkText)
+  const compoundLandmarkSentence = (statement: string): boolean => {
+    if (!hasDistinctLaterLandmark) return false
+    const normalizedStatement = statement.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    return normalizedStatement.includes(firstLandmarkText) && normalizedStatement.includes(laterLandmarkText)
+  }
   const semanticPassPresent = factualExtraction.evidence.some((item) => item.collectionSource === 'AI_SEMANTIC_EXTRACTION')
+  const semanticV2Present = factualExtraction.evidence.some((item) =>
+    item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+    && item.semanticSchemaVersion === 'SERA_SEMANTIC_AI_V2'
+    && item.semanticConfidence !== 'LOW',
+  )
   const semanticPoABySentence = new Set(
     factualExtraction.evidence
       .filter((item) => item.collectionSource === 'AI_SEMANTIC_EXTRACTION')
@@ -56,11 +69,22 @@ function evidenceFor(
   )
   const ranked = factualExtraction.evidence
     .filter((item) => {
+      // If one source sentence contains two sequential operator landmarks, the first clause is
+      // the unique P/O/A anchor. The full compound sentence is unsafe for P/O/A because it would
+      // re-import the later actor/action through lexical or semantic concepts.
+      if (compoundLandmarkSentence(item.statement) && item.collectionSource !== 'AI_SEMANTIC_EXTRACTION') return false
       // In canonical AI-assisted analyses, semantic interpretation is the primary P/O/A layer.
       // Raw lexical evidence remains only as a fallback when no semantic pass exists, plus the
       // exact observable critical act for Action when semantic extraction missed that sentence.
       // Clarification responses are always preserved because they are explicit human evidence.
-      if (semanticPassPresent
+      if (semanticV2Present
+        && item.collectionSource !== 'AI_SEMANTIC_EXTRACTION'
+        && item.collectionSource !== 'CLARIFICATION_RESPONSE') {
+        // Canonical V2 AI path: raw lexical duplicates never answer P/O/A. The semantic
+        // interpretation layer must explicitly assign the relevant role/concept first.
+        return false
+      }
+      if (semanticPassPresent && !semanticV2Present
         && item.collectionSource !== 'AI_SEMANTIC_EXTRACTION'
         && item.collectionSource !== 'CLARIFICATION_RESPONSE') {
         const highValueActionFallback = use === 'ACTION' && /\b(nunca (?:fiz|havia feito).{0,140}sempre (?:instrui|instru[ií]|ensinei) contra|barra na barra.{0,180}(?:o certo|o correto|deveria).{0,120}pitch down)\b/i.test(item.statement)
@@ -99,6 +123,13 @@ function evidenceFor(
       // the already selected direct actor even when the short answer does not repeat the
       // actor name and therefore parses as actorRelation=UNKNOWN.
       if (item.collectionSource === 'CLARIFICATION_RESPONSE' && item.clarificationStage === use) return true
+      if (semanticV2Present && item.collectionSource === 'AI_SEMANTIC_EXTRACTION') {
+        // Language interpretation has already been performed. Enforce only actor/temporal
+        // scope here; do not reinterpret the sentence with keyword patterns.
+        if (item.actorRelation === 'DIRECT_ACTOR') return true
+        if (use === 'PERCEPTION' && item.actorRelation === 'SYSTEM_ENVIRONMENT') return true
+        return false
+      }
       if (criticalAnchorIndex == null) {
         return item.actorRelation === 'DIRECT_ACTOR'
           || (use === 'PERCEPTION' && item.actorRelation === 'SYSTEM_ENVIRONMENT')
@@ -106,9 +137,9 @@ function evidenceFor(
       }
       const distance = Math.abs(item.sourceSentenceIndex - criticalAnchorIndex)
       if (distance > maxDistance && !escapeSupport.has(item.statement)) return false
-      // Hendy P/O/A belongs to the operator of the critical unsafe act. Merely being
-      // contemporaneous with the anchor must never allow another crewmember's own
-      // perception, objective, or action to answer that operator's canonical branch.
+      // Hendy P/O/A belongs to the operator at the first safe→unsafe departure. Merely
+      // being contemporaneous with that anchor must never allow another crewmember's own
+      // perception, objective, or action to answer the anchored actor's canonical branch.
       if (item.actorRelation === 'DIRECT_ACTOR') return true
       // Perception is evaluated against the state of the world available to the actor. A nearby
       // system/environment cue (e.g. missing annunciation, degraded visibility) is therefore

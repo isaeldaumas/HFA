@@ -52,7 +52,7 @@ const e1Narrative = fs.readFileSync(path.join(base, 'evento-1.txt'), 'utf8')
 const e1Focus = focusedPoaEvidenceExcerpt({ narrative: e1Narrative, escapePoint: e1.escapePoint.firstDepartureCandidate!, directActor: e1.directActor.actor! })
 assert.match(e1Focus, /quinhentos p[eé]s|500 p[eé]s|entrar e sair da camada/i)
 assert.match(e1Focus, /quando ele achou que estava tudo certo/i)
-assert.doesNotMatch(e1Focus, /luz vermelha de transmiss[aã]o/i, 'focused P\/O\/A excerpt must not drift into the later transmission-light episode')
+assert.match(e1Focus, /DEMAIS FRASES FACTUAIS DO RELATO PARA INTERPRETAÇÃO SEMÂNTICA/i, 'V2 focus passes the full factual source to the model; actor/temporal locks, not keyword filtering, prevent episode drift')
 
 const e2 = runEvent('2')
 assert.match(e2.escapePoint.firstDepartureCandidate ?? '', /500 p[eé]s.*IMC.*continuar|500 p[eé]s.*continuar.*pouso/i)

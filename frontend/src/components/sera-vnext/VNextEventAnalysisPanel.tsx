@@ -125,6 +125,8 @@ export function VNextEventAnalysisPanel({ output }: { output: SeraVNextEngineOut
   const preconditionHypotheses = output.preconditions.filter((item) =>
     item.methodologyMatch === 'HYPOTHESIS_ONLY' || item.relationship === 'UNRELATED_OR_UNSUPPORTED',
   )
+  const taxonomyOnlyInvestigationGaps = preconditionHypotheses.filter((item) => item.basedOnCandidateCode && item.evidence.length === 0)
+  const evidenceHypotheses = preconditionHypotheses.filter((item) => !(item.basedOnCandidateCode && item.evidence.length === 0))
 
   const operationalObservations = output.factualExtraction.evidence
     .filter((item) =>
@@ -292,7 +294,7 @@ export function VNextEventAnalysisPanel({ output }: { output: SeraVNextEngineOut
           <a href="/actions" className="text-xs font-medium text-blue-400 hover:text-blue-300">{pt ? 'Ir para ações →' : 'Go to actions →'}</a>
         </div>
 
-        {supportedPreconditions.length === 0 && preconditionHypotheses.length === 0 ? (
+        {supportedPreconditions.length === 0 && evidenceHypotheses.length === 0 && taxonomyOnlyInvestigationGaps.length === 0 ? (
           <p className="mt-3 text-sm text-slate-500">
             {pt ? 'Nenhuma pré-condição causal sustentada ou hipótese prioritária foi identificada com a evidência atual.' : 'No supported causal precondition or priority investigation hypothesis was identified with the current evidence.'}
           </p>
@@ -324,11 +326,11 @@ export function VNextEventAnalysisPanel({ output }: { output: SeraVNextEngineOut
               </div>
             )}
 
-            {preconditionHypotheses.length > 0 && (
+            {evidenceHypotheses.length > 0 && (
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">{pt ? 'Hipóteses a investigar — não confirmadas causalmente' : 'Investigation hypotheses — not causally confirmed'}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">{pt ? 'Hipóteses contextuais a investigar — não confirmadas causalmente' : 'Contextual investigation hypotheses — not causally confirmed'}</p>
                 <div className="mt-2 grid gap-3 md:grid-cols-2">
-                  {preconditionHypotheses.map((item) => {
+                  {evidenceHypotheses.map((item) => {
                     const canonical = item.canonicalCategory ? SERA_PRECONDITION_META[item.canonicalCategory] : null
                     return (
                       <div key={item.id} className="rounded-lg border border-amber-900/50 bg-amber-950/10 p-4">
@@ -339,6 +341,21 @@ export function VNextEventAnalysisPanel({ output }: { output: SeraVNextEngineOut
                       </div>
                     )
                   })}
+                </div>
+              </div>
+            )}
+
+            {taxonomyOnlyInvestigationGaps.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">{pt ? 'Rotas de investigação sugeridas pela taxonomia' : 'Investigation routes suggested by the taxonomy'}</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">{pt ? 'Itens da Tabela 1 para orientar perguntas. Não são fatores encontrados no relato nem causas presumidas.' : 'Table 1 items that guide follow-up questions. They are not source-grounded factors or presumed causes.'}</p>
+                <div className="mt-2 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
+                  <ul className="list-disc space-y-1 pl-5 text-xs leading-relaxed text-slate-400">
+                    {taxonomyOnlyInvestigationGaps.map((item) => {
+                      const canonical = item.canonicalCategory ? SERA_PRECONDITION_META[item.canonicalCategory] : null
+                      return <li key={item.id}><strong>{canonical ? (pt ? canonical.pt : canonical.en) : categoryLabel(item.category, pt)}:</strong> {item.description}</li>
+                    })}
+                  </ul>
                 </div>
               </div>
             )}

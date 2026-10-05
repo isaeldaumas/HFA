@@ -5,7 +5,7 @@ import type { SeraCanonicalPath, SeraVNextEngineOutput } from '@/lib/sera-vnext/
 import { localizeActor, localizeRationale } from '@/lib/sera-vnext/engine-v0/localization'
 import { SERA_PT_V1_TREE } from '@/lib/sera-vnext/canonical-tree/sera-pt-v1'
 import { buildCanonicalFlowVisualModel } from '@/lib/sera-vnext/canonical-flow-visual'
-import { buildExecutiveSummary, friendlyAnswerLabel, friendlyNodeLabel, hfacsBridgeLevelLabel, preconditionLevelLabel, preconditionMethodologyMatchLabel } from '@/lib/sera-vnext/presentation'
+import { buildBlockingDiagnostic, buildExecutiveSummary, friendlyAnswerLabel, friendlyNodeLabel, hfacsBridgeLevelLabel, preconditionLevelLabel, preconditionMethodologyMatchLabel } from '@/lib/sera-vnext/presentation'
 import { SERA_PRECONDITION_META } from '@/lib/sera-vnext/precondition-taxonomy'
 import { buildSeraHfacsBridge } from '@/lib/sera-vnext/hfacs-bridge'
 import { buildSeraActionSuggestions } from '@/lib/corrective-actions/sera-suggestions'
@@ -29,6 +29,18 @@ type DetailedPdfInput = {
 function value(v: unknown, fallback = '-'): string {
   if (v === null || v === undefined || v === '') return fallback
   return String(v)
+}
+
+function normalizeLandmarkForDisplay(v: string | null | undefined): string {
+  return (v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim().replace(/[.;]+$/, '')
+}
+
+function distinctLaterLandmark(output: SeraVNextEngineOutput): string | null {
+  const first = output.escapePoint.firstDepartureCandidate ?? output.escapePoint.statement
+  const later = output.escapePoint.criticalUnsafeActCandidate
+  if (!later) return null
+  if (first && normalizeLandmarkForDisplay(first) === normalizeLandmarkForDisplay(later)) return null
+  return later
 }
 
 const PDF_COLORS = {
@@ -306,11 +318,11 @@ function landmarkRelationshipLabel(value: SeraVNextEngineOutput['escapePoint']['
 function candidateStatusLabel(value: string, pt: boolean): string {
   const ptMap: Record<string, string> = {
     CANDIDATE: 'CANDIDATO', NO_FAILURE: 'SEM FALHA INDEPENDENTE', INSUFFICIENT_EVIDENCE: 'EVIDÊNCIA INSUFICIENTE',
-    UNRESOLVED: 'NÃO RESOLVIDO', PROGRESSIVE_ZONE: 'ZONA PROGRESSIVA', NO_HUMAN_ESCAPE_POINT: 'SEM PONTO DE FUGA HUMANO',
+    UNRESOLVED: 'NÃO RESOLVIDO', NOT_APPLICABLE: 'NÃO APLICÁVEL', PROGRESSIVE_ZONE: 'ZONA PROGRESSIVA', NO_HUMAN_ESCAPE_POINT: 'SEM PONTO DE FUGA HUMANO',
   }
   const enMap: Record<string, string> = {
     CANDIDATE: 'CANDIDATE', NO_FAILURE: 'NO INDEPENDENT FAILURE', INSUFFICIENT_EVIDENCE: 'INSUFFICIENT EVIDENCE',
-    UNRESOLVED: 'UNRESOLVED', PROGRESSIVE_ZONE: 'PROGRESSIVE ZONE', NO_HUMAN_ESCAPE_POINT: 'NO HUMAN ESCAPE POINT',
+    UNRESOLVED: 'UNRESOLVED', NOT_APPLICABLE: 'NOT APPLICABLE', PROGRESSIVE_ZONE: 'PROGRESSIVE ZONE', NO_HUMAN_ESCAPE_POINT: 'NO HUMAN ESCAPE POINT',
   }
   return (pt ? ptMap : enMap)[value] ?? value
 }
@@ -375,8 +387,10 @@ function didacticReason(nodeId: string, answer: string, fallback: string | undef
     'A_IMPLEMENTED:SIM': 'A ação foi implementada como pretendida; a árvore então verifica se existia falha de ação independente.',
     'A_IMPLEMENTED:NÃO_DESLIZE_LAPSO_ERRO': 'Há evidência de deslize, omissão ou lapso específico na execução da ação.',
     'A_IMPLEMENTED:NÃO_FEEDBACK': 'Há evidência de falha de feedback ou verificação durante a própria execução.',
+    'A_IMPLEMENTED:INSUFFICIENT_EVIDENCE': 'A evidência disponível não resolve de forma consistente se a execução correspondeu à intenção; a travessia permanece interrompida até o mecanismo ser esclarecido.',
     'A_CORRECT:SIM': 'Não foi demonstrado mecanismo independente de ação inadequada; a ação permaneceu coerente com a percepção e o objetivo do ator, conduzindo a A-A.',
     'A_CORRECT:NÃO': 'A ação implementada era inadequada por mecanismo próprio; a árvore segue para capacidade, seleção e feedback da resposta.',
+    'A_CAPABILITY:INSUFFICIENT_EVIDENCE': 'A evidência disponível não demonstra positivamente capacidade, conhecimento ou habilidade suficientes para continuar a discriminação do subtipo de ação.',
   }
   return map[key] ?? fallback ?? 'A resposta foi determinada pela evidência utilizável disponível neste nó.'
 }
@@ -681,20 +695,25 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       ), doc.page.margins.left + 14, bannerY + 24, { width: bannerW - 28, lineGap: 2 })
     doc.y = bannerY + 60
 
+    const noHumanEscape = output.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT'
+    const actorFallback = noHumanEscape ? L('Não aplicável', 'Not applicable') : L('Não individualizado', 'Not individually resolved')
+    const classificationValue = noHumanEscape
+      ? L('N/A / N/A / N/A', 'N/A / N/A / N/A')
+      : [output.axes.perception.proposedCode, output.axes.objective.proposedCode, output.axes.action.proposedCode].map((item) => value(item, '—')).join(' / ')
     infoCard(
       doc,
       L('Marcos da ocorrência para revisão', 'Occurrence landmarks for review'),
       [
-        `${L('Ponto de fuga SERA / primeira saída', 'SERA escape point / first departure')}: ${value(output.escapePoint.firstDepartureCandidate ?? output.escapePoint.statement, L('Não estabelecido.', 'Not established.'))}`,
-        `${L('Ator no ponto de fuga (P/O/A)', 'Escape-point actor (P/O/A)')}: ${value(localizeActor(output.escapePoint.firstDepartureActor ?? output.directActor.actor, locale), L('Não individualizado', 'Not individually resolved'))}`,
-        `${L('Evolução crítica posterior', 'Later critical evolution')}: ${value(output.escapePoint.criticalUnsafeActCandidate, L('Nenhum ato posterior distinto estabelecido.', 'No distinct later act established.'))}`,
+        `${L('Ponto de fuga SERA / primeira saída', 'SERA escape point / first departure')}: ${value(output.escapePoint.firstDepartureCandidate ?? output.escapePoint.statement, noHumanEscape ? L('Nenhum ponto de fuga humano estabelecido.', 'No human escape point established.') : L('Não estabelecido.', 'Not established.'))}`,
+        `${L('Ator no ponto de fuga (P/O/A)', 'Escape-point actor (P/O/A)')}: ${value(localizeActor(output.escapePoint.firstDepartureActor ?? output.directActor.actor, locale), actorFallback)}`,
+        `${L('Evolução crítica posterior', 'Later critical evolution')}: ${value(distinctLaterLandmark(output), L('Nenhum ato posterior distinto estabelecido.', 'No distinct later act established.'))}`,
       ].join('\n'),
       { accent: PDF_COLORS.blue, fill: '#F2F7FC', label: L('Uma única âncora SERA', 'Single SERA anchor'), minHeight: 108 },
     )
 
     statRow(doc, [
-      { label: L('Ator no ponto de fuga (P/O/A)', 'Escape-point actor (P/O/A)'), value: value(localizeActor(output.escapePoint.firstDepartureActor ?? output.directActor.actor, locale), L('Não resolvido', 'Unresolved')), accent: PDF_COLORS.blue },
-      { label: L('Classificação', 'Classification'), value: [output.axes.perception.proposedCode, output.axes.objective.proposedCode, output.axes.action.proposedCode].map((item) => value(item, '—')).join(' / '), accent: PDF_COLORS.green },
+      { label: L('Ator no ponto de fuga (P/O/A)', 'Escape-point actor (P/O/A)'), value: value(localizeActor(output.escapePoint.firstDepartureActor ?? output.directActor.actor, locale), noHumanEscape ? L('Não aplicável', 'Not applicable') : L('Não resolvido', 'Unresolved')), accent: PDF_COLORS.blue },
+      { label: L('Classificação', 'Classification'), value: classificationValue, accent: PDF_COLORS.green },
       { label: L('Revisão', 'Review'), value: reviewStatusLabel(analysis.review_status, pt), accent: PDF_COLORS.amber },
     ])
     if (output.directActor.actorMigrationWarnings.length > 0) {
@@ -714,9 +733,9 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     }
 
     const axisCards = [
-      { id: 'P', title: L('Percepção', 'Perception'), code: output.axes.perception.proposedCode ?? '—', meaning: reviewerOutput.axisReviews.perception.candidateMeaning ?? candidateStatusLabel(output.axes.perception.status, pt) },
-      { id: 'O', title: L('Objetivo', 'Objective'), code: output.axes.objective.proposedCode ?? '—', meaning: reviewerOutput.axisReviews.objective.candidateMeaning ?? candidateStatusLabel(output.axes.objective.status, pt) },
-      { id: 'A', title: L('Ação', 'Action'), code: output.axes.action.proposedCode ?? '—', meaning: reviewerOutput.axisReviews.action.candidateMeaning ?? candidateStatusLabel(output.axes.action.status, pt) },
+      { id: 'P', title: L('Percepção', 'Perception'), code: noHumanEscape ? 'N/A' : output.axes.perception.proposedCode ?? '—', meaning: reviewerOutput.axisReviews.perception.candidateMeaning ?? candidateStatusLabel(output.axes.perception.status, pt) },
+      { id: 'O', title: L('Objetivo', 'Objective'), code: noHumanEscape ? 'N/A' : output.axes.objective.proposedCode ?? '—', meaning: reviewerOutput.axisReviews.objective.candidateMeaning ?? candidateStatusLabel(output.axes.objective.status, pt) },
+      { id: 'A', title: L('Ação', 'Action'), code: noHumanEscape ? 'N/A' : output.axes.action.proposedCode ?? '—', meaning: reviewerOutput.axisReviews.action.candidateMeaning ?? candidateStatusLabel(output.axes.action.status, pt) },
     ]
     axisSummaryRow(doc, axisCards)
 
@@ -742,7 +761,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       fill: '#FFF9EC',
       label: L('2  -  primeira saída seguro → inseguro / âncora P/O/A', '2  -  first safe → unsafe departure / P/O/A anchor'),
     })
-    infoCard(doc, L('Evolução crítica posterior', 'Later critical evolution'), value(output.escapePoint.criticalUnsafeActCandidate, L('Nenhum ato crítico posterior distinto foi estabelecido.', 'No distinct later critical act was established.')), {
+    infoCard(doc, L('Evolução crítica posterior', 'Later critical evolution'), value(distinctLaterLandmark(output), L('Nenhum ato crítico posterior distinto foi estabelecido.', 'No distinct later critical act was established.')), {
       accent: PDF_COLORS.red,
       fill: '#FFF4F4',
       label: L('3  -  evolução posterior (não ancora P/O/A)', '3  -  later evolution (does not anchor P/O/A)'),
@@ -754,22 +773,47 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     })
 
     statRow(doc, [
-      { label: L('Ator no ponto de fuga (P/O/A)', 'Escape-point actor (P/O/A)'), value: value(localizeActor(output.escapePoint.firstDepartureActor ?? output.directActor.actor, locale), L('Não individualizado', 'Not individually resolved')), accent: PDF_COLORS.blue },
-      { label: L('Ator da evolução posterior', 'Later-evolution actor'), value: value(localizeActor(output.escapePoint.criticalUnsafeActActor ?? null, locale), L('Não individualizado', 'Not individually resolved')), accent: PDF_COLORS.blue },
-      { label: L('Relação / confiança', 'Relationship / confidence'), value: `${landmarkRelationshipLabel(output.escapePoint.anchorBasis, pt)} · ${confidenceLabel(output.escapePoint.confidence, pt)}`, accent: PDF_COLORS.amber },
+      { label: L('Ator no ponto de fuga (P/O/A)', 'Escape-point actor (P/O/A)'), value: value(localizeActor(output.escapePoint.firstDepartureActor ?? output.directActor.actor, locale), noHumanEscape ? L('Não aplicável', 'Not applicable') : L('Não individualizado', 'Not individually resolved')), accent: PDF_COLORS.blue },
+      { label: L('Ator da evolução posterior', 'Later-evolution actor'), value: distinctLaterLandmark(output)
+        ? value(localizeActor(output.escapePoint.criticalUnsafeActActor ?? null, locale), L('Não atribuído / não aplicável', 'Not attributed / not applicable'))
+        : L('Não aplicável', 'Not applicable'), accent: PDF_COLORS.blue },
+      { label: L('Relação / confiança', 'Relationship / confidence'), value: noHumanEscape
+        ? L('Não aplicável · confirmação humana pendente', 'Not applicable · pending human confirmation')
+        : `${landmarkRelationshipLabel(output.escapePoint.anchorBasis, pt)} · ${confidenceLabel(output.escapePoint.confidence, pt)}`, accent: PDF_COLORS.amber },
     ])
 
     subheading(doc, L('Evidência principal da primeira saída', 'Key evidence for the first departure'))
     bullets(doc, (output.escapePoint.firstDepartureSupportingEvidence ?? []).slice(0, 2), L('Nenhuma evidência específica registrada para este marco.', 'No landmark-specific evidence recorded.'))
     subheading(doc, L('Evidência da evolução crítica posterior', 'Evidence for later critical evolution'))
-    bullets(doc, (output.escapePoint.criticalUnsafeActSupportingEvidence ?? output.escapePoint.supportingEvidence).slice(0, 2), L('Nenhuma evidência específica registrada para este marco.', 'No landmark-specific evidence recorded.'))
+    if (distinctLaterLandmark(output)) {
+      bullets(doc, (output.escapePoint.criticalUnsafeActSupportingEvidence ?? output.escapePoint.supportingEvidence).slice(0, 2), L('Nenhuma evidência específica registrada para este marco.', 'No landmark-specific evidence recorded.'))
+    } else {
+      body(doc, L('Não foi identificado ato/condição posterior distinto do próprio ponto de fuga.', 'No later act/condition distinct from the escape point was identified.'))
+    }
     if (output.canonicalTraversal.paths.length === 0) {
       doc.addPage({ size: 'A4', layout: 'portrait', margin: 44 })
-      heading(doc, '2. ' + L('P / O / A - análise interrompida', 'P / O / A - analysis stopped'))
-      infoCard(doc, L('Travessia canônica não iniciada', 'Canonical traversal not started'), L(
-        'O ator direto ou a definição do ponto de fuga ainda não permitem avançar P/O/A sem inferência. As informações adicionais necessárias são apresentadas no próprio relatório.',
-        'The direct actor or escape-point definition does not yet allow P/O/A traversal without inference. Required clarification is presented in the report.',
-      ), { accent: PDF_COLORS.amber, fill: PDF_COLORS.amberSoft })
+      if (noHumanEscape) {
+        heading(doc, '2. ' + L('P / O / A - não aplicável', 'P / O / A - not applicable'))
+        infoCard(doc, L('Travessia canônica não iniciada por não aplicabilidade', 'Canonical traversal not started because it is not applicable'), L(
+          'Não foi identificada ação, decisão, omissão ou percepção humana constituindo a primeira saída da operação segura. Percepção, Objetivo e Ação não estão “não resolvidos”: estes eixos não são aplicáveis a este evento enquanto a revisão humana confirmar que a primeira saída é exclusivamente material/técnica.',
+          'No human action, decision, omission, or perception was identified as the first departure from safe operation. Perception, Objective, and Action are not “unresolved”: these axes are not applicable to this event while human review confirms that the first departure is exclusively material/technical.',
+        ), { accent: PDF_COLORS.blue, fill: '#F2F7FC' })
+      } else {
+        heading(doc, '2. ' + L('P / O / A - análise interrompida', 'P / O / A - analysis stopped'))
+        infoCard(doc, L('Travessia canônica não iniciada', 'Canonical traversal not started'), L(
+          'O ator direto ou a definição do ponto de fuga ainda não permitem avançar P/O/A sem inferência.',
+          'The direct actor or escape-point definition does not yet allow P/O/A traversal without inference.',
+        ), { accent: PDF_COLORS.amber, fill: PDF_COLORS.amberSoft })
+        const blockingDiagnostic = buildBlockingDiagnostic({ narrative: analysis.engine_input.narrative, output, pt })
+        if (blockingDiagnostic) {
+          doc.moveDown(0.45)
+          infoCard(doc, L('Razão do bloqueio', 'Blocking reason'), blockingDiagnostic.reason, { accent: PDF_COLORS.amber, fill: '#FFFFFF' })
+          subheading(doc, blockingDiagnostic.evidenceHeading)
+          bullets(doc, blockingDiagnostic.evidence, L('A evidência disponível não contém um elemento factual suficiente para fechar este bloqueio.', 'The available evidence does not contain a sufficient factual element to close this block.'))
+          infoCard(doc, L('Pergunta ao revisor', 'Reviewer question'), blockingDiagnostic.reviewerQuestion, { accent: PDF_COLORS.blue, fill: '#F3F8FC' })
+          meta(doc, L('Impacto metodológico', 'Methodological impact'), blockingDiagnostic.impact)
+        }
+      }
     } else {
       for (const path of output.canonicalTraversal.paths) {
         renderCanonicalTreePage(doc, path, pt)
@@ -790,8 +834,11 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     const hypothesisPreconditions = output.preconditions.filter((pc) =>
       pc.relationship !== 'CONTEXTUAL_PRECONDITION' && pc.relationship !== 'ENABLING_PRECONDITION',
     )
+    const taxonomyOnlyInvestigationGaps = hypothesisPreconditions.filter((pc) => pc.basedOnCandidateCode && pc.evidence.length === 0)
+    const evidenceHypotheses = hypothesisPreconditions.filter((pc) => !(pc.basedOnCandidateCode && pc.evidence.length === 0))
     const renderPrecondition = (pc: typeof output.preconditions[number], hypothesis: boolean) => {
-      const reviewCard = reviewerOutput.preconditionReview.cards.find((card) => card.category === pc.category)
+      const reviewCard = reviewerOutput.preconditionReview.cards.find((card) =>
+        card.category === pc.category && card.canonicalCategory === (pc.canonicalCategory ?? null))
       const canonicalMeta = pc.canonicalCategory ? SERA_PRECONDITION_META[pc.canonicalCategory] : null
       const canonicalName = canonicalMeta ? (pt ? canonicalMeta.pt : canonicalMeta.en) : categoryLabel(pc.category)
       const accent = hypothesis ? PDF_COLORS.amber : PDF_COLORS.blue
@@ -808,7 +855,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
         { label: L('Ator', 'Actor'), value: value(localizeActor(pc.linkedActor, locale)), accent },
       ])
       meta(doc, L('Relação com a falha', 'Relationship to the failure'), relationshipLabel(pc.relationship))
-      if (pc.methodologyMatch) meta(doc, L('Correspondência metodológica', 'Methodological match'), preconditionMethodologyMatchLabel(pc.methodologyMatch, pt))
+      if (pc.methodologyMatch) meta(doc, L('Correspondência metodológica', 'Methodological match'), preconditionMethodologyMatchLabel(pc.methodologyMatch, pt, pc.basedOnCandidateCode))
       const contextReadout = buildPreconditionContextReadout(output, pc, pt)
       if (contextReadout) {
         subheading(doc, L('Decomposição do contexto', 'Context decomposition'))
@@ -835,14 +882,26 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
         subheading(doc, L('Pré-condições sustentadas pela evidência', 'Preconditions supported by the evidence'))
         for (const pc of supportedPreconditions) renderPrecondition(pc, false)
       }
-      if (hypothesisPreconditions.length) {
-        subheading(doc, L('Hipóteses preservadas - não confirmadas causalmente', 'Retained hypotheses - not causally confirmed'))
+      if (evidenceHypotheses.length) {
+        subheading(doc, L('Hipóteses contextuais preservadas - não confirmadas causalmente', 'Retained contextual hypotheses - not causally confirmed'))
         body(doc, L(
-          'Estes itens foram mencionados ou sugeridos no material-fonte, mas não entram como pré-condições confirmadas nem no Perfil de Risco enquanto permanecerem sem suporte causal suficiente.',
-          'These items were mentioned or suggested in the source material, but they do not count as confirmed preconditions or enter the Risk Profile while causal support remains insufficient.',
+          'Estes itens aparecem no material-fonte como contexto potencialmente relevante, mas não entram como pré-condições confirmadas nem no Perfil de Risco enquanto permanecerem sem suporte causal suficiente.',
+          'These items appear in the source material as potentially relevant context, but they do not count as confirmed preconditions or enter the Risk Profile while causal support remains insufficient.',
         ), 'justify')
         doc.moveDown(0.25)
-        for (const pc of hypothesisPreconditions) renderPrecondition(pc, true)
+        for (const pc of evidenceHypotheses) renderPrecondition(pc, true)
+      }
+      if (taxonomyOnlyInvestigationGaps.length) {
+        subheading(doc, L('Rotas de investigação sugeridas pela taxonomia', 'Investigation routes suggested by the taxonomy'))
+        body(doc, L(
+          'As categorias abaixo vêm da correspondência da Tabela 1 com a falha ativa candidata. Elas são perguntas de investigação, não fatores encontrados no relato e não causas presumidas.',
+          'The categories below come from Table 1 correspondence with the candidate active failure. They are investigation prompts, not factors found in the source and not presumed causes.',
+        ), 'justify')
+        bullets(doc, taxonomyOnlyInvestigationGaps.map((pc) => {
+          const meta = pc.canonicalCategory ? SERA_PRECONDITION_META[pc.canonicalCategory] : null
+          const label = meta ? (pt ? meta.pt : meta.en) : categoryLabel(pc.category)
+          return `${label}: ${pc.description}`
+        }))
       }
     }
 
@@ -852,13 +911,15 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       supportedPreconditions.map((pc) => pc.canonicalCategory ?? null),
     )
     body(doc, L(
-      'Esta correspondência é apresentada como referência complementar após a classificação SERA. Ela não altera o caminho da análise nem substitui a interpretação do contexto do ato inseguro.',
+      'Esta correspondência é apresentada como referência complementar após a classificação SERA. As Tabelas 3–6 de Hendy admitem correspondências um-para-muitos; portanto, os itens abaixo são possibilidades taxonômicas a serem resolvidas pelo contexto do evento e não constituem, por si só, fatores adicionais encontrados na ocorrência.',
       'This is a post-SERA classification bridge based on Hendy Tables 3–6. It does not alter the tree path or select SERA codes. Hendy explicitly notes that the correspondence is not one-to-one and must be resolved from the unsafe-act context.',
     ), 'justify')
     doc.moveDown(0.25)
-    subheading(doc, L('Falhas ativas SERA — melhor correspondência HFACS/AGA135', 'SERA active failures — best-fit HFACS/AGA135 correspondence'))
-    bullets(doc, hfacsBridge.activeFailures.map((item) => `${hfacsBridgeLevelLabel(item.level, pt)}: ${hfacsLabel(item.hfacs, pt)}`), L('Nenhuma correspondência disponível enquanto P/O/A permanecer não resolvido.', 'No correspondence is available while P/O/A remains unresolved.'))
-    subheading(doc, L('Pré-condições SERA — melhor correspondência HFACS/AGA135', 'SERA preconditions — best-fit HFACS/AGA135 correspondence'))
+    subheading(doc, L('Falhas ativas SERA — correspondências taxonômicas HFACS/AGA135', 'SERA active failures — taxonomic HFACS/AGA135 correspondences'))
+    bullets(doc, hfacsBridge.activeFailures.map((item) => `${hfacsBridgeLevelLabel(item.level, pt)}: ${hfacsLabel(item.hfacs, pt)}`), noHumanEscape
+      ? L('Não aplicável: nenhuma falha ativa humana SERA foi estabelecida para correspondência HFACS.', 'Not applicable: no human SERA active failure was established for HFACS correspondence.')
+      : L('Nenhuma correspondência disponível enquanto P/O/A permanecer não resolvido.', 'No correspondence is available while P/O/A remains unresolved.'))
+    subheading(doc, L('Pré-condições SERA — correspondências taxonômicas HFACS/AGA135', 'SERA preconditions — taxonomic HFACS/AGA135 correspondences'))
     bullets(doc, hfacsBridge.preconditions.map((item) => `${hfacsBridgeLevelLabel(item.level, pt)}: ${hfacsLabel(item.hfacs, pt)}`), L('Nenhuma pré-condição confirmada para mapeamento.', 'No confirmed precondition available for mapping.'))
 
     const operationalObservations = output.factualExtraction.evidence
@@ -889,7 +950,10 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       output,
     })
     const correctiveSuggestions = treatmentSuggestions.filter((item) => item.kind === 'CORRECTIVE_PREVENTIVE')
-    const investigationSuggestions = treatmentSuggestions.filter((item) => item.kind === 'INVESTIGATION')
+    const taxonomyOnlyCategories = new Set(taxonomyOnlyInvestigationGaps.map((pc) => pc.canonicalCategory).filter(Boolean))
+    const investigationSuggestions = treatmentSuggestions.filter((item) =>
+      item.kind === 'INVESTIGATION' && !taxonomyOnlyCategories.has(item.canonicalCategory),
+    )
     body(doc, L(
       'O tratamento é derivado das pré-condições, não apenas do código P/O/A. Pré-condições sustentadas geram propostas de controle para decisão humana; hipóteses ainda não confirmadas geram somente tarefas de investigação. Após a implementação, a ação deve ter eficácia verificada e o risco residual acompanhado antes do fechamento do ciclo.',
       'Treatment is derived from preconditions, not merely from P/O/A codes. Evidence-supported preconditions generate control proposals for human decision; unconfirmed hypotheses generate investigation tasks only. After implementation, action effectiveness and residual risk must be reviewed before closing the cycle.',
@@ -905,21 +969,37 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       subheading(doc, L('Lacunas de investigação antes de definir ação', 'Investigation gaps before defining action'))
       bullets(doc, investigationSuggestions.map((item) => `${item.title}: ${item.description}`))
     }
-    if (!treatmentSuggestions.length) {
-      body(doc, L('Nenhuma proposta de tratamento é liberada com a evidência atual. Complete a investigação e valide as pré-condições antes de definir ações.', 'No treatment proposal is released with the current evidence. Complete the investigation and validate preconditions before defining actions.'))
+    if (!correctiveSuggestions.length && !investigationSuggestions.length) {
+      body(doc, noHumanEscape
+        ? L('Nenhuma ação de fatores humanos SERA é liberada: não há falha ativa humana nem pré-condição humana sustentada. Eventuais ações técnicas ou de manutenção devem ser tratadas pelo processo técnico aplicável e só retornam ao SERA se surgir evidência de uma primeira saída humana.', 'No SERA human-factors action is released: no human active failure or human precondition is supported. Technical or maintenance actions belong to the applicable technical process and return to SERA only if evidence of a human first departure emerges.')
+        : taxonomyOnlyInvestigationGaps.length
+          ? L('Nenhuma ação corretiva é proposta com a evidência atual. As rotas de investigação orientadas pela taxonomia estão consolidadas na seção 5 e não são causas presumidas.', 'No corrective action is proposed with the current evidence. Taxonomy-guided investigation routes are consolidated in Section 5 and are not presumed causes.')
+          : L('Nenhuma proposta de tratamento é liberada com a evidência atual. Complete a investigação e valide as pré-condições antes de definir ações.', 'No treatment proposal is released with the current evidence. Complete the investigation and validate preconditions before defining actions.'))
     }
 
     heading(doc, '9. ' + L('Conclusão e próximos passos', 'Conclusion and next steps'))
     const analysisReady = output.evidenceSufficiency.status === 'SUFFICIENT_FOR_CANDIDATE_ANALYSIS' && !Object.values(output.guardrails).some(Boolean)
-    body(doc, analysisReady
+    body(doc, noHumanEscape
       ? L(
-          'A análise apresenta elementos suficientes para revisão humana. Antes do uso formal, recomenda-se confirmar o ponto de fuga, o ator direto, os resultados P/O/A e as pré-condições identificadas.',
-          'The candidate analysis has minimum evidence for human review. Before formal use, the reviewer must confirm the escape point, actor, P/O/A candidates, and preconditions.',
+          'P/O/A: não aplicável. Não foi identificada ação, decisão, omissão ou percepção humana constituindo a primeira saída da operação segura. A travessia SERA de Percepção, Objetivo e Ação não foi iniciada. O caso permanece classificado como ocorrência material/técnica sem ponto de fuga humano identificado, sujeito à confirmação humana dessa não aplicabilidade.',
+          'P/O/A: not applicable. No human action, decision, omission, or perception was identified as the first departure from safe operation. SERA Perception, Objective, and Action traversal was not started. The event remains a material/technical occurrence with no identified human escape point, subject to human confirmation of that non-applicability.',
         )
-      : L(
-          'A análise ainda não possui evidência suficiente para concluir P/O/A. As perguntas e informações adicionais indicadas no relatório devem ser esclarecidas antes do uso formal.',
-          'The analysis does not have sufficient evidence to close P/O/A. Treat this report as a clarification package: blocking reasons and pending questions must be resolved before any formal classification or operational index.',
-        ), 'justify')
+      : analysisReady
+        ? L(
+            'A análise apresenta elementos suficientes para revisão humana. Antes do uso formal, recomenda-se confirmar o ponto de fuga, o ator direto, os resultados P/O/A e as pré-condições identificadas.',
+            'The candidate analysis has minimum evidence for human review. Before formal use, the reviewer must confirm the escape point, actor, P/O/A candidates, and preconditions.',
+          )
+        : (() => {
+            const axisSummary = [
+              ['Percepção', 'Perception', output.axes.perception.proposedCode],
+              ['Objetivo', 'Objective', output.axes.objective.proposedCode],
+              ['Ação', 'Action', output.axes.action.proposedCode],
+            ].map(([ptLabel, enLabel, code]) => `${pt ? ptLabel : enLabel}: ${code ?? (pt ? 'não resolvido' : 'unresolved')}`).join(' · ')
+            return L(
+              `O fechamento metodológico ainda requer evidência/revisão adicional. Estado atual por eixo: ${axisSummary}. Os eixos já sustentados permanecem como candidatos; as lacunas indicadas devem ser esclarecidas antes do uso formal.`,
+              `Methodological closure still requires additional evidence/review. Current axis state: ${axisSummary}. Supported axes remain candidates; identified gaps must be resolved before formal use.`,
+            )
+          })(), 'justify')
 
     doc.moveDown(0.55)
     heading(doc, '10. ' + L('Referência metodológica', 'Methodological reference'))

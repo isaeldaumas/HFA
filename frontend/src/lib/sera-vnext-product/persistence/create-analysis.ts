@@ -1,5 +1,5 @@
 import { runSeraVNextEngineV0 } from '@/lib/sera-vnext/engine-v0/run-engine'
-import { enrichSeraNarrativeSemantically, enrichSeraPoaSemantically } from '@/lib/sera-vnext/ai/semantic-enrichment'
+import { enrichSeraNarrativeSemantically, enrichSeraPoaSemantically, mergeFocusedPoaSemanticEvidence } from '@/lib/sera-vnext/ai/semantic-enrichment'
 import type { SeraVNextEngineInput, SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
 import { conflict } from '../errors'
 import { hashJson, sha256Hex, stableJson } from '../hashing'
@@ -50,8 +50,8 @@ function collectWarnings(output: SeraVNextEngineOutput, inputWarnings: string[])
   const warnings = new Set<string>(['NON_FINAL_OUTPUT_ONLY', 'HUMAN_REVIEW_REQUIRED', ...inputWarnings])
   if (output.canonicalTraversal.status !== 'COMPLETED_CANDIDATE_ONLY') warnings.add('CANONICAL_TRAVERSAL_REVIEW_REQUIRED')
   if (output.evidenceSufficiency.status === 'NEEDS_CLARIFICATION') warnings.add('ADDITIONAL_EVIDENCE_REQUIRED')
-  if (output.directActor.status !== 'IDENTIFIED') warnings.add('DIRECT_ACTOR_REVIEW_REQUIRED')
-  if (output.preconditions.length === 0) warnings.add('NO_PRECONDITION_CANDIDATE')
+  if (output.escapePoint.status !== 'NO_HUMAN_ESCAPE_POINT' && output.directActor.status !== 'IDENTIFIED') warnings.add('DIRECT_ACTOR_REVIEW_REQUIRED')
+  if (output.escapePoint.status !== 'NO_HUMAN_ESCAPE_POINT' && output.preconditions.length === 0) warnings.add('NO_PRECONDITION_CANDIDATE')
   for (const [name, violated] of Object.entries(output.guardrails)) {
     if (violated) warnings.add(`GUARDRAIL_VIOLATED_${name.toUpperCase()}`)
   }
@@ -92,7 +92,7 @@ export async function createSeraVNextAnalysis(args: {
     && engineOutput.directActor.status === 'IDENTIFIED'
     && Boolean(engineOutput.directActor.actor)
     && Boolean(escapePoint)
-    && engineOutput.evidenceSufficiency.questions.some((question) => /-(P|O|A)_ROOT$/.test(question.id))
+    && engineOutput.evidenceSufficiency.questions.some((question) => ['PERCEPTION', 'OBJECTIVE', 'ACTION'].includes(question.stage))
   if (needsFocusedPoa && semantic && escapePoint && engineOutput.directActor.actor) {
     try {
       const focused = await enrichSeraPoaSemantically({
@@ -102,12 +102,11 @@ export async function createSeraVNextAnalysis(args: {
         directActor: engineOutput.directActor.actor,
       })
       if (focused.annotations.length > 0) {
-        const merged = [...semantic.annotations]
-        const seen = new Set(merged.map((item) => `${item.sourceSentenceIndex}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}`))
-        for (const item of focused.annotations) {
-          const key = `${item.sourceSentenceIndex}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}`
-          if (!seen.has(key)) { seen.add(key); merged.push(item) }
-        }
+        const merged = mergeFocusedPoaSemanticEvidence({
+          primary: semantic.annotations,
+          focused: focused.annotations,
+          directActor: engineOutput.directActor.actor,
+        })
         semantic = {
           ...semantic,
           annotations: merged,
