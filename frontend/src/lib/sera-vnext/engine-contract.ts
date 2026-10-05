@@ -221,6 +221,8 @@ export type SeraSemanticDecisionConcept =
   | 'implementedAction'
   | 'feedbackImplementationFailure'
   | 'slipLapse'
+  | 'proceduralOmission'
+  | 'implementationMismatch'
   | 'correctAction'
   | 'incorrectAction'
   | 'physicalActionLimitation'

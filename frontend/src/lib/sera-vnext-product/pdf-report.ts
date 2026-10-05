@@ -811,7 +811,8 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     const taxonomyOnlyInvestigationGaps = hypothesisPreconditions.filter((pc) => pc.basedOnCandidateCode && pc.evidence.length === 0)
     const evidenceHypotheses = hypothesisPreconditions.filter((pc) => !(pc.basedOnCandidateCode && pc.evidence.length === 0))
     const renderPrecondition = (pc: typeof output.preconditions[number], hypothesis: boolean) => {
-      const reviewCard = reviewerOutput.preconditionReview.cards.find((card) => card.category === pc.category)
+      const reviewCard = reviewerOutput.preconditionReview.cards.find((card) =>
+        card.category === pc.category && card.canonicalCategory === (pc.canonicalCategory ?? null))
       const canonicalMeta = pc.canonicalCategory ? SERA_PRECONDITION_META[pc.canonicalCategory] : null
       const canonicalName = canonicalMeta ? (pt ? canonicalMeta.pt : canonicalMeta.en) : categoryLabel(pc.category)
       const accent = hypothesis ? PDF_COLORS.amber : PDF_COLORS.blue

@@ -22,6 +22,8 @@ export type SeraEvidenceConcept =
   | 'implementedAction'
   | 'feedbackImplementationFailure'
   | 'slipLapse'
+  | 'proceduralOmission'
+  | 'implementationMismatch'
   | 'correctAction'
   | 'incorrectAction'
   | 'physicalActionLimitation'
@@ -316,6 +318,10 @@ const CONCEPT_PATTERNS: Record<SeraEvidenceConcept, RegExp[]> = {
     /\b(sem querer|sem inten[cç][aã]o|acidentalmente|por engano|por descuido|por lapso|por distra[cç][aã]o|esqueceu|esqueceram|omitiu|omitiram)\b/i,
     /\b(accidentally|unintentionally|mistakenly|inadvertently|by mistake|by accident|overlooked|forgot|neglected|omitted)\b/i,
   ],
+  // Semantic-only concepts. The LLM interprets the language; the deterministic engine
+  // consumes these labels without maintaining a second lexical parser for them.
+  proceduralOmission: [],
+  implementationMismatch: [],
   correctAction: [
     /\b(executed|initiated|performed|commenced)\b.*\b(go-around|go around|discontinued approach|abort(?:ed)?)\b/i,
     /\b(prompt correction|safe separation|correct action|adequate action)\b/i,

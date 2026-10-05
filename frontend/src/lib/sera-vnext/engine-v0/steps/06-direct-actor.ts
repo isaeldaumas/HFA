@@ -121,10 +121,18 @@ export function runStep06DirectActor(input: {
     }
   }
 
-  const semanticActorAnnotations = (input.engineInput.semanticEvidence ?? [])
+  const semanticActorCandidates = (input.engineInput.semanticEvidence ?? [])
     .filter((annotation) => annotation.actor && annotation.assertionStatus === 'AFFIRMED' && annotation.confidence !== 'LOW')
     .filter((annotation) => normalizeText(annotation.sourceQuote) === escapeText)
     .filter((annotation) => annotation.roles.includes('DIRECT_ACTOR') || annotation.roles.includes('FIRST_DEPARTURE'))
+  // Actor attribution is anchored to the semantic annotation that defines FIRST_DEPARTURE.
+  // DIRECT_ACTOR-only annotations are a fallback, not co-equal votes: a second semantic pass may
+  // paraphrase the same functional actor (for example, "piloto" vs "piloto que configurou a automação")
+  // and must not turn one supported actor into artificial ambiguity.
+  const firstDepartureActorCandidates = semanticActorCandidates.filter((annotation) => annotation.roles.includes('FIRST_DEPARTURE'))
+  const semanticActorAnnotations = firstDepartureActorCandidates.length > 0
+    ? firstDepartureActorCandidates
+    : semanticActorCandidates
   const semanticActors = [...new Set(semanticActorAnnotations.map((annotation) => annotation.actor!.trim()).filter(Boolean))]
   const semanticActorGroups = new Map<string, string[]>()
   for (const actor of semanticActors) {

@@ -113,6 +113,35 @@ function semanticRoleStatements(ctx: SeraNodeEvidenceContext, role: import('../e
     .map((item) => item.statement))
 }
 
+function normalizedSemanticStatement(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').replace(/[.!?;,]+$/g, '').trim()
+}
+
+function semanticActionStrategyStatements(ctx: SeraNodeEvidenceContext): string[] {
+  const use = axisToEvidenceUse(ctx.axis)
+  const eligible = ctx.evidence.filter((item) =>
+    item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+    && item.assertionStatus === 'AFFIRMED'
+    && item.semanticConfidence !== 'LOW'
+    && !item.prohibitedFor.includes(use)
+    && isEvidenceUsableFor(item, use))
+  const landmarks = eligible.filter((item) =>
+    item.semanticRoles?.some((role) => role === 'FIRST_DEPARTURE' || role === 'CRITICAL_UNSAFE_ACT'))
+  return unique(eligible
+    .filter((item) => item.semanticRoles?.includes('ACTION_STRATEGY'))
+    .filter((item) => {
+      const candidate = normalizedSemanticStatement(item.statement)
+      if (!candidate) return false
+      return !landmarks.some((landmark) => {
+        if (landmark.sourceSentenceIndex !== item.sourceSentenceIndex) return false
+        const anchor = normalizedSemanticStatement(landmark.statement)
+        if (!anchor) return false
+        return candidate === anchor || candidate.includes(anchor) || anchor.includes(candidate)
+      })
+    })
+    .map((item) => item.statement))
+}
+
 function semanticConceptStatements(ctx: SeraNodeEvidenceContext, conceptName: SeraEvidenceConcept): string[] {
   const use = axisToEvidenceUse(ctx.axis)
   return unique(ctx.evidence
@@ -335,6 +364,22 @@ function insufficientRootResponse(axis: CanonicalSeraAxis, locale: 'pt-BR' | 'en
   return 'Não é possível determinar, com a evidência disponível, qual era o plano ou a estratégia pela qual o operador tentava atingir o objetivo.'
 }
 
+function expandSupportingEvidenceToSourceSentence(ctx: SeraNodeEvidenceContext, support: string): string {
+  const target = normalizedSemanticStatement(support)
+  if (!target) return support
+  const semanticItem = ctx.evidence.find((item) =>
+    item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+    && normalizedSemanticStatement(item.statement) === target)
+  if (!semanticItem) return support
+  const containing = ctx.evidence
+    .filter((item) => item.sourceSentenceIndex === semanticItem.sourceSentenceIndex)
+    .map((item) => item.statement.trim())
+    .filter(Boolean)
+    .filter((statement) => normalizedSemanticStatement(statement).includes(target))
+    .sort((a, b) => b.length - a.length)
+  return containing[0] ?? support
+}
+
 function rootResponseText(ctx: SeraNodeEvidenceContext, supportingEvidence: string[]): string | null {
   // Hendy Step 2 asks for substantive P/O/A statements before the ladders. START is only
   // an internal branch token; the user-facing answer must directly answer the root question.
@@ -350,7 +395,7 @@ function rootResponseText(ctx: SeraNodeEvidenceContext, supportingEvidence: stri
     if (concrete) return conciseRootResponse(ctx.axis, concrete)
   }
   const support = supportingEvidence[0]?.trim()
-  if (support) return conciseRootResponse(ctx.axis, support)
+  if (support) return conciseRootResponse(ctx.axis, expandSupportingEvidenceToSourceSentence(ctx, support))
   return fromStatement ? conciseRootResponse(ctx.axis, fromStatement) : null
 }
 
@@ -570,9 +615,12 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
   const conceptWindow = (left: SeraEvidenceConcept, right: SeraEvidenceConcept, maxDistance: number) => decisionConceptWindow(ctx, statements, left, right, maxDistance)
   switch (nodeId) {
     case 'A_ROOT': {
+      const proceduralOmission = c('proceduralOmission')
+      const implementationMismatch = c('implementationMismatch')
       const actionStrategy = unique([
-        ...semanticRoleStatements(ctx, 'ACTION_STRATEGY'),
+        ...semanticActionStrategyStatements(ctx),
         ...c('selectionSubtype'),
+        ...implementationMismatch,
         // Hendy asks HOW the actor was trying to achieve the goal — the plan/means.
         // A bare observed control movement is not sufficient to establish that strategy.
         ...decisionMatching(ctx, statements, [
@@ -595,8 +643,8 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
         /\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b.{0,180}\b(?:n[aã]o foi executad[oa]|n[aã]o foram executad[oa]s?|foi omitid[oa]|foram omitid[oa]s?|was not executed|were not executed|was omitted|were omitted)\b/i,
         /\b(?:n[aã]o executou|n[aã]o realizou|deixou de executar|deixou de realizar|failed to execute|failed to perform|did not execute|did not perform)\b.{0,160}\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b/i,
       ])
-      if (!actionStrategy.length && specificProceduralOmission.length) {
-        return { answer: 'START', supportingEvidence: specificProceduralOmission.slice(0, 2), rationale: 'A specific expected procedural step was omitted. Under the active SERA taxonomy this establishes the procedural execution strategy sufficiently to test implementation, without inferring Perception or Objective.' }
+      if (!actionStrategy.length && (proceduralOmission.length || specificProceduralOmission.length)) {
+        return { answer: 'START', supportingEvidence: unique([...proceduralOmission, ...specificProceduralOmission]).slice(0, 2), rationale: 'A specific expected procedural step was semantically identified as omitted. This is sufficient to test implementation under the Action axis without inferring Perception or Objective.' }
       }
       if (!actionStrategy.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of the actor plan, strategy, or means for achieving the goal; an observed movement or control input alone cannot substitute for that plan.' }
       return { answer: 'START', supportingEvidence: actionStrategy.slice(0, 2), rationale: 'Root node establishes how the operator was trying to achieve the goal before implementation and adequacy are tested.' }
@@ -609,6 +657,8 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
         /\b(pr[oó]pria a[cç][aã]o|pr[oó]prio comando|own action|own command|resultado da a[cç][aã]o|resultado do comando|fma|modo ativo|post[- ]?checklist)\b/i.test(statement)
       )
       const slipOrLapse = c('slipLapse')
+      const proceduralOmission = c('proceduralOmission')
+      const implementationMismatch = c('implementationMismatch')
       const selected = c('selectionSubtype')
       const timed = c('timeManagementAction')
       const intendedAction = decisionMatching(ctx, statements, [
@@ -634,9 +684,10 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
       ])
       const deliberateOmission = cn('consciousDeviation').length > 0 && cn('explicitAwareness').length > 0
       if (feedbackFailure.length > 0) return { answer: 'NÃO_FEEDBACK', supportingEvidence: feedbackFailure, rationale: 'Evidence supports an independent failure in feedback/verification of the actor own action.' }
-      if (explicitImplementationMismatch.length > 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: explicitImplementationMismatch, rationale: 'The observed selection/configuration is explicitly different from what the actor intended, so implementation was not as intended.' }
-      if (specificProceduralOmission.length > 0 && !deliberateOmission) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: specificProceduralOmission, rationale: 'A specific expected procedural step was omitted; the active taxonomy treats this as the minimum evidence for A-B unless positive evidence establishes a deliberate objective deviation.' }
-      if (slipOrLapse.length > 0 && perceptionDriven.length === 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: slipOrLapse, rationale: 'Evidence supports an independent slip/lapse/error in action implementation before the consequence.' }
+      if (implementationMismatch.length > 0 || explicitImplementationMismatch.length > 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: unique([...implementationMismatch, ...explicitImplementationMismatch]), rationale: 'Semantic evidence establishes that the implemented selection/configuration differed from the actor stated intended implementation.' }
+      if ((proceduralOmission.length > 0 || specificProceduralOmission.length > 0) && !deliberateOmission) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: unique([...proceduralOmission, ...specificProceduralOmission]), rationale: 'Semantic evidence establishes omission of a specific expected procedural step; absent deliberate-deviation evidence, this supports A-B.' }
+      const independentStrategy = semanticActionStrategyStatements(ctx)
+      if (slipOrLapse.length > 0 && perceptionDriven.length === 0 && independentStrategy.length > 0 && implemented.length > 0) return { answer: 'NÃO_DESLIZE_LAPSO_ERRO', supportingEvidence: unique([...slipOrLapse, ...independentStrategy, ...implemented]), rationale: 'A generic slip/lapse label is accepted only when independent evidence establishes both the intended strategy and an implemented action. A monitoring/attention lapse alone does not satisfy the Action implementation branch.' }
       if (explicitCorrespondence.length > 0 || selected.length > 0 || timed.length > 0 || safeAction.length > 0 || (intendedAction.length > 0 && (implemented.length > 0 || perceptionDriven.length > 0 || observedDeliberateAction.length > 0))) {
         return {
           answer: 'SIM',

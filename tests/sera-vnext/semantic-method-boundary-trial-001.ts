@@ -35,8 +35,8 @@ const sequence = run('SEMANTIC-BOUNDARY-SEQUENCE', sequenceNarrative, [
     id: 'SEQ-FIRST',
     sourceQuote: 'Na aproximação, o PM desviou sua vigilância do mostrador que seguia legível.',
     sourceSentenceIndex: 0,
-    roles: ['FIRST_DEPARTURE', 'DIRECT_ACTOR'],
-    concepts: [],
+    roles: ['FIRST_DEPARTURE', 'DIRECT_ACTOR', 'ACTION_STRATEGY'],
+    concepts: ['slipLapse'],
     actor: 'piloto monitorando (PM)',
     temporalRelation: 'AT_ESCAPE',
     assertionStatus: 'AFFIRMED',
@@ -67,6 +67,7 @@ assert.equal(sequence.escapePoint.criticalUnsafeActCandidate, 'Minutos depois, o
 assert.equal(sequence.escapePoint.anchorBasis, 'FIRST_DEPARTURE_PRIMARY')
 assert.equal(sequence.directActor.actor, 'piloto monitorando (PM)')
 assert.equal(sequence.escapePoint.criticalUnsafeActActor, 'piloto voando (PF)')
+assert.equal(sequence.axes.action.proposedCode, null, 'a semantic slip/lapse label that merely restates a monitoring departure must not unlock A-B')
 for (const axis of [sequence.axes.perception, sequence.axes.objective, sequence.axes.action]) {
   assert.equal(axis.supportingEvidence.some((text) => text.includes('PF confirmou')), false, 'later PF act must never enter first-departure P/O/A')
 }
@@ -124,7 +125,7 @@ const passiveResolved = run('SEMANTIC-PASSIVE-SPECIFIC', passiveNarrative, [
     sourceQuote: 'Na preparação, a última verificação ficou sem execução.',
     sourceSentenceIndex: 0,
     roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR', 'ACTION_STRATEGY'],
-    concepts: ['slipLapse'],
+    concepts: ['slipLapse', 'proceduralOmission'],
     actor: 'copiloto',
     temporalRelation: 'AT_ESCAPE',
     assertionStatus: 'AFFIRMED',
@@ -173,7 +174,7 @@ const contextOnly = run('SEMANTIC-PC-CONTEXT', contextNarrative, [
     sourceQuote: 'Na preparação, a última verificação ficou sem execução.',
     sourceSentenceIndex: 0,
     roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR', 'ACTION_STRATEGY'],
-    concepts: ['slipLapse'],
+    concepts: ['slipLapse', 'proceduralOmission'],
     actor: 'copiloto',
     temporalRelation: 'AT_ESCAPE',
     assertionStatus: 'AFFIRMED',
@@ -212,7 +213,7 @@ const sourceLinked = run('SEMANTIC-PC-LINKED', linkedNarrative, [
     sourceQuote: 'Na preparação, a última verificação ficou sem execução.',
     sourceSentenceIndex: 0,
     roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR', 'ACTION_STRATEGY'],
-    concepts: ['slipLapse'],
+    concepts: ['slipLapse', 'proceduralOmission'],
     actor: 'copiloto',
     temporalRelation: 'AT_ESCAPE',
     assertionStatus: 'AFFIRMED',
@@ -265,7 +266,7 @@ const actorSurfaceNarrative = 'Na descida, o piloto aplicou uma seleção difere
 const actorSurface = run('SEMANTIC-ACTOR-SURFACE-AND-UNIQUE-FIRST', actorSurfaceNarrative, [
   {
     id: 'ACTOR-FIRST-A', sourceQuote: 'o piloto aplicou uma seleção diferente da pretendida', sourceSentenceIndex: 0,
-    roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR', 'ACTION_STRATEGY'], concepts: ['slipLapse'], actor: 'piloto',
+    roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR', 'ACTION_STRATEGY'], concepts: ['slipLapse', 'implementationMismatch', 'implementedAction'], actor: 'piloto',
     temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null, confidence: 'HIGH', rationale: 'Primeiro marco.'
   },
   {
@@ -275,7 +276,7 @@ const actorSurface = run('SEMANTIC-ACTOR-SURFACE-AND-UNIQUE-FIRST', actorSurface
   },
   {
     id: 'ACTOR-LATER', sourceQuote: 'um item da checklist ficou sem execução', sourceSentenceIndex: 1,
-    roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT'], concepts: ['slipLapse'], actor: null,
+    roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT'], concepts: ['slipLapse', 'proceduralOmission'], actor: null,
     temporalRelation: 'POST_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null, confidence: 'HIGH', rationale: 'Modelo marcou FIRST_DEPARTURE em excesso; o motor deve manter singleton.'
   },
 ])
