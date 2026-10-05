@@ -96,6 +96,7 @@ export type SeraBlockingDiagnostic = {
   kind: 'CONFLICTING_SOURCES' | 'INCOMPLETE_RECORD' | 'UNKNOWN_MECHANISM' | 'GENERIC'
   reason: string
   evidence: string[]
+  evidenceHeading: string
   reviewerQuestion: string
   impact: string
 }
@@ -109,7 +110,7 @@ function diagnosticSentences(narrative: string): string[] {
 
 function isMissingReference(value: string | null | undefined): boolean {
   if (!value?.trim()) return true
-  return /\b(n[aã]o especifica|n[aã]o [ée] poss[ií]vel determinar|n[aã]o foi poss[ií]vel determinar|n[aã]o informado|not specified|cannot determine|could not determine|not available)\b/i.test(value)
+  return /\b(n[aã]o especifica(?:d[oa])?|n[aã]o estabelece|n[aã]o [ée] poss[ií]vel determinar|n[aã]o foi poss[ií]vel determinar|n[aã]o informado|not specified|does not establish|cannot determine|could not determine|not available)\b/i.test(value)
 }
 
 export function buildBlockingDiagnostic(args: {
@@ -124,24 +125,37 @@ export function buildBlockingDiagnostic(args: {
   const sentences = diagnosticSentences(args.narrative)
   const conflictPattern = /\b(conflit\w*|contradit\w*|diverg\w*|incompat[ií]v\w*|inconsisten\w*|fontes?\s+(?:diferentes?|distintas?).{0,80}(?:indicam|registram|descrevem)|registros?\s+(?:diferentes?|distintos?).{0,80}(?:indicam|registram|descrevem)|conflicting|contradict\w*|diverg\w*|inconsistent|incompatible)\b/i
   const sourceContrastPattern = /\b(fonte|registro|relat[oó]rio|documento|source|record|report)\b.{0,140}\b(enquanto|por[eé]m|mas|whereas|while|but)\b.{0,140}\b(fonte|registro|relat[oó]rio|documento|source|record|report)\b/i
-  const incompletePattern = /\b(registro incompleto|registros? incompletos?|sem registro|n[aã]o h[aá] registro|n[aã]o foi registrado|dados? indispon[ií]ve\w*|informa[cç][aã]o incompleta|informa[cç][aã]o ausente|n[aã]o informado|missing record|incomplete record|no record|data unavailable|information unavailable)\b/i
-  const unknownMechanismPattern = /\b(mecanismo desconhecido|mecanismo n[aã]o (?:foi )?determinado|causa n[aã]o (?:foi )?determinada|n[aã]o (?:foi|[ée]) poss[ií]vel determinar|n[aã]o se sabe (?:como|por que|qual)|unknown mechanism|mechanism (?:was )?not determined|could not determine|cannot determine)\b/i
+  const conflictResolutionPattern = /\b(?:as\s+)?(?:duas|2)\s+vers[oõ]es?|vers[oõ]es?\s+(?:diferentes?|incompat[ií]veis|divergentes?)|discrep[aâ]ncia|diverg[eê]ncia|n[aã]o h[aá] evid[eê]ncia independente suficiente para escolher|n[aã]o (?:permite|foi poss[ií]vel) determinar qual|qual (?:fonte|registro|vers[aã]o)|different versions?|which (?:source|record|version)|discrepancy\b/i
+  const sourceVersionPattern = /\b(entrevista|declarou|afirmou|relatou|depoimento|vers[oã]o|vers[oõ]es|fonte|registro|fdr|cvr|radar|telemetria|interview|stated|reported|version|source|record)\b/i
+  const incompletePattern = /\b(registro incompleto|registros? incompletos?|registro dispon[ií]vel informa apenas|n[aã]o foram coletados depoimentos|relat[oó]rio n[aã]o descreve|sem registro|n[aã]o h[aá] registro|n[aã]o foi registrado|dados? indispon[ií]ve\w*|informa[cç][aã]o incompleta|informa[cç][aã]o ausente|n[aã]o informado|missing record|incomplete record|no record|data unavailable|information unavailable)\b/i
+  const unknownMechanismPattern = /\b(mecanismo desconhecido|mecanismo n[aã]o (?:foi )?determinado|causa n[aã]o (?:foi )?determinada|n[aã]o (?:foi|[ée]) poss[ií]vel determinar|n[aã]o se sabe (?:como|por que|qual)|origem (?:foi|era) humana, t[eé]cnica ou ambiental|descreve apenas o resultado|unknown mechanism|mechanism (?:was )?not determined|could not determine|cannot determine|describes only the outcome)\b/i
 
   const explicitConflictEvidence = sentences.filter((item) => conflictPattern.test(item) || sourceContrastPattern.test(item)).slice(0, 3)
-  const namedSourcePattern = /\b(fonte|registro|relat[oó]rio|documento|fdr|cvr|radar|grava[cç][aã]o|telemetria|source|record|report)\b/i
-  const conflictResolutionPattern = /\b(vers[oõ]es? diferentes?|vers[oõ]es? incompat[ií]veis|discrep[aâ]ncia|diverg[eê]ncia|n[aã]o (?:permite|foi poss[ií]vel) determinar qual|qual (?:fonte|registro|vers[aã]o)|different versions?|which (?:source|record|version)|discrepancy)\b/i
-  const namedSourceEvidence = sentences.filter((item) => namedSourcePattern.test(item)).slice(0, 3)
-  const inferredSourceConflict = namedSourceEvidence.length >= 2 && conflictResolutionPattern.test(args.narrative)
-  const conflictEvidence = explicitConflictEvidence.length ? explicitConflictEvidence : inferredSourceConflict ? namedSourceEvidence : []
+  const conflictIsExplicit = conflictResolutionPattern.test(args.narrative)
+  const sourceVersionEvidence = sentences.filter((item) => sourceVersionPattern.test(item)).slice(0, 4)
+  const conflictEvidence = explicitConflictEvidence.length
+    ? [...new Set([...sourceVersionEvidence, ...explicitConflictEvidence])].slice(0, 3)
+    : conflictIsExplicit
+      ? sourceVersionEvidence.slice(0, 3)
+      : []
   const incompleteEvidence = sentences.filter((item) => incompletePattern.test(item)).slice(0, 3)
+  const explicitIncompleteRecord = /registro(?:s)?.{0,24}incomplet|incomplete record/i.test(args.narrative)
+  const incompleteSignalCount = [
+    /registro dispon[ií]vel informa apenas/i,
+    /n[aã]o foram coletados depoimentos/i,
+    /relat[oó]rio n[aã]o descreve/i,
+    /registro(?:s)?.{0,24}incomplet/i,
+    /informa[cç][aã]o (?:incompleta|ausente)/i,
+  ].filter((pattern) => pattern.test(args.narrative)).length
   const unknownEvidence = sentences.filter((item) => unknownMechanismPattern.test(item)).slice(0, 3)
   const safeReferenceMissing = isMissingReference(args.output.safeOperationModel.expectedSafeState)
     && isMissingReference(args.output.safeOperationModel.expectedSafeAction)
 
+  const internalDiagnosticPattern = /\b(independent semantic human-factor gate|human safe.?unsafe departure|hendy gate|operator-controlled unsafe condition)\b/i
   const fallbackEvidence = [
     ...args.output.escapePoint.counterEvidence,
     ...args.output.evidenceSufficiency.questions.flatMap((question) => question.requestedEvidence.map((item) => `${question.whyNeeded} — ${item}`)),
-  ].filter((item, index, all) => item && all.indexOf(item) === index).slice(0, 3)
+  ].filter((item, index, all) => item && !internalDiagnosticPattern.test(item) && all.indexOf(item) === index).slice(0, 3)
 
   if (conflictEvidence.length) {
     return {
@@ -150,6 +164,7 @@ export function buildBlockingDiagnostic(args: {
         ? 'Fontes ou registros descrevem de forma incompatível o primeiro desvio. O motor não pode escolher silenciosamente uma versão para criar o ponto de fuga.'
         : 'Sources or records describe the first departure incompatibly. The engine must not silently choose one version to create the escape point.',
       evidence: conflictEvidence,
+      evidenceHeading: pt ? 'Evidências divergentes' : 'Divergent evidence',
       reviewerQuestion: pt
         ? 'Quais fontes descrevem o primeiro desvio de forma incompatível, qual deve prevalecer e existe evidência independente capaz de resolver a divergência?'
         : 'Which sources describe the first departure incompatibly, which should prevail, and is there independent evidence that resolves the discrepancy?',
@@ -159,13 +174,14 @@ export function buildBlockingDiagnostic(args: {
     }
   }
 
-  if (incompleteEvidence.length || safeReferenceMissing) {
+  if (explicitIncompleteRecord || incompleteSignalCount >= 2 || incompleteEvidence.length >= 2 || (safeReferenceMissing && incompleteEvidence.length > 0)) {
     return {
       kind: 'INCOMPLETE_RECORD',
       reason: pt
         ? 'O registro disponível não estabelece, com evidência suficiente, a referência segura e/ou a primeira saída observável da operação segura.'
         : 'The available record does not establish, with sufficient evidence, the safe reference and/or the first observable departure from safe operation.',
       evidence: incompleteEvidence.length ? incompleteEvidence : fallbackEvidence,
+      evidenceHeading: pt ? 'Lacunas do registro' : 'Record gaps',
       reviewerQuestion: pt
         ? 'Qual registro contemporâneo estabelece o estado ou a ação segura esperada e qual foi a primeira ação, decisão ou omissão humana observável que iniciou o desvio?'
         : 'What contemporaneous record establishes the expected safe state/action, and what was the first observable human action, decision, or omission that initiated the departure?',
@@ -182,6 +198,7 @@ export function buildBlockingDiagnostic(args: {
         ? 'Há um estado ou resultado operacional observado, mas o mecanismo humano que o antecedeu não está demonstrado pela evidência disponível.'
         : 'An operational state or outcome is observed, but the preceding human mechanism is not demonstrated by the available evidence.',
       evidence: unknownEvidence.length ? unknownEvidence : fallbackEvidence,
+      evidenceHeading: pt ? 'Evidência que permanece ausente' : 'Evidence still missing',
       reviewerQuestion: pt
         ? 'Existe evidência anterior ao resultado que demonstre qual ação, decisão, omissão ou percepção humana iniciou o desvio? Se não houver, confirme que o mecanismo permanece indeterminado.'
         : 'Is there pre-outcome evidence showing which human action, decision, omission, or perception initiated the departure? If not, confirm that the mechanism remains undetermined.',
@@ -195,6 +212,7 @@ export function buildBlockingDiagnostic(args: {
     kind: 'GENERIC',
     reason: pt ? 'A evidência disponível não sustenta uma âncora P/O/A sem inferência.' : 'Available evidence does not support a P/O/A anchor without inference.',
     evidence: fallbackEvidence,
+    evidenceHeading: pt ? 'Evidência necessária' : 'Evidence needed',
     reviewerQuestion: pt ? 'Qual evidência adicional resolve a primeira saída da operação segura e o ator diretamente envolvido?' : 'What additional evidence resolves the first departure from safe operation and the directly involved actor?',
     impact: pt ? 'Enquanto a lacuna persistir, P/O/A permanecem bloqueados.' : 'While the gap remains, P/O/A remains blocked.',
   }

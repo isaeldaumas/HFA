@@ -808,7 +808,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
         if (blockingDiagnostic) {
           doc.moveDown(0.45)
           infoCard(doc, L('Razão do bloqueio', 'Blocking reason'), blockingDiagnostic.reason, { accent: PDF_COLORS.amber, fill: '#FFFFFF' })
-          subheading(doc, L('Evidência faltante ou conflitante', 'Missing or conflicting evidence'))
+          subheading(doc, blockingDiagnostic.evidenceHeading)
           bullets(doc, blockingDiagnostic.evidence, L('A evidência disponível não contém um elemento factual suficiente para fechar este bloqueio.', 'The available evidence does not contain a sufficient factual element to close this block.'))
           infoCard(doc, L('Pergunta ao revisor', 'Reviewer question'), blockingDiagnostic.reviewerQuestion, { accent: PDF_COLORS.blue, fill: '#F3F8FC' })
           meta(doc, L('Impacto metodológico', 'Methodological impact'), blockingDiagnostic.impact)
