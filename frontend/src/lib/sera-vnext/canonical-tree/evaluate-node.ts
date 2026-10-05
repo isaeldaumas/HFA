@@ -701,6 +701,7 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
       const proceduralOmission = c('proceduralOmission')
       const semanticProceduralOmission = semanticActionMechanismStatements(ctx, 'PROCEDURAL_OMISSION')
       const semanticImplementationMismatch = semanticActionMechanismStatements(ctx, 'IMPLEMENTATION_MISMATCH')
+      const semanticFeedbackFailure = semanticActionMechanismStatements(ctx, 'FEEDBACK_FAILURE')
       const actionStrategy = unique([
         ...semanticActionStrategyStatements(ctx),
         ...c('selectionSubtype'),
@@ -731,6 +732,9 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
       ])
       if (!actionStrategy.length && semanticImplementationMismatch.length) {
         return { answer: 'START', supportingEvidence: semanticImplementationMismatch.slice(0, 2), rationale: 'The strategy is not independently described. A source-anchored implementation mismatch is sufficient to test implementation without reconstructing the strategy or operational objective.' }
+      }
+      if (!actionStrategy.length && semanticFeedbackFailure.length) {
+        return { answer: 'START', supportingEvidence: semanticFeedbackFailure.slice(0, 2), rationale: 'The strategy is not independently described. A source-anchored failure to verify the result of the actor own action is sufficient to test the implementation/feedback branch without reconstructing the strategy or operational objective.' }
       }
       if (!actionStrategy.length && (semanticProceduralOmission.length || (!semanticInterpretationPresent(ctx) && (proceduralOmission.length || specificProceduralOmission.length)))) {
         return { answer: 'START', supportingEvidence: unique([...semanticProceduralOmission, ...proceduralOmission, ...specificProceduralOmission]).slice(0, 2), rationale: 'The strategy is not independently described. A specific expected procedural step was identified as omitted, which is sufficient to test implementation without reconstructing the strategy, Perception, or Objective.' }

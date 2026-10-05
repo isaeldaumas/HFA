@@ -50,8 +50,8 @@ function collectWarnings(output: SeraVNextEngineOutput, inputWarnings: string[])
   const warnings = new Set<string>(['NON_FINAL_OUTPUT_ONLY', 'HUMAN_REVIEW_REQUIRED', ...inputWarnings])
   if (output.canonicalTraversal.status !== 'COMPLETED_CANDIDATE_ONLY') warnings.add('CANONICAL_TRAVERSAL_REVIEW_REQUIRED')
   if (output.evidenceSufficiency.status === 'NEEDS_CLARIFICATION') warnings.add('ADDITIONAL_EVIDENCE_REQUIRED')
-  if (output.directActor.status !== 'IDENTIFIED') warnings.add('DIRECT_ACTOR_REVIEW_REQUIRED')
-  if (output.preconditions.length === 0) warnings.add('NO_PRECONDITION_CANDIDATE')
+  if (output.escapePoint.status !== 'NO_HUMAN_ESCAPE_POINT' && output.directActor.status !== 'IDENTIFIED') warnings.add('DIRECT_ACTOR_REVIEW_REQUIRED')
+  if (output.escapePoint.status !== 'NO_HUMAN_ESCAPE_POINT' && output.preconditions.length === 0) warnings.add('NO_PRECONDITION_CANDIDATE')
   for (const [name, violated] of Object.entries(output.guardrails)) {
     if (violated) warnings.add(`GUARDRAIL_VIOLATED_${name.toUpperCase()}`)
   }

@@ -232,11 +232,11 @@ export function runStep09Preconditions(input: {
   axes: SeraVNextEngineOutput['axes']
   locale: 'pt-BR' | 'en'
 }): SeraPreconditionCandidate[] {
+  if (input.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT') return []
   const activeFailureCodes = [input.axes.perception.proposedCode, input.axes.objective.proposedCode, input.axes.action.proposedCode]
     .filter((code): code is string => Boolean(code) && !['P-A', 'O-A', 'A-A'].includes(code as string))
   const escapeAnchorResolved =
     input.escapePoint.status !== 'INSUFFICIENT_EVIDENCE' &&
-    input.escapePoint.status !== 'NO_HUMAN_ESCAPE_POINT' &&
     input.escapePoint.confidence !== 'LOW'
   const directActorResolved = input.directActor.status === 'IDENTIFIED'
   const causalBoundaryResolved =

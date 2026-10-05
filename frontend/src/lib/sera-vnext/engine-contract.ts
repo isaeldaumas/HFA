@@ -299,6 +299,11 @@ export type SeraSemanticSafeOperationModel = {
   confidence: SeraConfidence
 }
 
+export type SeraSemanticHumanEscapeDisposition =
+  | 'HUMAN_DEPARTURE'
+  | 'UNRESOLVED'
+  | 'NO_HUMAN_DEPARTURE'
+
 export type SeraSemanticEnrichmentMeta = {
   provider: string
   model: string
@@ -306,6 +311,8 @@ export type SeraSemanticEnrichmentMeta = {
   acceptedAnnotations: number
   rejectedAnnotations: number
   schemaVersion: 'SERA_SEMANTIC_AI_V1' | 'SERA_SEMANTIC_AI_V2'
+  /** Independent semantic adjudication of whether a human safe→unsafe departure exists. */
+  humanEscapeDisposition?: SeraSemanticHumanEscapeDisposition
 }
 
 export type SeraVNextEngineInput = {

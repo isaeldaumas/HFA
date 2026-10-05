@@ -116,6 +116,17 @@ export function runStep06DirectActor(input: {
     }
   )
 
+  if (input.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT') {
+    return {
+      actor: null,
+      status: 'NOT_APPLICABLE',
+      alternatives: [],
+      actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
+        ? 'Nenhum ponto de fuga humano foi estabelecido; não atribua um estado técnico/material à tripulação apenas para preencher o ator P/O/A.'
+        : 'No human escape point was established; do not attribute a technical/material state to the crew merely to populate the P/O/A actor.'],
+    }
+  }
+
   if (input.escapePoint.status === 'INSUFFICIENT_EVIDENCE') {
     return {
       actor: null,

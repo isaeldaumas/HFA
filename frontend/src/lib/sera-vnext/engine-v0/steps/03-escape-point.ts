@@ -1,4 +1,4 @@
-import type { SeraSupplementalEvidenceInput, SeraTimelineItem, SeraVNextEngineInput, SeraVNextEngineOutput } from '../../engine-contract'
+import type { SeraSemanticEnrichmentMeta, SeraSupplementalEvidenceInput, SeraTimelineItem, SeraVNextEngineInput, SeraVNextEngineOutput } from '../../engine-contract'
 import { buildCandidateEscapeWindow, classifyHumanFactorEscapeStatement } from '../candidate-escape-window'
 import { isOperationalEventStatement } from '../factual-extraction-helpers'
 import { excludedPostEscapeEvidence } from '../utils'
@@ -107,6 +107,7 @@ function escapeConfidence(args: {
 export function runStep03EscapePoint(input: {
   factualExtraction: SeraVNextEngineOutput['factualExtraction']
   supplementalEvidence?: SeraSupplementalEvidenceInput[]
+  semanticEnrichmentMeta?: SeraSemanticEnrichmentMeta
   locale: SeraVNextEngineInput['locale']
 }): SeraVNextEngineOutput['escapePoint'] {
   const legacyWindow = buildCandidateEscapeWindow(input.factualExtraction.timeline)
@@ -146,6 +147,47 @@ export function runStep03EscapePoint(input: {
         humanFactorGate: { status: 'PASSED' as const, anchorType: classifyHumanFactorEscapeStatement(directClarification.statement), rationale: ['Human clarification identifies an observable unsafe act/inaction or operator-controlled unsafe condition.'] },
       }
     : null
+  const semanticDisposition = input.semanticEnrichmentMeta?.humanEscapeDisposition
+  const semanticGateAuthoritative = !directClarificationWindow && !clarificationWindow.statement &&
+    (semanticDisposition === 'UNRESOLVED' || semanticDisposition === 'NO_HUMAN_DEPARTURE')
+  if (semanticGateAuthoritative) {
+    const noHuman = semanticDisposition === 'NO_HUMAN_DEPARTURE'
+    return {
+      status: noHuman ? 'NO_HUMAN_ESCAPE_POINT' : 'INSUFFICIENT_EVIDENCE',
+      statement: null,
+      earliestCandidate: null,
+      latestCandidate: null,
+      firstDepartureCandidate: null,
+      criticalUnsafeActCandidate: null,
+      criticalCandidateAlternatives: [],
+      irreversibilityBoundaryCandidate: legacyWindow.irreversibilityBoundaryCandidate ?? null,
+      anchorBasis: 'UNRESOLVED',
+      firstDepartureSupportingEvidence: [],
+      criticalUnsafeActSupportingEvidence: [],
+      poaAnchorCandidate: null,
+      poaAnchorSupportingEvidence: [],
+      poaAnchorBasis: 'UNRESOLVED',
+      directActor: null,
+      supportingEvidence: [],
+      counterEvidence: [
+        ...(legacyWindow.counterEvidence ?? []),
+        noHuman
+          ? 'Independent semantic human-factor gate found no human safe→unsafe departure; the source supports a technical/environmental/material departure instead.'
+          : 'Independent semantic human-factor gate could not establish a human safe→unsafe departure from the available evidence.',
+      ],
+      excludedPostEscapeEvidence: [],
+      episodeCandidates: (legacyWindow.episodeCandidates ?? []).map((item) => ({ ...item, selected: false })),
+      confidence: noHuman ? 'HIGH' : 'LOW',
+      humanFactorGate: {
+        status: 'BLOCKED',
+        anchorType: null,
+        rationale: [noHuman
+          ? 'No human action, decision, omission or perception is supported as the safe→unsafe departure; SERA P/O/A is not applicable to the technical/environmental departure.'
+          : 'A human safe→unsafe departure is not established with sufficient evidence; physical states/results cannot substitute for an operator act or perception.'],
+      },
+    }
+  }
+
   const selectedWindow = clarificationWindow.statement
     ? clarificationWindow
     : directClarificationWindow
@@ -173,15 +215,22 @@ export function runStep03EscapePoint(input: {
   const firstDepartureCandidate = semanticFirstDeparture
     ? rawFirstDepartureCandidate || null
     : trimSemanticLandmarkToEventMoment(compoundLandmark?.first ?? rawFirstDepartureCandidate) || null
-  const sameRawLandmark = Boolean(rawFirstDepartureCandidate && rawCriticalUnsafeActCandidate &&
-    rawFirstDepartureCandidate.trim() === rawCriticalUnsafeActCandidate.trim())
-  const criticalUnsafeActCandidate = semanticCriticalAct
-    ? rawCriticalUnsafeActCandidate || null
-    : trimSemanticLandmarkToEventMoment(
-        sameRawLandmark && compoundLandmark
-          ? compoundLandmark.later
-          : rawCriticalUnsafeActCandidate,
-      ) || null
+  const normalizedFirstRaw = normalizeLandmarkText(rawFirstDepartureCandidate)
+  const normalizedCriticalRaw = normalizeLandmarkText(rawCriticalUnsafeActCandidate)
+  const sameRawLandmark = Boolean(normalizedFirstRaw && normalizedCriticalRaw && (
+    normalizedFirstRaw === normalizedCriticalRaw
+    || normalizedFirstRaw.includes(normalizedCriticalRaw)
+    || normalizedCriticalRaw.includes(normalizedFirstRaw)
+  ))
+  const criticalUnsafeActCandidate = sameRawLandmark && firstDepartureCandidate
+    ? firstDepartureCandidate
+    : semanticCriticalAct
+      ? rawCriticalUnsafeActCandidate || null
+      : trimSemanticLandmarkToEventMoment(
+          sameRawLandmark && compoundLandmark
+            ? compoundLandmark.later
+            : rawCriticalUnsafeActCandidate,
+        ) || null
   const poaAnchorCandidate = firstDepartureCandidate
   const effectiveAnchorBasis = firstDepartureCandidate && criticalUnsafeActCandidate
     ? normalizeLandmarkText(firstDepartureCandidate) === normalizeLandmarkText(criticalUnsafeActCandidate)

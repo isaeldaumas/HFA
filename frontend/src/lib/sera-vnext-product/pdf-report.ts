@@ -695,19 +695,21 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       ), doc.page.margins.left + 14, bannerY + 24, { width: bannerW - 28, lineGap: 2 })
     doc.y = bannerY + 60
 
+    const noHumanEscape = output.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT'
+    const actorFallback = noHumanEscape ? L('Não aplicável', 'Not applicable') : L('Não individualizado', 'Not individually resolved')
     infoCard(
       doc,
       L('Marcos da ocorrência para revisão', 'Occurrence landmarks for review'),
       [
-        `${L('Ponto de fuga SERA / primeira saída', 'SERA escape point / first departure')}: ${value(output.escapePoint.firstDepartureCandidate ?? output.escapePoint.statement, L('Não estabelecido.', 'Not established.'))}`,
-        `${L('Ator no ponto de fuga (P/O/A)', 'Escape-point actor (P/O/A)')}: ${value(localizeActor(output.escapePoint.firstDepartureActor ?? output.directActor.actor, locale), L('Não individualizado', 'Not individually resolved'))}`,
+        `${L('Ponto de fuga SERA / primeira saída', 'SERA escape point / first departure')}: ${value(output.escapePoint.firstDepartureCandidate ?? output.escapePoint.statement, noHumanEscape ? L('Nenhum ponto de fuga humano estabelecido.', 'No human escape point established.') : L('Não estabelecido.', 'Not established.'))}`,
+        `${L('Ator no ponto de fuga (P/O/A)', 'Escape-point actor (P/O/A)')}: ${value(localizeActor(output.escapePoint.firstDepartureActor ?? output.directActor.actor, locale), actorFallback)}`,
         `${L('Evolução crítica posterior', 'Later critical evolution')}: ${value(distinctLaterLandmark(output), L('Nenhum ato posterior distinto estabelecido.', 'No distinct later act established.'))}`,
       ].join('\n'),
       { accent: PDF_COLORS.blue, fill: '#F2F7FC', label: L('Uma única âncora SERA', 'Single SERA anchor'), minHeight: 108 },
     )
 
     statRow(doc, [
-      { label: L('Ator no ponto de fuga (P/O/A)', 'Escape-point actor (P/O/A)'), value: value(localizeActor(output.escapePoint.firstDepartureActor ?? output.directActor.actor, locale), L('Não resolvido', 'Unresolved')), accent: PDF_COLORS.blue },
+      { label: L('Ator no ponto de fuga (P/O/A)', 'Escape-point actor (P/O/A)'), value: value(localizeActor(output.escapePoint.firstDepartureActor ?? output.directActor.actor, locale), noHumanEscape ? L('Não aplicável', 'Not applicable') : L('Não resolvido', 'Unresolved')), accent: PDF_COLORS.blue },
       { label: L('Classificação', 'Classification'), value: [output.axes.perception.proposedCode, output.axes.objective.proposedCode, output.axes.action.proposedCode].map((item) => value(item, '—')).join(' / '), accent: PDF_COLORS.green },
       { label: L('Revisão', 'Review'), value: reviewStatusLabel(analysis.review_status, pt), accent: PDF_COLORS.amber },
     ])

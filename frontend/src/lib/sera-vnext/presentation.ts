@@ -137,6 +137,17 @@ export function buildExecutiveSummary(args: {
     args.output.axes.action.proposedCode,
   ].map((value) => value ?? '—').join(' / ')
   const safeState = args.output.safeOperationModel.expectedSafeState ? sentence(args.output.safeOperationModel.expectedSafeState) : null
+  if (args.output.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT') {
+    const subject = args.title?.trim()
+      ? (pt ? `No evento ${args.title.trim()}, ` : `In event ${args.title.trim()}, `)
+      : (pt ? 'No evento analisado, ' : 'In the analyzed event, ')
+    const safe = safeState
+      ? (pt ? `o estado seguro esperado era: ${safeState}. ` : `the expected safe state was: ${safeState}. `)
+      : ''
+    return pt
+      ? `${subject}${safe}não foi estabelecida nenhuma ação, decisão, omissão ou percepção humana como primeira saída da operação segura. O gate de fatores humanos permanece fechado: não há ponto de fuga humano nem ator P/O/A aplicável, e a travessia P/O/A não é iniciada. O caso permanece sujeito à confirmação humana dessa não aplicabilidade.`
+      : `${subject}${safe}no human action, decision, omission, or perception was established as the first departure from safe operation. The human-factors gate remains closed: there is no applicable human escape point or P/O/A actor, and P/O/A traversal is not started. Human confirmation of this non-applicability is still required.`
+  }
   const ready = args.output.evidenceSufficiency.status === 'SUFFICIENT_FOR_CANDIDATE_ANALYSIS'
     && args.output.directActor.status === 'IDENTIFIED'
     && args.output.escapePoint.confidence !== 'LOW'
