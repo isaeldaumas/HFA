@@ -52,6 +52,12 @@ export function runStep06DirectActor(input: {
     .map((item) => item.statement)
     .join(' ')
   const text = normalizeText(`${input.engineInput.narrative} ${clarificationActorText}`)
+  const collectiveActorWarning = input.engineInput.locale === 'pt-BR'
+    ? 'Atribuição coletiva à tripulação não é suficiente para fechar P/O/A; identifique o ator direto no ponto de fuga.'
+    : 'Collective crew attribution is not sufficient to close P/O/A; identify the direct actor at the escape point.'
+  const unresolvedActorWarning = input.engineInput.locale === 'pt-BR'
+    ? 'O ator direto permanece não resolvido; evite migrar a atribuição para além da evidência disponível.'
+    : 'Direct actor remains unresolved; avoid actor migration beyond available evidence.'
   const copilotPf = roleAssigned(text, 'copilot', 'pf')
   const captainPf = roleAssigned(text, 'captain', 'pf')
   const captainPm = roleAssigned(text, 'captain', 'pm')
@@ -477,7 +483,7 @@ export function runStep06DirectActor(input: {
         actor: 'flight crew (collective)',
         status: 'AMBIGUOUS',
         alternatives: ['captain', 'first officer', 'PF', 'PM'],
-        actorMigrationWarnings: ['Collective crew attribution is not sufficient to close P/O/A; identify the direct actor at the escape point.'],
+        actorMigrationWarnings: [collectiveActorWarning],
       }
     }
     if (hasAny(text, ['the pilot', 'pilot decided', 'pilot moved', 'pilot continued', 'o piloto', 'piloto decidiu', 'piloto moveu', 'piloto continuou', 'piloto perdeu', 'piloto iniciou'])) {
@@ -521,7 +527,7 @@ export function runStep06DirectActor(input: {
     alternatives: legacy.actorKind === 'crew_collective' ? ['captain', 'first officer', 'PF', 'PM'] : [],
     actorMigrationWarnings:
       legacy.actorKind === 'crew_collective'
-        ? ['Collective crew attribution is not sufficient to close P/O/A; identify the direct actor at the escape point.']
-        : legacy.actorKind === 'unknown' ? ['Direct actor remains unresolved; avoid actor migration beyond available evidence.'] : [],
+        ? [collectiveActorWarning]
+        : legacy.actorKind === 'unknown' ? [unresolvedActorWarning] : [],
   }
 }

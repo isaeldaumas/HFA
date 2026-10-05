@@ -117,7 +117,7 @@ Regras obrigatórias:
 9. Diferencie CURRENT_EVENT, PRE_EVENT_CAUSAL_HISTORY, HISTORICAL_COMPARATOR e GENERAL_CONTEXT.
 10. PRECONDITION significa que o relato contém uma condição adversa/degradada ou vulnerabilidade contextual/preexistente potencialmente relevante antes/no ponto de fuga. Marque o fator mesmo quando o texto NÃO provar que ele causou a falha. Condições explicitamente normais/adequadas/disponíveis/corretas, ausência de falha, ausência de pressão ou fatores negados NÃO são pré-condições positivas; use CONTEXT/BARRIER ou REJECTED_AS_FACTOR conforme o caso. Use preconditionCategory canônica quando a categoria estiver sustentada.
 11. Para toda annotation PRECONDITION, preconditionCausalStatus é obrigatório: PRESENT_CONTEXT quando o fator está factual e temporalmente presente mas a fonte não o liga explicitamente à falha ativa; SOURCE_LINKED somente quando a própria fonte afirma explicitamente que o fator contribuiu, favoreceu, causou ou tornou a FIRST_DEPARTURE mais provável. Não inferir SOURCE_LINKED por plausibilidade. Se usar SOURCE_LINKED, preconditionCausalTargetQuote é OBRIGATÓRIO e deve copiar literalmente a mesma FIRST_DEPARTURE à qual a fonte liga o fator. Se não houver uma ligação explícita àquela FIRST_DEPARTURE, use PRESENT_CONTEXT e preconditionCausalTargetQuote=null.
-12. Para PRECONDITION com confiança HIGH, preconditionCategory não deve ficar nula quando o fator couber claramente em uma categoria canônica. Interprete o SIGNIFICADO, não palavras-chave. Categorias relevantes incluem: PHYSIOLOGICAL (sono, fadiga, sonolência, estado fisiológico), PSYCHOLOGICAL (atenção, distração, carga mental, estresse/bias), SOCIAL (autoridade, assertividade, pressão/dinâmica de equipe), PERSONAL_READINESS (preparo/descanso pessoal quando não houver estado fisiológico específico), TRAINING_SELECTION (treinamento, familiarização, experiência ou prática insuficiente para a tarefa/configuração específica), TIME_PRESSURE (restrição/pressão temporal), EQUIPMENT, ENVIRONMENT, MONITORING_SUPERVISION (supervisão/monitoramento inadequado), PROVISION_RESOURCES (pessoal, reserva, ferramentas ou recursos insuficientes), ORGANIZATIONAL_PROCESS_PRACTICES (processo/planejamento organizacional inadequado), ORGANIZATIONAL_CLIMATE e OVERSIGHT (problema recorrente/sistêmico não detectado ou não corrigido). Falta de treinamento prático, familiarização ou experiência específica é TRAINING_SELECTION; só use ORGANIZATIONAL_PROCESS_PRACTICES quando a evidência descrever um processo/prática organizacional mais amplo, e não apenas a lacuna de treinamento do ator. Sem equipe/tripulação reserva é PROVISION_RESOURCES; dificuldade recorrente já conhecida que persiste sem correção pode sustentar OVERSIGHT. Toda PRECONDITION classificada como TIME_PRESSURE deve também incluir concepts=["timeManagementPressure"] para registrar que existe uma restrição temporal operacional efetiva. Algo ser descrito apenas como tardio, recente, de última hora ou ocorrer perto de outro marco NÃO basta, por si só, para TIME_PRESSURE; é preciso evidência de urgência, janela insuficiente/restrita, pressão de horário/atraso, ritmo acelerado por tempo ou outra limitação temporal operacional. Se houver carga de trabalho/demandas simultâneas competindo por atenção sem categoria canônica inequívoca, mantenha PRECONDITION com preconditionCategory=null e concepts=["attentionPressure"] em vez de forçar uma categoria errada.
+12. Para PRECONDITION com confiança HIGH, preconditionCategory não deve ficar nula quando o fator couber claramente em uma categoria canônica. Interprete o SIGNIFICADO, não palavras-chave. Categorias relevantes incluem: PHYSIOLOGICAL (sono, fadiga, sonolência, estado fisiológico), PSYCHOLOGICAL (atenção, distração, carga mental, estresse/bias), SOCIAL (autoridade, assertividade, pressão/dinâmica de equipe), PERSONAL_READINESS (preparo/descanso pessoal quando não houver estado fisiológico específico), TRAINING_SELECTION (treinamento, familiarização, experiência ou prática insuficiente para a tarefa/configuração específica), TIME_PRESSURE (restrição/pressão temporal), EQUIPMENT, ENVIRONMENT, MONITORING_SUPERVISION (supervisão/monitoramento inadequado), PROVISION_RESOURCES (pessoal, reserva, ferramentas ou recursos insuficientes), ORGANIZATIONAL_PROCESS_PRACTICES (processo/planejamento organizacional inadequado), ORGANIZATIONAL_CLIMATE e OVERSIGHT (problema recorrente/sistêmico não detectado ou não corrigido). Falta de treinamento prático, familiarização ou experiência específica é TRAINING_SELECTION; só use ORGANIZATIONAL_PROCESS_PRACTICES quando a evidência descrever um processo/prática organizacional mais amplo, e não apenas a lacuna de treinamento do ator. EQUIPMENT só é pré-condição quando a própria condição, desempenho, confiabilidade, ergonomia ou feedback de equipamento/controle/display/interface está degradada ou contribui como vulnerabilidade; a mera existência, presença física ou localização de um equipamento/objeto na área operacional NÃO é EQUIPMENT e deve permanecer CONTEXT salvo outra condição adversa explicitamente descrita. Sem equipe/tripulação reserva é PROVISION_RESOURCES; dificuldade recorrente já conhecida que persiste sem correção pode sustentar OVERSIGHT. Toda PRECONDITION classificada como TIME_PRESSURE deve também incluir concepts=["timeManagementPressure"] para registrar que existe uma restrição temporal operacional efetiva. Algo ser descrito apenas como tardio, recente, de última hora ou ocorrer perto de outro marco NÃO basta, por si só, para TIME_PRESSURE; é preciso evidência de urgência, janela insuficiente/restrita, pressão de horário/atraso, ritmo acelerado por tempo ou outra limitação temporal operacional. Se houver carga de trabalho/demandas simultâneas competindo por atenção sem categoria canônica inequívoca, mantenha PRECONDITION com preconditionCategory=null e concepts=["attentionPressure"] em vez de forçar uma categoria errada.
 13. concepts são propriedades factuais usadas depois por uma árvore determinística; marque somente conceitos diretamente sustentados pelo sourceQuote e pelo contexto explícito do relato. Não deduza um conceito apenas porque ele seria compatível com uma classificação. Em especial: slipLapse = incompatibilidade involuntária entre implementação e intenção, mas NÃO use slipLapse apenas porque o ator deixou de monitorar, acompanhar ou perceber uma indicação; nesses casos é preciso evidência de falha de implementação da ação pretendida. proceduralOmission = etapa/item/passo de checklist ou procedimento explicitamente omitido/não executado, sem evidência de decisão deliberada de omitir. implementationMismatch = seleção/configuração/comando efetivamente realizado diferente daquele que o ator explicitamente pretendia realizar. selectionSubtype = a alternativa/ação inadequada foi conscientemente escolhida e executada conforme escolhida. routineDeviation = o DESVIO/VIOLAÇÃO em si era habitual/normalizado; a mera palavra 'rotineira' qualificando uma etapa de checklist, tarefa ou procedimento NÃO é routineDeviation. attentionPressure = demandas concorrentes/simultâneas, distração, saturação ou carga de trabalho que disputavam atenção; não exige pressão de tempo. informationAmbiguous = o conteúdo recebido está presente, porém admite interpretações concorrentes/enganosas; informationUnavailable = informação operacional necessária não chegou ao ator, inclusive quando parte relevante de uma transmissão foi perdida, inaudível ou truncada. Não chame de informationAmbiguous uma mensagem cujo conteúdo crítico simplesmente não foi recebido. knowledgeLimitation é limitação para perceber/compreender o estado da situação; actionKnowledgeLimitation é falta de conhecimento procedimental/decisório necessária para formar ou selecionar a ação correta. Se a fonte diz que a resposta inadequada ocorreu porque o ator não conhecia detalhe do procedimento, use actionKnowledgeLimitation, não knowledgeLimitation. actionCapabilityPresent só pode ser marcado por evidência positiva de capacidade/conhecimento/habilidade; a mera existência de uma seleção, feedback ou outro subtipo de ação NÃO prova capacidade. feedbackImplementationFailure = falha independente em verificar o resultado da própria ação. implementedAction sozinho NÃO significa que a ação foi implementada como pretendida.
 14. Para qualquer annotation que descreva falha de ação, preencha actionFailureMechanism. Use PROCEDURAL_OMISSION somente quando a fonte explicita uma etapa/item/passo de checklist/procedimento que não foi executado; IMPLEMENTATION_MISMATCH somente quando a fonte explicita que a ação/comando/configuração implementada diferiu da ação/comando/configuração pretendida; MONITORING_ATTENTION_LAPSE quando o desvio é deixar de monitorar, acompanhar, notar ou manter vigilância sem evidência independente de falha de implementação; FEEDBACK_FAILURE para falha independente de verificação do resultado da própria ação; OTHER_ACTION_FAILURE para outra falha de ação sustentada; NONE_OR_UNKNOWN quando o mecanismo não pode ser estabelecido. actionMechanismEvidenceQuote é obrigatório para qualquer valor diferente de NONE_OR_UNKNOWN e deve ser citação literal da fonte que sustenta o mecanismo. Não trate MONITORING_ATTENTION_LAPSE como PROCEDURAL_OMISSION ou IMPLEMENTATION_MISMATCH apenas porque houve omissão comportamental.
 15. Não transforme consequência pós-ponto de fuga em evidência de percepção, objetivo ou ação anterior. Recuperação, diagnóstico posterior e avaliação pós-pouso são POST_ESCAPE para P/O/A, salvo quando a frase explicitamente relata retrospectivamente o que já existia antes/no ponto de fuga.
@@ -160,7 +160,7 @@ Regras:
 - CRITICAL_UNSAFE_ACT = ato/omissão operacional ou estado operacional inseguro diretamente produzido na trajetória. NÃO rotule como CRITICAL_UNSAFE_ACT: detecção, recuperação, correção, consequência final, interrupção/demanda que apenas cria contexto, condição latente, supervisão deficiente, decisão gerencial de prioridade/recursos ou outro PRECONDITION. Se outro tripulante percebe/monitora um desvio já iniciado mas não o interrompe, não insiste, não faz cross-check ou não recupera, isso é falha/ausência de BARRIER e não um novo CRITICAL_UNSAFE_ACT, salvo se sua própria ação introduzir novo estado inseguro distinto. Preserve atos/omissões/estados inseguros posteriores separados da FIRST_DEPARTURE; não funda eventos distintos.
 - Retorne TODOS os marcos materialmente sustentados (máximo 12) e os PRECONDITION factuais relevantes antes/no FIRST_DEPARTURE (máximo 16).
 - Para voz passiva, actor pode ser preenchido apenas quando o próprio relato resolve inequivocamente quem executou aquele mesmo ato; caso contrário use null. Use identidade funcional curta e estável; não paraphrase o ator em uma descrição da ação.
-- Para PRECONDITION, use preconditionCategory canônica e preconditionCausalStatus=PRESENT_CONTEXT quando uma condição adversa/degradada está presente mas a fonte não declara nexo; SOURCE_LINKED apenas quando a fonte declara explicitamente contribuição causal à FIRST_DEPARTURE. SOURCE_LINKED exige preconditionCausalTargetQuote copiando literalmente a FIRST_DEPARTURE alvo; sem alvo explícito use PRESENT_CONTEXT. NÃO deixe preconditionCategory nula quando o significado couber claramente numa categoria: sono/fadiga/sonolência→PHYSIOLOGICAL; autoridade/dinâmica de equipe→SOCIAL; falta de treinamento/familiarização/experiência específica→TRAINING_SELECTION; pressão temporal efetiva→TIME_PRESSURE; supervisão inadequada→MONITORING_SUPERVISION; insuficiência de pessoal/reserva/recursos→PROVISION_RESOURCES; processo/planejamento organizacional inadequado→ORGANIZATIONAL_PROCESS_PRACTICES; problema recorrente/sistêmico persistente→OVERSIGHT. Não transforme uma simples lacuna de treinamento do ator em ORGANIZATIONAL_PROCESS_PRACTICES. Toda TIME_PRESSURE deve incluir o concept timeManagementPressure. Uma mudança/ação ser apenas "tardia", "de última hora" ou próxima de outro marco não estabelece pressão temporal sem evidência de restrição operacional de tempo, urgência, janela insuficiente/restrita, atraso/horário pressionando a tarefa ou aceleração causada pelo tempo. Estado normal/adequado, ausência de falha, ausência de pressão ou fator negado deve ficar fora de PRECONDITION positiva.
+- Para PRECONDITION, use preconditionCategory canônica e preconditionCausalStatus=PRESENT_CONTEXT quando uma condição adversa/degradada está presente mas a fonte não declara nexo; SOURCE_LINKED apenas quando a fonte declara explicitamente contribuição causal à FIRST_DEPARTURE. SOURCE_LINKED exige preconditionCausalTargetQuote copiando literalmente a FIRST_DEPARTURE alvo; sem alvo explícito use PRESENT_CONTEXT. NÃO deixe preconditionCategory nula quando o significado couber claramente numa categoria: sono/fadiga/sonolência→PHYSIOLOGICAL; autoridade/dinâmica de equipe→SOCIAL; falta de treinamento/familiarização/experiência específica→TRAINING_SELECTION; pressão temporal efetiva→TIME_PRESSURE; supervisão inadequada→MONITORING_SUPERVISION; insuficiência de pessoal/reserva/recursos→PROVISION_RESOURCES; processo/planejamento organizacional inadequado→ORGANIZATIONAL_PROCESS_PRACTICES; problema recorrente/sistêmico persistente→OVERSIGHT. Não transforme uma simples lacuna de treinamento do ator em ORGANIZATIONAL_PROCESS_PRACTICES. EQUIPMENT exige condição/desempenho/confiabilidade/ergonomia/feedback degradado do equipamento, controle, display ou interface; um equipamento/objeto apenas presente ou localizado na área não é EQUIPMENT por si só. Toda TIME_PRESSURE deve incluir o concept timeManagementPressure. Uma mudança/ação ser apenas "tardia", "de última hora" ou próxima de outro marco não estabelece pressão temporal sem evidência de restrição operacional de tempo, urgência, janela insuficiente/restrita, atraso/horário pressionando a tarefa ou aceleração causada pelo tempo. Estado normal/adequado, ausência de falha, ausência de pressão ou fator negado deve ficar fora de PRECONDITION positiva.
 - Temporalidade é semântica, não posição de texto. Uma finalidade/motivo que explica a decisão no FIRST_DEPARTURE pode ser AT_ESCAPE mesmo aparecendo depois do verbo na frase; uma segunda oração coordenada só é POST_ESCAPE quando a fonte realmente sustenta sequência temporal posterior.
 - Ao preservar contexto comunicacional, diferencie conteúdo recebido porém ambíguo/enganoso (informationAmbiguous) de conteúdo necessário que não chegou por perda, truncamento ou trecho inaudível da transmissão (informationUnavailable).
 - Se a fonte afirma que uma resposta inadequada ocorreu porque o ator não conhecia detalhe procedimental/decisório necessário, preserve essa evidência como PRECONDITION com concept actionKnowledgeLimitation; se também houver falta de treinamento/familiarização específica, use TRAINING_SELECTION. Não use knowledgeLimitation para uma lacuna que pertence à formação/seleção da ação.
@@ -172,6 +172,110 @@ Retorne SOMENTE JSON: {"annotations":[{"sourceQuote":"frase literal","roles":["C
 
 FRASES DO RELATO:
 ${excerpt}`
+}
+
+
+function firstDepartureSemanticAuditPrompt(
+  narrative: string,
+  annotations: SeraSemanticEvidenceAnnotation[],
+): string {
+  const records = splitNarrativeIntoSentenceRecords(narrative)
+    .filter((record) => !['RECOMMENDATION', 'ADMINISTRATIVE'].includes(record.sourceSection))
+    .filter((record) => record.occurrenceScope !== 'HISTORICAL_COMPARATOR')
+    .slice(0, 180)
+  const excerpt = records.map((record) => `[S${record.sourceSentenceIndex}] ${record.statement}`).join('\n')
+  const current = annotations
+    .filter((item) => item.assertionStatus === 'AFFIRMED' && item.confidence !== 'LOW')
+    .filter((item) => item.roles.some((role) => ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'PERCEPTION_STATE', 'ACTION_MECHANISM', 'PRECONDITION'].includes(role)))
+    .slice(0, 40)
+    .map((item) => `${item.id} | roles=${item.roles.join(',')} | actor=${item.actor ?? 'null'} | precondition=${item.preconditionCategory ?? 'null'} | concepts=${item.concepts?.join(',') ?? ''} | quote=${item.sourceQuote}`)
+    .join('\n')
+
+  return `Audite SOMENTE a âncora FIRST_DEPARTURE da ocorrência abaixo. Esta é uma auditoria semântica independente: NÃO classifique códigos SERA e NÃO use posição textual como substituto de cronologia operacional.
+
+Definição obrigatória:
+- FIRST_DEPARTURE é a primeira ação, decisão, omissão ou percepção humana observável que faz a operação focal sair do estado seguro.
+- Uma percepção explicitamente errada/enganosa do operador pode ser FIRST_DEPARTURE quando ela própria é a primeira divergência humana da operação segura.
+- NÃO escolha como FIRST_DEPARTURE uma condição externa/contextual por si só: meteorologia, atraso, carga de trabalho, programação tornar-se inviável, presença física de objeto/equipamento, estado normal/degradado do ambiente, condição latente, prioridade gerencial, supervisão, planejamento ou outro PRECONDITION. Esses fatores podem explicar a falha, mas não são a âncora P/O/A da tripulação, salvo quando a própria ocorrência focal é explicitamente aquela decisão humana como ato inseguro.
+- Se a fonte contém uma omissão/ação operacional posterior a uma condição contextual, escolha a omissão/ação/percepção humana — não a condição que apenas criou o cenário.
+- Não escolha detecção, recuperação, correção ou consequência posterior.
+- Se o executor do ato não está individualizado (por exemplo, voz passiva ou apenas coletivo), actor=null; não invente identidade individual.
+- sourceQuote deve copiar literalmente o MENOR trecho suficiente do relato. temporalRelation=AT_ESCAPE, assertionStatus=AFFIRMED, occurrenceScope=CURRENT_EVENT.
+- Se a âncora também expressa uma PERCEPTION_STATE, inclua esse role e os concepts factuais adequados. Se for etapa procedural omitida, use PROCEDURAL_OMISSION; se for falha de monitoramento, MONITORING_ATTENTION_LAPSE; se o mecanismo não estiver demonstrado, NONE_OR_UNKNOWN.
+- Retorne annotation=null somente se realmente não houver nenhuma primeira saída humana observável sustentada pela fonte.
+- Audite também SOMENTE a validade semântica das annotations PRECONDITION listadas. Em rejectPreconditionIds, inclua apenas IDs cuja categoria positiva não é sustentada pelo significado da fonte ou que descrevem condição normal/negada. Em particular, EQUIPMENT requer condição/desempenho/confiabilidade/ergonomia/feedback do equipamento/controle/display/interface; objeto/equipamento apenas presente na área, sem degradação própria, não é EQUIPMENT. Não rejeite um fator apenas porque o nexo causal ainda não está confirmado; PRESENT_CONTEXT pode permanecer.
+
+ANNOTATIONS JÁ EXTRAÍDAS (podem conter erro; não as trate como autoridade):
+${current || '(nenhuma)'}
+
+Retorne SOMENTE JSON neste formato:
+{"annotation":{"sourceQuote":"trecho literal","roles":["FIRST_DEPARTURE","DIRECT_ACTOR"],"concepts":[],"actor":"ator ou null","temporalRelation":"AT_ESCAPE","assertionStatus":"AFFIRMED","occurrenceScope":"CURRENT_EVENT","preconditionCategory":null,"preconditionCausalStatus":null,"preconditionCausalTargetQuote":null,"actionFailureMechanism":"NONE_OR_UNKNOWN","actionMechanismEvidenceQuote":null,"displayInterpretation":null,"confidence":"HIGH","rationale":"por que este é o primeiro desvio humano"},"rejectPreconditionIds":[]}
+Se não houver âncora humana sustentada, use {"annotation":null,"rejectPreconditionIds":[]}.
+
+FRASES DO RELATO:
+${excerpt}`
+}
+
+function clearFirstDepartureRoles(annotations: SeraSemanticEvidenceAnnotation[]): SeraSemanticEvidenceAnnotation[] {
+  return annotations
+    .map((item) => item.roles.includes('FIRST_DEPARTURE')
+      ? { ...item, roles: item.roles.filter((role) => role !== 'FIRST_DEPARTURE') }
+      : item)
+    .filter((item) => item.roles.length > 0)
+}
+
+export function applyAuditedFirstDeparture(
+  annotations: SeraSemanticEvidenceAnnotation[],
+  audited: SeraSemanticEvidenceAnnotation,
+): SeraSemanticEvidenceAnnotation[] {
+  const stripped = clearFirstDepartureRoles(annotations)
+
+  const auditRoles = [...new Set([...audited.roles, 'FIRST_DEPARTURE' as const])]
+  const normalizedAudit = { ...audited, roles: auditRoles, temporalRelation: 'AT_ESCAPE' as const }
+  const auditQuote = normalizeSourceText(normalizedAudit.sourceQuote)
+  const matchingIndex = stripped.findIndex((item) =>
+    item.sourceSentenceIndex === normalizedAudit.sourceSentenceIndex
+    && normalizeSourceText(item.sourceQuote) === auditQuote
+    && normalizeSourceText(item.actor ?? '') === normalizeSourceText(normalizedAudit.actor ?? ''),
+  )
+  if (matchingIndex < 0) return [...stripped, normalizedAudit]
+
+  const existing = stripped[matchingIndex]
+  stripped[matchingIndex] = {
+    ...existing,
+    roles: [...new Set([...existing.roles, ...normalizedAudit.roles])],
+    concepts: [...new Set([...(existing.concepts ?? []), ...(normalizedAudit.concepts ?? [])])],
+    actor: normalizedAudit.actor ?? existing.actor,
+    temporalRelation: 'AT_ESCAPE',
+    actionFailureMechanism: normalizedAudit.actionFailureMechanism ?? existing.actionFailureMechanism,
+    actionMechanismEvidenceQuote: normalizedAudit.actionMechanismEvidenceQuote ?? existing.actionMechanismEvidenceQuote,
+    displayInterpretation: normalizedAudit.displayInterpretation ?? existing.displayInterpretation,
+    confidence: normalizedAudit.confidence === 'HIGH' ? 'HIGH' : existing.confidence,
+    rationale: normalizedAudit.rationale ?? existing.rationale,
+  }
+  return stripped
+}
+
+
+export function applyPreconditionSemanticAuditRejections(
+  annotations: SeraSemanticEvidenceAnnotation[],
+  rejectedIds: string[],
+): SeraSemanticEvidenceAnnotation[] {
+  const rejected = new Set(rejectedIds)
+  if (!rejected.size) return annotations
+  return annotations
+    .map((item) => {
+      if (!rejected.has(item.id) || !item.roles.includes('PRECONDITION')) return item
+      const roles = item.roles.filter((role) => role !== 'PRECONDITION')
+      return {
+        ...item,
+        roles,
+        preconditionCategory: null,
+        preconditionCausalStatus: null,
+        preconditionCausalTargetQuote: null,
+      }
+    })
+    .filter((item) => item.roles.length > 0)
 }
 
 export function focusedPoaEvidenceExcerpt(args: {
@@ -216,7 +320,7 @@ Regras obrigatórias:
 - NÃO escreva códigos P/O/A e NÃO mude o ponto de fuga nem o ator.
 - Retorne EXATAMENTE UMA annotation com role ACTION_MECHANISM para o próprio ponto de fuga fornecido. Ela é uma auditoria semântica independente do mecanismo da falha, não uma classificação SERA. Use actionFailureMechanism=PROCEDURAL_OMISSION, IMPLEMENTATION_MISMATCH, MONITORING_ATTENTION_LAPSE, FEEDBACK_FAILURE, OTHER_ACTION_FAILURE ou NONE_OR_UNKNOWN conforme a fonte. Para qualquer valor diferente de NONE_OR_UNKNOWN, actionMechanismEvidenceQuote é obrigatório e deve citar literalmente a evidência. ACTION_MECHANISM não implica ACTION_STRATEGY.
 - P/O/A pertencem exclusivamente ao momento da primeira saída da operação segura. Um ato crítico posterior, recuperação ou consequência NÃO pode substituir esta âncora. Julgue temporalidade pelo significado do evento, não pela posição das palavras: uma oração de finalidade/motivo ligada ao FIRST_DEPARTURE pode ser AT_ESCAPE mesmo aparecendo depois do verbo ou depois de outra oração coordenada na mesma frase.
-- Examine os recortes em três perguntas independentes: (P) o que ESTE ator via, percebia, acreditava ou entendia imediatamente antes/no ponto de fuga; (O) para quê/por quê ESTE ator agia, qual objetivo/intenção levou à primeira saída; (A) qual método, estratégia, decisão, comando ou meio ESTE ator usou naquele ponto de fuga. Se a decisão do ator direto é explicitamente tomada "para" atingir um resultado (ganhar tempo, evitar cancelamento, recuperar horário etc.), preserve essa finalidade como OBJECTIVE_INTENT do próprio ator. Marque efficiencyObjective quando a fonte explicita objetivo de tempo/horário/economia/produtividade; unmanagedRisk somente com evidência adicional de risco/margem operacional não gerido, nunca por eficiência isolada.
+- Examine os recortes em três perguntas independentes: (P) o que ESTE ator via, percebia, acreditava ou entendia imediatamente antes/no ponto de fuga; (O) para quê/por quê ESTE ator agia, qual objetivo/intenção levou à primeira saída; (A) qual método, estratégia, decisão, comando ou meio ESTE ator usou naquele ponto de fuga. Se a fonte mostra que o ator recebeu informação parcial/incerta e mesmo assim a tratou ou repassou como definitiva/certa, preserve a representação contemporânea como PERCEPTION_STATE com inadequateAssessment; se o conteúdo crítico não chegou por truncamento/inaudibilidade, preserve também informationUnavailable. Se a decisão do ator direto é explicitamente tomada "para" atingir um resultado (ganhar tempo, evitar cancelamento, recuperar horário etc.), preserve essa finalidade como OBJECTIVE_INTENT do próprio ator. Marque efficiencyObjective quando a fonte explicita objetivo de tempo/horário/economia/produtividade. Quando a MESMA decisão de eficiência deliberadamente abrevia/comprime uma pausa, margem, etapa, tarefa ou outra proteção operacional prevista, ou cria sobreposição de tarefas para recuperar tempo, preserve unmanagedRisk junto ao objetivo; eficiência isolada, sem compressão/margem operacional afetada, não implica unmanagedRisk.
 - Resolva correferências coloquiais pelo contexto local. Se o ator for coletivo, use somente evidência atribuível à decisão coletiva; não importe estado mental exclusivo de um tripulante.
 - Uma frase pode aparecer muito depois na entrevista e ainda ser PRE_ESCAPE/AT_ESCAPE se ela descrever retrospectivamente o estado que existia antes/no ponto de fuga. Se houver crença, entendimento ou percepção contemporânea explicitamente atribuída ao ator, produza PERCEPTION_STATE mesmo que a mesma frase também descreva uma ação; preserve a cláusula literal que sustenta o estado mental. PERCEPTION_STATE exige uma representação positiva da situação operacional; mero esquecimento/falha de memória ('não se lembrou', 'esqueceu'), conhecimento de regra/procedimento, saber a ação correta, cansaço, sonolência ou outro estado fisiológico NÃO respondem, sozinhos, o que o ator acreditava estar acontecendo e não devem ser marcados como PERCEPTION_STATE.
 - Uma ação concreta pode ser ACTION_STRATEGY quando descreve o meio usado no próprio ponto de fuga, mesmo sem usar a palavra "estratégia". Isso não autoriza inferir OBJECTIVE_INTENT. ACTION_STRATEGY deve descrever o meio/estratégia de forma independente da falha de implementação. Não use como resposta de estratégia a própria omissão procedural nem a frase "selecionou/configurou algo diferente do que pretendia"; nesses casos, se o relato não trouxer um meio/estratégia separado, não produza ACTION_STRATEGY e deixe o mecanismo de falha apenas em ACTION_MECHANISM. A alternativa, modo, controle, comando ou configuração que o ator pretendia selecionar é intenção de implementação da ação, NÃO um objetivo operacional; não produza OBJECTIVE_INTENT apenas porque o texto diz que selecionou algo diferente do que pretendia.
@@ -379,7 +483,7 @@ export async function enrichSeraNarrativeSemantically(args: {
       rejected += 1
       continue
     }
-    const key = `${annotation.sourceSentenceIndex}:${annotation.roles.join(',')}:${annotation.actor ?? ''}:${annotation.preconditionCategory ?? ''}:${annotation.preconditionCausalStatus ?? ''}:${annotation.preconditionCausalTargetQuote ?? ''}:${annotation.actionFailureMechanism ?? ''}:${annotation.actionMechanismEvidenceQuote ?? ''}:${annotation.displayInterpretation ?? ''}`
+    const key = `${annotation.sourceSentenceIndex}:${annotation.roles.join(',')}:${annotation.actor ?? ''}:${annotation.preconditionCategory ?? ''}:${annotation.preconditionCausalStatus ?? ''}:${annotation.preconditionCausalTargetQuote ?? ''}:${annotation.actionFailureMechanism ?? ''}:${annotation.actionMechanismEvidenceQuote ?? ''}:${annotation.displayInterpretation ?? ''}:${annotation.concepts?.join(',') ?? ''}`
     if (seen.has(key)) continue
     seen.add(key)
     accepted.push(annotation)
@@ -413,7 +517,7 @@ export async function enrichSeraNarrativeSemantically(args: {
         rejected += 1
         continue
       }
-      const key = `${annotation.sourceSentenceIndex}:${annotation.roles.join(',')}:${annotation.actor ?? ''}:${annotation.preconditionCategory ?? ''}:${annotation.preconditionCausalStatus ?? ''}:${annotation.preconditionCausalTargetQuote ?? ''}:${annotation.actionFailureMechanism ?? ''}:${annotation.actionMechanismEvidenceQuote ?? ''}:${annotation.displayInterpretation ?? ''}`
+      const key = `${annotation.sourceSentenceIndex}:${annotation.roles.join(',')}:${annotation.actor ?? ''}:${annotation.preconditionCategory ?? ''}:${annotation.preconditionCausalStatus ?? ''}:${annotation.preconditionCausalTargetQuote ?? ''}:${annotation.actionFailureMechanism ?? ''}:${annotation.actionMechanismEvidenceQuote ?? ''}:${annotation.displayInterpretation ?? ''}:${annotation.concepts?.join(',') ?? ''}`
       if (seen.has(key)) continue
       seen.add(key)
       accepted.push(annotation)
@@ -424,6 +528,38 @@ export async function enrichSeraNarrativeSemantically(args: {
 
   if (accepted.length === 0) {
     throw new Error('SERA_SEMANTIC_AI_NO_VERIFIABLE_EVIDENCE')
+  }
+
+  // Third semantic pass: choose the unique human FIRST_DEPARTURE semantically rather than
+  // treating the earliest textual condition as the methodological anchor. This audit is
+  // source-anchored and does not assign SERA codes; the deterministic engine still owns
+  // actor/evidence gates and the P/O/A tree.
+  try {
+    const anchorAudit = await askJson(
+      systemPrompt(args.locale),
+      firstDepartureSemanticAuditPrompt(args.narrative, accepted),
+      'sera-vnext-semantic-first-departure-audit',
+      { maxTokens: 3500 },
+    )
+    const rejectedPreconditionIds = Array.isArray(anchorAudit.rejectPreconditionIds)
+      ? anchorAudit.rejectPreconditionIds.filter((value): value is string => typeof value === 'string')
+      : []
+    if (rejectedPreconditionIds.length) {
+      accepted.splice(0, accepted.length, ...applyPreconditionSemanticAuditRejections(accepted, rejectedPreconditionIds))
+    }
+    const rawAnchor = anchorAudit.annotation
+    if (rawAnchor === null && Object.prototype.hasOwnProperty.call(anchorAudit, 'annotation')) {
+      accepted.splice(0, accepted.length, ...clearFirstDepartureRoles(accepted))
+    } else if (rawAnchor && typeof rawAnchor === 'object' && !Array.isArray(rawAnchor)) {
+      const audited = buildAnnotation(rawAnchor as Record<string, unknown>, args.narrative, 3000)
+      if (audited && audited.roles.includes('FIRST_DEPARTURE') && audited.assertionStatus === 'AFFIRMED' && audited.confidence !== 'LOW') {
+        accepted.splice(0, accepted.length, ...applyAuditedFirstDeparture(accepted, audited))
+      } else {
+        rejected += 1
+      }
+    }
+  } catch (error) {
+    console.warn('[SERA semantic first-departure audit] retaining primary/occurrence semantics', error instanceof Error ? error.message : String(error))
   }
 
   const normalizedAnnotations = normalizePostEscapeSemantics(args.narrative, accepted)

@@ -2305,6 +2305,16 @@
     "dataAccess": "NONE"
   },
   {
+    "path": "tests/sera-vnext/semantic-anchor-audit-boundary-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT",
+    "dataAccess": "NONE"
+  },
+  {
     "path": "tests/sera-vnext/event-deletion/event-deletion-impact-query-plan-trial-001.ts",
     "type": "STATIC",
     "requiredForRegression": true,

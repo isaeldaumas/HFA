@@ -92,7 +92,7 @@ export async function createSeraVNextAnalysis(args: {
     && engineOutput.directActor.status === 'IDENTIFIED'
     && Boolean(engineOutput.directActor.actor)
     && Boolean(escapePoint)
-    && engineOutput.evidenceSufficiency.questions.some((question) => /-(P|O|A)_ROOT$/.test(question.id))
+    && engineOutput.evidenceSufficiency.questions.some((question) => ['PERCEPTION', 'OBJECTIVE', 'ACTION'].includes(question.stage))
   if (needsFocusedPoa && semantic && escapePoint && engineOutput.directActor.actor) {
     try {
       const focused = await enrichSeraPoaSemantically({
@@ -103,9 +103,9 @@ export async function createSeraVNextAnalysis(args: {
       })
       if (focused.annotations.length > 0) {
         const merged = [...semantic.annotations]
-        const seen = new Set(merged.map((item) => `${item.sourceSentenceIndex}:${item.sourceQuote}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}:${item.preconditionCausalStatus ?? ''}:${item.preconditionCausalTargetQuote ?? ''}:${item.actionFailureMechanism ?? ''}:${item.actionMechanismEvidenceQuote ?? ''}:${item.displayInterpretation ?? ''}`))
+        const seen = new Set(merged.map((item) => `${item.sourceSentenceIndex}:${item.sourceQuote}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}:${item.preconditionCausalStatus ?? ''}:${item.preconditionCausalTargetQuote ?? ''}:${item.actionFailureMechanism ?? ''}:${item.actionMechanismEvidenceQuote ?? ''}:${item.displayInterpretation ?? ''}:${item.concepts?.join(',') ?? ''}`))
         for (const item of focused.annotations) {
-          const key = `${item.sourceSentenceIndex}:${item.sourceQuote}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}:${item.preconditionCausalStatus ?? ''}:${item.preconditionCausalTargetQuote ?? ''}:${item.actionFailureMechanism ?? ''}:${item.actionMechanismEvidenceQuote ?? ''}:${item.displayInterpretation ?? ''}`
+          const key = `${item.sourceSentenceIndex}:${item.sourceQuote}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}:${item.preconditionCausalStatus ?? ''}:${item.preconditionCausalTargetQuote ?? ''}:${item.actionFailureMechanism ?? ''}:${item.actionMechanismEvidenceQuote ?? ''}:${item.displayInterpretation ?? ''}:${item.concepts?.join(',') ?? ''}`
           if (!seen.has(key)) { seen.add(key); merged.push(item) }
         }
         semantic = {

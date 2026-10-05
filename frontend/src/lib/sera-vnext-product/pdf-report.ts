@@ -885,13 +885,13 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       supportedPreconditions.map((pc) => pc.canonicalCategory ?? null),
     )
     body(doc, L(
-      'Esta correspondência é apresentada como referência complementar após a classificação SERA. Ela não altera o caminho da análise nem substitui a interpretação do contexto do ato inseguro.',
+      'Esta correspondência é apresentada como referência complementar após a classificação SERA. As Tabelas 3–6 de Hendy admitem correspondências um-para-muitos; portanto, os itens abaixo são possibilidades taxonômicas a serem resolvidas pelo contexto do evento e não constituem, por si só, fatores adicionais encontrados na ocorrência.',
       'This is a post-SERA classification bridge based on Hendy Tables 3–6. It does not alter the tree path or select SERA codes. Hendy explicitly notes that the correspondence is not one-to-one and must be resolved from the unsafe-act context.',
     ), 'justify')
     doc.moveDown(0.25)
-    subheading(doc, L('Falhas ativas SERA — melhor correspondência HFACS/AGA135', 'SERA active failures — best-fit HFACS/AGA135 correspondence'))
+    subheading(doc, L('Falhas ativas SERA — correspondências taxonômicas HFACS/AGA135', 'SERA active failures — taxonomic HFACS/AGA135 correspondences'))
     bullets(doc, hfacsBridge.activeFailures.map((item) => `${hfacsBridgeLevelLabel(item.level, pt)}: ${hfacsLabel(item.hfacs, pt)}`), L('Nenhuma correspondência disponível enquanto P/O/A permanecer não resolvido.', 'No correspondence is available while P/O/A remains unresolved.'))
-    subheading(doc, L('Pré-condições SERA — melhor correspondência HFACS/AGA135', 'SERA preconditions — best-fit HFACS/AGA135 correspondence'))
+    subheading(doc, L('Pré-condições SERA — correspondências taxonômicas HFACS/AGA135', 'SERA preconditions — taxonomic HFACS/AGA135 correspondences'))
     bullets(doc, hfacsBridge.preconditions.map((item) => `${hfacsBridgeLevelLabel(item.level, pt)}: ${hfacsLabel(item.hfacs, pt)}`), L('Nenhuma pré-condição confirmada para mapeamento.', 'No confirmed precondition available for mapping.'))
 
     const operationalObservations = output.factualExtraction.evidence
