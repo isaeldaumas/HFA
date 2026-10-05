@@ -456,6 +456,23 @@ function rootResponseText(ctx: SeraNodeEvidenceContext, supportingEvidence: stri
     .find((value) => isDisplayInterpretationWellFormed(ctx.axis, value))
   if (displayInterpretation) return displayInterpretation
 
+  if (ctx.axis === 'A' && semanticInterpretationPresent(ctx)) {
+    const mechanismItems = ctx.evidence.filter((item) =>
+      item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+      && supportingEvidence.includes(item.statement)
+      && item.semanticConfidence !== 'LOW')
+    if (mechanismItems.some((item) => item.semanticActionFailureMechanism === 'IMPLEMENTATION_MISMATCH')) {
+      return ctx.locale === 'pt-BR'
+        ? 'A estratégia não está descrita de forma independente; o relato estabelece apenas que a ação implementada diferiu da ação pretendida.'
+        : 'The strategy is not independently described; the source only establishes that the implemented action differed from the intended action.'
+    }
+    if (mechanismItems.some((item) => item.semanticActionFailureMechanism === 'PROCEDURAL_OMISSION')) {
+      return ctx.locale === 'pt-BR'
+        ? 'A estratégia não está descrita de forma independente; o relato estabelece apenas a omissão de uma etapa procedural esperada.'
+        : 'The strategy is not independently described; the source only establishes omission of an expected procedural step.'
+    }
+  }
+
   const fromStatement = stripAxisStatementPrefix(ctx.statementAtEscapePoint)
   // On the canonical semantic path, natural-language interpretation belongs to the AI.
   // If its display paraphrase fails presentation validation, fail softly to the verbatim
@@ -690,14 +707,14 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
   switch (nodeId) {
     case 'A_ROOT': {
       const proceduralOmission = c('proceduralOmission')
-      const implementationMismatch = c('implementationMismatch')
       const semanticProceduralOmission = semanticActionMechanismStatements(ctx, 'PROCEDURAL_OMISSION')
       const semanticImplementationMismatch = semanticActionMechanismStatements(ctx, 'IMPLEMENTATION_MISMATCH')
       const actionStrategy = unique([
         ...semanticActionStrategyStatements(ctx),
         ...c('selectionSubtype'),
-        ...implementationMismatch,
-        ...semanticImplementationMismatch,
+        // Failure mechanisms are deliberately not strategy evidence. A source-anchored
+        // omission or implementation mismatch may allow the implementation node to be
+        // tested, but must not be displayed as HOW the actor was trying to achieve a goal.
         // Hendy asks HOW the actor was trying to achieve the goal — the plan/means.
         // A bare observed control movement is not sufficient to establish that strategy.
         ...decisionMatching(ctx, statements, [
@@ -720,8 +737,11 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
         /\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b.{0,180}\b(?:n[aã]o foi executad[oa]|n[aã]o foram executad[oa]s?|foi omitid[oa]|foram omitid[oa]s?|was not executed|were not executed|was omitted|were omitted)\b/i,
         /\b(?:n[aã]o executou|n[aã]o realizou|deixou de executar|deixou de realizar|failed to execute|failed to perform|did not execute|did not perform)\b.{0,160}\b(?:checklist|item|etapa|passo|procedimento|procedure|step)\b/i,
       ])
+      if (!actionStrategy.length && semanticImplementationMismatch.length) {
+        return { answer: 'START', supportingEvidence: semanticImplementationMismatch.slice(0, 2), rationale: 'The strategy is not independently described. A source-anchored implementation mismatch is sufficient to test implementation without reconstructing the strategy or operational objective.' }
+      }
       if (!actionStrategy.length && (semanticProceduralOmission.length || (!semanticInterpretationPresent(ctx) && (proceduralOmission.length || specificProceduralOmission.length)))) {
-        return { answer: 'START', supportingEvidence: unique([...semanticProceduralOmission, ...proceduralOmission, ...specificProceduralOmission]).slice(0, 2), rationale: 'A specific expected procedural step was identified as omitted. This is sufficient to test implementation under the Action axis without inferring Perception or Objective.' }
+        return { answer: 'START', supportingEvidence: unique([...semanticProceduralOmission, ...proceduralOmission, ...specificProceduralOmission]).slice(0, 2), rationale: 'The strategy is not independently described. A specific expected procedural step was identified as omitted, which is sufficient to test implementation without reconstructing the strategy, Perception, or Objective.' }
       }
       if (!actionStrategy.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of the actor plan, strategy, or means for achieving the goal; an observed movement or control input alone cannot substitute for that plan.' }
       return { answer: 'START', supportingEvidence: actionStrategy.slice(0, 2), rationale: 'Root node establishes how the operator was trying to achieve the goal before implementation and adequacy are tested.' }

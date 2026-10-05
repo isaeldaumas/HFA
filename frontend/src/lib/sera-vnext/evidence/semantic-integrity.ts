@@ -264,7 +264,12 @@ function enforceV2StructuralIntegrity(args: {
     const assertionStatus = sourceAssertion && sourceAssertion !== "AFFIRMED"
       ? sourceAssertion
       : item.assertionStatus;
-    const hasPrecondition = roles.includes("PRECONDITION");
+    let hasPrecondition = roles.includes("PRECONDITION");
+    let preconditionCategory = hasPrecondition ? item.preconditionCategory ?? null : null;
+    let preconditionCausalStatus = hasPrecondition ? item.preconditionCausalStatus ?? null : null;
+    let preconditionCausalTargetQuote = hasPrecondition && item.preconditionCausalStatus === "SOURCE_LINKED"
+      ? item.preconditionCausalTargetQuote?.trim() || null
+      : null;
     const mechanismEvidenceQuote = item.actionMechanismEvidenceQuote?.trim() || null;
     const mechanismEvidenceSource = mechanismEvidenceQuote ? resolveSourceRecord(args.narrative, mechanismEvidenceQuote) : null;
     const requestedMechanism = item.actionFailureMechanism ?? null;
@@ -276,6 +281,24 @@ function enforceV2StructuralIntegrity(args: {
           ? "NONE_OR_UNKNOWN" as const
           : null;
     let concepts = [...new Set(item.concepts ?? [])];
+    // TIME_PRESSURE is a semantic claim about an actual operational time constraint, not
+    // merely chronological lateness. Require the dedicated semantic concept as a second
+    // structured signal. If it is absent, fail closed instead of inferring pressure from
+    // wording such as "late", "last-minute" or proximity to another event.
+    if (hasPrecondition && preconditionCategory === "TIME_PRESSURE" && !concepts.includes("timeManagementPressure")) {
+      if (concepts.includes("attentionPressure")) {
+        preconditionCategory = null;
+        preconditionCausalStatus = "PRESENT_CONTEXT";
+        preconditionCausalTargetQuote = null;
+      } else {
+        roles = roles.filter((role) => role !== "PRECONDITION");
+        hasPrecondition = false;
+        preconditionCategory = null;
+        preconditionCausalStatus = null;
+        preconditionCausalTargetQuote = null;
+      }
+    }
+    if (!roles.length) continue;
     // V2 fail-closed contract: concepts are descriptive hints, but implementation-failure
     // concepts cannot overrule the explicit action mechanism. In particular a monitoring
     // lapse must not become A-B merely because the model also emitted slipLapse/omission.
@@ -292,11 +315,9 @@ function enforceV2StructuralIntegrity(args: {
       sourceSentenceIndex: source.sourceSentenceIndex,
       roles,
       assertionStatus,
-      preconditionCategory: hasPrecondition ? item.preconditionCategory ?? null : null,
-      preconditionCausalStatus: hasPrecondition ? item.preconditionCausalStatus ?? null : null,
-      preconditionCausalTargetQuote: hasPrecondition && item.preconditionCausalStatus === "SOURCE_LINKED"
-        ? item.preconditionCausalTargetQuote?.trim() || null
-        : null,
+      preconditionCategory,
+      preconditionCausalStatus,
+      preconditionCausalTargetQuote,
       actionFailureMechanism,
       actionMechanismEvidenceQuote: actionFailureMechanism && actionFailureMechanism !== "NONE_OR_UNKNOWN" && mechanismEvidenceSource
         ? mechanismEvidenceQuote

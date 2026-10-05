@@ -355,4 +355,45 @@ assert.equal(actorSurface.axes.objective.proposedCode, null)
 assert.equal(actorSurface.canonicalTraversal.paths.find((path) => path.axis === 'O')?.answers[0]?.answer, 'INSUFFICIENT_EVIDENCE', 'intended control/action implementation must not be promoted to an operational objective even if the semantic model overlabels it')
 assert.equal(actorSurface.canonicalTraversal.paths.find((path) => path.axis === 'A')?.answers[0]?.responseText, 'O operador tentava aplicar a seleção pretendida.', 'display interpretation may improve grammar but must remain presentation-only')
 
+
+
+// An implementation failure is not itself the answer to Hendy's descriptive strategy
+// question. When no independent ACTION_STRATEGY is available, keep A-B evidence but present
+// the strategy gap transparently instead of echoing the failure as a strategy.
+const mismatchOnlyNarrative = 'Durante o ajuste do sistema, o operador selecionou a alternativa B embora pretendesse selecionar a alternativa A.'
+const mismatchOnly = run('SEMANTIC-MECHANISM-IS-NOT-STRATEGY', mismatchOnlyNarrative, [
+  {
+    id: 'MM-FIRST', sourceQuote: 'o operador selecionou a alternativa B embora pretendesse selecionar a alternativa A', sourceSentenceIndex: 0,
+    roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR', 'ACTION_STRATEGY'], concepts: ['implementationMismatch', 'implementedAction'], actor: 'operador', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT',
+    preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'IMPLEMENTATION_MISMATCH', actionMechanismEvidenceQuote: 'o operador selecionou a alternativa B embora pretendesse selecionar a alternativa A', displayInterpretation: null, confidence: 'HIGH', rationale: 'Implementação diferente da intenção.'
+  },
+  {
+    id: 'MM-AUDIT', sourceQuote: 'o operador selecionou a alternativa B embora pretendesse selecionar a alternativa A', sourceSentenceIndex: 0,
+    roles: ['ACTION_MECHANISM'], concepts: [], actor: 'operador', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT',
+    preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'IMPLEMENTATION_MISMATCH', actionMechanismEvidenceQuote: 'o operador selecionou a alternativa B embora pretendesse selecionar a alternativa A', displayInterpretation: null, confidence: 'HIGH', rationale: 'Auditoria independente do mecanismo.'
+  },
+])
+assert.equal(mismatchOnly.axes.action.proposedCode, 'A-B')
+const mismatchRootText = mismatchOnly.canonicalTraversal.paths.find((path) => path.axis === 'A')?.answers[0]?.responseText ?? ''
+assert.match(mismatchRootText, /estrat[eé]gia n[aã]o est[aá] descrita.*implementada.*pretendida/i)
+assert.doesNotMatch(mismatchRootText, /^o operador selecionou a alternativa b/i)
+
+// A chronology label such as "late" is not, by itself, operational time pressure. The AI
+// must provide the dedicated timeManagementPressure semantic signal; otherwise V2 fails
+// closed and does not surface a TIME_PRESSURE precondition.
+const lateOnlyNarrative = 'A tripulação recebeu uma alteração de rumo tarde na aproximação. O relato não descreve urgência, janela insuficiente ou pressão de horário. O PM deixou de acompanhar uma indicação disponível.'
+const lateOnly = run('SEMANTIC-LATE-IS-NOT-TIME-PRESSURE', lateOnlyNarrative, [
+  {
+    id: 'LATE-FIRST', sourceQuote: 'O PM deixou de acompanhar uma indicação disponível.', sourceSentenceIndex: 2,
+    roles: ['FIRST_DEPARTURE', 'DIRECT_ACTOR'], concepts: [], actor: 'piloto monitorando (PM)', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT',
+    preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'MONITORING_ATTENTION_LAPSE', actionMechanismEvidenceQuote: 'O PM deixou de acompanhar uma indicação disponível.', confidence: 'HIGH', rationale: 'Primeira saída.'
+  },
+  {
+    id: 'LATE-OVERCLAIM', sourceQuote: 'A tripulação recebeu uma alteração de rumo tarde na aproximação.', sourceSentenceIndex: 0,
+    roles: ['PRECONDITION'], concepts: [], actor: null, temporalRelation: 'PRE_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT',
+    preconditionCategory: 'TIME_PRESSURE', preconditionCausalStatus: 'PRESENT_CONTEXT', actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, confidence: 'MEDIUM', rationale: 'Sobreclassificação proposital sem sinal semântico de pressão temporal.'
+  },
+])
+assert.equal(lateOnly.preconditions.some((item) => !item.basedOnCandidateCode && item.canonicalCategory === 'TIME_PRESSURE'), false)
+
 console.log('PASS semantic-method boundary — AI interprets language; deterministic engine enforces anchor, actor, evidence and causal locks')
