@@ -273,9 +273,15 @@ function enforceV2StructuralIntegrity(args: {
       assertionStatus,
       preconditionCategory: hasPrecondition ? item.preconditionCategory ?? null : null,
       preconditionCausalStatus: hasPrecondition ? item.preconditionCausalStatus ?? null : null,
+      preconditionCausalTargetQuote: hasPrecondition && item.preconditionCausalStatus === "SOURCE_LINKED"
+        ? item.preconditionCausalTargetQuote?.trim() || null
+        : null,
+      displayInterpretation: roles.some((role) => role === "PERCEPTION_STATE" || role === "OBJECTIVE_INTENT" || role === "ACTION_STRATEGY")
+        ? item.displayInterpretation?.trim() || null
+        : null,
       concepts: [...new Set(item.concepts ?? [])],
     };
-    const key = `${candidate.sourceSentenceIndex}:${norm(candidate.sourceQuote)}:${candidate.roles.join(",")}:${candidate.actor ?? ""}:${candidate.preconditionCategory ?? ""}:${candidate.preconditionCausalStatus ?? ""}:${candidate.concepts?.join(",") ?? ""}`;
+    const key = `${candidate.sourceSentenceIndex}:${norm(candidate.sourceQuote)}:${candidate.roles.join(",")}:${candidate.actor ?? ""}:${candidate.preconditionCategory ?? ""}:${candidate.preconditionCausalStatus ?? ""}:${candidate.preconditionCausalTargetQuote ?? ""}:${candidate.concepts?.join(",") ?? ""}`;
     if (seen.has(key)) continue;
     seen.add(key);
     result.push(candidate);
@@ -286,13 +292,79 @@ function enforceV2StructuralIntegrity(args: {
     .sort((a, b) => semanticPosition(args.narrative, a) - semanticPosition(args.narrative, b))[0];
   if (!firstDeparture) return result;
   const firstPosition = semanticPosition(args.narrative, firstDeparture);
-  return result.map((item) => {
+  const firstText = norm(firstDeparture.sourceQuote);
+
+  const normalized = result.map((item) => {
     const position = semanticPosition(args.narrative, item);
+    let next = item;
     if (position > firstPosition && item.roles.some((role) => role === "CRITICAL_UNSAFE_ACT" || role === "OUTCOME")) {
-      return { ...item, temporalRelation: "POST_ESCAPE" as const };
+      next = { ...next, temporalRelation: "POST_ESCAPE" as const };
     }
-    return item;
+
+    if (next.roles.includes("PRECONDITION")) {
+      if (next.preconditionCausalStatus !== "SOURCE_LINKED") {
+        next = { ...next, preconditionCausalTargetQuote: null };
+      } else {
+        const target = next.preconditionCausalTargetQuote?.trim() ?? "";
+        const targetRecord = target ? resolveSourceRecord(args.narrative, target) : null;
+        const targetText = norm(target);
+        // Fail closed: SOURCE_LINKED is only accepted when the model anchors the claimed
+        // causal relation to the unique FIRST_DEPARTURE verbatim. A plausible factor or a
+        // causal claim aimed at another landmark remains PRESENT_CONTEXT.
+        const targetsSelectedFirstDeparture = Boolean(
+          targetRecord
+          && targetText
+          && firstText
+          && (targetText === firstText || targetText.includes(firstText)),
+        );
+        if (!targetsSelectedFirstDeparture) {
+          next = {
+            ...next,
+            preconditionCausalStatus: "PRESENT_CONTEXT" as const,
+            preconditionCausalTargetQuote: null,
+          };
+        }
+      }
+    }
+    return next;
   });
+
+  // Objective is the operational result/goal, not the control/action implementation
+  // the actor meant to perform. If the model labels an overlapping implementation-mismatch
+  // or procedural-omission span as OBJECTIVE_INTENT without any independent objective
+  // concept, fail closed by removing only that objective role. The action evidence remains.
+  const objectiveConcepts = new Set([
+    "safeGoal", "efficiencyObjective", "consciousDeviation", "routineDeviation",
+    "exceptionalDeviation", "managedRisk", "unmanagedRisk",
+  ]);
+  const objectiveGuarded = normalized.map((item, index) => {
+    if (!item.roles.includes("OBJECTIVE_INTENT")) return item;
+    if ((item.concepts ?? []).some((concept) => objectiveConcepts.has(concept))) return item;
+    const current = norm(item.sourceQuote);
+    const overlapsActionImplementation = normalized.some((other, otherIndex) => {
+      if (otherIndex === index || other.sourceSentenceIndex !== item.sourceSentenceIndex) return false;
+      if (!(other.concepts ?? []).some((concept) => concept === "implementationMismatch" || concept === "proceduralOmission")) return false;
+      const actionText = norm(other.sourceQuote);
+      return Boolean(current && actionText && (current.includes(actionText) || actionText.includes(current)));
+    });
+    if (!overlapsActionImplementation) return item;
+    const roles = item.roles.filter((role) => role !== "OBJECTIVE_INTENT");
+    return { ...item, roles };
+  }).filter((item) => item.roles.length > 0);
+
+  // Preserve all source-grounded P/O/A spans. Presentation grammar is handled by the
+  // optional displayInterpretation field; evidence spans themselves are never widened or
+  // discarded merely to improve prose.
+
+  const deduped: SeraSemanticEvidenceAnnotation[] = [];
+  const finalSeen = new Set<string>();
+  for (const item of objectiveGuarded) {
+    const key = `${item.sourceSentenceIndex}:${norm(item.sourceQuote)}:${item.roles.join(",")}:${item.actor ?? ""}:${item.preconditionCategory ?? ""}:${item.preconditionCausalStatus ?? ""}:${item.preconditionCausalTargetQuote ?? ""}:${item.concepts?.join(",") ?? ""}`;
+    if (finalSeen.has(key)) continue;
+    finalSeen.add(key);
+    deduped.push(item);
+  }
+  return deduped;
 }
 
 export function enforceSemanticEvidenceIntegrity(args: {

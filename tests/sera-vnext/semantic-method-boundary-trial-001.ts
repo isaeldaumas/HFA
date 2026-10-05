@@ -206,6 +206,26 @@ assert.equal(contextPhysio?.relationship, 'UNRELATED_OR_UNSUPPORTED')
 assert.equal(contextPhysio?.methodologyMatch, 'HYPOTHESIS_ONLY')
 assert.equal(contextPhysio?.evidence.some((text) => text.includes('vigília fragmentada')), true)
 
+// Even if the semantic model overstates a contextual factor as SOURCE_LINKED, the
+// deterministic V2 integrity gate must downgrade it when no target quote anchors the claim
+// to the unique FIRST_DEPARTURE. This is the causal equivalent of the actor/temporal lock.
+const unanchoredCausal = run('SEMANTIC-PC-UNANCHORED-CAUSAL', contextNarrative, [
+  {
+    id: 'PCU-FIRST', sourceQuote: 'Na preparação, a última verificação ficou sem execução.', sourceSentenceIndex: 0,
+    roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR', 'ACTION_STRATEGY'], concepts: ['proceduralOmission'], actor: 'copiloto',
+    temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null, confidence: 'HIGH', rationale: 'Primeira saída.'
+  },
+  {
+    id: 'PCU-OVERCLAIM', sourceQuote: 'Antes da tarefa, descreveu vigília fragmentada e episódios de microsono.', sourceSentenceIndex: 2,
+    roles: ['PRECONDITION'], concepts: [], actor: 'copiloto', temporalRelation: 'PRE_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT',
+    preconditionCategory: 'PHYSIOLOGICAL', preconditionCausalStatus: 'SOURCE_LINKED', confidence: 'HIGH', rationale: 'Modelo superestimou o nexo sem alvo factual.'
+  },
+])
+const unanchoredPhysio = unanchoredCausal.preconditions.find((item) => item.canonicalCategory === 'PHYSIOLOGICAL' && !item.basedOnCandidateCode)
+assert.ok(unanchoredPhysio)
+assert.equal(unanchoredPhysio?.relationship, 'UNRELATED_OR_UNSUPPORTED', 'SOURCE_LINKED without a verbatim first-departure target must fail closed to context')
+assert.equal(unanchoredPhysio?.methodologyMatch, 'HYPOTHESIS_ONLY')
+
 const linkedNarrative = `${contextNarrative} O copiloto declarou que esse estado reduziu seu alerta durante a retomada e contribuiu para perder a verificação.`
 const sourceLinked = run('SEMANTIC-PC-LINKED', linkedNarrative, [
   {
@@ -250,8 +270,9 @@ const sourceLinked = run('SEMANTIC-PC-LINKED', linkedNarrative, [
     occurrenceScope: 'CURRENT_EVENT',
     preconditionCategory: 'PHYSIOLOGICAL',
     preconditionCausalStatus: 'SOURCE_LINKED',
+    preconditionCausalTargetQuote: 'Na preparação, a última verificação ficou sem execução.',
     confidence: 'HIGH',
-    rationale: 'A própria fonte declara contribuição para a falha ativa.',
+    rationale: 'A própria fonte declara contribuição e ancora o alvo na primeira saída.',
   },
 ])
 const linkedPhysio = sourceLinked.preconditions.find((item) => item.canonicalCategory === 'PHYSIOLOGICAL' && !item.basedOnCandidateCode)
@@ -267,12 +288,19 @@ const actorSurface = run('SEMANTIC-ACTOR-SURFACE-AND-UNIQUE-FIRST', actorSurface
   {
     id: 'ACTOR-FIRST-A', sourceQuote: 'o piloto aplicou uma seleção diferente da pretendida', sourceSentenceIndex: 0,
     roles: ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR', 'ACTION_STRATEGY'], concepts: ['slipLapse', 'implementationMismatch', 'implementedAction'], actor: 'piloto',
-    temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null, confidence: 'HIGH', rationale: 'Primeiro marco.'
+    temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null,
+    displayInterpretation: 'O operador tentava aplicar a seleção pretendida.', confidence: 'HIGH', rationale: 'Primeiro marco.'
   },
   {
     id: 'ACTOR-FIRST-B', sourceQuote: 'o piloto aplicou uma seleção diferente da pretendida', sourceSentenceIndex: 0,
     roles: ['CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR'], concepts: [], actor: 'o piloto',
     temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null, confidence: 'HIGH', rationale: 'Mesma identidade com artigo.'
+  },
+  {
+    id: 'ACTOR-FALSE-O', sourceQuote: 'o piloto aplicou uma seleção diferente da pretendida', sourceSentenceIndex: 0,
+    roles: ['OBJECTIVE_INTENT'], concepts: [], actor: 'piloto',
+    temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null,
+    displayInterpretation: 'O operador pretendia aplicar uma seleção diferente.', confidence: 'HIGH', rationale: 'Overclassification probe: intended implementation is not an operational objective.'
   },
   {
     id: 'ACTOR-LATER', sourceQuote: 'um item da checklist ficou sem execução', sourceSentenceIndex: 1,
@@ -285,5 +313,8 @@ assert.equal(actorSurface.escapePoint.criticalUnsafeActCandidate, 'um item da ch
 assert.equal(actorSurface.directActor.status, 'IDENTIFIED')
 assert.match(actorSurface.directActor.actor ?? '', /piloto/i)
 assert.equal(actorSurface.axes.action.proposedCode, 'A-B')
+assert.equal(actorSurface.axes.objective.proposedCode, null)
+assert.equal(actorSurface.canonicalTraversal.paths.find((path) => path.axis === 'O')?.answers[0]?.answer, 'INSUFFICIENT_EVIDENCE', 'intended control/action implementation must not be promoted to an operational objective even if the semantic model overlabels it')
+assert.equal(actorSurface.canonicalTraversal.paths.find((path) => path.axis === 'A')?.answers[0]?.responseText, 'O operador tentava aplicar a seleção pretendida.', 'display interpretation may improve grammar but must remain presentation-only')
 
 console.log('PASS semantic-method boundary — AI interprets language; deterministic engine enforces anchor, actor, evidence and causal locks')

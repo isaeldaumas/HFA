@@ -258,6 +258,19 @@ export type SeraSemanticEvidenceAnnotation = {
    * the factor may be used methodologically.
    */
   preconditionCausalStatus?: SeraSemanticPreconditionCausalStatus | null
+  /**
+   * Required for SOURCE_LINKED in semantic schema V2. It must quote the selected
+   * FIRST_DEPARTURE verbatim (or a verbatim span containing it) so the deterministic
+   * engine can verify that an AI causal claim is anchored to the actual SERA failure,
+   * rather than to another event, consequence, or contextual condition.
+   */
+  preconditionCausalTargetQuote?: string | null
+  /**
+   * Optional display-only normalization for P/O/A descriptive roots. It may improve
+   * grammar in the human report, but is never evidence and is never consumed by the
+   * deterministic SERA branch logic.
+   */
+  displayInterpretation?: string | null
   confidence: SeraConfidence
   rationale?: string | null
 }

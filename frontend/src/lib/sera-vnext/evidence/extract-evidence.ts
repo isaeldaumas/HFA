@@ -213,6 +213,7 @@ export function applySemanticAnnotationsToEvidence(args: {
   ])
   const actionConcepts = new Set([
     'safeAction', 'implementedAction', 'feedbackImplementationFailure', 'slipLapse',
+    'proceduralOmission', 'implementationMismatch',
     'correctAction', 'incorrectAction', 'physicalActionLimitation', 'actionKnowledgeLimitation',
     'actionCapabilityPresent', 'selectionUnderPressureFailed', 'feedbackUnderPressureFailed',
     'selectionSubtype', 'feedbackSubtype', 'timeManagementAction',
@@ -300,6 +301,8 @@ export function applySemanticAnnotationsToEvidence(args: {
       semanticConcepts: concepts,
       semanticPreconditionCategory: annotation.preconditionCategory ?? null,
       semanticPreconditionCausalStatus: annotation.preconditionCausalStatus ?? null,
+      semanticPreconditionCausalTargetQuote: annotation.preconditionCausalTargetQuote ?? null,
+      semanticDisplayInterpretation: annotation.displayInterpretation ?? null,
       semanticConfidence: annotation.confidence,
       semanticSchemaVersion: args.semanticSchemaVersion ?? null,
       semanticSource: 'AI_SEMANTIC_EXTRACTION' as const,

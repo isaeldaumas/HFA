@@ -56,6 +56,9 @@ export type SeraEvidenceItem = {
   semanticConcepts?: SeraSemanticDecisionConcept[]
   semanticPreconditionCategory?: SeraCanonicalPreconditionCategory | null
   semanticPreconditionCausalStatus?: SeraSemanticPreconditionCausalStatus | null
+  semanticPreconditionCausalTargetQuote?: string | null
+  /** Presentation-only AI paraphrase; never use for SERA decisions/evidence sufficiency. */
+  semanticDisplayInterpretation?: string | null
   semanticConfidence?: SeraConfidence
   semanticSchemaVersion?: 'SERA_SEMANTIC_AI_V1' | 'SERA_SEMANTIC_AI_V2' | null
   semanticSource?: 'AI_SEMANTIC_EXTRACTION'

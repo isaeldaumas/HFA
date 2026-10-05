@@ -388,6 +388,19 @@ function rootResponseText(ctx: SeraNodeEvidenceContext, supportingEvidence: stri
   const directClarification = directNodeClarificationStatements(ctx)
     .find((statement) => supportingEvidence.includes(statement))
   if (directClarification) return directClarification
+
+  // AI may provide a grammar-normalized display sentence for the descriptive root. It is
+  // deliberately presentation-only: branch decisions above consume sourceQuote/roles/concepts,
+  // never this paraphrase. We only accept it when tied to the exact source evidence selected
+  // by the traversal for this axis.
+  const expectedRole = ctx.axis === 'P' ? 'PERCEPTION_STATE' : ctx.axis === 'O' ? 'OBJECTIVE_INTENT' : 'ACTION_STRATEGY'
+  const displayInterpretation = ctx.evidence.find((item) =>
+    item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+    && item.semanticRoles?.includes(expectedRole)
+    && Boolean(item.semanticDisplayInterpretation)
+    && supportingEvidence.includes(item.statement))?.semanticDisplayInterpretation?.trim()
+  if (displayInterpretation) return displayInterpretation
+
   const fromStatement = stripAxisStatementPrefix(ctx.statementAtEscapePoint)
   if (ctx.axis === 'A') {
     const candidates = [...(fromStatement ? [fromStatement] : []), ...supportingEvidence]
