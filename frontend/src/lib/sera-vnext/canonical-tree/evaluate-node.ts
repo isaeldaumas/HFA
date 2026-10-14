@@ -135,6 +135,31 @@ function semanticActionStrategyStatements(ctx: SeraNodeEvidenceContext): string[
     .map((item) => item.statement))
 }
 
+/** Evidence-fidelity backstop: an AI pass can correctly identify a direct actor's
+ * PERCEPTION_STATE and still omit the inadequateAssessment concept even when its
+ * verbatim source quote explicitly says the actor misjudged a physical state.
+ * This is not a generic perception heuristic: it requires a confirmed semantic
+ * perception role at/before the escape point, the anchored direct actor, and a
+ * literal incorrect judgement of a physical state. Merely misleading scenery,
+ * a later realization, or another crew member's error never suffices.
+ */
+function explicitIncorrectPerceptionStatements(ctx: SeraNodeEvidenceContext): string[] {
+  if (ctx.axis !== 'P' || !semanticInterpretationPresent(ctx)) return []
+  const wrongJudgement = /\b(?:julgou|julgava|percebeu|percebia|avaliou|avaliava|estimou|estimava|interpretou|interpretava)\s+(?:(?:de forma|de maneira)\s+)?(?:incorretamente|erroneamente|equivocadamente|de forma incorreta|de maneira incorreta)\b/i
+  const operationalState = /\b(?:altura|posi[cç][aã]o|dist[aâ]ncia|trajet[oó]ria|velocidade|atitude|localiza[cç][aã]o|separa[cç][aã]o)\b/i
+  return unique(ctx.evidence
+    .filter((item) => item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
+      && item.semanticSchemaVersion === 'SERA_SEMANTIC_AI_V2'
+      && item.semanticConfidence !== 'LOW'
+      && item.assertionStatus === 'AFFIRMED'
+      && item.temporalRelation !== 'POST_ESCAPE'
+      && item.actorRelation === 'DIRECT_ACTOR'
+      && item.semanticRoles?.includes('PERCEPTION_STATE')
+      && isEvidenceUsableFor(item, 'PERCEPTION')
+      && wrongJudgement.test(item.statement) && operationalState.test(item.statement))
+    .map((item) => item.statement))
+}
+
 function semanticActionMechanismStatements(
   ctx: SeraNodeEvidenceContext,
   mechanism: NonNullable<import('../engine-contract').SeraSemanticActionFailureMechanism>,
@@ -503,6 +528,11 @@ function decideP(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
       const negative = c('inadequateAssessment')
       if (negative.length > 0) return { answer: 'NÃO', supportingEvidence: negative, rationale: 'Pre-escape evidence supports inaccurate or inadequate situation assessment.' }
       if (positive.length > 0) return { answer: 'SIM', supportingEvidence: positive, rationale: 'Pre-escape evidence supports adequate perception or timely recognition.' }
+      const explicitIncorrect = explicitIncorrectPerceptionStatements(ctx)
+      if (explicitIncorrect.length > 0) return {
+        answer: 'NÃO', supportingEvidence: explicitIncorrect,
+        rationale: 'The affirmed direct-actor perception annotation quotes an explicitly incorrect judgement of the aircraft state at the first departure; the missing semantic concept cannot erase that verbatim evidence.',
+      }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'No pre-escape evidence answers whether assessment was adequate.' }
     }
     case 'P_CAPABILITY': {
