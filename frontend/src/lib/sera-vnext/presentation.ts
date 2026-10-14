@@ -1,4 +1,5 @@
 import type { SeraVNextEngineOutput } from './engine-contract'
+import { localizeActor } from './engine-v0/localization'
 
 const NODE_LABELS_PT: Record<string, string> = {
   P_ROOT: 'Estado percebido',
@@ -93,7 +94,7 @@ export type CandidateAttention = {
 }
 
 export type SeraBlockingDiagnostic = {
-  kind: 'CONFLICTING_SOURCES' | 'INCOMPLETE_RECORD' | 'UNKNOWN_MECHANISM' | 'GENERIC'
+  kind: 'CONFLICTING_SOURCES' | 'INCOMPLETE_RECORD' | 'UNKNOWN_MECHANISM' | 'ENVIRONMENTAL_CUE_WITHOUT_HUMAN_ANCHOR' | 'GENERIC'
   reason: string
   evidence: string[]
   evidenceHeading: string
@@ -202,6 +203,28 @@ export function buildBlockingDiagnostic(args: {
     }
   }
 
+  const externalCueOnly = args.output.escapePoint.status === 'INSUFFICIENT_EVIDENCE'
+    && args.output.escapePoint.counterEvidence.some((item) =>
+      /(?:impress[aã]o visual pelo ambiente|environment generating a misleading visual cue)/i.test(item))
+  if (externalCueOnly) {
+    const supportedCue = sentences.filter((item) =>
+      /(?:refer[eê]ncias? luminosas?|luzes|impress[aã]o visual|ilus[aã]o visual|visual illusion|visual cue)/i.test(item)).slice(0, 2)
+    return {
+      kind: 'ENVIRONMENTAL_CUE_WITHOUT_HUMAN_ANCHOR',
+      reason: pt
+        ? 'As referências luminosas produziram uma impressão visual enganosa. Esse fato caracteriza a condição externa; ainda falta identificar a primeira percepção, decisão ou ação humana que desviou a operação.'
+        : 'The visual references created a misleading impression. This establishes an external condition, not the first operator perception, decision, or act that departed from safe operation.',
+      evidence: supportedCue.length ? supportedCue : fallbackEvidence,
+      evidenceHeading: pt ? 'Condição visual documentada' : 'Documented visual condition',
+      reviewerQuestion: pt
+        ? 'Qual tripulante percebeu a posição incorretamente, ou qual primeira ação ou decisão insegura foi observada antes do desvio de trajetória? Há evidência independente da percepção e da identidade do ator?'
+        : 'Which crewmember misperceived position, or what first unsafe human act or decision preceded the trajectory deviation? Is there independent evidence of the perception and actor?',
+      impact: pt
+        ? 'A condição ambiental não pode substituir o ponto de fuga humano. Ator e P/O/A permanecem não resolvidos; monitoramento e recuperação documentados não se tornam falhas por inferência.'
+        : 'The external condition cannot replace a human escape point. Actor and P/O/A remain unresolved; documented monitoring and recovery are not failures by inference.',
+    }
+  }
+
   if (unknownEvidence.length || args.output.escapePoint.status === 'INSUFFICIENT_EVIDENCE') {
     return {
       kind: 'UNKNOWN_MECHANISM',
@@ -265,9 +288,9 @@ export function buildExecutiveSummary(args: {
     ? rawLaterCritical
     : (pt ? 'nenhum ato crítico posterior distinto estabelecido' : 'no distinct later critical act established'))
   const laterCriticalActor = !sameLandmark && rawLaterCritical
-    ? args.output.escapePoint.criticalUnsafeActActor ?? (pt ? 'não atribuído / não aplicável' : 'not attributed / not applicable')
+    ? localizeActor(args.output.escapePoint.criticalUnsafeActActor ?? null, pt ? 'pt-BR' : 'en') ?? (pt ? 'não atribuído / não aplicável' : 'not attributed / not applicable')
     : (pt ? 'não aplicável' : 'not applicable')
-  const escapeActor = args.output.escapePoint.firstDepartureActor ?? args.output.directActor.actor ?? (pt ? 'não individualizado' : 'not individually resolved')
+  const escapeActor = localizeActor(args.output.escapePoint.firstDepartureActor ?? args.output.directActor.actor ?? null, pt ? 'pt-BR' : 'en') ?? (pt ? 'não individualizado' : 'not individually resolved')
   const codes = [
     args.output.axes.perception.proposedCode,
     args.output.axes.objective.proposedCode,

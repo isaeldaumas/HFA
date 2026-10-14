@@ -79,6 +79,18 @@ function splitCompoundEscapeLandmark(value: string): { first: string; later: str
   return null
 }
 
+/** The creation of a misleading environmental cue is not itself an operator's
+ * mistaken perception. Source-faithful semantic FIRST_DEPARTURE annotations can
+ * still confuse a *cause* of an illusion with the human encounter of that cue.
+ * Reject that anchor rather than falling forward to an aircraft-state result.
+ */
+function isExternalVisualCueMistakenForHumanDeparture(statement: string): boolean {
+  const text = normalizeLandmarkText(statement)
+  const cueProduced = /\b(?:criou|criaram|gerou|geraram|produziu|produziram|provocou|provocaram|formou|formaram)\s+(?:uma?\s+)?(?:impressao|ilusao|imagem|referencia)\s+(?:visual|ilusoria|enganosa)\b/.test(text)
+  const humanPerception = /\b(?:piloto|tripulacao|comandante|copiloto|operador|crew|pilot|captain|officer|operator)\b.{0,120}\b(?:julgou|julgavam|percebeu|perceberam|acreditou|acreditaram|interpretou|interpretaram|confundiu|confundiram)\b/.test(text)
+  return cueProduced && !humanPerception
+}
+
 function usableDirectEscapeClarification(statement: string): boolean {
   const text = statement.trim()
   if (!text) return false
@@ -202,6 +214,43 @@ export function runStep03EscapePoint(input: {
     && item.semanticConfidence !== 'LOW'
     && item.semanticRoles?.includes('FIRST_DEPARTURE'),
   ))
+  // The quote must itself entail the operator departure. An AI display gloss
+  // claiming that "the operator perceived incorrectly" cannot turn the
+  // environmental creation of an optical illusion into an operator unsafe act.
+  if (selectedWindow === legacyWindow && semanticFirstDeparture &&
+      isExternalVisualCueMistakenForHumanDeparture(rawFirstDepartureCandidate)) {
+    const pt = input.locale === 'pt-BR'
+    const explanation = pt
+      ? 'A frase indicada descreve a criação de uma impressão visual pelo ambiente, não a percepção, decisão ou ação de um operador identificado. A impressão pode ter influenciado a operação, mas não constitui por si só o ponto de fuga humano.'
+      : 'The selected quote describes the environment generating a misleading visual cue, not a supported operator perception, decision or act. The cue may affect the operation, but it is not itself a human escape point.'
+    return {
+      status: 'INSUFFICIENT_EVIDENCE',
+      statement: null,
+      earliestCandidate: null,
+      latestCandidate: null,
+      firstDepartureCandidate: null,
+      criticalUnsafeActCandidate: null,
+      criticalCandidateAlternatives: [],
+      irreversibilityBoundaryCandidate: selectedWindow.irreversibilityBoundaryCandidate ?? null,
+      anchorBasis: 'UNRESOLVED',
+      firstDepartureSupportingEvidence: [],
+      criticalUnsafeActSupportingEvidence: [],
+      poaAnchorCandidate: null,
+      poaAnchorSupportingEvidence: [],
+      poaAnchorBasis: 'UNRESOLVED',
+      directActor: null,
+      supportingEvidence: [],
+      counterEvidence: [explanation],
+      excludedPostEscapeEvidence: [],
+      episodeCandidates: (selectedWindow.episodeCandidates ?? []).map((item) => ({ ...item, selected: false })),
+      confidence: 'LOW',
+      humanFactorGate: {
+        status: 'BLOCKED',
+        anchorType: null,
+        rationale: [explanation],
+      },
+    }
+  }
   const semanticCriticalAct = Boolean(rawCriticalUnsafeActCandidate && input.factualExtraction.timeline.some((item) =>
     item.id.startsWith('TIME-SEM-')
     && item.statement === rawCriticalUnsafeActCandidate
