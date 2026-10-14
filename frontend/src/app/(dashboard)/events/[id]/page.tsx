@@ -17,6 +17,7 @@ import {
 import { EngineProvenanceBadge, type GeneratedByType, type ValidationStatus } from '@/components/sera/EngineProvenanceBadge'
 import { VNextEventAnalysisPanel } from '@/components/sera-vnext/VNextEventAnalysisPanel'
 import { SeraClarificationForm } from '@/components/sera-vnext/SeraClarificationForm'
+import { EventHumanReviewPanel } from '@/components/sera-vnext/EventHumanReviewPanel'
 import type { SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
 import { inferOccurrenceDateFromNarrative } from '@/lib/sera-vnext/occurrence-date'
 import { localizeActor } from '@/lib/sera-vnext/engine-v0/localization'
@@ -991,6 +992,10 @@ export default function EventDetailPage() {
             </div>
           )}
         </div>
+      )}
+
+      {event.vnext_analysis && !event.deleted_at && token && (
+        <EventHumanReviewPanel eventId={event.id} analysisId={event.vnext_analysis.id} token={token} />
       )}
 
       {event.vnext_analysis?.engine_output && (
