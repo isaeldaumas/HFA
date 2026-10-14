@@ -970,7 +970,7 @@ export default function EventDetailPage() {
               <button
                 type="button"
                 onClick={() => void reanalyzeWithVNext()}
-                disabled={vnextReanalyzeState === 'loading'}
+                disabled={vnextReanalyzeState === 'loading' || (event.vnext_analysis?.review_status === 'MORE_EVIDENCE_REQUIRED' && !vnextAdditionalInformation.trim())}
                 className="rounded-lg border border-cyan-600/50 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-60"
               >
                 {vnextReanalyzeState === 'loading'
@@ -979,14 +979,14 @@ export default function EventDetailPage() {
               </button>
               <span className="self-center text-[11px] text-slate-500">
                 {locale === 'pt-BR'
-                  ? 'Sem texto novo, apenas reaplica a versão atual do motor. Com texto novo, incorpora a evidência à nova análise sem substituir o relato original.'
-                  : 'With no new text, this only reapplies the current engine. With new text, the evidence is incorporated without replacing the original narrative.'}
+                  ? 'Quando a análise exige mais evidências, informe novos fatos antes da reanálise. O relato anterior e o histórico de versões serão preservados.'
+                  : 'When additional evidence is required, provide new facts before reanalysis. Prior evidence and the version history are preserved.'}
               </span>
               </div>
               {vnextReanalyzeError && <p className="text-xs text-red-300">{vnextReanalyzeError}</p>}
               {vnextReanalyzeState === 'done' && (
                 <p className="text-xs text-emerald-300">
-                  {locale === 'pt-BR' ? 'Análise atualizada. As novas informações foram incorporadas à reanálise.' : 'Analysis updated. New information was incorporated into the reanalysis.'}
+                  {locale === 'pt-BR' ? 'Reanálise registrada. O histórico anterior foi preservado.' : 'Analysis updated. New information was incorporated into the reanalysis.'}
                 </p>
               )}
             </div>
