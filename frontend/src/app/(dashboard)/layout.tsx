@@ -25,6 +25,7 @@ import { ensureOAuthTenant } from '@/lib/ensure-tenant'
 import { useT } from '@/lib/i18n'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { useMe } from '@/hooks/useMe'
+import { shouldShowConsumerCredits } from '@/lib/product/consumer-credit-visibility'
 
 /* ── Nav config ─────────────────────────────────────────────── */
 type NavItem = {
@@ -136,7 +137,8 @@ function Sidebar({
   const t = useT()
   const me = useMe()
   const initials = userEmail ? userEmail.slice(0, 2).toUpperCase() : 'US'
-  const noCredits = !me.loading && !me.isUnlimited && me.credits === 0
+  const showConsumerCredits = shouldShowConsumerCredits(me)
+  const noCredits = showConsumerCredits && !me.isUnlimited && me.credits === 0
 
   return (
     <aside className="flex h-full w-60 flex-col bg-hfa-bg-subtle border-r border-hfa-border">
@@ -188,7 +190,7 @@ function Sidebar({
         </div>
 
         {/* Credits indicator for free plan */}
-        {!me.loading && !me.isUnlimited && (
+        {showConsumerCredits && !me.isUnlimited && (
           <div className={`mx-1 px-3 py-2 rounded-lg text-xs ${noCredits ? 'bg-red-950/40 border border-red-900/50' : 'bg-slate-800/60'}`}>
             {noCredits ? (
               <p className="text-red-400 leading-snug">
@@ -224,7 +226,7 @@ function Sidebar({
             Admin
           </Link>
         )}
-        {bottomNav.map((item) => (
+        {bottomNav.filter((item) => showConsumerCredits || item.href !== '/credits').map((item) => (
           <NavLink
             key={item.href}
             item={{ ...item, label: t(item.labelKey) }}

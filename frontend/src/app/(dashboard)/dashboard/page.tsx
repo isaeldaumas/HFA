@@ -7,6 +7,8 @@ import { TrialUsageCard } from '@/components/product/TrialUsageCard'
 import { OrgScoreCard } from '@/components/sera/OrgScoreCard'
 import { AiInsightPanel } from '@/components/sera/AiInsightPanel'
 import { useT } from '@/lib/i18n'
+import { useMe } from '@/hooks/useMe'
+import { shouldShowConsumerCredits } from '@/lib/product/consumer-credit-visibility'
 import type { RiskProfileSummary } from '@/lib/risk-profile/types'
 
 const CODE_INFO: Record<string, { name: string; def: string; example: string }> = {
@@ -196,6 +198,7 @@ function SimpleModal({ state, onClose }: { state: ModalState | null; onClose: ()
 
 export default function DashboardPage() {
   const t = useT()
+  const me = useMe()
   const [data, setData] = useState<Intelligence | null>(null)
   const [token, setToken] = useState<string>('')
   const [loading, setLoading] = useState(true)
@@ -289,7 +292,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <TrialUsageCard />
+      {/* Trial limits are a customer-facing feature, never an administrator banner. */}
+      {shouldShowConsumerCredits(me) && <TrialUsageCard />}
 
       {error && (
         <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg p-4 text-sm">
