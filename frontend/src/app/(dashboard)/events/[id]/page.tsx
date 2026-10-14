@@ -23,6 +23,7 @@ import { inferOccurrenceDateFromNarrative } from '@/lib/sera-vnext/occurrence-da
 import { localizeActor } from '@/lib/sera-vnext/engine-v0/localization'
 import { EventRiskPanel } from '@/components/safety/EventRiskPanel'
 import { EventSafetyActionPanel } from '@/components/safety/EventSafetyActionPanel'
+import { EventDuplicateReviewPanel } from '@/components/safety/EventDuplicateReviewPanel'
 
 const FlowDiagram = dynamic(() => import('@/components/FlowDiagram'), { ssr: false })
 
@@ -995,6 +996,10 @@ export default function EventDetailPage() {
             </div>
           )}
         </div>
+      )}
+
+      {!event.deleted_at && token && (
+        <EventDuplicateReviewPanel eventId={event.id} token={token} />
       )}
 
       {event.vnext_analysis && !event.deleted_at && token && (

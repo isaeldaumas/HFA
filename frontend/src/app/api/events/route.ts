@@ -8,6 +8,7 @@ import { writeAuditLog } from '@/lib/observability/audit'
 import { canonicalAnalyzeResponse, createCanonicalEventAnalysis } from '@/lib/sera-vnext-product/canonical-event-analysis'
 import { assertFileSize, detectDocumentKind } from '@/lib/sera/document-extraction'
 import { inferOccurrenceDateFromNarrative } from '@/lib/sera-vnext/occurrence-date'
+import { findTenantDuplicateCandidates, publicDuplicateMatches } from '@/lib/server/event-duplicates'
 
 export const maxDuration = 300
 
@@ -41,6 +42,10 @@ export async function GET(req: Request) {
     if (error) return jsonError('Não foi possível listar os eventos.', 500)
 
     const eventIds = (data ?? []).map((event) => event.id).filter((id): id is string => typeof id === 'string')
+    const duplicateRes = await admin.from('event_duplicate_links')
+      .select('duplicate_event_id, canonical_event_id').eq('tenant_id', user.tenantId)
+    if (duplicateRes.error) return jsonError('Não foi possível listar os eventos.', 500)
+    const canonicalForDuplicate = new Map((duplicateRes.data ?? []).map((item) => [item.duplicate_event_id, item.canonical_event_id]))
     const [exclusions, vnext] = eventIds.length === 0
       ? [{ data: [], error: null }, { data: [], error: null }] as const
       : await Promise.all([
@@ -81,7 +86,8 @@ export async function GET(req: Request) {
         analysis_engine: current ? 'SERA_ENGINE_0_3' : legacy ? 'LEGACY_HISTORICAL' : null,
         analysis_review_status: current?.review_status ?? null,
         analysis_status: current?.status ?? null,
-        is_excluded_from_risk_profile: !!exclusion,
+        is_excluded_from_risk_profile: !!exclusion || canonicalForDuplicate.has(ev.id as string),
+        duplicate_of_event_id: canonicalForDuplicate.get(ev.id as string) ?? null,
         risk_profile_exclusion_id: exclusion?.id ?? null,
         risk_profile_exclusion_reason: (exclusion?.reason as string | null | undefined) ?? null,
         risk_profile_exclusion_at: (exclusion?.excluded_at as string | null | undefined) ?? null,
@@ -118,6 +124,7 @@ export async function POST(req: Request) {
     const admin = getSupabaseAdmin()
     const ct = req.headers.get('content-type') || ''
     let title: string
+    let duplicateOverrideReason = ''
     let raw_input: string
     let operation_type: string | null = null
     let aircraft_type: string | null = null
@@ -132,6 +139,7 @@ export async function POST(req: Request) {
     if (ct.includes('multipart/form-data')) {
       const form = await req.formData()
       title = String(form.get('title') || '')
+      duplicateOverrideReason = String(form.get('duplicate_override_reason') || '')
       raw_input = String(form.get('raw_input') || '')
       operation_type = form.get('operation_type') ? String(form.get('operation_type')) : null
       aircraft_type = form.get('aircraft_type') ? String(form.get('aircraft_type')) : null
@@ -152,6 +160,7 @@ export async function POST(req: Request) {
     } else {
       const body = (await req.json()) as Record<string, unknown>
       title = String(body.title || '')
+      duplicateOverrideReason = typeof body.duplicate_override_reason === 'string' ? body.duplicate_override_reason : ''
       raw_input = String(body.raw_input || '')
       operation_type = body.operation_type != null ? String(body.operation_type) : null
       aircraft_type = body.aircraft_type != null ? String(body.aircraft_type) : null
@@ -168,6 +177,29 @@ export async function POST(req: Request) {
     }
 
     if (!title.trim() || !raw_input.trim()) return jsonError('Título e relato são obrigatórios', 400)
+
+    // Check before any debit, record creation, SERA run or attachment upload.
+    // The client must explicitly acknowledge an independent occurrence.
+    stage = 'duplicate-check'
+    const matches = await findTenantDuplicateCandidates({
+      admin, tenantId: user.tenantId,
+      input: { id: '__NEW_EVENT__', title, raw_input, occurred_at, aircraft_type, operation_type },
+      excludeConfirmedDuplicates: true,
+    })
+    if (matches.length && duplicateOverrideReason.trim().length < 20) {
+      return NextResponse.json({
+        code: 'POSSIBLE_EVENT_DUPLICATE',
+        detail: 'Possível duplicidade: já existe um registro equivalente nesta empresa. Confira antes de criar outro evento.',
+        duplicates: publicDuplicateMatches(matches),
+      }, { status: 409, headers: { 'x-request-id': requestId, 'Cache-Control': 'no-store' } })
+    }
+    if (matches.length && duplicateOverrideReason.trim().length >= 20) {
+      await writeAuditLog({ tenantId: user.tenantId, userId: user.userId, requestId,
+        eventType: 'event.duplicate_warning_overridden', entityType: 'event', entityId: matches[0].id,
+        route: '/api/events', method: 'POST', status: 'partial',
+        metadata: { matchedEventIds: matches.map((item) => item.id), reason: duplicateOverrideReason.trim() },
+      })
+    }
 
     stage = 'ensure-public-user-row'
     const submittedById = await ensurePublicUserRow(admin, user.tenantId, user.userId, user.email, user.role)

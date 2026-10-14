@@ -193,6 +193,23 @@ export function assertEventSeraReviewHistoryContract(rootDir: string): void {
     'Human review history must be append-only and version-unique');
 }
 
+export function assertEventDuplicateReconciliationContract(rootDir: string): void {
+  const route = readRel(rootDir, 'frontend/src/app/api/events/[eventId]/duplicates/route.ts');
+  for (const value of ['requireBearerUser(req)', 'getEvent(admin, user.tenantId, eventId)',
+    'getEvent(admin, user.tenantId, canonicalId)', 'isLikelyDuplicate(duplicate, canonical)',
+    'decided_by: user.publicUserId', 'event.duplicate_confirmed']) {
+    assert.ok(route.includes(value), `Duplicate reconciliation missing: ${value}`);
+  }
+  const creation = readRel(rootDir, 'frontend/src/app/api/events/route.ts');
+  assert.ok(creation.indexOf('const matches = await findTenantDuplicateCandidates') < creation.indexOf("stage = 'insert-event'"),
+    'Every event must be checked before an insertion or debit');
+  assert.ok(creation.includes('POSSIBLE_EVENT_DUPLICATE'), 'A duplicate must produce an explicit warning');
+  const migration = readRel(rootDir, 'supabase/migrations/20261014224000_event_duplicate_links.sql');
+  for (const lock of ['EVENT_DUPLICATE_TENANT_MISMATCH', 'EVENT_DUPLICATE_LINK_IMMUTABLE',
+    'event_duplicate_not_self', 'row level security']) assert.ok(migration.includes(lock), `Duplicate migration missing ${lock}`);
+  assert.ok(existsSync(path.join(rootDir, 'tests/sera-vnext/cal19-duplicate-reconciliation-trial-001.ts')));
+}
+
 export function isAllowedSeraVNextProtectedApiPath(rootDir: string, changedPath: string): boolean {
   if (changedPath === "frontend/src/app/api/analyze/route.ts") {
     assertAnalyzeRouteSanitizationContract(rootDir);
@@ -242,6 +259,17 @@ export function isAllowedSeraVNextProtectedApiPath(rootDir: string, changedPath:
   }
   if (changedPath === "frontend/src/app/api/events/[eventId]/route.ts") {
     assertEventDetailVNextReadContract(rootDir);
+    return true;
+  }
+  if (changedPath === "frontend/src/app/api/safety/overview/route.ts") {
+    const source = readRel(rootDir, changedPath);
+    assert.ok(hasAll(source, ["requireBearerUser(req)", ".eq('tenant_id', user.tenantId)",
+      "from('event_duplicate_links')", "!confirmedDuplicateIds.has(event.id)"]),
+      'Safety Intelligence must exclude confirmed duplicates within tenant scope');
+    return true;
+  }
+  if (changedPath === "frontend/src/app/api/events/[eventId]/duplicates/route.ts") {
+    assertEventDuplicateReconciliationContract(rootDir);
     return true;
   }
   if (changedPath === "frontend/src/app/api/events/[eventId]/reanalyze-vnext/route.ts") {

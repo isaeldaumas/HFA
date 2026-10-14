@@ -17,6 +17,7 @@ const statusLabel: Record<string, { label: string; color: string }> = {
 type EventItem = {
   id: string
   title: string
+  duplicate_of_event_id?: string | null
   status: string
   operation_type?: string | null
   aircraft_type?: string | null
@@ -423,6 +424,7 @@ export default function EventsPage() {
         <div>
           <h1 className="text-2xl font-bold text-white">{t('events.title')}</h1>
           <p className="text-slate-400">Gestão de eventos de Safety, triagem e análises de fatores humanos</p>
+          {!loading && events.length > 0 && <p className="mt-1 text-xs text-slate-500">{events.filter((item) => !item.duplicate_of_event_id).length} ocorrência(s) única(s) · {events.length} registro(s) preservado(s)</p>}
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/events/deleted" className="rounded-lg border border-slate-700 px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-slate-500">
@@ -474,7 +476,10 @@ export default function EventsPage() {
                     {event.confidentiality_level === 'CONFIDENTIAL' && (
                       <span className="rounded border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-200">Confidencial</span>
                     )}
-                    {event.is_excluded_from_risk_profile && (
+                    {event.duplicate_of_event_id && (
+                      <span className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-200">Duplicidade confirmada</span>
+                    )}
+                    {event.is_excluded_from_risk_profile && !event.duplicate_of_event_id && (
                       <span className="rounded border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-200">
                         Desconsiderado no perfil
                       </span>
@@ -494,7 +499,7 @@ export default function EventsPage() {
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {canManageProfile && event.analysis_engine && (
+                    {canManageProfile && event.analysis_engine && !event.duplicate_of_event_id && (
                       event.is_excluded_from_risk_profile ? (
                         <button
                           type="button"

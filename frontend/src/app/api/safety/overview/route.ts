@@ -63,7 +63,7 @@ export async function GET(req: Request) {
     assertServiceRoleEnv()
     const admin = getSupabaseAdmin()
 
-    const [eventsRes, risksRes, actionsRes] = await Promise.all([
+    const [eventsRes, risksRes, actionsRes, duplicateLinksRes] = await Promise.all([
       admin
         .from('events')
         .select('id, title, triage_status, investigation_path, event_kind, created_at, reported_at, occurred_at')
@@ -84,25 +84,29 @@ export async function GET(req: Request) {
         .eq('tenant_id', user.tenantId)
         .order('created_at', { ascending: false })
         .limit(MAX_ROWS),
+      admin.from('event_duplicate_links')
+        .select('duplicate_event_id').eq('tenant_id', user.tenantId),
     ])
-    if (eventsRes.error || risksRes.error || actionsRes.error) {
+    if (eventsRes.error || risksRes.error || actionsRes.error || duplicateLinksRes.error) {
       console.error('[/api/safety/overview]', {
         requestId,
         eventsError: eventsRes.error?.message,
         risksError: risksRes.error?.message,
         actionsError: actionsRes.error?.message,
+        duplicatesError: duplicateLinksRes.error?.message,
       })
       return jsonError('Não foi possível consolidar o Safety Intelligence.', 500)
     }
 
-    const events = (eventsRes.data ?? []) as EventRow[]
+    const confirmedDuplicateIds = new Set((duplicateLinksRes.data ?? []).map((link) => link.duplicate_event_id))
+    const events = ((eventsRes.data ?? []) as EventRow[]).filter((event) => !confirmedDuplicateIds.has(event.id))
     const activeEventIds = new Set(events.map((event) => event.id))
     const risks = ((risksRes.data ?? []) as RiskRow[]).filter((row) => activeEventIds.has(row.event_id))
     const actions = ((actionsRes.data ?? []) as ActionRow[]).filter(
       (row) => !!row.source_event_id && activeEventIds.has(row.source_event_id),
     )
     const truncated = {
-      events: events.length >= MAX_ROWS,
+      events: (eventsRes.data?.length ?? 0) >= MAX_ROWS,
       risks: (risksRes.data?.length ?? 0) >= MAX_ROWS,
       actions: (actionsRes.data?.length ?? 0) >= MAX_ROWS,
     }
@@ -170,6 +174,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       generated_at: new Date().toISOString(),
+      confirmed_duplicates_excluded: confirmedDuplicateIds.size,
       truncated,
       events: {
         total_active: events.length,
