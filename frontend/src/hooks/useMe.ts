@@ -8,6 +8,7 @@ export interface Me {
   role: string
   isAdmin: boolean
   isUnlimited: boolean
+  verified: boolean
   loading: boolean
 }
 
@@ -17,6 +18,7 @@ const DEFAULT: Me = {
   role: 'member',
   isAdmin: false,
   isUnlimited: false,
+  verified: false,
   loading: true,
 }
 
@@ -44,6 +46,7 @@ export function useMe(): Me {
           role: json.role ?? 'member',
           isAdmin: Boolean(json.is_admin),
           isUnlimited,
+          verified: true,
           loading: false,
         })
       } catch (error) {

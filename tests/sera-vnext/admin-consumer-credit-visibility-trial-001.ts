@@ -2,9 +2,10 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { shouldShowConsumerCredits } from '../../frontend/src/lib/product/consumer-credit-visibility'
 
-assert.equal(shouldShowConsumerCredits({ loading:true, isAdmin:false }), false, 'Never show the trial card before the verified role loads')
-assert.equal(shouldShowConsumerCredits({ loading:false, isAdmin:true }), false, 'Administrators must not see customer credits')
-assert.equal(shouldShowConsumerCredits({ loading:false, isAdmin:false }), true, 'Ordinary accounts retain billing/trial visibility')
+assert.equal(shouldShowConsumerCredits({ loading:true, verified:false, isAdmin:false }), false, 'Never show the trial card before the verified role loads')
+assert.equal(shouldShowConsumerCredits({ loading:false, verified:true, isAdmin:true }), false, 'Administrators must not see customer credits')
+assert.equal(shouldShowConsumerCredits({ loading:false, verified:false, isAdmin:false }), false, 'A failed role check must never show customer billing')
+assert.equal(shouldShowConsumerCredits({ loading:false, verified:true, isAdmin:false }), true, 'Ordinary accounts retain billing/trial visibility')
 
 const dashboard = readFileSync('frontend/src/app/(dashboard)/dashboard/page.tsx','utf8')
 const sidebar = readFileSync('frontend/src/app/(dashboard)/layout.tsx','utf8')
