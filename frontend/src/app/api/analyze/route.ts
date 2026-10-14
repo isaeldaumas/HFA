@@ -53,6 +53,7 @@ async function persistCanonicalResult(args: {
   title: string
   narrative: string
   mode: 'INITIAL' | 'REANALYSIS'
+  existingAnalysisId?: string
   tenantId: string
   publicUserId: string
   authUserId: string
@@ -69,6 +70,7 @@ async function persistCanonicalResult(args: {
     title: args.title,
     narrative: args.narrative,
     mode: args.mode,
+    existingAnalysisId: args.existingAnalysisId,
     locale: args.locale ?? 'pt-BR',
     supplementalEvidence: args.supplementalEvidence,
     context: {
@@ -174,7 +176,7 @@ export async function POST(req: Request) {
 
       const { data: vnextHistory } = await admin
         .from('sera_vnext_analyses')
-        .select('narrative, engine_input')
+        .select('id, narrative, engine_input')
         .eq('tenant_id', user.tenantId)
         .eq('source_reference', body.eventId)
         .is('deleted_at', null)
@@ -249,6 +251,7 @@ export async function POST(req: Request) {
           title: String(ev.title ?? body.title ?? `SERA ${body.eventId}`),
           narrative: analysisNarrative,
           mode: firstHfaAnalysis ? 'INITIAL' : 'REANALYSIS',
+          existingAnalysisId: latestVNext?.id ?? undefined,
           tenantId: user.tenantId,
           publicUserId: submittedById,
           authUserId: user.userId,

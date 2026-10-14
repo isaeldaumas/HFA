@@ -12,6 +12,18 @@ interface ReviewHistory {
   review_notes: string | null
   metadata: { basedOnEngineRevision?: number } | null
 }
+interface EngineRevisionHistory {
+  eventVersion: number
+  engineRevision: number
+  analysisId: string
+  distinctLegacyAnalysis: boolean
+  createdAt: string
+  createdBy: string
+  reason: string
+  escapePoint: string | null
+  actor: string | null
+  poa: string
+}
 interface ReviewSummary {
   analysisId: string
   status: string
@@ -20,6 +32,7 @@ interface ReviewSummary {
   evidenceBlocked: boolean
   canReview: boolean
   reviews: ReviewHistory[]
+  revisions: EngineRevisionHistory[]
 }
 
 const labels: Record<string, string> = {
@@ -94,12 +107,24 @@ export function EventHumanReviewPanel({ eventId, analysisId, token }: {
         <h2 className="text-base font-semibold text-white">Revisões humanas — histórico auditável</h2>
         <p className="mt-1 text-xs leading-relaxed text-slate-400">
           Revisões sucessivas do mesmo evento, sem substituir decisões anteriores. Nenhuma decisão libera códigos P/O/A definitivos.
-          Para o CAL-17, o segundo registro deve ser feito por outro analista autorizado, com justificativa própria.
+          A autoria, a justificativa e a versão da análise são preservadas para auditoria.
         </p>
       </div>
       {summary && (
         <>
-          <p className="text-xs text-slate-400">Análise SERA · versão do motor {summary.engineRevision} · {summary.reviews.length} decisão(ões) humana(s) registrada(s)</p>
+          <div className="rounded-lg border border-slate-700 bg-slate-950/40 p-3 space-y-2">
+            <h3 className="text-sm font-semibold text-white">Histórico de versões da análise SERA</h3>
+            <p className="text-xs text-slate-400">Versões sucessivas do mesmo evento. As evidências e os resultados anteriores permanecem disponíveis para auditoria.</p>
+            {summary.revisions?.map((revision) => (
+              <div key={`${revision.analysisId}-${revision.engineRevision}`} className="rounded-md border border-slate-700 p-3 text-xs text-slate-300 space-y-1">
+                <p><strong>Versão do evento {revision.eventVersion}</strong> · {new Date(revision.createdAt).toLocaleString('pt-BR')} · P/O/A: {revision.poa}</p>
+                <p>Ator: {revision.actor ?? 'Não identificado'} · Ponto de fuga: {revision.escapePoint ?? 'Não estabelecido'}</p>
+                <p>Revisão {revision.engineRevision} da análise · Autor ID: {revision.createdBy}</p>
+                {revision.distinctLegacyAnalysis && <p className="text-amber-200">Histórico legado preservado em registro de análise separado.</p>}
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-slate-400">Análise SERA · revisão atual {summary.engineRevision} · {summary.reviews.length} decisão(ões) humana(s) registrada(s)</p>
           {summary.reviews.length === 0 ? (
             <p className="text-sm text-amber-200">Nenhuma revisão humana salva até agora. A classificação automática não é uma decisão humana.</p>
           ) : (

@@ -310,7 +310,7 @@ function confidenceLabel(value: string | undefined | null, pt: boolean): string 
 
 function landmarkRelationshipLabel(value: SeraVNextEngineOutput['escapePoint']['anchorBasis'], pt: boolean): string {
   if (value === 'FIRST_DEPARTURE_AND_CRITICAL_ACT') return pt ? 'Coincidem no mesmo ato/condição.' : 'Both landmarks coincide in the same act/condition.'
-  if (value === 'FIRST_DEPARTURE_PRIMARY') return pt ? 'O ponto de fuga SERA é o primeiro desvio seguro→inseguro e ancora P/O/A; o ato crítico posterior é preservado apenas como evolução da ocorrência.' : 'The SERA escape point is the first safe→unsafe departure and anchors P/O/A; the later critical act is retained only as occurrence evolution.'
+  if (value === 'FIRST_DEPARTURE_PRIMARY') return pt ? 'O ponto de fuga SERA é o primeiro desvio seguro para inseguro e ancora P/O/A; o ato crítico posterior é preservado apenas como evolução da ocorrência.' : 'The SERA escape point is the first safe-to-unsafe departure and anchors P/O/A; the later critical act is retained only as occurrence evolution.'
   if (value === 'FIRST_DEPARTURE_ONLY') return pt ? 'Foi identificado apenas o primeiro desvio da operação segura.' : 'Only the first departure from safe operation was established.'
   return pt ? 'Relação ainda não determinada.' : 'Relationship not yet resolved.'
 }
@@ -746,8 +746,8 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     doc.addPage({ size: 'A4', layout: 'portrait', margin: 44 })
     heading(doc, '1. ' + L('Sequência da ocorrência e ponto de fuga', 'Occurrence sequence and escape point'))
     body(doc, L(
-      'A leitura abaixo organiza a sequência relevante para a análise: operação segura esperada, ponto de fuga SERA (primeira saída seguro→inseguro e única âncora P/O/A), evolução crítica posterior quando existente e desfecho.',
-      'The sequence below separates the safe state, the SERA escape point (first safe→unsafe departure and sole P/O/A anchor), later critical evolution when present, and the outcome.',
+      'A leitura abaixo organiza a sequência relevante para a análise: operação segura esperada, ponto de fuga SERA (primeira saída seguro para inseguro e única âncora P/O/A), evolução crítica posterior quando existente e desfecho.',
+      'The sequence below separates the safe state, the SERA escape point (first safe-to-unsafe departure and sole P/O/A anchor), later critical evolution when present, and the outcome.',
     ), 'justify')
     doc.moveDown(0.55)
 
@@ -759,7 +759,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
     infoCard(doc, L('Ponto de fuga SERA', 'SERA escape point'), value(output.escapePoint.firstDepartureCandidate ?? output.escapePoint.earliestCandidate), {
       accent: PDF_COLORS.amber,
       fill: '#FFF9EC',
-      label: L('2  -  primeira saída seguro → inseguro / âncora P/O/A', '2  -  first safe → unsafe departure / P/O/A anchor'),
+      label: L('2  -  primeira saída seguro para inseguro / âncora P/O/A', '2  -  first safe-to-unsafe departure / P/O/A anchor'),
     })
     infoCard(doc, L('Evolução crítica posterior', 'Later critical evolution'), value(distinctLaterLandmark(output), L('Nenhum ato crítico posterior distinto foi estabelecido.', 'No distinct later critical act was established.')), {
       accent: PDF_COLORS.red,

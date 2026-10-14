@@ -151,11 +151,22 @@ export function buildBlockingDiagnostic(args: {
   const safeReferenceMissing = isMissingReference(args.output.safeOperationModel.expectedSafeState)
     && isMissingReference(args.output.safeOperationModel.expectedSafeAction)
 
-  const internalDiagnosticPattern = /\b(independent semantic human-factor gate|human safe.?unsafe departure|hendy gate|operator-controlled unsafe condition)\b/i
-  const fallbackEvidence = [
+  const internalDiagnosticPattern = /\b(independent semantic human-factor gate|human safe.?unsafe departure|hendy gate|operator-controlled unsafe condition|no explicit consequence boundary|multiple departure candidates|first departure from safe operation|later critical unsafe act)\b/i
+  // Engine counter-evidence may contain internal English control messages. For a
+  // Portuguese report, cite the user's actual record gaps, not those diagnostics.
+  const narrativeGaps = sentences.filter((item) =>
+    /(?:n[aã]o (?:informa|descreve|esclarece|identifica|se sabe|h[aá]|foi registrado)|sem (?:registro|depoimentos?|grava[cç][aã]o)|faltam? (?:dados|registros)|inform[aç][cã]o insuficiente)/i.test(item),
+  ).slice(0, 3)
+  const engineEvidence = [
     ...args.output.escapePoint.counterEvidence,
     ...args.output.evidenceSufficiency.questions.flatMap((question) => question.requestedEvidence.map((item) => `${question.whyNeeded} — ${item}`)),
-  ].filter((item, index, all) => item && !internalDiagnosticPattern.test(item) && all.indexOf(item) === index).slice(0, 3)
+  ].filter((item) => item && !internalDiagnosticPattern.test(item)
+    && (!pt || !/\b(the|was|were|which|requires|must|candidate|departure|operational|safe|unsafe|detected|inside|review)\b/i.test(item)))
+  const fallbackEvidence = [...new Set([
+    ...(pt ? narrativeGaps : []),
+    ...engineEvidence,
+    ...(pt ? ['O relato não demonstra qual ação, decisão, omissão ou percepção humana iniciou o desvio.'] : []),
+  ])].slice(0, 3)
 
   if (conflictEvidence.length) {
     return {

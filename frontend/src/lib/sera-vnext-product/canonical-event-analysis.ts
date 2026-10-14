@@ -1,5 +1,6 @@
 import type { SeraVNextCreateAnalysisInput, SeraVNextCreateAnalysisResult, SeraVNextProductContext } from '@/lib/sera-vnext-product/types'
 import { createSeraVNextAnalysis } from '@/lib/sera-vnext-product/persistence/create-analysis'
+import { reanalyzeSeraVNextAnalysis } from '@/lib/sera-vnext-product/persistence/reanalyze-analysis'
 
 type CanonicalEventMode = 'INITIAL' | 'REANALYSIS'
 
@@ -150,7 +151,24 @@ export async function createCanonicalEventAnalysis(args: {
   supplementalEvidence?: SeraVNextCreateAnalysisInput['supplementalEvidence']
   context: SeraVNextProductContext
   create?: typeof createSeraVNextAnalysis
+  existingAnalysisId?: string
+  reanalyze?: typeof reanalyzeSeraVNextAnalysis
 }): Promise<SeraVNextCreateAnalysisResult> {
+  if (args.mode === 'REANALYSIS' && args.existingAnalysisId) {
+    const reanalyze = args.reanalyze ?? reanalyzeSeraVNextAnalysis
+    const result = await reanalyze({
+      analysisId: args.existingAnalysisId,
+      updatedNarrative: args.narrative,
+      carriedSupplementalEvidence: args.supplementalEvidence,
+      locale: args.locale,
+      reason: 'canonical_event_new_evidence',
+      context: args.context,
+    })
+    if (result.analysis.source_reference !== args.eventId) {
+      throw new Error('SERA_CANONICAL_REANALYSIS_EVENT_IDENTITY_MISMATCH')
+    }
+    return { analysis: result.analysis, revision: result.revision, idempotent: false }
+  }
   const create = args.create ?? createSeraVNextAnalysis
   return create({
     input: buildCanonicalEventAnalysisInput({

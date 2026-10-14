@@ -44,7 +44,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
     const submittedNarrative = typeof raw.eventoNarrativa === 'string' ? raw.eventoNarrativa : null
     const { data: vnextHistory } = await admin
       .from('sera_vnext_analyses')
-      .select('narrative, engine_input')
+      .select('id, narrative, engine_input')
       .eq('tenant_id', user.tenantId)
       .eq('source_reference', eventId)
       .is('deleted_at', null)
@@ -66,6 +66,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
       title: String(event.title ?? `SERA ${eventId}`),
       narrative,
       mode: 'REANALYSIS',
+      existingAnalysisId: latestVNext?.id ?? undefined,
       locale,
       supplementalEvidence: mergeCanonicalSupplementalEvidence((vnextHistory ?? []).map((item) => item.engine_input)),
       context: {

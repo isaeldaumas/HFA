@@ -1,7 +1,7 @@
 import { runSeraVNextEngineV0 } from '@/lib/sera-vnext/engine-v0/run-engine'
 import { enrichSeraNarrativeSemantically, enrichSeraPoaSemantically, mergeFocusedPoaSemanticEvidence } from '@/lib/sera-vnext/ai/semantic-enrichment'
 import { notFound, SeraVNextProductError } from '../errors'
-import { hashJson } from '../hashing'
+import { hashJson, sha256Hex } from '../hashing'
 import { assertValidAnalysisTransition } from '../transitions'
 import type { SeraVNextClarificationResponse, SeraVNextProductContext } from '../types'
 import type { SeraVNextEngineInput } from '@/lib/sera-vnext/engine-contract'
@@ -12,6 +12,7 @@ import { createSeraVNextProductRepository, type SeraVNextProductRepository } fro
 export async function reanalyzeSeraVNextAnalysis(args: {
   analysisId: string
   reason?: string
+  updatedNarrative?: string
   clarificationResponses?: SeraVNextClarificationResponse[]
   carriedSupplementalEvidence?: SeraVNextEngineInput['supplementalEvidence']
   locale?: 'pt-BR' | 'en'
@@ -21,11 +22,16 @@ export async function reanalyzeSeraVNextAnalysis(args: {
   const repository = args.repository ?? createSeraVNextProductRepository()
   const analysis = await repository.getAnalysis(args.context.tenantId, args.analysisId)
   if (!analysis) throw notFound()
-  if (analysis.status !== 'RETURNED_FOR_REANALYSIS' && analysis.status !== 'REQUIRES_MORE_EVIDENCE') {
-    throw new Error('SERA_VNEXT_PRODUCT_BETA_REANALYSIS_REQUIRES_RETURNED_OR_MORE_EVIDENCE')
+  if (analysis.status === 'ARCHIVED') {
+    throw new SeraVNextProductError('SERA_REANALYSIS_ARCHIVED', 'Análises arquivadas não podem ser reprocessadas.', 409)
   }
 
   const clarificationResponses = args.clarificationResponses ?? []
+  const narrative = args.updatedNarrative?.trim() || analysis.narrative
+  const hasNewNarrative = narrative !== analysis.narrative
+  if (hasNewNarrative && !narrative.startsWith(analysis.narrative)) {
+    throw new SeraVNextProductError('SERA_REANALYSIS_MUST_PRESERVE_ORIGINAL', 'O relato e as evidências anteriores devem ser preservados integralmente.', 422)
+  }
   await createAuditEvent({
     repository,
     context: args.context,
@@ -37,7 +43,7 @@ export async function reanalyzeSeraVNextAnalysis(args: {
   })
 
   const versions = getSeraVNextProductVersionSet()
-  if (analysis.status === 'REQUIRES_MORE_EVIDENCE' && clarificationResponses.length === 0) {
+  if (analysis.status === 'REQUIRES_MORE_EVIDENCE' && clarificationResponses.length === 0 && !hasNewNarrative) {
     throw new SeraVNextProductError(
       'SERA_VNEXT_CLARIFICATION_RESPONSE_REQUIRED',
       'Esta análise requer evidência adicional antes de uma nova execução.',
@@ -92,11 +98,11 @@ export async function reanalyzeSeraVNextAnalysis(args: {
   }
   const locale = args.locale ?? analysis.engine_input.locale ?? 'pt-BR'
   let semantic = analysis.source_flow === 'VNEXT_CANONICAL'
-    ? await enrichSeraNarrativeSemantically({ narrative: analysis.narrative, locale })
+    ? await enrichSeraNarrativeSemantically({ narrative, locale })
     : null
   let engineInput: SeraVNextEngineInput = {
     ...analysis.engine_input,
-    narrative: analysis.narrative,
+    narrative,
     locale,
     supplementalEvidence,
     semanticEvidence: semantic?.annotations ?? analysis.engine_input.semanticEvidence,
@@ -121,7 +127,7 @@ export async function reanalyzeSeraVNextAnalysis(args: {
   if (needsFocusedPoa && semantic && escapePoint && engineOutput.directActor.actor) {
     try {
       const focused = await enrichSeraPoaSemantically({
-        narrative: analysis.narrative,
+        narrative,
         locale,
         escapePoint,
         directActor: engineOutput.directActor.actor,
@@ -156,6 +162,11 @@ export async function reanalyzeSeraVNextAnalysis(args: {
       console.warn('[SERA semantic P/O/A focus] falling back to primary semantic pass during reanalysis', error instanceof Error ? error.message : String(error))
     }
   }
+  if (engineOutput.selectedCode !== null || engineOutput.releasedCode !== null
+    || engineOutput.finalConclusion !== null || engineOutput.downstreamAllowed !== false
+    || engineOutput.classifiedOutput !== false || engineOutput.readyPromotion !== false) {
+    throw new Error('SERA_REANALYSIS_FINAL_OUTPUT_LOCK_VIOLATED')
+  }
   const nextStatus = engineOutput.evidenceSufficiency.status === 'NEEDS_CLARIFICATION'
     ? 'REQUIRES_MORE_EVIDENCE' as const
     : 'CANDIDATE_ANALYSIS_CREATED' as const
@@ -172,7 +183,7 @@ export async function reanalyzeSeraVNextAnalysis(args: {
     request_id: args.context.requestId,
     engine_version: versions.engineVersion,
     engine_runtime_version: versions.engineRuntimeVersion,
-    source_flow: versions.sourceFlow,
+    source_flow: analysis.source_flow ?? versions.sourceFlow,
     engine_input: engineInput,
     engine_output: engineOutput,
     engine_output_hash: outputHash,
@@ -180,6 +191,9 @@ export async function reanalyzeSeraVNextAnalysis(args: {
     metadata: {
       source: 'product_beta_reanalyze',
       clarificationResponses,
+      previousNarrativeHash: analysis.narrative_hash,
+      updatedNarrativeHash: sha256Hex(narrative),
+      additionalNarrativeEvidenceApplied: hasNewNarrative,
       evidenceSufficiencyStatus: engineOutput.evidenceSufficiency.status,
       provenance: {
         codeCommit: versions.codeCommit,
@@ -192,6 +206,8 @@ export async function reanalyzeSeraVNextAnalysis(args: {
   })
 
   const updated = await repository.updateAnalysis(args.context.tenantId, analysis.id, {
+    narrative,
+    narrative_hash: sha256Hex(narrative),
     status: nextStatus,
     review_status: nextReviewStatus,
     request_id: args.context.requestId,
@@ -203,7 +219,7 @@ export async function reanalyzeSeraVNextAnalysis(args: {
     input_schema_version: versions.inputSchemaVersion,
     output_schema_version: versions.outputSchemaVersion,
     code_commit: versions.codeCommit,
-    source_flow: versions.sourceFlow,
+    source_flow: analysis.source_flow ?? versions.sourceFlow,
     canonical_tree_version: versions.canonicalTreeVersion,
     engine_input: engineInput,
     engine_output: engineOutput,
@@ -229,6 +245,7 @@ export async function reanalyzeSeraVNextAnalysis(args: {
     toStatus: nextStatus,
     payload: {
       revisionNumber: nextRevision,
+      additionalNarrativeEvidenceApplied: hasNewNarrative,
       clarificationResponsesCount: clarificationResponses.length,
       clarificationQuestionIds: clarificationResponses.map((item) => item.questionId),
       evidenceSufficiencyStatus: engineOutput.evidenceSufficiency.status,

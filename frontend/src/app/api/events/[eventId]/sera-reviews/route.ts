@@ -57,9 +57,38 @@ export async function GET(req: Request, ctx: Context) {
     const { user, analysis } = await resolveEventAnalysis(req, eventId, analysisId)
     if (!analysis) return NextResponse.json({ detail: 'Análise não encontrada neste evento.' }, { status: 404 })
     const reviews = await getHistory(analysis.id, user.tenantId)
+    // Event-level chronology also displays earlier legacy reanalyses saved as
+    // distinct analysis IDs; newer reanalyses must append to one analysis ID.
+    const admin = getSupabaseAdmin()
+    const { data: relatedAnalyses, error: relatedError } = await admin.from('sera_vnext_analyses')
+      .select('id').eq('tenant_id', user.tenantId).eq('source_reference', eventId)
+      .is('deleted_at', null).order('created_at', { ascending: true }).limit(50)
+    if (relatedError) throw new Error('SERA_EVENT_HISTORY_LOOKUP_FAILED')
+    const relatedIds = (relatedAnalyses ?? []).map((item) => item.id)
+    const { data: storedRevisions, error: revisionsError } = relatedIds.length
+      ? await admin.from('sera_vnext_analysis_revisions')
+        .select('analysis_id, revision_number, created_at, created_by, reason, engine_output')
+        .eq('tenant_id', user.tenantId).in('analysis_id', relatedIds)
+        .order('created_at', { ascending: true }).limit(100)
+      : { data: [], error: null }
+    if (revisionsError) throw new Error('SERA_EVENT_REVISIONS_LOOKUP_FAILED')
+    const revisions = (storedRevisions ?? []).map((revision, index) => ({
+      eventVersion: index + 1,
+      engineRevision: revision.revision_number,
+      analysisId: revision.analysis_id,
+      distinctLegacyAnalysis: revision.analysis_id !== analysis.id,
+      createdAt: revision.created_at,
+      createdBy: revision.created_by,
+      reason: revision.reason,
+      escapePoint: revision.engine_output?.escapePoint?.statement ?? null,
+      actor: revision.engine_output?.directActor?.actor ?? null,
+      poa: [revision.engine_output?.axes?.perception?.proposedCode ?? '—',
+        revision.engine_output?.axes?.objective?.proposedCode ?? '—',
+        revision.engine_output?.axes?.action?.proposedCode ?? '—'].join(' / '),
+    }))
     return NextResponse.json({ analysisId: analysis.id, status: analysis.status, reviewStatus: analysis.review_status,
       engineRevision: analysis.current_revision, evidenceBlocked: analysis.engine_output?.evidenceSufficiency?.status === 'NEEDS_CLARIFICATION',
-      canReview: writerRoles.has(String(user.role).toLowerCase()), reviews }, { headers: { 'Cache-Control': 'no-store', 'x-request-id': requestId } })
+      canReview: writerRoles.has(String(user.role).toLowerCase()), reviews, revisions }, { headers: { 'Cache-Control': 'no-store', 'x-request-id': requestId } })
   } catch (error) { return failure(error, requestId) }
 }
 
