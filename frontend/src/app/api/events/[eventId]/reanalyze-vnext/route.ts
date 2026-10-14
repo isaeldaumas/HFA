@@ -4,7 +4,8 @@ import { getSupabaseAdmin } from '@/lib/server/supabase-admin'
 import { applyUserAiSettingsToEnv } from '@/lib/server/apply-user-ai-settings-to-env'
 import { getOrCreateRequestId } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
-import { canonicalAnalyzeResponse, createCanonicalEventAnalysis, mergeCanonicalReanalysisNarrative, mergeCanonicalSupplementalEvidence } from '@/lib/sera-vnext-product/canonical-event-analysis'
+import { SeraVNextProductError } from '@/lib/sera-vnext-product/errors'
+import { canonicalAnalyzeResponse, classifyCanonicalReanalysisEvidence, createCanonicalEventAnalysis, mergeCanonicalReanalysisNarrative, mergeCanonicalSupplementalEvidence } from '@/lib/sera-vnext-product/canonical-event-analysis'
 
 export const maxDuration = 300
 
@@ -42,23 +43,43 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
       raw.newInformation,
     ].find((value) => typeof value === 'string' && value.trim().length > 0)
     const submittedNarrative = typeof raw.eventoNarrativa === 'string' ? raw.eventoNarrativa : null
-    const { data: vnextHistory } = await admin
+    const { data: vnextHistory, error: historyError } = await admin
       .from('sera_vnext_analyses')
-      .select('id, narrative, engine_input')
+      .select('id, narrative, engine_input, status, current_revision')
       .eq('tenant_id', user.tenantId)
       .eq('source_reference', eventId)
       .is('deleted_at', null)
       .order('updated_at', { ascending: false })
       .limit(20)
+    if (historyError) throw new Error('VNEXT_REANALYZE_HISTORY_LOOKUP_FAILED')
     const latestVNext = vnextHistory?.[0] ?? null
+    const previousNarrative = String(latestVNext?.narrative ?? event.raw_input ?? '')
     const narrative = mergeCanonicalReanalysisNarrative({
-      baseNarrative: String(latestVNext?.narrative ?? event.raw_input ?? ''),
+      baseNarrative: previousNarrative,
       submittedNarrative,
       originalNarrative: String(event.raw_input ?? ''),
       additionalInformation: typeof additionalInformation === 'string' ? additionalInformation : null,
     })
     if (!narrative) {
       return jsonError(requestId, 'VNEXT_REANALYZE_NO_EVIDENCE', 'O evento não possui relato original disponível.', 422)
+    }
+    const evidenceChange = classifyCanonicalReanalysisEvidence({
+      previousNarrative,
+      updatedNarrative: narrative,
+      suppliedNewInformation: Boolean(additionalInformation || submittedNarrative),
+    })
+    if (latestVNext && evidenceChange === 'ALREADY_APPLIED') {
+      return NextResponse.json({
+        event_id: eventId,
+        analysis_id: latestVNext.id,
+        revision_number: latestVNext.current_revision,
+        alreadyApplied: true,
+        message: 'Essa evidência já está registrada nesta análise. Nenhuma nova revisão foi criada.',
+      }, { headers: { 'x-request-id': requestId, 'Cache-Control': 'no-store' } })
+    }
+    if (latestVNext && evidenceChange === 'NO_NEW_EVIDENCE' && latestVNext.status === 'REQUIRES_MORE_EVIDENCE') {
+      return jsonError(requestId, 'VNEXT_REANALYZE_NEEDS_NEW_EVIDENCE',
+        'A análise está bloqueada por evidência insuficiente. Informe fatos novos para reanalisar.', 422)
     }
 
     const result = await createCanonicalEventAnalysis({
@@ -115,6 +136,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
     )
   } catch (error) {
     if (error instanceof Response) return error
+    if (error instanceof SeraVNextProductError) return jsonError(requestId, error.code, error.message, error.status)
     console.error('[reanalyze-vnext] unexpected error', { requestId, errorType: error instanceof Error ? error.name : typeof error })
     return jsonError(requestId, 'VNEXT_REANALYZE_INTERNAL_ERROR', 'Não foi possível reanalisar o evento.', 500)
   }

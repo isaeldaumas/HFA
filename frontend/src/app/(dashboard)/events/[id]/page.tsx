@@ -380,6 +380,7 @@ export default function EventDetailPage() {
   const [vnextPdfState, setVnextPdfState] = useState<PdfState>('idle')
   const [vnextReanalyzeState, setVnextReanalyzeState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [vnextReanalyzeError, setVnextReanalyzeError] = useState<string | null>(null)
+  const [vnextReanalyzeNotice, setVnextReanalyzeNotice] = useState<string | null>(null)
   const [firstHfaState, setFirstHfaState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [firstHfaError, setFirstHfaError] = useState<string | null>(null)
   const [vnextAdditionalInformation, setVnextAdditionalInformation] = useState('')
@@ -475,6 +476,7 @@ export default function EventDetailPage() {
     if (!event || !token) return
     setVnextReanalyzeState('loading')
     setVnextReanalyzeError(null)
+    setVnextReanalyzeNotice(null)
     try {
       const res = await fetch(`/api/events/${event.id}/reanalyze-vnext`, {
         method: 'POST',
@@ -490,6 +492,7 @@ export default function EventDetailPage() {
       setEvent(refreshed)
       if (refreshed?.analyses) setAnalysis(refreshed.analyses)
       setVnextAdditionalInformation('')
+      setVnextReanalyzeNotice(json?.alreadyApplied ? String(json.message) : 'Reanálise registrada. O histórico anterior foi preservado.')
       setVnextReanalyzeState('done')
       setTimeout(() => setVnextReanalyzeState('idle'), 3000)
     } catch (error) {
@@ -986,7 +989,7 @@ export default function EventDetailPage() {
               {vnextReanalyzeError && <p className="text-xs text-red-300">{vnextReanalyzeError}</p>}
               {vnextReanalyzeState === 'done' && (
                 <p className="text-xs text-emerald-300">
-                  {locale === 'pt-BR' ? 'Reanálise registrada. O histórico anterior foi preservado.' : 'Analysis updated. New information was incorporated into the reanalysis.'}
+                  {vnextReanalyzeNotice ?? (locale === 'pt-BR' ? 'Reanálise registrada. O histórico anterior foi preservado.' : 'Analysis updated. Prior version history was preserved.')}
                 </p>
               )}
             </div>
@@ -995,7 +998,7 @@ export default function EventDetailPage() {
       )}
 
       {event.vnext_analysis && !event.deleted_at && token && (
-        <EventHumanReviewPanel eventId={event.id} analysisId={event.vnext_analysis.id} token={token} />
+        <EventHumanReviewPanel key={`${event.vnext_analysis.id}:${event.vnext_analysis.updated_at ?? ''}`} eventId={event.id} analysisId={event.vnext_analysis.id} token={token} />
       )}
 
       {event.vnext_analysis?.engine_output && (

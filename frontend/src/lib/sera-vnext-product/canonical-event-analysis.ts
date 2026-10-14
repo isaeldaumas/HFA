@@ -5,6 +5,18 @@ import { reanalyzeSeraVNextAnalysis } from '@/lib/sera-vnext-product/persistence
 type CanonicalEventMode = 'INITIAL' | 'REANALYSIS'
 
 
+/** Distinguish new factual evidence from a retry of evidence already recorded.
+ * Reprocessing the engine intentionally (without additional information) is separate.
+ */
+export function classifyCanonicalReanalysisEvidence(args: {
+  previousNarrative: string
+  updatedNarrative: string
+  suppliedNewInformation: boolean
+}): 'NEW_EVIDENCE' | 'ALREADY_APPLIED' | 'NO_NEW_EVIDENCE' {
+  if (args.updatedNarrative.trim() !== args.previousNarrative.trim()) return 'NEW_EVIDENCE'
+  return args.suppliedNewInformation ? 'ALREADY_APPLIED' : 'NO_NEW_EVIDENCE'
+}
+
 export function mergeCanonicalReanalysisNarrative(args: {
   baseNarrative: string
   submittedNarrative?: string | null
