@@ -5,6 +5,7 @@ import { applyUserAiSettingsToEnv } from '@/lib/server/apply-user-ai-settings-to
 import { getOrCreateRequestId } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
 import { SeraVNextProductError } from '@/lib/sera-vnext-product/errors'
+import { SERA_ENGINE_REFRESH_EPOCH, canReprocessCurrentEngine } from '@/lib/sera-vnext-product/engine-refresh'
 import { canonicalAnalyzeResponse, classifyCanonicalReanalysisEvidence, createCanonicalEventAnalysis, mergeCanonicalReanalysisNarrative, mergeCanonicalSupplementalEvidence } from '@/lib/sera-vnext-product/canonical-event-analysis'
 
 export const maxDuration = 300
@@ -68,6 +69,39 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
       updatedNarrative: narrative,
       suppliedNewInformation: Boolean(additionalInformation || submittedNarrative),
     })
+    const requestedEngineRefresh = raw.reprocessCurrentEngine === true
+    if (requestedEngineRefresh && evidenceChange !== 'NO_NEW_EVIDENCE') {
+      return jsonError(requestId, 'VNEXT_REPROCESS_REQUIRES_UNCHANGED_EVIDENCE',
+        'Reprocessamento do motor não aceita fatos novos. Utilize a reanálise de evidências para acrescentar informações.', 422)
+    }
+    if (requestedEngineRefresh && !['admin', 'analyst'].includes(String(user.role).toLowerCase())) {
+      return jsonError(requestId, 'VNEXT_REPROCESS_ROLE_FORBIDDEN',
+        'Reprocessamento metodológico restrito a analistas e administradores.', 403)
+    }
+    if (requestedEngineRefresh && !latestVNext) {
+      return jsonError(requestId, 'VNEXT_REPROCESS_NO_PREVIOUS_ANALYSIS',
+        'Não existe análise anterior para reprocessar. Execute a primeira análise HFA.', 409)
+    }
+    if (requestedEngineRefresh && latestVNext) {
+      const { data: previousRevision, error: previousRevisionError } = await admin
+        .from('sera_vnext_analysis_revisions')
+        .select('metadata')
+        .eq('analysis_id', latestVNext.id)
+        .eq('tenant_id', user.tenantId)
+        .order('revision_number', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (previousRevisionError) throw new Error('VNEXT_REPROCESS_REVISION_LOOKUP_FAILED')
+      if (!canReprocessCurrentEngine({
+        requested: requestedEngineRefresh,
+        hasNewEvidence: false,
+        lastEngineRefreshEpoch: typeof previousRevision?.metadata?.engineRefreshEpoch === 'string'
+          ? previousRevision.metadata.engineRefreshEpoch : null,
+      })) {
+        return jsonError(requestId, 'VNEXT_REPROCESS_ALREADY_CURRENT',
+          'Este evento já foi reprocessado com a correção atual do motor. Nenhuma nova revisão foi criada.', 409)
+      }
+    }
     if (latestVNext && evidenceChange === 'ALREADY_APPLIED') {
       return NextResponse.json({
         event_id: eventId,
@@ -77,7 +111,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
         message: 'Essa evidência já está registrada nesta análise. Nenhuma nova revisão foi criada.',
       }, { headers: { 'x-request-id': requestId, 'Cache-Control': 'no-store' } })
     }
-    if (latestVNext && evidenceChange === 'NO_NEW_EVIDENCE' && latestVNext.status === 'REQUIRES_MORE_EVIDENCE') {
+    if (latestVNext && evidenceChange === 'NO_NEW_EVIDENCE' && latestVNext.status === 'REQUIRES_MORE_EVIDENCE' && !requestedEngineRefresh) {
       return jsonError(requestId, 'VNEXT_REANALYZE_NEEDS_NEW_EVIDENCE',
         'A análise está bloqueada por evidência insuficiente. Informe fatos novos para reanalisar.', 422)
     }
@@ -88,6 +122,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
       narrative,
       mode: 'REANALYSIS',
       existingAnalysisId: latestVNext?.id ?? undefined,
+      reprocessCurrentEngine: requestedEngineRefresh,
       locale,
       supplementalEvidence: mergeCanonicalSupplementalEvidence((vnextHistory ?? []).map((item) => item.engine_input)),
       context: {
@@ -127,6 +162,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
         human_review_required: true,
         evidence_sufficiency_status: result.analysis.engine_output.evidenceSufficiency.status,
         additional_information_applied: Boolean(additionalInformation || submittedNarrative),
+        engine_refresh: requestedEngineRefresh,
+        engine_refresh_epoch: requestedEngineRefresh ? SERA_ENGINE_REFRESH_EPOCH : null,
       },
     })
 

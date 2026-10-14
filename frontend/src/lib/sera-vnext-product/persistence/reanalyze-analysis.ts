@@ -7,11 +7,13 @@ import type { SeraVNextClarificationResponse, SeraVNextProductContext } from '..
 import type { SeraVNextEngineInput } from '@/lib/sera-vnext/engine-contract'
 import { getSeraVNextProductVersionSet } from '../versioning'
 import { createAuditEvent } from './create-audit-event'
+import { SERA_ENGINE_REFRESH_EPOCH } from '../engine-refresh'
 import { createSeraVNextProductRepository, type SeraVNextProductRepository } from './repositories'
 
 export async function reanalyzeSeraVNextAnalysis(args: {
   analysisId: string
   reason?: string
+  reprocessCurrentEngine?: boolean
   updatedNarrative?: string
   clarificationResponses?: SeraVNextClarificationResponse[]
   carriedSupplementalEvidence?: SeraVNextEngineInput['supplementalEvidence']
@@ -43,7 +45,7 @@ export async function reanalyzeSeraVNextAnalysis(args: {
   })
 
   const versions = getSeraVNextProductVersionSet()
-  if (analysis.status === 'REQUIRES_MORE_EVIDENCE' && clarificationResponses.length === 0 && !hasNewNarrative) {
+  if (analysis.status === 'REQUIRES_MORE_EVIDENCE' && clarificationResponses.length === 0 && !hasNewNarrative && !args.reprocessCurrentEngine) {
     throw new SeraVNextProductError(
       'SERA_VNEXT_CLARIFICATION_RESPONSE_REQUIRED',
       'Esta análise requer evidência adicional antes de uma nova execução.',
@@ -194,6 +196,8 @@ export async function reanalyzeSeraVNextAnalysis(args: {
       previousNarrativeHash: analysis.narrative_hash,
       updatedNarrativeHash: sha256Hex(narrative),
       additionalNarrativeEvidenceApplied: hasNewNarrative,
+      engineRefreshEpoch: SERA_ENGINE_REFRESH_EPOCH,
+      reprocessCurrentEngine: args.reprocessCurrentEngine === true,
       evidenceSufficiencyStatus: engineOutput.evidenceSufficiency.status,
       provenance: {
         codeCommit: versions.codeCommit,
@@ -248,6 +252,8 @@ export async function reanalyzeSeraVNextAnalysis(args: {
       additionalNarrativeEvidenceApplied: hasNewNarrative,
       clarificationResponsesCount: clarificationResponses.length,
       clarificationQuestionIds: clarificationResponses.map((item) => item.questionId),
+      engineRefreshEpoch: SERA_ENGINE_REFRESH_EPOCH,
+      reprocessCurrentEngine: args.reprocessCurrentEngine === true,
       evidenceSufficiencyStatus: engineOutput.evidenceSufficiency.status,
       codeCommit: versions.codeCommit,
       codeCommitSource: versions.codeCommitSource,

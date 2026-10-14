@@ -164,6 +164,7 @@ export async function createCanonicalEventAnalysis(args: {
   context: SeraVNextProductContext
   create?: typeof createSeraVNextAnalysis
   existingAnalysisId?: string
+  reprocessCurrentEngine?: boolean
   reanalyze?: typeof reanalyzeSeraVNextAnalysis
 }): Promise<SeraVNextCreateAnalysisResult> {
   if (args.mode === 'REANALYSIS' && args.existingAnalysisId) {
@@ -173,7 +174,8 @@ export async function createCanonicalEventAnalysis(args: {
       updatedNarrative: args.narrative,
       carriedSupplementalEvidence: args.supplementalEvidence,
       locale: args.locale,
-      reason: 'canonical_event_new_evidence',
+      reason: args.reprocessCurrentEngine ? 'canonical_event_engine_refresh' : 'canonical_event_new_evidence',
+      reprocessCurrentEngine: args.reprocessCurrentEngine === true,
       context: args.context,
     })
     if (result.analysis.source_reference !== args.eventId) {

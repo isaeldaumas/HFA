@@ -144,7 +144,7 @@ export function EventHumanReviewPanel({ eventId, analysisId, token }: {
           {summary.canReview && (
             <div className="space-y-3 border-t border-slate-700 pt-4">
               <h3 className="text-sm font-semibold text-white">Registrar {summary.reviews.length === 0 ? 'primeira decisão' : 'nova decisão'} não final</h3>
-              {summary.evidenceBlocked && <p className="text-xs text-amber-200">O ponto de fuga/ator não está comprovado. Não é permitido aceitar uma hipótese como sustentada.</p>}
+              {summary.evidenceBlocked && <p className="text-xs text-amber-200">Há evidência insuficiente em pelo menos uma etapa da análise. A classificação não pode ser aceita integralmente como sustentada até que o bloqueio seja resolvido.</p>}
               <label className="block text-xs font-medium text-slate-300">Decisão do revisor
                 <select value={decision} onChange={(e) => setDecision(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-sm text-white">
                   <option value="REQUIRES_MORE_EVIDENCE">Solicitar mais evidência</option>

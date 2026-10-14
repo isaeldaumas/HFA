@@ -473,8 +473,9 @@ export default function EventDetailPage() {
     }
   }, [event, analysis, token])
 
-  const reanalyzeWithVNext = useCallback(async () => {
+  const reanalyzeWithVNext = useCallback(async (engineRefresh = false) => {
     if (!event || !token) return
+    if (engineRefresh && vnextAdditionalInformation.trim()) return
     setVnextReanalyzeState('loading')
     setVnextReanalyzeError(null)
     setVnextReanalyzeNotice(null)
@@ -482,7 +483,8 @@ export default function EventDetailPage() {
       const res = await fetch(`/api/events/${event.id}/reanalyze-vnext`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ locale, additionalInformation: vnextAdditionalInformation.trim() || undefined }),
+        body: JSON.stringify({ locale, additionalInformation: engineRefresh ? undefined : vnextAdditionalInformation.trim() || undefined,
+          reprocessCurrentEngine: engineRefresh }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -493,7 +495,9 @@ export default function EventDetailPage() {
       setEvent(refreshed)
       if (refreshed?.analyses) setAnalysis(refreshed.analyses)
       setVnextAdditionalInformation('')
-      setVnextReanalyzeNotice(json?.alreadyApplied ? String(json.message) : 'Reanálise registrada. O histórico anterior foi preservado.')
+      setVnextReanalyzeNotice(json?.alreadyApplied ? String(json.message) : (engineRefresh
+        ? 'Motor atualizado aplicado ao mesmo evento. Versão anterior preservada para auditoria.'
+        : 'Reanálise registrada. O histórico anterior foi preservado.'))
       setVnextReanalyzeState('done')
       setTimeout(() => setVnextReanalyzeState('idle'), 3000)
     } catch (error) {
@@ -973,7 +977,7 @@ export default function EventDetailPage() {
               <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => void reanalyzeWithVNext()}
+                onClick={() => void reanalyzeWithVNext(false)}
                 disabled={vnextReanalyzeState === 'loading' || (event.vnext_analysis?.review_status === 'MORE_EVIDENCE_REQUIRED' && !vnextAdditionalInformation.trim())}
                 className="rounded-lg border border-cyan-600/50 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-60"
               >
@@ -981,9 +985,19 @@ export default function EventDetailPage() {
                   ? (locale === 'pt-BR' ? 'Reanalisando…' : 'Reanalyzing…')
                   : (locale === 'pt-BR' ? 'Reanalisar com a versão atual' : 'Reanalyze with current version')}
               </button>
+              {!vnextAdditionalInformation.trim() && (
+                <button
+                  type="button"
+                  onClick={() => void reanalyzeWithVNext(true)}
+                  disabled={vnextReanalyzeState === 'loading'}
+                  className="rounded-lg border border-amber-600/60 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-500/20 disabled:opacity-60"
+                >
+                  {locale === 'pt-BR' ? 'Reprocessar com motor corrigido (sem novos fatos)' : 'Reprocess with corrected engine (no new facts)'}
+                </button>
+              )}
               <span className="self-center text-[11px] text-slate-500">
                 {locale === 'pt-BR'
-                  ? 'Quando a análise exige mais evidências, informe novos fatos antes da reanálise. O relato anterior e o histórico de versões serão preservados.'
+                  ? 'Para fatos novos, preencha o campo acima. Para aplicar uma correção já publicada ao mesmo evento, use o reprocessamento sem novos fatos. As versões anteriores serão preservadas.'
                   : 'When additional evidence is required, provide new facts before reanalysis. Prior evidence and the version history are preserved.'}
               </span>
               </div>
