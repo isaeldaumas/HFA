@@ -226,6 +226,13 @@ export function applySemanticAnnotationsToEvidence(args: {
     const supports: SeraEvidenceUse[] = []
     if (roles.some((role) => ['FIRST_DEPARTURE', 'CRITICAL_UNSAFE_ACT', 'DIRECT_ACTOR'].includes(role))) pushUnique(supports, 'ESCAPE_POINT')
     if (roles.includes('PERCEPTION_STATE') || concepts.some((concept) => perceptionConcepts.has(concept))) pushUnique(supports, 'PERCEPTION')
+    // An explicit negative time-pressure fact is eligible to ANSWER the P time
+    // question even if the semantic annotator tagged it as context. This only
+    // routes the source quote; the canonical node separately verifies its
+    // polarity and rejects merely "no evidence of pressure" statements.
+    if (/\b(?:sem|n[aã]o havia|n[aã]o houve|n[aã]o existia)\s+(?:press[aã]o (?:excessiva )?(?:de tempo|temporal)|urg[eê]ncia (?:excessiva|operacional))\b|\b(?:no|without)\s+(?:excessive )?(?:time pressure|time urgency)\b/i.test(annotation.sourceQuote)) {
+      pushUnique(supports, 'PERCEPTION')
+    }
     if (roles.includes('OBJECTIVE_INTENT') || concepts.some((concept) => objectiveConcepts.has(concept))) pushUnique(supports, 'OBJECTIVE')
     if (roles.some((role) => role === 'ACTION_STRATEGY' || role === 'ACTION_MECHANISM' || role === 'CRITICAL_UNSAFE_ACT') || annotation.actionFailureMechanism && annotation.actionFailureMechanism !== 'NONE_OR_UNKNOWN' || concepts.some((concept) => actionConcepts.has(concept))) pushUnique(supports, 'ACTION')
     if (roles.some((role) => role === 'PRECONDITION' || role === 'BARRIER')) pushUnique(supports, 'PRECONDITION')

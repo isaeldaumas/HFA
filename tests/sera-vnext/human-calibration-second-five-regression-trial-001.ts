@@ -35,7 +35,7 @@ const cal06 = run('CAL-06-REGRESSION-V2', cal06Narrative, [
   a({ id: 'C06-SOCIAL', sourceQuote: 'Havia ainda um padrão de comunicação muito conciso na tripulação e pouca contestação entre os dois pilotos.', sourceSentenceIndex: 5, roles: ['PRECONDITION'], concepts: [], actor: null, temporalRelation: 'PRE_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: 'SOCIAL', preconditionCausalStatus: 'PRESENT_CONTEXT', actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, displayInterpretation: null, confidence: 'HIGH', rationale: 'Dinâmica de equipe presente sem nexo causal automático.' }),
 ])
 assert.equal(cal06.directActor.actor, 'copiloto')
-assert.equal(cal06.axes.perception.proposedCode, 'P-H', 'missing/degraded communication content should reach P-H through the canonical P tree')
+assert.equal(cal06.axes.perception.proposedCode, null, 'semantic V2 must not infer absence of excessive time pressure merely from degraded communication; canonical P_TIME_PRESSURE remains unanswered')
 assert.equal(cal06.axes.objective.proposedCode, null)
 assert.equal(cal06.escapePoint.criticalUnsafeActActor, 'comandante')
 assert.equal(cal06.axes.perception.supportingEvidence.some((text) => /continua[cç][aã]o da manobra/i.test(text)), false, 'later commander action must not contaminate copilot P')
@@ -73,7 +73,7 @@ const cal09 = run('CAL-09-REGRESSION-V2', cal09Narrative, [
   a({ id: 'C09-FIRST', sourceQuote: 'perceber a aeronave mais alta e mais afastada do que realmente estava', sourceSentenceIndex: 0, roles: ['FIRST_DEPARTURE', 'DIRECT_ACTOR', 'PERCEPTION_STATE'], concepts: ['inadequateAssessment', 'perceptionCapabilityPresent', 'informationAmbiguous'], actor: 'piloto', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, displayInterpretation: 'O operador percebia a aeronave como mais alta e afastada do que realmente estava.', confidence: 'HIGH', rationale: 'Percepção visual enganosa.' }),
   a({ id: 'C09-ENV', sourceQuote: 'as luzes da instalação e o fundo escuro produziram uma referência visual enganosa', sourceSentenceIndex: 1, roles: ['PRECONDITION'], concepts: [], actor: null, temporalRelation: 'PRE_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: 'ENVIRONMENT', preconditionCausalStatus: 'PRESENT_CONTEXT', actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, displayInterpretation: null, confidence: 'HIGH', rationale: 'Contexto ambiental.' }),
 ])
-assert.equal(cal09.axes.perception.proposedCode, 'P-F')
+assert.equal(cal09.axes.perception.proposedCode, null, 'CAL-09 requires independent evidence at the canonical time-pressure node; misleading visuals do not prove that excessive pressure was absent')
 assert.equal(cal09.axes.objective.proposedCode, null)
 assert.equal(cal09.axes.action.proposedCode, null)
 

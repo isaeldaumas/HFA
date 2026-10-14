@@ -26,13 +26,32 @@ const run = (narr: string, evidence: SeraSemanticEvidenceAnnotation[]) => runSer
 
 const actual = run(narrative, [firstDeparture, later, perception, ambiguous])
 assert.equal(actual.directActor.actor, 'piloto')
-assert.equal(actual.axes.perception.proposedCode, 'P-F', 'explicit wrong altitude judgement and misleading visual cue should satisfy canonical P-F')
+assert.equal(actual.axes.perception.proposedCode, null, 'without direct evidence of the time-pressure node, P-F cannot be reached by assuming no excess pressure')
 assert.equal(actual.axes.perception.canonicalPath.includes('P_ASSESSMENT'), true)
+assert.equal(actual.axes.perception.canonicalPath.includes('P_TIME_PRESSURE'), true)
+assert.equal(actual.axes.perception.status, 'UNRESOLVED')
 assert.equal(actual.axes.objective.proposedCode, null)
 assert.equal(actual.axes.action.proposedCode, null)
 assert.equal(actual.selectedCode, null)
 assert.equal(actual.readyPromotion, false)
 assert.equal(actual.finalConclusion, null)
+
+// Explicit positive evidence that excessive pressure was absent permits the
+// "No" branch. The environment alone never permits this inference.
+const withDocumentedNoPressure = narrative.replace('sem horizonte natural,', 'sem horizonte natural e sem pressão excessiva de tempo,')
+const absenceEvidence = annotation('C20A-TIME-ABSENT', 'sem pressão excessiva de tempo', ['CONTEXT'], [], 'piloto', 0)
+const explicitAbsence = run(withDocumentedNoPressure, [firstDeparture,later,perception,ambiguous,absenceEvidence])
+assert.equal(explicitAbsence.axes.perception.proposedCode, 'P-F', 'P-F may be reached only when the time node is actually answered from evidence')
+const timeNode = explicitAbsence.canonicalTraversal.paths.find((path) => path.axis === 'P')?.answers.find((step) => step.nodeId === 'P_TIME_PRESSURE')
+assert.equal(timeNode?.answer, 'NÃO')
+assert.ok(timeNode?.supportingEvidence?.some((quote) => quote.includes('sem pressão excessiva de tempo')))
+
+// "No evidence of pressure" does NOT mean "evidence pressure was absent".
+const withUncertainty = narrative.replace('sem horizonte natural,', 'sem horizonte natural e sem evidência de pressão excessiva de tempo,')
+const mereSilence = annotation('C20A-TIME-UNKNOWN', 'sem evidência de pressão excessiva de tempo', ['CONTEXT'], [], 'piloto', 0)
+const uncertainTime = run(withUncertainty, [firstDeparture,later,perception,ambiguous,mereSilence])
+assert.equal(uncertainTime.axes.perception.proposedCode, null)
+assert.notEqual(uncertainTime.canonicalTraversal.paths.find((path) => path.axis === 'P')?.answers.find((step) => step.nodeId === 'P_TIME_PRESSURE')?.answer,'NÃO')
 
 // A visual cue alone without an actor's explicit mistaken perception is not a P-F verdict.
 const ambiguousAlone = run('Durante a aproximação havia uma referência visual enganosa. O piloto continuou a manobra.', [
@@ -53,4 +72,4 @@ assert.equal(normal.axes.perception.proposedCode, null)
 const otherActor = run(narrative, [firstDeparture, later, annotation('C20A-OTHER-P', 'julgou incorretamente a altura da aeronave em relação à instalação', ['PERCEPTION_STATE'], [], 'copiloto', 0), ambiguous])
 assert.equal(otherActor.axes.perception.proposedCode, null)
 
-console.log('CAL20A_VISUAL_PERCEPTION_PASS', {P:actual.axes.perception.proposedCode,O:actual.axes.objective.proposedCode,A:actual.axes.action.proposedCode})
+console.log('CAL20A_VISUAL_PERCEPTION_TIME_GATE_PASS', {P:actual.axes.perception.proposedCode,O:actual.axes.objective.proposedCode,A:actual.axes.action.proposedCode})

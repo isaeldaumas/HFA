@@ -20,6 +20,8 @@ const RATIONALE_PT: Record<string, string> = {
   'Attention impairment is supported together with explicit excessive time/urgency pressure.': 'Há evidência de prejuízo de atenção associado a pressão excessiva de tempo/urgência.',
   'Explicit excessive time-management pressure is supported.': 'Há evidência explícita de pressão excessiva de gerenciamento do tempo.',
   'Attention-demand evidence exists without explicit excessive time pressure; continue to information-quality branches and retain attention as contextual evidence only.': 'Há evidência de demanda de atenção sem pressão excessiva de tempo explícita; a análise prossegue para os ramos de qualidade da informação, mantendo atenção apenas como contexto.',
+  'Conflicting positive and negative time-pressure evidence cannot resolve this canonical node without source reconciliation.': 'Evidências positivas e negativas conflitantes sobre pressão de tempo impedem resolver este nó canônico sem conciliar as fontes.',
+  'Explicit evidence establishes that excessive time pressure was absent at the escape point; this is not inferred from silence or from an unrelated information-quality mechanism.': 'Evidência explícita demonstra que não havia pressão excessiva de tempo no ponto de fuga; essa ausência não é presumida pelo silêncio do relato nem por outro mecanismo de informação.',
   'No evidence answers whether perceived time pressure was excessive.': 'Não há evidência suficiente para determinar se a pressão de tempo percebida era excessiva.',
   'Information ambiguity is explicit.': 'A ambiguidade da informação está explicitamente sustentada.',
   'Information evidence is present but ambiguity is not supported.': 'Há evidência sobre a informação, mas não há suporte para ambiguidade.',

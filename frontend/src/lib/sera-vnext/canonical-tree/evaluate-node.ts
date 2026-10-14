@@ -135,13 +135,33 @@ function semanticActionStrategyStatements(ctx: SeraNodeEvidenceContext): string[
     .map((item) => item.statement))
 }
 
-/** Evidence-fidelity backstop: an AI pass can correctly identify a direct actor's
- * PERCEPTION_STATE and still omit the inadequateAssessment concept even when its
- * verbatim source quote explicitly says the actor misjudged a physical state.
- * This is not a generic perception heuristic: it requires a confirmed semantic
- * perception role at/before the escape point, the anchored direct actor, and a
- * literal incorrect judgement of a physical state. Merely misleading scenery,
- * a later realization, or another crew member's error never suffices.
+/** This is a *documented absence* of excessive time pressure, not merely a
+ * record that fails to mention pressure. Information ambiguity or divided
+ * attention cannot answer the separate time-pressure question negatively.
+ * Prefer literal sourced evidence (including specific human clarifications).
+ */
+function explicitNoExcessiveTimePressureStatements(ctx: SeraNodeEvidenceContext): string[] {
+  if (ctx.axis !== 'P') return []
+  const noPressure = /(?:\b(?:n[aã]o (?:havia|existia|houve|ocorreu|estava sob)|sem|aus[eê]ncia (?:confirmada|registrada) de)\s+(?:qualquer\s+)?(?:press[aã]o (?:excessiva )?(?:de tempo|temporal)|urg[eê]ncia (?:excessiva|operacional))\b|\b(?:no|without)\s+(?:excessive |dominant )?(?:time pressure|time urgency)\b|\b(?:press[aã]o (?:de tempo|temporal)|urg[eê]ncia)\s+(?:n[aã]o|jamais)\s+(?:existia|estava presente|foi percebida|ocorreu)\b)/i
+  const mereLackOfEvidence = /(?:n[aã]o (?:h[aá]|existe|foram? encontrad[ao]s?|consta|se identificou|foi comprovad[ao])\s+(?:qualquer )?(?:evid[eê]ncia|ind[ií]cio|registro|informa[cç][aã]o|relato)|sem (?:evid[eê]ncia|registros?|informa[cç][aã]o|dados|ind[ií]cio)[^.!?]*press[aã]o|(?:pressure|urgency) (?:not documented|not established|unproven))/i
+  return unique(ctx.evidence.filter((item) =>
+    item.assertionStatus === 'AFFIRMED'
+    && item.temporalRelation !== 'POST_ESCAPE'
+    && !['REPORT_ANALYSIS', 'RECOMMENDATION', 'ADMINISTRATIVE'].includes(item.sourceSection)
+    && !['NON_CAUSAL_DOCUMENT', 'REFERENCE_PROCEDURE', 'SYSTEM_DESCRIPTION', 'UNSUPPORTED_REPORT_ANALYSIS', 'OUTCOME'].includes(item.evidenceType)
+    && item.occurrenceScope !== 'HISTORICAL_COMPARATOR'
+    && item.occurrenceScope !== 'PRE_EVENT_CAUSAL_HISTORY'
+    // The time-pressure question can use an explicit negative time fact even
+    // when generic evidence tagging did not mark it as PERCEPTION support.
+    && (item.collectionSource !== 'AI_SEMANTIC_EXTRACTION' || item.semanticConfidence !== 'LOW')
+    && (item.actorRelation === 'DIRECT_ACTOR' || item.actorRelation === 'CONTEXT_ACTOR' || item.actorRelation === 'UNKNOWN')
+    && noPressure.test(item.statement)
+    && !mereLackOfEvidence.test(item.statement),
+  ).map((item) => item.statement))
+}
+
+/** Evidence-fidelity backstop: the direct actor's verbatim mistaken-perception
+ * quote must remain eligible even when semantic enrichment omitted its concept.
  */
 function explicitIncorrectPerceptionStatements(ctx: SeraNodeEvidenceContext): string[] {
   if (ctx.axis !== 'P' || !semanticInterpretationPresent(ctx)) return []
@@ -556,10 +576,25 @@ function decideP(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
     case 'P_TIME_PRESSURE': {
       const attention = c('attentionPressure')
       const management = c('timeManagementPressure')
-      if (management.length > 0 && attention.length > 0) return { answer: 'SIM_ATENCAO', supportingEvidence: unique([...attention, ...management]), rationale: 'Attention impairment is supported together with explicit excessive time/urgency pressure.' }
-      if (management.length > 0) return { answer: 'SIM_GERENCIAMENTO', supportingEvidence: management, rationale: 'Explicit excessive time-management pressure is supported.' }
-      if (attention.length > 0 || any(['informationAmbiguous', 'informationAvailableCorrect', 'informationUnavailable'])) {
-        return { answer: 'NÃO', supportingEvidence: attention.length > 0 ? attention : statements.slice(0, 2), rationale: 'Attention-demand evidence exists without explicit excessive time pressure; continue to information-quality branches and retain attention as contextual evidence only.' }
+      const documentedAbsent = explicitNoExcessiveTimePressureStatements(ctx)
+      const positiveTime = management.filter((quote) => !documentedAbsent.includes(quote))
+      if (documentedAbsent.length > 0 && positiveTime.length > 0) return {
+        answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [],
+        rationale: 'Conflicting positive and negative time-pressure evidence cannot resolve this canonical node without source reconciliation.',
+      }
+      if (positiveTime.length > 0 && attention.length > 0) return { answer: 'SIM_ATENCAO', supportingEvidence: unique([...attention, ...positiveTime]), rationale: 'Attention impairment is supported together with explicit excessive time/urgency pressure.' }
+      if (positiveTime.length > 0) return { answer: 'SIM_GERENCIAMENTO', supportingEvidence: positiveTime, rationale: 'Explicit excessive time-management pressure is supported.' }
+      if (documentedAbsent.length > 0) return {
+        answer: 'NÃO', supportingEvidence: documentedAbsent,
+        rationale: 'Explicit evidence establishes that excessive time pressure was absent at the escape point; this is not inferred from silence or from an unrelated information-quality mechanism.',
+      }
+      if (!semanticInterpretationPresent(ctx)) {
+        // Frozen legacy lexical contract. Historical case matrices require their
+        // original candidate outputs for comparability. The production V2 semantic
+        // path below is stricter and must not infer the absence of time pressure.
+        if (attention.length > 0 || any(['informationAmbiguous', 'informationAvailableCorrect', 'informationUnavailable'])) {
+          return { answer: 'NÃO', supportingEvidence: attention.length > 0 ? attention : statements.slice(0, 2), rationale: 'Attention-demand evidence exists without explicit excessive time pressure; continue to information-quality branches and retain attention as contextual evidence only.' }
+        }
       }
       return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'No evidence answers whether perceived time pressure was excessive.' }
     }

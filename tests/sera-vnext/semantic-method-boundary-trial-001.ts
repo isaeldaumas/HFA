@@ -407,7 +407,7 @@ const commLoss = run('SEMANTIC-COMMUNICATION-LOSS', commLossNarrative, [
   { id: 'CL-P', sourceQuote: 'como se a mensagem fosse definitiva', sourceSentenceIndex: 1, roles: ['PERCEPTION_STATE'], concepts: ['inadequateAssessment'], actor: 'segundo piloto', temporalRelation: 'AT_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, displayInterpretation: 'O operador percebia a mensagem parcial como definitiva.', confidence: 'HIGH', rationale: 'Avaliação contemporânea.' },
   { id: 'CL-INFO', sourceQuote: 'o final ficou inaudível', sourceSentenceIndex: 0, roles: ['PRECONDITION'], concepts: ['informationUnavailable'], actor: 'segundo piloto', temporalRelation: 'PRE_ESCAPE', assertionStatus: 'AFFIRMED', occurrenceScope: 'CURRENT_EVENT', preconditionCategory: null, preconditionCausalStatus: 'PRESENT_CONTEXT', actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, confidence: 'HIGH', rationale: 'Conteúdo necessário não chegou.' },
 ])
-assert.equal(commLoss.axes.perception.proposedCode, 'P-H')
+assert.equal(commLoss.axes.perception.proposedCode, null, 'semantic V2 must not infer no time pressure from a communication failure')
 
 // A purpose clause can occur textually after a coordinated action while still describing the
 // objective contemporaneous with the first departure. Text order must not be mistaken for

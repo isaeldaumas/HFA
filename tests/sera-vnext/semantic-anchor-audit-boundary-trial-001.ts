@@ -72,7 +72,7 @@ const perceptualAudit: SeraSemanticEvidenceAnnotation = {
 const perceptualOutput = run('SEMANTIC-AUDIT-PERCEPTION-CAN-ANCHOR', perceptualNarrative, applyAuditedFirstDeparture(perceptualPrimary, perceptualAudit))
 assert.equal(perceptualOutput.escapePoint.firstDepartureCandidate, 'o piloto percebeu a aeronave acima e mais distante do que realmente estava')
 assert.equal(perceptualOutput.directActor.actor, 'piloto')
-assert.equal(perceptualOutput.axes.perception.proposedCode, 'P-F')
+assert.equal(perceptualOutput.axes.perception.proposedCode, null, 'visual distortion alone does not establish absence of excessive perceived time pressure')
 
 // The semantic audit may reject a PRECONDITION category while preserving any other roles on
 // the same source annotation. Presence of an object is not automatically an equipment defect.
@@ -112,7 +112,7 @@ const visualOutput = run('SEMANTIC-VISUAL-REFERENCE-SUPPORT-SEPARATE', visualNar
     preconditionCategory: null, preconditionCausalStatus: null, actionFailureMechanism: 'NONE_OR_UNKNOWN', actionMechanismEvidenceQuote: null, displayInterpretation: null, confidence: 'HIGH', rationale: 'Referência visual ilusória.'
   },
 ])
-assert.equal(visualOutput.axes.perception.proposedCode, 'P-F')
+assert.equal(visualOutput.axes.perception.proposedCode, null, 'visual ambiguity alone cannot answer the time-pressure node in semantic V2')
 
 // Presentation wording is not a semantic validator. If the semantic layer returns
 // contradictory PERCEPTION_STATE claims, the deterministic engine must fail closed until
