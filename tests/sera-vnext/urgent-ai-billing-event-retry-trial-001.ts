@@ -27,7 +27,7 @@ assert.match(eventForm,/incompleteEventId/)
 assert.match(eventForm,/Abrir o evento registrado e tentar novamente sem duplicar/)
 assert.match(createAnalysis,/args\.preparedSemantic \?\? await enrichSeraNarrativeSemantically/)
 assert.match(canonical,/preparedSemantic: args\.preparedSemantic/)
-assert.match(clarificationRoute,/await applyUserAiSettingsToEnv\(admin, user\.userId\)/)
+assert.match(clarificationRoute,/preserveSemanticForClarifications: true/)
 assert.match(clarificationRoute,/O provedor de IA configurado para esta conta está sem saldo/)
 assert.match(analysisRoute,/A ocorrência continua registrada, mas a análise não foi concluída/)
 // Passing through the one-shot canonical route preserves the caller's enrichment
