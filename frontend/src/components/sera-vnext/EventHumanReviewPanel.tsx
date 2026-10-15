@@ -46,10 +46,11 @@ const labels: Record<string, string> = {
   SUFFICIENT_FOR_WORKING_HYPOTHESIS: 'Suficiente para hipótese',
 }
 
-export function EventHumanReviewPanel({ eventId, analysisId, token }: {
+export function EventHumanReviewPanel({ eventId, analysisId, token, mode = 'review' }: {
   eventId: string
   analysisId: string
   token: string
+  mode?: 'review' | 'history'
 }) {
   const [summary, setSummary] = useState<ReviewSummary | null>(null)
   const [decision, setDecision] = useState('REQUIRES_MORE_EVIDENCE')
@@ -58,6 +59,7 @@ export function EventHumanReviewPanel({ eventId, analysisId, token }: {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState('')
+  const [showReviewForm, setShowReviewForm] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
   const load = useCallback(async () => {
@@ -96,6 +98,7 @@ export function EventHumanReviewPanel({ eventId, analysisId, token }: {
       if (!res.ok) throw new Error(String(body.detail ?? 'Não foi possível salvar a revisão.'))
       setSaved(`Revisão humana nº ${body.reviewVersion} registrada. A decisão anterior permanece preservada.`)
       setNotes('')
+      setShowReviewForm(false)
       await load()
     } catch (e) { setError(e instanceof Error ? e.message : 'Falha ao registrar a revisão.') }
     finally { setBusy(false) }
@@ -104,14 +107,16 @@ export function EventHumanReviewPanel({ eventId, analysisId, token }: {
   return (
     <section className="rounded-xl border border-cyan-700/50 bg-slate-900 p-5 space-y-4">
       <div>
-        <h2 className="text-base font-semibold text-white">Revisões humanas — histórico auditável</h2>
+        <h2 className="text-base font-semibold text-white">{mode === 'history' ? 'Histórico de revisões humanas' : 'Revisão humana da análise'}</h2>
         <p className="mt-1 text-xs leading-relaxed text-slate-400">
-          Revisões sucessivas do mesmo evento, sem substituir decisões anteriores. Nenhuma decisão libera códigos P/O/A definitivos.
-          A autoria, a justificativa e a versão da análise são preservadas para auditoria.
+          {mode === 'review'
+            ? 'Registre sua decisão metodológica, sustentada nas evidências. Nenhuma decisão libera códigos P/O/A definitivos.'
+            : 'Versões e decisões sucessivas do mesmo evento permanecem preservadas para auditoria, com autoria e justificativas.'}
         </p>
       </div>
       {summary && (
         <>
+          {mode === 'history' && (
           <div className="rounded-lg border border-slate-700 bg-slate-950/40 p-3 space-y-2">
             <h3 className="text-sm font-semibold text-white">Histórico de versões da análise SERA</h3>
             <p className="text-xs text-slate-400">Versões sucessivas do mesmo evento. As evidências e os resultados anteriores permanecem disponíveis para auditoria.</p>
@@ -124,8 +129,9 @@ export function EventHumanReviewPanel({ eventId, analysisId, token }: {
               </div>
             ))}
           </div>
+          )}
           <p className="text-xs text-slate-400">Análise SERA · revisão atual {summary.engineRevision} · {summary.reviews.length} decisão(ões) humana(s) registrada(s)</p>
-          {summary.reviews.length === 0 ? (
+          {mode === 'history' && (summary.reviews.length === 0 ? (
             <p className="text-sm text-amber-200">Nenhuma revisão humana salva até agora. A classificação automática não é uma decisão humana.</p>
           ) : (
             <ol className="space-y-3">
@@ -140,8 +146,14 @@ export function EventHumanReviewPanel({ eventId, analysisId, token }: {
                 </li>
               ))}
             </ol>
+          ))}
+          {mode === 'review' && summary.canReview && !showReviewForm && (
+            <button type="button" onClick={() => setShowReviewForm(true)}
+              className="rounded-lg border border-cyan-700/60 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 hover:bg-cyan-500/20">
+              Registrar {summary.reviews.length === 0 ? 'primeira revisão humana' : 'nova revisão humana'}
+            </button>
           )}
-          {summary.canReview && (
+          {mode === 'review' && summary.canReview && showReviewForm && (
             <div className="space-y-3 border-t border-slate-700 pt-4">
               <h3 className="text-sm font-semibold text-white">Registrar {summary.reviews.length === 0 ? 'primeira decisão' : 'nova decisão'} não final</h3>
               {summary.evidenceBlocked && <p className="text-xs text-amber-200">Há evidência insuficiente em pelo menos uma etapa da análise. A classificação não pode ser aceita integralmente como sustentada até que o bloqueio seja resolvido.</p>}
@@ -164,6 +176,8 @@ export function EventHumanReviewPanel({ eventId, analysisId, token }: {
               <label className="block text-xs font-medium text-slate-300">Justificativa metodológica do analista
                 <textarea rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Registre sua avaliação da evidência disponível, sem acrescentar fatos não documentados." className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-sm text-white" />
               </label>
+              <button type="button" disabled={busy} onClick={() => setShowReviewForm(false)}
+                className="mr-2 rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:border-slate-500 disabled:opacity-50">Cancelar</button>
               <button type="button" disabled={busy || notes.trim().length < 10} onClick={() => void saveReview()}
                 className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-40">
                 {busy ? 'Salvando decisão…' : 'Registrar revisão não final'}

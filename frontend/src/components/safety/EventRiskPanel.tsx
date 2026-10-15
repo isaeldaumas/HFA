@@ -38,6 +38,7 @@ export function EventRiskPanel({ eventId, canEdit }: Props) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showForm, setShowForm] = useState(false)
   const [assessmentType, setAssessmentType] = useState<'INITIAL' | 'RESIDUAL'>('INITIAL')
   const [probability, setProbability] = useState<SafetyProbability>('C')
   const [severity, setSeverity] = useState<SafetySeverity>(3)
@@ -91,6 +92,7 @@ export function EventRiskPanel({ eventId, canEdit }: Props) {
       const json = await res.json().catch(() => ({})) as { detail?: string; error?: { message?: string } }
       if (!res.ok) throw new Error(json.error?.message || json.detail || 'Não foi possível salvar a avaliação.')
       setJustification('')
+      setShowForm(false)
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível salvar a avaliação.')
@@ -140,7 +142,13 @@ export function EventRiskPanel({ eventId, canEdit }: Props) {
       {loading && <p className="text-xs text-slate-500">Carregando avaliações…</p>}
       {error && <p className="text-xs text-red-300">{error}</p>}
 
-      {canEdit && (
+      {canEdit && !showForm && (
+        <button type="button" onClick={() => setShowForm(true)}
+          className="self-start rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 hover:border-blue-500 hover:text-white">
+          {latestInitial || latestResidual ? 'Registrar nova avaliação' : 'Avaliar risco'}
+        </button>
+      )}
+      {canEdit && showForm && (
         <div className="border-t border-slate-800 pt-4 space-y-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <label className="block">
@@ -198,7 +206,9 @@ export function EventRiskPanel({ eventId, canEdit }: Props) {
             />
           </label>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setShowForm(false)} disabled={saving}
+              className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:border-slate-500 disabled:opacity-50">Cancelar</button>
             <button
               type="button"
               disabled={saving}
