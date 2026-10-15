@@ -1,0 +1,31 @@
+# Revisão metodológica independente — quatro eventos Daumas (14/10/2026)
+
+## Finalidade, fontes e limitações
+
+**Objetivo primário: calibrar invariantes gerais do motor SERA vNext, não copiar a classificação de Daumas (2018).** As quatro entrevistas foram examinadas pelo relato factual do capítulo 4 e pela reprodução histórica preservada em `docs/sera-vnext/daumas-sera-reference-cases-a4r167/`. Comparação adicional com registros operacionais `Evento 1`–`Evento 4` no Supabase HFA, gerados pelo motor 0.1.0 em setembro de 2026. A fonte que entrou no produto foi predominantemente MDC e não incorporou a análise SERA completa. A reprodução autoral histórica permanece **SOURCE_REPRODUCTION**, não gabarito do motor moderno.
+
+Os relatos retrospectivos, sem telemetria/CVR adicional nesta auditoria, não autorizam produzir certeza onde o documento não demonstra o mecanismo. Códigos mencionados abaixo são **hipóteses independentes por episódio**, não decisões finais nem dados liberados; as divergências podem refletir mudança de definição operacional entre SERA histórico e taxonomia HFA atual.
+
+| Caso | Resultado histórico da dissertação | Ponto e ator historicamente definidos | Julgamento independente / divergência principal |
+|---|---|---|---|
+| **1** | P-C / O-A / A-E | Manobra manual com FD ainda acoplado; piloto em adaptação, não o instrutor entrevistado | No **episódio do automatismo**, objetivo de subir/retornar coerente (O-A provável); A-E plausível pelo déficit específico de conhecimento, mas P-C contemporâneo precisa distinguir desconhecimento prévio e interpretação **posterior** da pane. Para a **operação inteira**, altitude/IMC anteriores podem configurar outro limite de segurança; exigir recorte/tempo e ator próprios. A frase "estipulei ... arremeter" não prova por si só a primeira saída. Motor antigo ancorou instrutor: **não aceitar**. |
+| **2** | P-D / O-A / A-H | Desacoplamento do FD e desaceleração manual pelo piloto em adaptação | Na sequência global, a decisão de continuar em IMC pode ser anterior e precisa ser investigada sem inventar um ator único a partir de "a gente". No **episódio manual** P-D é hipótese pela carga e curto horizonte; O-A (reduzir velocidade para pouso) plausível; A-H compete com A-E (transferência de técnica de outro modelo). Sem decomposição de atores e verificação do limite anterior, **não liberar códigos**. O P-A que o motor atribuiu à percepção do IMC pertence a outro ponto temporal e não refuta P-D no episódio posterior. |
+| **3** | P-H / O-C / A-G | Retirada da mão do coletivo para apanhar documentação; comandante entrevistado | Primeiro ato/ator bem demonstrados. A seleção de tarefa secundária sem manter controle favorece A-F como **candidato** (pode competir com lapso, dependendo da consciência). O-C depende de verificar se houve desvio consciente de regra, não apenas retrospectiva "sempre instruí contra". A falha técnica oculta não comprova P-H: insuficiência de informação sobre o defeito não é necessariamente falha humana de comunicação. A-G histórico tem extensão semântica diferente da taxonomia atual (feedback de terceiros). Fadiga e peça defeituosa permanecem evidências de contexto e relação causal a confirmar. |
+| **4** | P-G / O-D / A-F | Escolha do lado de pouso; piloto entrevistado | P-G é candidato forte se informação correta já estava disponível e foi ignorada; reconhecimento **somente após pouso** não pode provar percepção pré-pouso. A-F plausível se alternativa de menor risco era conhecida/selecionável; evitar duplicar indevidamente mecanismo perceptivo em A. O-D histórico não migra automaticamente para O-D atual, que exige ganho operacional explícito. Sentimento, autopreservação, viés de confirmação e decisão não provam por si só intenção de aceitar risco por eficiência. O pode permanecer em aberto. |
+
+## Defeitos do produto identificados na comparação com resultados de 29–30/09
+
+1. **Falso ponto de fuga por plano corretivo:** Caso 1 escolheu decisão do instrutor de planejar arremetida, o que desloca a análise do ator causador da manobra. Correção: um plano de retorno/arremetida sem transição insegura demonstrada não deve ser promovido a FIRST_DEPARTURE; resultado `INSUFFICIENT_EVIDENCE` e pergunta de delimitação, sem migrar automaticamente para o ato posterior.
+2. **Atribuição coletiva como identidade individual:** Caso 2 aceitou `piloto e copiloto` como ator IDENTIFIED, permitindo inferência de P-A. Correção: ator coletivo permanece AMBIGUOUS, sem travessia P/O/A; decomposição por ator e evidência contemporânea obrigatórias.
+3. **Contaminação retrospectiva intrafrase:** Caso 4 combinou julgamento anterior e descoberta após pouso no mesmo estado perceptivo. Correção: limitar citação temporal do primeiro marco e fontes P/O/A ao segmento anterior, mantendo a descoberta posterior apenas para contraste e histórico.
+4. **Insuficiência de entrada e motor antigo:** Todos os quatro eventos tiveram interpretações em motor 0.1.0 com `MORE_EVIDENCE_REQUIRED`; nunca receberam liberação humana. Não editar nem sobrescrever os registros anteriores; reanálise pelo motor corrigido deverá ser uma nova versão do **mesmo** evento e dependerá da delimitação do escopo e evidência disponível.
+
+## Mudança de código e evidência de teste
+
+- `engine-v0/steps/03-escape-point.ts`: trava de plano de recuperação prospectivo e separação intrafrase temporal da FIRST_DEPARTURE.
+- `engine-v0/steps/06-direct-actor.ts`: não aceitar rótulo coletivo de ator em V2 nem decisão conjunta como se fosse decisão individual.
+- `engine-v0/steps/07-axis-statements.ts`: remove segmento explícito posterior do texto evidencial usado em P/O/A.
+- `ai/semantic-enrichment.ts`: instruções de segmentação, ator individual e distinção entre plano/saída insegura.
+- `tests/sera-vnext/daumas-independent-guardrails-trial-001.ts`: testes adversariais com exemplos reescritos: plano seguro, continuação explicitamente insegura, coletivo, papel individual, ato com defeito técnico latente e descoberta após pouso.
+
+**Critério de aceitação:** alterações generalizáveis sem regras por `caseId`, sem copiar `P/O/A` da dissertação, regressão determinística aprovada, histórico de produção preservado, nenhuma marcação de conclusão automática.

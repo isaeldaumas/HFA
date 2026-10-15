@@ -1,5 +1,6 @@
 import type { SeraVNextEngineInput, SeraVNextEngineOutput } from '../../engine-contract'
 import { isEvidenceUsableFor } from '../../evidence'
+import { trimSemanticLandmarkToEventMoment } from '../../evidence/semantic-integrity'
 import { isPt, localizeActor } from '../localization'
 
 export type SeraAxisStatementBundle = {
@@ -173,7 +174,7 @@ function evidenceFor(
       // Within pre-escape evidence, prefer the item temporally closest to the escape.
       return b.sourceSentenceIndex - a.sourceSentenceIndex
     })
-  return unique(ranked.map((item) => item.statement)).slice(0, 10)
+  return unique(ranked.map((item) => trimSemanticLandmarkToEventMoment(item.statement))).slice(0, 10)
 }
 
 function counterEvidenceFor(

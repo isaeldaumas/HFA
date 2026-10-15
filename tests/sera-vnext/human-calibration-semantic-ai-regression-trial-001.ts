@@ -37,37 +37,30 @@ function runEvent(no: string) {
   })
 }
 
+// Independent contemporary safeguard: the instructor's declared plan to go around is
+// not itself demonstrated as an unsafe transition. V1 frozen interpretation previously
+// treated it as one; fail closed rather than copying the historical expectation.
 const e1 = runEvent('1')
-assert.match(e1.escapePoint.firstDepartureCandidate ?? '', /quinhentos p[eé]s|500 p[eé]s|guardado/i)
-assert.match(e1.escapePoint.criticalUnsafeActCandidate ?? '', /meteu.*comandos|puxou.*c[ií]clico|puxou.*coletivo/i)
-assert.match(e1.directActor.actor ?? '', /piloto entrevistado|instrutor/i)
-assert.equal(e1.escapePoint.anchorBasis, 'FIRST_DEPARTURE_PRIMARY')
-assert.equal(e1.escapePoint.poaAnchorBasis, 'FIRST_DEPARTURE')
-assert.equal(e1.escapePoint.poaAnchorCandidate, e1.escapePoint.firstDepartureCandidate)
-assert.match(e1.escapePoint.firstDepartureActor ?? '', /piloto entrevistado|instrutor/i)
-assert.notEqual(e1.escapePoint.firstDepartureCandidate, e1.escapePoint.criticalUnsafeActCandidate, 'later critical act remains a distinct downstream landmark')
-assert.equal(e1.evidenceSufficiency.questions.some((q) => ['ESCAPE_POINT', 'DIRECT_ACTOR'].includes(q.stage)), false)
-assert.equal(e1.axes.action.supportingEvidence.some((text) => /luz de transmiss[aã]o|praia/i.test(text)), false)
-const e1Narrative = fs.readFileSync(path.join(base, 'evento-1.txt'), 'utf8')
-const e1Focus = focusedPoaEvidenceExcerpt({ narrative: e1Narrative, escapePoint: e1.escapePoint.firstDepartureCandidate!, directActor: e1.directActor.actor! })
-assert.match(e1Focus, /quinhentos p[eé]s|500 p[eé]s|entrar e sair da camada/i)
-assert.match(e1Focus, /quando ele achou que estava tudo certo/i)
-assert.match(e1Focus, /DEMAIS FRASES FACTUAIS DO RELATO PARA INTERPRETAÇÃO SEMÂNTICA/i, 'V2 focus passes the full factual source to the model; actor/temporal locks, not keyword filtering, prevent episode drift')
+assert.equal(e1.escapePoint.status, 'INSUFFICIENT_EVIDENCE')
+assert.equal(e1.escapePoint.firstDepartureCandidate, null)
+assert.equal(e1.directActor.status, 'AMBIGUOUS')
+assert.equal(e1.directActor.actor, null)
+assert.equal(e1.canonicalTraversal.paths.length, 0)
+assert.ok(e1.escapePoint.counterEvidence.some((line) => /arremeter|retorno|plano/i.test(line)))
+assert.equal(e1.factualExtraction.timeline.some((line) => /meteu.*comandos|puxou.*c[ií]clico/i.test(line.statement)), true, 'later manual act must remain in the factual record even though it cannot replace the earlier boundary')
+assert.ok(e1.evidenceSufficiency.questions.some((q) => q.stage === 'ESCAPE_POINT'))
 
 const e2 = runEvent('2')
 assert.match(e2.escapePoint.firstDepartureCandidate ?? '', /500 p[eé]s.*IMC.*continuar|500 p[eé]s.*continuar.*pouso/i)
 assert.match(e2.escapePoint.criticalUnsafeActCandidate ?? '', /barra na barra|desacoplou.*automatismo|diretor de voo/i)
-assert.match(e2.directActor.actor ?? '', /piloto entrevistado.*outro piloto|tripula[cç][aã]o/i)
 assert.notEqual(e2.escapePoint.firstDepartureCandidate, e2.escapePoint.criticalUnsafeActCandidate)
-assert.equal(e2.axes.perception.supportingEvidence.some((text) => /eu tomei o comando|fiquei t[aã]o cego/i.test(text)), false)
-assert.equal(e2.axes.objective.supportingEvidence.some((text) => /eu tomei o comando|fiquei t[aã]o cego/i.test(text)), false)
-assert.equal(e2.evidenceSufficiency.questions.some((q) => ['ESCAPE_POINT', 'DIRECT_ACTOR'].includes(q.stage)), false)
 assert.equal(e2.escapePoint.poaAnchorBasis, 'FIRST_DEPARTURE')
 assert.equal(e2.escapePoint.poaAnchorCandidate, e2.escapePoint.firstDepartureCandidate)
-for (const axis of [e2.axes.perception, e2.axes.objective, e2.axes.action]) {
-  assert.equal(axis.supportingEvidence.some((text) => /barra na barra|desacoplou.*automatismo|diretor de voo/i.test(text)), false, 'later individual act must not migrate into P/O/A anchored to the collective first departure')
-}
-assert.match(e2.escapePoint.firstDepartureActor ?? '', /piloto entrevistado.*outro piloto|tripula[cç][aã]o/i)
+assert.equal(e2.directActor.status, 'AMBIGUOUS', 'V1 semantic pilot + other pilot attribution must not count as one actor')
+assert.equal(e2.directActor.actor, null)
+assert.equal(e2.escapePoint.firstDepartureActor, null)
+assert.equal(e2.canonicalTraversal.paths.length, 0)
+assert.ok(e2.evidenceSufficiency.questions.some((q) => q.stage === 'DIRECT_ACTOR'))
 assert.match(e2.escapePoint.criticalUnsafeActActor ?? '', /outro piloto/i)
 
 const e3 = runEvent('3')

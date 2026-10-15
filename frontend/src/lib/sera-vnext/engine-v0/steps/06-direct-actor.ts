@@ -16,6 +16,11 @@ function semanticActorIdentity(actor: string): string {
 function isSpecificSemanticActor(actor: string): boolean {
   const value = semanticActorIdentity(actor)
   if (!value) return false
+  // A conjunction of qualified roles is not one operator. The label is clear
+  // about the participating crew, but does not individualize accountability.
+  if (/\b(?:ambos os pilotos|os dois pilotos|dois pilotos|piloto e copiloto|piloto e comandante|comandante e copiloto|captain and (?:first officer|copilot)|pilot and (?:copilot|captain)|both pilots|joint decision|decisao conjunta|coletiv[oa]|collective)\b/.test(value)) return false
+  if (/\b(?:piloto|copiloto|comandante|pilot|captain|copilot|instrutor)\b.{0,70}\b(?:e|and)\b.{0,70}\b(?:piloto|copiloto|comandante|pilot|captain|copilot|instrutor)\b/.test(value)) return false
+  if (/\b(?:pilotos|tripulantes|crew members|pilots|copilots)\b/.test(value) && !/\b(?:piloto 1|piloto 2)\b/.test(value)) return false
   // A semantic actor may resolve a passive sentence by coreference across the source, but
   // only a specific functional identity may unlock P/O/A. Generic/unknown crew labels
   // remain fail-closed and require human clarification.
@@ -159,6 +164,16 @@ export function runStep06DirectActor(input: {
     if (!group.includes(actor)) group.push(actor)
     semanticActorGroups.set(identity, group)
   }
+  if (semanticActors.some((actor) => !isSpecificSemanticActor(actor))) {
+    return {
+      actor: null,
+      status: 'AMBIGUOUS',
+      alternatives: semanticActors,
+      actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
+        ? 'A descrição semântica do ponto de fuga é coletiva ou não individualiza o agente. Piloto e copiloto não constituem um único ator P/O/A; documente separadamente a decisão ou contribuição de cada um.'
+        : 'The semantic escape-point actor is collective or not individualized. Pilot and copilot are not one P/O/A actor; document each person’s decision or contribution separately.'],
+    }
+  }
   const semanticV2 = input.engineInput.semanticEnrichmentMeta?.schemaVersion === 'SERA_SEMANTIC_AI_V2'
   if (semanticV2 && semanticActorAnnotations.length > 0) {
     const specificGroups = [...semanticActorGroups.entries()]
@@ -278,8 +293,8 @@ export function runStep06DirectActor(input: {
     // Keep it collective rather than inventing an individual PF/PM attribution.
     if (escapeHasJointDecision) {
       return {
-        actor: input.engineInput.locale === 'pt-BR' ? 'tripulação (decisão conjunta)' : 'flight crew (joint decision)',
-        status: 'IDENTIFIED',
+        actor: null,
+        status: 'AMBIGUOUS',
         alternatives: input.engineInput.locale === 'pt-BR' ? ['piloto 1', 'piloto 2'] : ['pilot 1', 'pilot 2'],
         actorMigrationWarnings: [input.engineInput.locale === 'pt-BR'
           ? 'A própria frase da âncora P/O/A atribui a decisão à tripulação em conjunto; P/O/A permanece coletivo somente para essa decisão compartilhada.'

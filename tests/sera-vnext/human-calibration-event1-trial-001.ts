@@ -42,10 +42,11 @@ assert.doesNotMatch(output.escapePoint.statement ?? '', /barra na barra|desacopl
 assert.equal(output.escapePoint.anchorBasis, 'FIRST_DEPARTURE_PRIMARY')
 assert.equal(output.escapePoint.poaAnchorBasis, 'FIRST_DEPARTURE')
 assert.equal(output.escapePoint.poaAnchorCandidate, output.escapePoint.firstDepartureCandidate)
-assert.equal(output.directActor.status, 'IDENTIFIED')
-assert.match(output.directActor.actor ?? '', /tripula[cç][aã]o|decis[aã]o conjunta/i)
+assert.equal(output.directActor.status, 'AMBIGUOUS')
+assert.equal(output.directActor.actor, null)
+assert.equal(output.canonicalTraversal.paths.length, 0)
 assert.doesNotMatch(output.directActor.actor ?? '', /piloto 2|outro piloto|comandante em treinamento/i)
-assert.equal(output.evidenceSufficiency.questions.some((q) => ['ESCAPE_POINT', 'DIRECT_ACTOR'].includes(q.stage)), false)
+assert.equal(output.evidenceSufficiency.questions.some((q) => q.stage === 'DIRECT_ACTOR'), true)
 for (const axis of [output.axes.perception, output.axes.objective, output.axes.action]) {
   assert.equal(axis.supportingEvidence.some((item) => /barra na barra|desacoplou.*automatismo|diretor de voo/i.test(item)), false, 'post-escape critical-act evidence must not migrate into canonical P/O/A')
 }

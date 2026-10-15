@@ -91,6 +91,20 @@ function isExternalVisualCueMistakenForHumanDeparture(statement: string): boolea
   return cueProduced && !humanPerception
 }
 
+/** A proposed future safe recovery (return/go-around/abort) does not demonstrate a
+ * human safe→unsafe transition on its own. The reporter may already have been operating
+ * unsafely, but that *other* fact must be anchored and examined independently. Do not
+ * select a narrator/instructor's recovery plan just because it precedes a pilot error.
+ */
+function prospectiveRecoveryPlanOnly(statement: string): boolean {
+  const text = normalizeLandmarkText(statement)
+  const prospectivePlan = /\b(?:estipulei|estipulou|defini|definiu|planejei|planejou|determinei|determinou|combinei|combinou|decidi|decidiu|planned|decided|established)\b.{0,220}\b(?:arremeter|arremeteria|arremeteremos|arremetemos|retornar|retornariamos|abort|go.around|return|discontinue|descontinuar)\b/.test(text)
+  if (!prospectivePlan) return false
+  const explicitUnsafeContinuation = /\b(?:continuou|continuaram|continuei|prosseguiu|prosseguiram|prossegui|permaneceu|permanecemos|mantivemos|manteve|desceu|descemos|descenderam|continued|proceeded|remained|descended)\b.{0,160}\b(?:abaixo|imc|sem referencia|sem visual|insegur|unsafe|below|without visual)\b/.test(text)
+    || /\b(?:decidi|decidiu|estipulei|estipulou|planejei|planejou)\b.{0,110}\b(?:continuar|prosseguir|descer|manter)\b.{0,110}\b(?:abaixo|imc|sem referencia|sem visual|insegur|unsafe|below)\b/.test(text)
+  return !explicitUnsafeContinuation
+}
+
 function usableDirectEscapeClarification(statement: string): boolean {
   const text = statement.trim()
   if (!text) return false
@@ -208,6 +222,25 @@ export function runStep03EscapePoint(input: {
   const selectedFromNarrative = selectedWindow === legacyWindow && Boolean(legacyWindow.statement)
   const rawFirstDepartureCandidate = selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate ?? ''
   const rawCriticalUnsafeActCandidate = selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.latestCandidate ?? ''
+  // Treat an unsafe *episode* and a plan to recover from it as distinct facts.
+  // A source-verified high-confidence semantic tag cannot upgrade the latter to
+  // first departure without an unsafe transition evidenced in that quoted act.
+  if (prospectiveRecoveryPlanOnly(rawFirstDepartureCandidate)) {
+    const message = input.locale === 'pt-BR'
+      ? 'O trecho selecionado registra um plano/intenção de arremeter ou retornar, mas não comprova, por si só, a primeira ação humana que saiu da operação segura. Verifique separadamente a condição anterior, o momento de sua ultrapassagem e quem a produziu; a manobra posterior não pode ser promovida automaticamente.'
+      : 'The selected quote records a plan to go around or return, but does not itself establish the first human safe-to-unsafe departure. Verify the preceding condition, boundary and actor separately; do not automatically promote a later maneuver.'
+    return {
+      status: 'INSUFFICIENT_EVIDENCE', statement: null, earliestCandidate: null, latestCandidate: null,
+      firstDepartureCandidate: null, criticalUnsafeActCandidate: null, criticalCandidateAlternatives: [],
+      irreversibilityBoundaryCandidate: selectedWindow.irreversibilityBoundaryCandidate ?? null,
+      anchorBasis: 'UNRESOLVED', firstDepartureSupportingEvidence: [], criticalUnsafeActSupportingEvidence: [],
+      poaAnchorCandidate: null, poaAnchorSupportingEvidence: [], poaAnchorBasis: 'UNRESOLVED',
+      directActor: null, supportingEvidence: [], counterEvidence: [message],
+      excludedPostEscapeEvidence: [],
+      episodeCandidates: (selectedWindow.episodeCandidates ?? []).map((item) => ({ ...item, selected: false })),
+      confidence: 'LOW', humanFactorGate: { status: 'BLOCKED', anchorType: null, rationale: [message] },
+    }
+  }
   const semanticFirstDeparture = Boolean(rawFirstDepartureCandidate && input.factualExtraction.timeline.some((item) =>
     item.id.startsWith('TIME-SEM-')
     && item.statement === rawFirstDepartureCandidate
@@ -261,9 +294,9 @@ export function runStep03EscapePoint(input: {
   // sentence splitting and event-moment trimming remain only as deterministic fallback
   // for analyses without semantic landmark extraction.
   const compoundLandmark = semanticFirstDeparture ? null : splitCompoundEscapeLandmark(rawFirstDepartureCandidate)
-  const firstDepartureCandidate = semanticFirstDeparture
-    ? rawFirstDepartureCandidate || null
-    : trimSemanticLandmarkToEventMoment(compoundLandmark?.first ?? rawFirstDepartureCandidate) || null
+  const firstDepartureCandidate = trimSemanticLandmarkToEventMoment(
+    semanticFirstDeparture ? rawFirstDepartureCandidate : compoundLandmark?.first ?? rawFirstDepartureCandidate,
+  ) || null
   const normalizedFirstRaw = normalizeLandmarkText(rawFirstDepartureCandidate)
   const normalizedCriticalRaw = normalizeLandmarkText(rawCriticalUnsafeActCandidate)
   const sameRawLandmark = Boolean(normalizedFirstRaw && normalizedCriticalRaw && (

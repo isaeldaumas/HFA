@@ -2333,5 +2333,15 @@
     "expectedStatus": "PASS",
     "runtimeScope": "CURRENT",
     "dataAccess": "NONE"
+  },
+  {
+    "path": "tests/sera-vnext/daumas-independent-guardrails-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT",
+    "dataAccess": "NONE"
   }
 ]

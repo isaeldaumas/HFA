@@ -24,7 +24,10 @@ assert.notEqual(output.escapePoint.firstDepartureCandidate, output.escapePoint.c
 assert.equal(output.escapePoint.poaAnchorBasis, 'FIRST_DEPARTURE')
 assert.equal(output.escapePoint.poaAnchorCandidate, output.escapePoint.firstDepartureCandidate)
 assert.notEqual(output.escapePoint.poaAnchorCandidate, output.escapePoint.criticalUnsafeActCandidate)
-assert.match(output.directActor.actor ?? '', /tripula[cç][aã]o|decis[aã]o conjunta/i)
+assert.equal(output.directActor.status, 'AMBIGUOUS')
+assert.equal(output.directActor.actor, null)
+assert.equal(output.canonicalTraversal.paths.length, 0)
+assert.ok(output.evidenceSufficiency.questions.some((q) => q.stage === 'DIRECT_ACTOR'))
 for (const axis of [output.axes.perception, output.axes.objective, output.axes.action]) {
   assert.equal(axis.supportingEvidence.some((text) => /barra na barra|desacoplou.*diretor de voo/i.test(text)), false)
 }
