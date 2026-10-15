@@ -71,8 +71,8 @@ function keepTogether(doc: Doc, height = 110): void {
   if (doc.y + height > pageBottom(doc)) doc.addPage({ size: 'A4', layout: 'portrait', margin: 44 })
 }
 
-function heading(doc: Doc, title: string): void {
-  keepTogether(doc, 64)
+function heading(doc: Doc, title: string, followingHeight = 64): void {
+  keepTogether(doc, followingHeight)
   doc.moveDown(0.6)
   doc.font('Helvetica-Bold').fontSize(17).fillColor(PDF_COLORS.navy).text(title, doc.page.margins.left, doc.y, { width: pageContentWidth(doc), lineGap: 1.5 })
   doc.moveDown(0.18)
@@ -118,7 +118,9 @@ function meta(doc: Doc, label: string, data: string): void {
 
 function bullets(doc: Doc, items: string[], empty = '-'): void {
   if (!items.length) {
-    doc.font('Helvetica-Oblique').fontSize(9.4).fillColor('#768695').text(empty, { lineGap: 2 })
+    doc.font('Helvetica-Oblique').fontSize(9.4)
+    keepTogether(doc, doc.heightOfString(empty, { width: pageContentWidth(doc), lineGap: 2 }) + 14)
+    doc.font('Helvetica-Oblique').fontSize(9.4).fillColor('#768695').text(empty, doc.page.margins.left, doc.y, { width: pageContentWidth(doc), lineGap: 2 })
     return
   }
 
@@ -935,7 +937,7 @@ export function generateSeraVNextDetailedPdfBuffer(input: DetailedPdfInput): Pro
       .filter((item, index, all) => all.indexOf(item) === index)
       .slice(0, 6)
 
-    heading(doc, '7. ' + L('Outros fatores contribuintes e observações operacionais', 'Other contributory factors and operational observations'))
+    heading(doc, '7. ' + L('Outros fatores contribuintes e observações operacionais', 'Other contributory factors and operational observations'), 165)
     body(doc, L(
       'Itens explicitamente registrados pela investigação e preservados para revisão humana, sem convertê-los automaticamente em pré-condições causais.',
       'Items explicitly recorded by the investigation and retained for human review without automatically converting them into causal preconditions.',

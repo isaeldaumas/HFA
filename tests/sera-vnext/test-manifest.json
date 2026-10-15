@@ -2353,5 +2353,15 @@
     "expectedStatus": "PASS",
     "runtimeScope": "CURRENT",
     "dataAccess": "NONE"
+  },
+  {
+    "path": "tests/sera-vnext/daumas-pdf-evidence-proof-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT",
+    "dataAccess": "NONE"
   }
 ]

@@ -640,8 +640,18 @@ function decideO(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
           /\b(called for|requested|solicitou|chamou (?:pela |a )?)\b.{0,60}\b(go-around|go around|arremetida)\b/i,
         ]),
       ])
-      const filteredIntendedGoal = semanticInterpretationPresent(ctx)
-        ? intendedGoal
+      // When source-anchored semantic annotations exist, a tentative/uncertain
+      // suggestion of the actor's goal cannot be promoted by a lexical match in
+      // the surrounding interview (possibly about another crew member).
+      // Older V1 annotations are held to the same affirmed-actor evidence gate.
+      const semanticSourcePresent = ctx.evidence.some((item) =>
+        item.collectionSource === 'AI_SEMANTIC_EXTRACTION')
+      const positiveGoalStatements = unique([
+        ...c('efficiencyObjective'),
+        ...semanticRoleStatements(ctx, 'OBJECTIVE_INTENT'),
+      ])
+      const filteredIntendedGoal = semanticSourcePresent
+        ? positiveGoalStatements.filter((statement) => !actionIntentOnly(statement))
         : intendedGoal.filter((statement) => !actionIntentOnly(statement))
       if (!filteredIntendedGoal.length) return { answer: 'INSUFFICIENT_EVIDENCE', supportingEvidence: [], rationale: 'The descriptive root requires evidence of the actor intended objective. The observed unsafe action, intended control/configuration, a rule deviation, or the outcome cannot substitute for the operational goal.' }
       return { answer: 'START', supportingEvidence: filteredIntendedGoal.slice(0, 2), rationale: 'Root node establishes the operator intended goal before rule/risk consistency is tested.' }
@@ -946,7 +956,7 @@ function decideA(nodeId: string, statements: string[], ctx: SeraNodeEvidenceCont
         rationale: 'Positive evidence independently establishes the knowledge/capability needed to form and implement an appropriate action.',
       }
       if (specificActionMechanism.length > 0) {
-        if (semanticInterpretationPresent(ctx)) return {
+        if (ctx.evidence.some((item) => item.collectionSource === 'AI_SEMANTIC_EXTRACTION')) return {
           answer: 'INSUFFICIENT_EVIDENCE',
           supportingEvidence: specificActionMechanism,
           rationale: 'An identifiable action subtype does not establish knowledge, skill, or capability. Positive capability evidence is required before subtype discrimination can continue.',
