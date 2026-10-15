@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { DEFAULT_TRIAL_LIMIT, buildTrialUsage, type TrialUsage } from '@/lib/product/trial'
+import { useMe } from '@/hooks/useMe'
+import { shouldShowConsumerCredits } from '@/lib/product/consumer-credit-visibility'
 
 type TrialUsageCardProps = {
   used?: number
@@ -41,11 +43,13 @@ export function TrialUsageCard({
   compact = false,
   showCreateCta = true,
 }: TrialUsageCardProps) {
+  const me = useMe()
+  const showConsumerCredits = shouldShowConsumerCredits(me)
   const [remoteUsage, setRemoteUsage] = useState<TrialUsage | null>(null)
   const [loading, setLoading] = useState(used == null)
 
   useEffect(() => {
-    if (used != null) return
+    if (used != null || !showConsumerCredits) return
 
     let active = true
 
@@ -80,13 +84,15 @@ export function TrialUsageCard({
     return () => {
       active = false
     }
-  }, [used])
+  }, [used, showConsumerCredits])
 
   const usage = useMemo(() => {
     if (used != null) return buildTrialUsage(used, limit)
     return remoteUsage
   }, [limit, remoteUsage, used])
   const effectiveLoading = used == null && loading
+
+  if (!showConsumerCredits) return null
 
   if (effectiveLoading) {
     return (

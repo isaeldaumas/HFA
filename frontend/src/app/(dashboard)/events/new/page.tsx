@@ -6,6 +6,7 @@ import { resolveApiUrl } from '@/lib/api'
 import { TrialUsageCard } from '@/components/product/TrialUsageCard'
 import DocumentUpload from '@/components/sera/DocumentUpload'
 import { useMe } from '@/hooks/useMe'
+import { shouldShowConsumerCredits } from '@/lib/product/consumer-credit-visibility'
 import { useI18n } from '@/lib/i18n'
 
 type Tab = 'text' | 'upload'
@@ -26,7 +27,7 @@ export default function NewEventPage() {
   const router = useRouter()
   const { locale } = useI18n()
   const me = useMe()
-  const noCredits = !me.loading && !me.isUnlimited && me.credits === 0
+  const noCredits = shouldShowConsumerCredits(me) && !me.isUnlimited && me.credits === 0
   const [tab, setTab] = useState<Tab>('text')
   const [analysisMode, setAnalysisMode] = useState<SubmissionMode>('register_only')
   const [confidentialityLevel, setConfidentialityLevel] = useState<ConfidentialityLevel>('STANDARD')
@@ -224,7 +225,7 @@ export default function NewEventPage() {
       </div>
       <p className="text-slate-400 mb-8">Registre o evento primeiro. A análise HFA/SERA é opcional e pode ser iniciada agora ou após a triagem de Safety.</p>
 
-      {analysisMode === 'hfa' && (
+      {analysisMode === 'hfa' && shouldShowConsumerCredits(me) && (
         <div className="mb-6">
           <TrialUsageCard compact showCreateCta={false} />
         </div>

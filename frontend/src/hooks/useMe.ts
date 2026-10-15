@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { createContext, createElement, useContext, useEffect, useState, type ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
 
 export interface Me {
@@ -22,40 +22,73 @@ const DEFAULT: Me = {
   loading: true,
 }
 
-export function useMe(): Me {
+const MeContext = createContext<Me | null>(null)
+
+function useResolvedMe(): Me {
   const [me, setMe] = useState<Me>(DEFAULT)
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!data.session) {
-        setMe({ ...DEFAULT, loading: false })
+    let active = true
+    let latestRequest = 0
+
+    async function refresh(token: string | null) {
+      const request = ++latestRequest
+      if (!token) {
+        if (active) setMe({ ...DEFAULT, loading: false })
         return
       }
+      if (active) setMe((current) => ({ ...current, verified: false, loading: true }))
       try {
         const res = await fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${data.session.access_token}` },
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
         })
         if (!res.ok) throw new Error('me fetch failed')
         const json = await res.json()
         const isEnterprise = json.plan === 'enterprise'
         const isUnlimited = json.credits_balance === 'unlimited' || isEnterprise
         const credits = isUnlimited ? 'unlimited' : Number(json.credits_balance)
-        setMe({
-          plan: json.plan ?? 'free',
-          credits,
-          role: json.role ?? 'member',
-          isAdmin: Boolean(json.is_admin),
-          isUnlimited,
-          verified: true,
-          loading: false,
-        })
+        if (active && request === latestRequest) {
+          setMe({
+            plan: json.plan ?? 'free',
+            credits,
+            role: json.role ?? 'member',
+            isAdmin: json.is_admin === true,
+            isUnlimited,
+            verified: true,
+            loading: false,
+          })
+        }
       } catch (error) {
-        // Fail closed for display role/plan — never trust user_metadata as authorization source.
+        // Never display a consumer billing state when server role is unknown.
         console.error('Falha ao carregar /api/auth/me', error)
-        setMe({ ...DEFAULT, loading: false })
+        if (active && request === latestRequest) setMe({ ...DEFAULT, loading: false })
+      }
+    }
+
+    void supabase.auth.getSession().then(({ data }) => refresh(data.session?.access_token ?? null))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+        void refresh(session?.access_token ?? null)
       }
     })
+    return () => {
+      active = false
+      latestRequest++
+      subscription.unsubscribe()
+    }
   }, [])
 
   return me
+}
+
+/** One verified role/plan snapshot per dashboard tree. The Sidebar and pages
+ * MUST share this provider rather than independently fetching authorization. */
+export function MeProvider({ children }: { children: ReactNode }) {
+  const me = useResolvedMe()
+  return createElement(MeContext.Provider, { value: me }, children)
+}
+
+export function useMe(): Me {
+  return useContext(MeContext) ?? DEFAULT
 }

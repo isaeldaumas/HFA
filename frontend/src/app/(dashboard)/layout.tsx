@@ -25,7 +25,7 @@ import { supabase } from '@/lib/supabase'
 import { ensureOAuthTenant } from '@/lib/ensure-tenant'
 import { useT } from '@/lib/i18n'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
-import { useMe } from '@/hooks/useMe'
+import { MeProvider, useMe } from '@/hooks/useMe'
 import { shouldShowConsumerCredits } from '@/lib/product/consumer-credit-visibility'
 
 /* ── Nav config ─────────────────────────────────────────────── */
@@ -366,6 +366,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
+    <MeProvider>
     <div className="min-h-screen bg-hfa-bg flex">
       {/* ── Desktop sidebar ──────────────────────────── */}
       <div className="hidden md:flex md:w-60 md:shrink-0">
@@ -415,5 +416,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
     </div>
+    </MeProvider>
   )
 }

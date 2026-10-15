@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { TrialUsageCard } from '@/components/product/TrialUsageCard'
+import { useMe } from '@/hooks/useMe'
+import { shouldShowConsumerCredits } from '@/lib/product/consumer-credit-visibility'
 
 const RECOMMENDED_FLOW = [
   {
@@ -53,6 +55,8 @@ const SYSTEM_DOES_NOT = [
 ]
 
 export default function OnboardingPage() {
+  const me = useMe()
+  const showTrial = shouldShowConsumerCredits(me)
   return (
     <div className="p-8 space-y-6 max-w-6xl mx-auto">
       <div className="space-y-2">
@@ -63,16 +67,14 @@ export default function OnboardingPage() {
       </div>
 
       <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-5 space-y-2">
-        <p className="text-blue-300 text-sm font-semibold uppercase tracking-wide">Piloto guiado · 60 dias · até 15 análises · sem cartão</p>
+        <p className="text-blue-300 text-sm font-semibold uppercase tracking-wide">{showTrial ? 'Piloto guiado · 60 dias · até 15 análises · sem cartão' : 'Guia de implantação HFA/SERA'}</p>
         <p className="text-slate-300 text-sm leading-relaxed">
-          Comece por uma ocorrência histórica já investigada para comparar os resultados. Depois, use o HFA em eventos reais durante o piloto e acompanhe os padrões organizacionais que começam a emergir.
+          Comece por uma ocorrência histórica já investigada para comparar os resultados. Depois, use o HFA em eventos reais e acompanhe os padrões organizacionais que começam a emergir.
         </p>
         <p className="text-slate-400 text-xs">
-          O piloto não exige compromisso de contratação. Análises e dados permanecem rastreáveis para revisão humana e avaliação interna da empresa.
+          {showTrial ? 'O piloto não exige compromisso de contratação. ' : ''}Análises e dados permanecem rastreáveis para revisão humana e avaliação interna da empresa.
         </p>
-        <div className="pt-2">
-          <TrialUsageCard compact />
-        </div>
+        {showTrial && <div className="pt-2"><TrialUsageCard compact /></div>}
         <div className="pt-2">
           <div className="flex flex-wrap gap-2">
             <Link
