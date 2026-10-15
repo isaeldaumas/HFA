@@ -46,6 +46,7 @@ export default function NewEventPage() {
   const [fromInterview, setFromInterview] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [incompleteEventId, setIncompleteEventId] = useState<string | null>(null)
   const [duplicateCandidates, setDuplicateCandidates] = useState<DuplicateCandidate[]>([])
   const [independentReason, setIndependentReason] = useState('')
   const [progressText, setProgressText] = useState('')
@@ -111,6 +112,7 @@ export default function NewEventPage() {
     }
     setLoading(true)
     setError('')
+    setIncompleteEventId(null)
     if (analysisMode === 'hfa') startProgress()
     else setProgressText('Registrando evento de Safety...')
     try {
@@ -152,6 +154,7 @@ export default function NewEventPage() {
           return
         }
         if (!res.ok) {
+          if (typeof data.event_id === 'string') setIncompleteEventId(data.event_id)
           throw new Error(typeof data.detail === 'string' ? data.detail : `HTTP ${res.status}`)
         }
         clearProgress()
@@ -187,6 +190,7 @@ export default function NewEventPage() {
         return
       }
       if (!res.ok) {
+        if (typeof data.event_id === 'string') setIncompleteEventId(data.event_id)
         throw new Error(typeof data.detail === 'string' ? data.detail : `HTTP ${res.status}`)
       }
       clearProgress()
@@ -299,6 +303,7 @@ export default function NewEventPage() {
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
             {error}
+            {incompleteEventId && <a href={`/events/${incompleteEventId}`} className="mt-2 block font-semibold underline text-cyan-300">Abrir o evento registrado e tentar novamente sem duplicar</a>}
           </div>
         )}
 

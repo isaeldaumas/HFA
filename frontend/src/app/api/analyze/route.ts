@@ -274,6 +274,15 @@ export async function POST(req: Request) {
           .eq('id', body.eventId)
           .eq('tenant_id', user.tenantId)
         logAnalyzeError(firstHfaAnalysis ? 'first_hfa_analysis_failed' : 'reanalysis_failed', requestId, err)
+        // A provider 402 is not a depleted HFA subscription or an event error.
+        // The record is preserved for retry, without creating a second event.
+        const providerPaymentFailure = /(?:402|insufficient.balance|payment.required)/i.test(err instanceof Error ? err.message : String(err))
+        if (providerPaymentFailure) {
+          return NextResponse.json({ error: {
+            code: 'ANALYZE_ENGINE_UNAVAILABLE', requestId,
+            message: 'O provedor de IA configurado está sem saldo. A ocorrência continua registrada, mas a análise não foi concluída. Configure outro provedor ou regularize o saldo e tente novamente neste mesmo evento.',
+          } }, { status: 503, headers: { 'x-request-id': requestId, 'Cache-Control': 'no-store' } })
+        }
         return buildErrorResponse('ANALYZE_ENGINE_UNAVAILABLE', requestId, 500)
       } finally {
         if (firstCreditDebited && !success) {

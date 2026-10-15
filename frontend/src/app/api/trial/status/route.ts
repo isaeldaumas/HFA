@@ -12,6 +12,20 @@ export async function GET(req: Request) {
     const user = await requireBearerUser(req)
     const admin = getSupabaseAdmin()
 
+    // Billing/trial usage belongs to customers on limited plans only. Hide at
+    // the API boundary too: old cached frontends must never receive an admin or
+    // enterprise trial counter to render as a red paywall.
+    if (user.role.toLowerCase() === 'admin') {
+      return new Response(null, { status: 204, headers: { 'Cache-Control': 'private, no-store' } })
+    }
+
+    const { data: planRow, error: planError } = await admin.from('tenants')
+      .select('plan').eq('id', user.tenantId).single()
+    if (planError || !planRow) return jsonError('Plano não encontrado', 500)
+    if (planRow.plan === 'enterprise') {
+      return new Response(null, { status: 204, headers: { 'Cache-Control': 'private, no-store' } })
+    }
+
     const [tenantRes, usageRes] = await Promise.all([
       admin
         .from('tenants')

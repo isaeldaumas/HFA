@@ -1,3 +1,4 @@
+import type { enrichSeraNarrativeSemantically } from '@/lib/sera-vnext/ai/semantic-enrichment'
 import type { SeraVNextCreateAnalysisInput, SeraVNextCreateAnalysisResult, SeraVNextProductContext } from '@/lib/sera-vnext-product/types'
 import { createSeraVNextAnalysis } from '@/lib/sera-vnext-product/persistence/create-analysis'
 import { reanalyzeSeraVNextAnalysis } from '@/lib/sera-vnext-product/persistence/reanalyze-analysis'
@@ -163,6 +164,7 @@ export async function createCanonicalEventAnalysis(args: {
   supplementalEvidence?: SeraVNextCreateAnalysisInput['supplementalEvidence']
   context: SeraVNextProductContext
   create?: typeof createSeraVNextAnalysis
+  preparedSemantic?: Awaited<ReturnType<typeof enrichSeraNarrativeSemantically>>
   existingAnalysisId?: string
   reprocessCurrentEngine?: boolean
   reanalyze?: typeof reanalyzeSeraVNextAnalysis
@@ -185,6 +187,7 @@ export async function createCanonicalEventAnalysis(args: {
   }
   const create = args.create ?? createSeraVNextAnalysis
   return create({
+    preparedSemantic: args.preparedSemantic,
     input: buildCanonicalEventAnalysisInput({
       eventId: args.eventId,
       title: args.title,

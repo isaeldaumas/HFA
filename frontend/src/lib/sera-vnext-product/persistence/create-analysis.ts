@@ -62,6 +62,7 @@ export async function createSeraVNextAnalysis(args: {
   input: SeraVNextCreateAnalysisInput & { warnings?: string[]; sourceFlowOverride?: 'VNEXT_CANONICAL' | 'VNEXT_PRODUCT_BETA' }
   context: SeraVNextProductContext
   repository?: SeraVNextProductRepository
+  preparedSemantic?: Awaited<ReturnType<typeof enrichSeraNarrativeSemantically>>
 }): Promise<SeraVNextCreateAnalysisResult> {
   const repository = args.repository ?? createSeraVNextProductRepository()
   const narrativeHash = sha256Hex(args.input.narrative)
@@ -82,7 +83,7 @@ export async function createSeraVNextAnalysis(args: {
   const effectiveSourceFlow = args.input.sourceFlowOverride ?? versions.sourceFlow
   const semanticAiRequired = args.input.metadata?.semanticAiRequired === true
   let semantic = semanticAiRequired
-    ? await enrichSeraNarrativeSemantically({ narrative: args.input.narrative, locale: args.input.locale ?? 'pt-BR' })
+    ? args.preparedSemantic ?? await enrichSeraNarrativeSemantically({ narrative: args.input.narrative, locale: args.input.locale ?? 'pt-BR' })
     : null
   let engineInput = buildEngineInput(args.input, args.context, semantic)
   let engineOutput = runSeraVNextEngineV0(engineInput)

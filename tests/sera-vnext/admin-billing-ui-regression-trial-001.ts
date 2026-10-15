@@ -8,6 +8,8 @@ const scenarios = [
   { me: { loading: false, verified: true, isAdmin: true, isUnlimited: false, credits: 0 }, show: false },
   { me: { loading: false, verified: true, isAdmin: true, isUnlimited: true, credits: 'unlimited' }, show: false },
   { me: { loading: false, verified: false, isAdmin: false, isUnlimited: false, credits: 0 }, show: false },
+  { me: { loading: false, verified: true, isAdmin: false, isUnlimited: true, credits: 'unlimited' }, show: false },
+  { me: { loading: false, verified: true, isAdmin: false, isUnlimited: false, plan: 'enterprise', credits: 0 }, show: false },
   { me: { loading: false, verified: true, isAdmin: false, isUnlimited: false, credits: 0 }, show: true },
   { me: { loading: false, verified: true, isAdmin: false, isUnlimited: false, credits: 2 }, show: true },
 ] as const
@@ -43,4 +45,8 @@ assert.match(onboarding, /showTrial && <div className="pt-2"><TrialUsageCard com
 assert.match(credits, /if \(!showConsumerCredits\)/)
 assert.match(meApi, /requireBearerUser\(req\)/)
 assert.match(meApi, /is_admin: isAdmin/)
+const trialApi = read('app/api/trial/status/route.ts')
+assert.match(trialApi, /user.role.toLowerCase\(\) === 'admin'/)
+assert.match(trialApi, /planRow.plan === 'enterprise'/)
+assert.match(trialApi, /status: 204/)
 console.log('ADMIN_BILLING_UI_REGRESSION_PASS: verified singleton profile, consistent sidebar/dashboard, all billing surfaces guarded, end-user policy intact')

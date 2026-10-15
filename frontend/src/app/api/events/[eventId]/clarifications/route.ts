@@ -9,6 +9,7 @@ import { reanalyzeSeraVNextAnalysis } from '@/lib/sera-vnext-product/persistence
 import { SeraVNextProductError } from '@/lib/sera-vnext-product/errors'
 import { mergeCanonicalSupplementalEvidence } from '@/lib/sera-vnext-product/canonical-event-analysis'
 import { hasNoNewActorEvidence } from '@/lib/sera-vnext-product/clarification-factuality'
+import { applyUserAiSettingsToEnv } from '@/lib/server/apply-user-ai-settings-to-env'
 
 export async function POST(req: Request, ctx: { params: Promise<{ eventId: string }> }) {
   const requestId = getOrCreateRequestId(req)
@@ -50,6 +51,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
         request_id: requestId,
       }, { status: 422 })
     }
+    // The clarification route must use the logged-in analyst's AI provider,
+    // just like first-event analysis; otherwise it silently uses the stale
+    // deployment default (DeepSeek in production) rather than OpenAI.
+    await applyUserAiSettingsToEnv(admin, user.userId)
     const publicUserId = await ensurePublicUserRow(admin, user.tenantId, user.userId, user.email, user.role)
     const result = await reanalyzeSeraVNextAnalysis({
       analysisId: analysis.id,
@@ -104,7 +109,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
     if (error instanceof SeraVNextProductError) {
       return NextResponse.json({ detail: error.message, errorCode: error.code, request_id: requestId }, { status: error.status })
     }
-    console.error('[sera-clarifications]', { requestId, errorType: error instanceof Error ? error.name : typeof error })
-    return NextResponse.json({ detail: 'Não foi possível registrar as informações adicionais.', request_id: requestId }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const providerBilling = /(?:402|insufficient.balance|payment.required)/i.test(errorMessage)
+    console.error('[sera-clarifications]', { requestId, errorType: error instanceof Error ? error.name : typeof error, errorMessage })
+    return NextResponse.json({ detail: providerBilling
+      ? 'O provedor de IA configurado para esta conta está sem saldo. A resposta não foi incorporada; selecione um provedor disponível em Configurações IA e tente novamente.'
+      : 'Não foi possível registrar as informações adicionais. Verifique Configurações IA e tente novamente. Referência: ' + requestId,
+      request_id: requestId }, { status: providerBilling ? 503 : 500 })
   }
 }

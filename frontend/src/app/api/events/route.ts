@@ -8,6 +8,7 @@ import { writeAuditLog } from '@/lib/observability/audit'
 import { canonicalAnalyzeResponse, createCanonicalEventAnalysis } from '@/lib/sera-vnext-product/canonical-event-analysis'
 import { assertFileSize, detectDocumentKind } from '@/lib/sera/document-extraction'
 import { inferOccurrenceDateFromNarrative } from '@/lib/sera-vnext/occurrence-date'
+import { enrichSeraNarrativeSemantically } from '@/lib/sera-vnext/ai/semantic-enrichment'
 import { findTenantDuplicateCandidates, publicDuplicateMatches } from '@/lib/server/event-duplicates'
 
 export const maxDuration = 300
@@ -221,6 +222,25 @@ export async function POST(req: Request) {
       if (!isEnterprise && (tenant.credits_balance ?? 0) < 1) return jsonError('Créditos insuficientes para iniciar a análise HFA.', 402)
     }
 
+    // Never insert an HFA event before the required semantic AI pass succeeds.
+    // A provider billing error (e.g. DeepSeek HTTP 402) otherwise creates a
+    // second 'failed' occurrence after duplicate override with no analysis.
+    let preparedSemantic: Awaited<ReturnType<typeof enrichSeraNarrativeSemantically>> | undefined
+    if (analysisMode === 'hfa') {
+      try {
+        stage = 'preflight-ai'
+        await applyUserAiSettingsToEnv(admin, user.userId)
+        preparedSemantic = await enrichSeraNarrativeSemantically({ narrative: raw_input, locale })
+      } catch (aiError) {
+        logEventsError(aiError, 'preflight-ai', context)
+        const text = aiError instanceof Error ? aiError.message : String(aiError)
+        const billingFailure = /(?:402|insufficient.balance|quota.exceeded|payment.required)/i.test(text)
+        return jsonError(billingFailure
+          ? 'O provedor de IA configurado está sem saldo. Nenhum novo evento foi criado. Atualize o saldo ou escolha um provedor disponível em Configurações IA antes de tentar novamente.'
+          : 'Não foi possível acessar o provedor de IA. Nenhum novo evento foi criado nem foi cobrada uma análise. Verifique Configurações IA e tente novamente.', 503)
+      }
+    }
+
     stage = 'insert-event'
     const { data: eventRow, error: eerr } = await admin
       .from('events')
@@ -293,9 +313,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ event_id: eventId, status: 'received', analysis_started: false, credits_used: 0 }, { status: 201, headers: { 'x-request-id': requestId } })
     }
 
-    stage = 'load-ai-settings'
-    await applyUserAiSettingsToEnv(admin, user.userId)
-
     let creditDebited = false
     let success = false
     try {
@@ -322,6 +339,7 @@ export async function POST(req: Request) {
         eventId,
         title,
         narrative: raw_input,
+        preparedSemantic,
         mode: 'INITIAL',
         locale,
         context: { tenantId: user.tenantId, userId: submittedById, role: user.role, email: user.email ?? '', requestId },
@@ -383,7 +401,12 @@ export async function POST(req: Request) {
         eventType: 'analysis_failed', entityType: 'event', entityId: eventId,
         route: '/api/events', method: 'POST', status: 'failed', metadata: { stage, engine_role: 'PRIMARY' },
       })
-      return jsonError('Não foi possível concluir a análise do evento.', 500)
+      return NextResponse.json({
+        detail: 'O evento foi registrado, mas a análise não foi concluída. Abra o mesmo evento para tentar novamente, sem criar uma duplicata.',
+        event_id: eventId,
+        request_id: requestId,
+        analysis_started: false,
+      }, { status: 503, headers: { 'x-request-id': requestId, 'Cache-Control': 'no-store' } })
     } finally {
       if (creditDebited && !success) {
         try {

@@ -67,6 +67,10 @@ export function TrialUsageCard({
         const res = await fetch('/api/trial/status', {
           headers: { Authorization: `Bearer ${session.access_token}` },
         })
+        if (res.status === 204) {
+          if (active) setRemoteUsage(null)
+          return
+        }
         const json = await res.json().catch(() => null)
         if (!res.ok || !json) {
           throw new Error(typeof json?.detail === 'string' ? json.detail : `HTTP ${res.status}`)
