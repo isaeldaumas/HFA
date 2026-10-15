@@ -400,6 +400,15 @@ export function runStep09Preconditions(input: {
     statement: string,
     semanticCanonical?: SeraCanonicalPreconditionCategory | null,
   ): SeraPreconditionCategory | null => {
+    // An AI-supplied training/selection category must be anchored in training,
+    // qualifications, experience or proficiency evidence. "Awareness of risk"
+    // and concern about a previous accident are not training deficiencies.
+    // This applies to V1 snapshots as well as newly enriched V2 narratives.
+    if (semanticCanonical === 'TRAINING_SELECTION' || semanticCanonical === 'QUALIFICATION_AUTHORIZATION') {
+      const text = normalizeFactorText(statement)
+      const trainingEvidence = /\b(?:treinament\w*|instru\w*|instrutor\w*|qualific\w*|habilita\w*|certific\w*|proficienc\w*|experienc\w*|familiar\w*|formac\w*|conheciment\w*|capacitac\w*|seleca\w*|training|instruction|instructor|qualif\w*|licen[sc]\w*|proficien\w*|experience|familiar\w*|certif\w*|competenc\w*)\b/.test(text)
+      if (!trainingEvidence) return null
+    }
     if (semanticCanonical) return OPERATIONAL_CATEGORY_BY_CANONICAL[semanticCanonical]
     // Organizational recording/culture evidence must not migrate to Equipment merely because
     // the same sentence names the technical fault that should have been recorded.
@@ -428,9 +437,14 @@ export function runStep09Preconditions(input: {
     // of the selected critical act. It needs its own SERA traversal unless separate causal evidence
     // explicitly establishes it as a precondition.
     .filter((item) => !isSeparateActiveFailure(item))
+    // A source-quoted precondition can be about a different operational episode.
+    // Semantic annotation alone does not override the Hendy single-episode
+    // boundary: a landing-side choice cannot become a causal hypothesis for a
+    // subsequent ground/collective-control lapse. An explicitly source-linked V2
+    // causal relation is the sole exception, requiring separate review.
     .filter((item) => !hasResolvedEscapeAnchor
-      || item.collectionSource === 'AI_SEMANTIC_EXTRACTION'
-      || phaseCompatible(primaryEscapeAnchor, item.statement))
+      || phaseCompatible(primaryEscapeAnchor, item.statement)
+      || (isSemanticV2Item(item) && item.semanticPreconditionCausalStatus === 'SOURCE_LINKED'))
     .filter((item) => !hasResolvedEscapeAnchor || contextRelevance(item) >= 3)
     .sort((a, b) => contextRelevance(b) - contextRelevance(a) || a.sourceSentenceIndex - b.sourceSentenceIndex)
   const explicitContributorEvidence = input.factualExtraction.evidence.filter((item) =>
