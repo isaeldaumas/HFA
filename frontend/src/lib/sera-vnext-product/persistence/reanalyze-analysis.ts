@@ -14,6 +14,8 @@ export async function reanalyzeSeraVNextAnalysis(args: {
   analysisId: string
   reason?: string
   reprocessCurrentEngine?: boolean
+  /** New clarification facts are consumed deterministically with the previously audited semantic snapshot. */
+  preserveSemanticForClarifications?: boolean
   updatedNarrative?: string
   clarificationResponses?: SeraVNextClarificationResponse[]
   carriedSupplementalEvidence?: SeraVNextEngineInput['supplementalEvidence']
@@ -111,8 +113,13 @@ export async function reanalyzeSeraVNextAnalysis(args: {
   // source-anchored semantic evidence already audited for this analysis. Re-running an
   // external LLM here is both operationally fragile (provider/timeouts) and can silently
   // change evidence interpretation without the analyst supplying new facts. A full
-  // semantic pass remains reserved for genuine new narrative/clarification evidence.
+  // semantic pass remains reserved for genuine new narrative evidence. Submitted
+  // clarifications stay as new factual supplements with immutable source and
+  // evidence IDs; the deterministic engine can assess them without requiring
+  // a third-party provider to save the analyst's answer. No new semantic
+  // hypothesis is inferred from these answers.
   const reuseExistingSemantic = args.reprocessCurrentEngine === true
+    || (args.preserveSemanticForClarifications === true && clarificationResponses.length > 0 && !hasNewNarrative)
   let semantic = analysis.source_flow === 'VNEXT_CANONICAL' && !reuseExistingSemantic
     ? await (args.semanticEnricher ?? enrichSeraNarrativeSemantically)({ narrative, locale })
     : null

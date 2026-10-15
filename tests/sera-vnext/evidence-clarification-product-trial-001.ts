@@ -90,11 +90,14 @@ async function main() {
     return { questionId: question.id, response: 'A primeira saída controlável ocorreu quando a tripulação passou a tratar UNIT-A como o destino planejado e iniciou a aproximação para ela.' }
   })
 
+  repo.analyses[0].source_flow = 'VNEXT_CANONICAL'
   const perceptionQuestion = questions.find((question) => question.stage === 'PERCEPTION')
   assert.ok(perceptionQuestion)
   const reanalyzed = await reanalyzeSeraVNextAnalysis({
     analysisId: created.analysis.id,
     reason: 'clarification_evidence',
+    preserveSemanticForClarifications: true,
+    semanticEnricher: async () => { throw new Error('External provider unavailable') },
     clarificationResponses: responses,
     carriedSupplementalEvidence: [{
       evidenceId: 'SUP-HISTORICAL-P-ROOT',

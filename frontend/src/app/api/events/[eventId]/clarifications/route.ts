@@ -9,7 +9,6 @@ import { reanalyzeSeraVNextAnalysis } from '@/lib/sera-vnext-product/persistence
 import { SeraVNextProductError } from '@/lib/sera-vnext-product/errors'
 import { mergeCanonicalSupplementalEvidence } from '@/lib/sera-vnext-product/canonical-event-analysis'
 import { hasNoNewActorEvidence } from '@/lib/sera-vnext-product/clarification-factuality'
-import { applyUserAiSettingsToEnv } from '@/lib/server/apply-user-ai-settings-to-env'
 
 export async function POST(req: Request, ctx: { params: Promise<{ eventId: string }> }) {
   const requestId = getOrCreateRequestId(req)
@@ -51,14 +50,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
         request_id: requestId,
       }, { status: 422 })
     }
-    // The clarification route must use the logged-in analyst's AI provider,
-    // just like first-event analysis; otherwise it silently uses the stale
-    // deployment default (DeepSeek in production) rather than OpenAI.
-    await applyUserAiSettingsToEnv(admin, user.userId)
+    // Preserve the source-audited semantic snapshot and feed clarification
+    // answers directly to the deterministic engine. This endpoint must not
+    // call an external AI provider merely to register known new facts.
     const publicUserId = await ensurePublicUserRow(admin, user.tenantId, user.userId, user.email, user.role)
     const result = await reanalyzeSeraVNextAnalysis({
       analysisId: analysis.id,
       reason: 'event_clarification_evidence',
+      preserveSemanticForClarifications: true,
       clarificationResponses,
       carriedSupplementalEvidence,
       locale,
