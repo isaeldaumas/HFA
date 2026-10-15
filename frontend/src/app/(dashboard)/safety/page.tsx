@@ -141,7 +141,7 @@ export default function SafetyPage() {
   const truncated = Object.values(data.truncated).some(Boolean)
 
   return (
-    <div className="p-5 md:p-8 space-y-6">
+    <div className="w-full max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="flex items-center gap-2 text-blue-300">

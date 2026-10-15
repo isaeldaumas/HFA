@@ -80,7 +80,7 @@ export default function ExecutiveReportPage() {
   )
 
   return (
-    <div className={`p-8 max-w-5xl mx-auto space-y-6 ${styles.reportPage}`}>
+    <div className={`w-full max-w-5xl mx-auto px-4 py-6 sm:px-6 lg:px-8 space-y-6 ${styles.reportPage}`}>
       <div className={`${styles.screenOnly} flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4`}>
         <div>
           <h1 className="text-2xl font-bold text-white">Relatório executivo do Perfil de Risco</h1>

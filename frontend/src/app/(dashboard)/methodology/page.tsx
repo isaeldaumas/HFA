@@ -33,7 +33,7 @@ const FLOW = [
 
 export default function MethodologyPage() {
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 space-y-6">
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold text-white">Metodologia HFA/SERA</h1>

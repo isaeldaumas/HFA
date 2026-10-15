@@ -401,7 +401,7 @@ export default function EventsPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="w-full max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
       <DeleteEventModal
         event={deleteTarget}
         impact={deleteImpact}

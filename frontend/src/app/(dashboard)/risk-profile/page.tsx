@@ -1752,7 +1752,7 @@ export default function RiskProfilePage() {
   const isForming = totalAnalyses > 0 && totalAnalyses < 10
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 space-y-6">
       {/* 1. Header */}
       <div className="flex items-start justify-between">
         <div>

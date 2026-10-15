@@ -104,6 +104,8 @@ export default function ActionsPage() {
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
   const [filter, setFilter]     = useState('all')
+  const [suggestionLimit, setSuggestionLimit] = useState(5)
+  const [showSuggestions, setShowSuggestions] = useState(false)
   const [eventFilter, setEventFilter] = useState('all')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({
@@ -258,8 +260,8 @@ export default function ActionsPage() {
   }
 
   return (
-    <div className="p-8 max-w-4xl">
-      <div className="mb-8">
+    <div className="w-full max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-white">Ações de Safety</h1>
         <p className="text-slate-400">Ações gerais de Safety e tratamentos derivados das análises SERA</p>
       </div>
@@ -298,7 +300,7 @@ export default function ActionsPage() {
       </div>
 
       {/* Status filter cards — counts respect the selected event. */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         {FILTER_CARDS.map((card) => (
           <button
             key={card.key}
@@ -315,14 +317,23 @@ export default function ActionsPage() {
 
       {visibleSuggestions.length > 0 && (
         <section className="mb-8 space-y-3">
-          <div className="flex items-end justify-between gap-3">
+          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-end">
             <div>
               <h2 className="text-base font-semibold text-white">Sugestões SERA pendentes</h2>
-              <p className="text-xs text-slate-500">Converta em ação rastreável somente após conferir a base factual e o escopo.</p>
+              <p className="text-xs text-slate-400">São propostas para análise humana, não tarefas criadas. Confira as evidências antes de registrar uma ação.</p>
             </div>
-            <span className="text-xs text-slate-500">{visibleSuggestions.length} item(ns)</span>
+            <span className="shrink-0 text-xs text-slate-400">Mostrando {Math.min(suggestionLimit, visibleSuggestions.length)} de {visibleSuggestions.length}</span>
           </div>
-          {visibleSuggestions.map((suggestion) => {
+          <div className="rounded-lg border border-slate-700/70 bg-slate-900/60 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-slate-300">{visibleSuggestions.length} propostas aguardam análise humana. <span className="text-slate-500">Elas não são ações abertas.</span></p>
+              <button type="button" onClick={() => setShowSuggestions((current) => !current)} aria-expanded={showSuggestions}
+                className="shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-200 hover:border-blue-500">
+                {showSuggestions ? 'Ocultar propostas' : 'Examinar propostas'}
+              </button>
+            </div>
+          </div>
+          {showSuggestions && visibleSuggestions.slice(0, suggestionLimit).map((suggestion) => {
             const investigation = suggestion.kind === 'INVESTIGATION'
             const creating = creatingSuggestionId === suggestion.id
             return (
@@ -364,6 +375,17 @@ export default function ActionsPage() {
               </div>
             )
           })}
+          {showSuggestions && visibleSuggestions.length > suggestionLimit && (
+            <button type="button" onClick={() => setSuggestionLimit((current) => current + 5)}
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-medium text-slate-200 hover:border-blue-500">
+              Mostrar mais 5 sugestões
+            </button>
+          )}
+          {showSuggestions && visibleSuggestions.length > 5 && suggestionLimit > 5 && (
+            <button type="button" onClick={() => setSuggestionLimit(5)} className="text-sm text-slate-400 underline-offset-2 hover:text-white hover:underline">
+              Recolher lista
+            </button>
+          )}
         </section>
       )}
 
@@ -387,7 +409,7 @@ export default function ActionsPage() {
               <div key={action.id} className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
                 {/* Main content */}
                 <div className="p-5">
-                  <div className="flex items-start gap-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
                     <div className="flex-1 min-w-0">
                       {/* Badge row */}
                       <div className="flex items-center flex-wrap gap-2 mb-2">
@@ -467,7 +489,7 @@ export default function ActionsPage() {
                     </div>
 
                     {/* Controls */}
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
                       <button
                         onClick={() => (isEditing ? setEditingId(null) : startEdit(action))}
                         className="text-xs text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-500 px-3 py-1.5 rounded-lg transition-colors"
@@ -553,7 +575,7 @@ export default function ActionsPage() {
                         </div>
                       </div>
                     )}
-                    <div className="flex gap-2 justify-end">
+                    <div className="flex flex-wrap gap-2 justify-end border-t border-slate-700/50 pt-3">
                       <button
                         onClick={() => setEditingId(null)}
                         className="text-xs text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded-lg transition-colors"

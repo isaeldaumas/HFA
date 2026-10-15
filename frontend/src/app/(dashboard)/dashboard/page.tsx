@@ -253,7 +253,7 @@ export default function DashboardPage() {
     : 'perception'
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 space-y-6">
       <SimpleModal state={modal} onClose={() => setModal(null)} />
 
       {/* 1. Header */}
@@ -277,6 +277,11 @@ export default function DashboardPage() {
           >
             Comece aqui
           </Link>
+          {me.isAdmin && (
+            <Link href="/demo" className="inline-flex items-center justify-center rounded-lg border border-cyan-600/40 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 hover:bg-cyan-500/20">
+              Abrir apresentação demonstrativa
+            </Link>
+          )}
           <Link
             href="/methodology"
             className="inline-flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
@@ -362,7 +367,7 @@ export default function DashboardPage() {
               key={i}
               className="inline-flex items-center gap-1.5 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-full px-3 py-1"
             >
-              <span>⚠ {alert}</span>
+              <span className="leading-relaxed">{alert}{(data?.included_events ?? 0) <= 3 ? ' · amostra pequena, indicador preliminar' : ''}</span>
               <HelpButton onClick={() => setModal(buildAlertModal(alert))} />
             </div>
           ))}
@@ -459,7 +464,7 @@ export default function DashboardPage() {
               const infoA = parts[0] ? CODE_INFO[parts[0]] : null
               const infoB = parts[1] ? CODE_INFO[parts[1]] : null
               const description = infoA && infoB
-                ? `${infoA.name} associada a ${infoB.name.toLowerCase()}`
+                ? `${infoA.name} · ${infoB.name}`
                 : infoA
                 ? infoA.name
                 : combo.pair
@@ -469,7 +474,7 @@ export default function DashboardPage() {
                     <span className="font-mono text-white text-sm font-semibold">{combo.pair}</span>
                     <span className="text-slate-400 text-xs ml-2 flex-shrink-0">{combo.count}x</span>
                   </div>
-                  <p className="text-slate-500 text-xs leading-relaxed">{description}</p>
+                  <p className="text-slate-400 text-xs leading-relaxed break-words">{description}</p>
                 </div>
               )
             })}
@@ -501,12 +506,12 @@ export default function DashboardPage() {
       {hasAnalyses && (data?.recent_events ?? []).length > 0 && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
           <h3 className="text-white font-semibold mb-4">{t('dashboard.recentEvents')}</h3>
-          <table className="w-full text-sm">
+          <div className="w-full overflow-x-auto"><table className="w-full min-w-[540px] text-sm">
             <thead>
               <tr className="text-slate-400 border-b border-slate-800">
                 <th className="text-left pb-2 font-medium">{t('dashboard.date')}</th>
                 <th className="text-left pb-2 font-medium">{t('dashboard.title_col')}</th>
-                <th className="text-left pb-2 font-medium">P · O · A</th>
+                <th className="text-left pb-2 font-medium">P · O · A (candidatos)</th>
                 <th className="pb-2" />
               </tr>
             </thead>
@@ -526,7 +531,7 @@ export default function DashboardPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
     </div>
@@ -541,6 +546,7 @@ function PreconditionsChart({
   const max = Math.max(...preconditions.map(p => p.count), 1)
 
   function codeColor(code: string): string {
+    if (code.toUpperCase().startsWith('ENVIR')) return '#06B6D4'
     if (code.startsWith('P')) return '#EAB308'
     if (code.startsWith('S')) return '#3B82F6'
     if (code.startsWith('T')) return '#8B5CF6'
@@ -555,23 +561,29 @@ function PreconditionsChart({
         {preconditions.map(p => {
           const pct = Math.round((p.count / max) * 100)
           const color = codeColor(p.code)
+          const groupLabel: Record<string, string> = {
+            ENVIRONMENT: 'Ambiente', ORGANIZATION: 'Organização', PERSONNEL: 'Pessoal',
+            SUPERVISION: 'Supervisão', TASK: 'Tarefa', WORK: 'Trabalho',
+          }
+          const displayCode = groupLabel[p.code.toUpperCase()] ?? p.code
+          const displayName = p.name.toUpperCase() === p.code.toUpperCase() ? 'Pré-condição citada' : p.name
           return (
             <div key={p.code}>
-              <div className="flex items-start gap-2 mb-1">
+              <div className="flex min-w-0 items-start gap-3 mb-2">
                 <span
-                  className="font-mono text-xs font-bold shrink-0 w-7 pt-px"
+                  className="min-w-0 max-w-[45%] break-words font-mono text-[11px] font-bold leading-snug shrink-0"
                   style={{ color }}
                 >
-                  {p.code}
+                  {displayCode}
                 </span>
-                <span className="text-slate-400 text-xs leading-tight flex-1">
-                  {p.name}
+                <span className="text-slate-400 text-xs leading-relaxed min-w-0 flex-1 break-words">
+                  {displayName}
                 </span>
                 <span className="text-slate-300 text-xs font-semibold shrink-0 tabular-nums">
                   {p.count}x
                 </span>
               </div>
-              <div className="ml-9 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full"
                   style={{ width: `${pct}%`, background: color, opacity: 0.85 }}
@@ -589,6 +601,7 @@ function PreconditionsChart({
           { color: '#8B5CF6', label: 'Tarefa (T)' },
           { color: '#22C55E', label: 'Trabalho (W)' },
           { color: '#F97316', label: 'Organização (O)' },
+          { color: '#06B6D4', label: 'Ambiente' },
         ].map(item => (
           <div key={item.color} className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: item.color }} />
