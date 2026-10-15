@@ -276,7 +276,7 @@ export async function POST(req: Request) {
         logAnalyzeError(firstHfaAnalysis ? 'first_hfa_analysis_failed' : 'reanalysis_failed', requestId, err)
         // A provider 402 is not a depleted HFA subscription or an event error.
         // The record is preserved for retry, without creating a second event.
-        const providerPaymentFailure = /(?:402|insufficient.balance|payment.required)/i.test(err instanceof Error ? err.message : String(err))
+        const providerPaymentFailure = /(?:402|insufficient.balance|payment.required)/i.test(err instanceof Error ? err.message : '')
         if (providerPaymentFailure) {
           return NextResponse.json({ error: {
             code: 'ANALYZE_ENGINE_UNAVAILABLE', requestId,
