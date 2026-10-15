@@ -23,7 +23,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
     const user = await requireBearerUser(req)
     const { eventId } = await ctx.params
     const admin = getSupabaseAdmin()
-    await applyUserAiSettingsToEnv(admin, user.userId)
     const { data: event, error } = await admin
       .from('events')
       .select('id, tenant_id, title, raw_input, deleted_at')
@@ -70,6 +69,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
       suppliedNewInformation: Boolean(additionalInformation || submittedNarrative),
     })
     const requestedEngineRefresh = raw.reprocessCurrentEngine === true
+    // A correction-only replay does not call the AI provider. Do not require a
+    // configured/available external API key to replay existing source evidence.
+    if (!requestedEngineRefresh) await applyUserAiSettingsToEnv(admin, user.userId)
     if (requestedEngineRefresh && evidenceChange !== 'NO_NEW_EVIDENCE') {
       return jsonError(requestId, 'VNEXT_REPROCESS_REQUIRES_UNCHANGED_EVIDENCE',
         'Reprocessamento do motor não aceita fatos novos. Utilize a reanálise de evidências para acrescentar informações.', 422)

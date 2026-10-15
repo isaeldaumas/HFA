@@ -20,6 +20,7 @@ export async function reanalyzeSeraVNextAnalysis(args: {
   locale?: 'pt-BR' | 'en'
   context: SeraVNextProductContext
   repository?: SeraVNextProductRepository
+  semanticEnricher?: typeof enrichSeraNarrativeSemantically
 }) {
   const repository = args.repository ?? createSeraVNextProductRepository()
   const analysis = await repository.getAnalysis(args.context.tenantId, args.analysisId)
@@ -31,6 +32,13 @@ export async function reanalyzeSeraVNextAnalysis(args: {
   const clarificationResponses = args.clarificationResponses ?? []
   const narrative = args.updatedNarrative?.trim() || analysis.narrative
   const hasNewNarrative = narrative !== analysis.narrative
+  if (args.reprocessCurrentEngine && (hasNewNarrative || clarificationResponses.length > 0)) {
+    throw new SeraVNextProductError(
+      'SERA_ENGINE_REFRESH_MUST_PRESERVE_EVIDENCE',
+      'O reprocessamento do motor só é permitido sem fatos novos ou respostas adicionais.',
+      422,
+    )
+  }
   if (hasNewNarrative && !narrative.startsWith(analysis.narrative)) {
     throw new SeraVNextProductError('SERA_REANALYSIS_MUST_PRESERVE_ORIGINAL', 'O relato e as evidências anteriores devem ser preservados integralmente.', 422)
   }
@@ -99,8 +107,14 @@ export async function reanalyzeSeraVNextAnalysis(args: {
     supplementalEvidence.push({ ...item, evidenceId })
   }
   const locale = args.locale ?? analysis.engine_input.locale ?? 'pt-BR'
-  let semantic = analysis.source_flow === 'VNEXT_CANONICAL'
-    ? await enrichSeraNarrativeSemantically({ narrative, locale })
+  // Engine-only correction is a deterministic replay of the immutable factual and
+  // source-anchored semantic evidence already audited for this analysis. Re-running an
+  // external LLM here is both operationally fragile (provider/timeouts) and can silently
+  // change evidence interpretation without the analyst supplying new facts. A full
+  // semantic pass remains reserved for genuine new narrative/clarification evidence.
+  const reuseExistingSemantic = args.reprocessCurrentEngine === true
+  let semantic = analysis.source_flow === 'VNEXT_CANONICAL' && !reuseExistingSemantic
+    ? await (args.semanticEnricher ?? enrichSeraNarrativeSemantically)({ narrative, locale })
     : null
   let engineInput: SeraVNextEngineInput = {
     ...analysis.engine_input,
@@ -204,7 +218,10 @@ export async function reanalyzeSeraVNextAnalysis(args: {
         codeCommitSource: versions.codeCommitSource,
         deploymentId: versions.deploymentId,
         semanticEnrichment: semantic?.meta ?? analysis.engine_input.semanticEnrichmentMeta ?? null,
-        semanticLayer: semantic ? 'AI_EXTRACTION_DETERMINISTIC_SERA_TRAVERSAL' : 'DETERMINISTIC_FALLBACK',
+        semanticLayer: semantic ? 'AI_EXTRACTION_DETERMINISTIC_SERA_TRAVERSAL'
+          : reuseExistingSemantic && (analysis.engine_input.semanticEvidence?.length ?? 0) > 0
+            ? 'REUSED_SOURCE_ANCHORED_SEMANTICS_DETERMINISTIC_TRAVERSAL'
+            : 'DETERMINISTIC_FALLBACK',
       },
     },
   })

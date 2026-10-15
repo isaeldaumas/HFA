@@ -491,7 +491,9 @@ export default function EventDetailPage() {
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
-        throw new Error(String(json?.error?.message ?? json?.detail ?? 'Falha ao executar a análise SERA.'))
+        const message = String(json?.error?.message ?? json?.detail ?? 'Falha ao executar a análise SERA.')
+        const reference = typeof json?.error?.requestId === 'string' ? json.error.requestId : null
+        throw new Error(reference ? `${message} (referência: ${reference})` : message)
       }
       const scope = searchParams?.get('scope') === 'deleted' ? 'deleted' : 'active'
       const refreshed = await apiCall(`/events/${event.id}?scope=${scope}`, {}, token) as EventPayload

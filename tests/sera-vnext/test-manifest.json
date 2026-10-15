@@ -2343,5 +2343,15 @@
     "expectedStatus": "PASS",
     "runtimeScope": "CURRENT",
     "dataAccess": "NONE"
+  },
+  {
+    "path": "tests/sera-vnext/reanalysis-engine-only-offline-trial-001.ts",
+    "type": "CONTRACT",
+    "requiredForRegression": true,
+    "requiredEnvironment": [],
+    "expectedExit": 0,
+    "expectedStatus": "PASS",
+    "runtimeScope": "CURRENT",
+    "dataAccess": "NONE"
   }
 ]
