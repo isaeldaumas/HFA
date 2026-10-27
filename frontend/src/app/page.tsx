@@ -111,18 +111,34 @@ export default function Home() {
           border: 1px solid rgba(96,165,250,0.16);
           box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
         }
+        @media (max-width: 900px) {
+          .hfa-nav-inner { padding-inline: 20px !important; }
+          .hfa-nav-links { gap: 16px !important; }
+          .hfa-nav-links > a:nth-child(-n+3) { display: none !important; }
+          .hfa-methodology-grid { grid-template-columns: 1fr !important; gap: 10px !important; }
+          .hfa-methodology-grid > div { display: contents !important; }
+          .hfa-methodology-grid > div > div:nth-child(2) { display: none !important; }
+        }
+        @media (max-width: 640px) {
+          .hfa-nav-links { gap: 12px !important; }
+          .hfa-nav-links > a:not(:last-child) { display: none !important; }
+          .hfa-nav-links > a:last-child { font-size: 12px !important; padding: 8px 10px !important; }
+          .hfa-poa-grid { grid-template-columns: 1fr !important; }
+          .hfa-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 22px 0 !important; }
+          .hfa-stats-grid > div:nth-child(3) { border-left: none !important; }
+        }
       `}</style>
 
       <div style={{ fontFamily: "'DM Sans', sans-serif", backgroundColor: '#060B14', color: '#fff', minHeight: '100vh' }}>
 
         {/* NAVBAR */}
         <nav style={{ backgroundColor: '#060B14', borderBottom: '1px solid rgba(148,163,184,0.12)', position: 'sticky', top: 0, zIndex: 50 }}>
-          <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 32px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="hfa-nav-inner" style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 32px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
               <span style={{ fontFamily: "'DM Serif Display', serif", fontSize: '22px', color: '#60A5FA', letterSpacing: '-0.5px' }}>HFA</span>
               <span style={{ fontSize: '12px', color: '#64748B', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 500 }}>SERA Analysis</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
+            <div className="hfa-nav-links" style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
               <a
                 href="#metodologia"
                 onClick={e => { e.preventDefault(); document.getElementById('metodologia')?.scrollIntoView({ behavior: 'smooth' }) }}
@@ -154,12 +170,12 @@ export default function Home() {
 
         {/* HERO */}
         <section style={{
-          minHeight: '100vh',
+          minHeight: 'calc(100vh - 64px)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '0 32px',
+          padding: '48px clamp(16px, 4vw, 32px) 64px',
           backgroundColor: '#060B14',
           backgroundImage: `linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px)`,
           backgroundSize: '48px 48px',
@@ -177,21 +193,59 @@ export default function Home() {
               marginBottom: '28px',
               letterSpacing: '0.02em',
             }}>
-              Investigação operacional baseada em SERA
+              Ciência aplicada à investigação de fatores humanos
             </div>
 
-            <h1 className="animate-fade-up delay-2" style={{ fontFamily: "'DM Serif Display', serif", fontSize: '64px', lineHeight: 1.12, margin: '0 0 24px', fontWeight: 400 }}>
-              Sua investigação encontrou a causa certa?<br />
-              <span style={{ color: '#60A5FA' }}>Compare com uma análise HFA.</span>
+            <h1 className="animate-fade-up delay-2" style={{ fontFamily: "'DM Serif Display', serif", fontSize: 'clamp(34px, 4.2vw, 58px)', lineHeight: 1.13, margin: '0 auto 20px', fontWeight: 400, maxWidth: '850px', textWrap: 'balance' }}>
+              Análise de Fatores Humanos com <span style={{ color: '#60A5FA' }}>abordagem científica.</span>
             </h1>
 
-            <p className="animate-fade-up delay-3" style={{ fontSize: '20px', color: '#94A3B8', lineHeight: 1.65, marginBottom: '40px', maxWidth: '660px', margin: '0 auto 40px' }}>
-              Escolha uma ocorrência que sua empresa já investigou. O HFA analisa as mesmas evidências com metodologia estruturada, rastreabilidade e revisão humana. Compare os resultados antes de decidir se vale a pena contratar.
+            <p className="animate-fade-up delay-3" style={{ fontSize: 'clamp(16px, 1.65vw, 19px)', color: '#CBD5E1', lineHeight: 1.55, maxWidth: '720px', margin: '0 auto 12px', textWrap: 'pretty' }}>
+              Compreenda os fatores que contribuíram para uma ocorrência. Vá além da identificação do erro humano.
+            </p>
+            <p className="animate-fade-up delay-3" style={{ fontSize: 'clamp(14px, 1.2vw, 16px)', color: '#94A3B8', lineHeight: 1.7, maxWidth: '760px', margin: '0 auto 24px', textWrap: 'pretty' }}>
+              Fundamentado na metodologia SERA e na aplicação integrada de MDC + SERA, o HFA apoia a investigação com análise cognitiva, evidências rastreáveis e revisão humana.
+            </p>
+
+            <div className="animate-fade-up delay-4" style={{ display: 'flex', gap: '16px', justifyContent: 'center', marginBottom: '12px', flexWrap: 'wrap' }}>
+              <Link
+                href="/register"
+                style={{
+                backgroundColor: '#2563EB',
+                color: '#fff',
+                padding: '14px 28px',
+                borderRadius: '10px',
+                fontSize: '16px',
+                fontWeight: 500,
+                border: '1px solid rgba(147,197,253,0.18)',
+                textDecoration: 'none',
+              }}>
+                Testar com uma ocorrência real
+              </Link>
+              <button
+                onClick={() => document.getElementById('metodologia')?.scrollIntoView({ behavior: 'smooth' })}
+                style={{
+                  backgroundColor: 'transparent',
+                  color: '#CBD5E1',
+                  border: '1px solid #334155',
+                  padding: '14px 28px',
+                  borderRadius: '10px',
+                  fontSize: '16px',
+                  fontWeight: 400,
+                  cursor: 'pointer',
+                }}
+              >
+                Conheça a metodologia
+              </button>
+            </div>
+
+            <p className="animate-fade-up delay-4" style={{ color: '#94A3B8', fontSize: '13px', lineHeight: 1.5, margin: '0 auto 34px', maxWidth: '670px' }}>
+              Já investigou uma ocorrência? Compare os achados de sua equipe com a análise estruturada do HFA.
             </p>
 
             <div className="animate-fade-up delay-3" style={{
               maxWidth: '900px',
-              margin: '-22px auto 34px',
+              margin: '0 auto 34px',
               border: '1px solid rgba(96,165,250,0.18)',
               background: 'linear-gradient(90deg, rgba(15,23,42,0.78), rgba(37,99,235,0.10), rgba(15,23,42,0.78))',
               borderRadius: '14px',
@@ -201,7 +255,7 @@ export default function Home() {
               <div style={{ fontSize: '11px', color: '#60A5FA', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700, marginBottom: '14px' }}>
                 Linha metodológica
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 32px 1fr 32px 1fr', gap: '0', alignItems: 'stretch', textAlign: 'left' }}>
+              <div className="hfa-methodology-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 32px 1fr 32px 1fr', gap: '0', alignItems: 'stretch', textAlign: 'left' }}>
                 {[
                   {
                     title: 'K.C. Hendy',
@@ -235,7 +289,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="animate-fade-up delay-4" style={{
+            <div className="animate-fade-up delay-4 hfa-poa-grid" style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
               gap: '12px',
@@ -271,39 +325,7 @@ export default function Home() {
               ))}
             </div>
 
-            <div className="animate-fade-up delay-4" style={{ display: 'flex', gap: '16px', justifyContent: 'center', marginBottom: '56px', flexWrap: 'wrap' }}>
-              <Link
-                href="/register"
-                style={{
-                backgroundColor: '#2563EB',
-                color: '#fff',
-                padding: '14px 28px',
-                borderRadius: '10px',
-                fontSize: '16px',
-                fontWeight: 500,
-                border: '1px solid rgba(147,197,253,0.18)',
-                textDecoration: 'none',
-              }}>
-                Testar com uma ocorrência real
-              </Link>
-              <button
-                onClick={() => document.getElementById('metodologia')?.scrollIntoView({ behavior: 'smooth' })}
-                style={{
-                  backgroundColor: 'transparent',
-                  color: '#CBD5E1',
-                  border: '1px solid #334155',
-                  padding: '14px 28px',
-                  borderRadius: '10px',
-                  fontSize: '16px',
-                  fontWeight: 400,
-                  cursor: 'pointer',
-                }}
-              >
-                Ver metodologia
-              </button>
-            </div>
-
-            <div className="animate-fade-up delay-5" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0', borderTop: '1px solid rgba(148,163,184,0.1)', paddingTop: '40px' }}>
+            <div className="animate-fade-up delay-5 hfa-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0', borderTop: '1px solid rgba(148,163,184,0.1)', paddingTop: '40px' }}>
               {[
                 { value: '70–80%', label: 'dos acidentes possuem fatores humanos identificáveis' },
                 { value: '7 etapas', label: 'metodológicas auditáveis' },
