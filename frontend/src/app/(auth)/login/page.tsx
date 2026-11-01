@@ -3,6 +3,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { AUTH_UNAVAILABLE_MESSAGE, getLoginErrorMessage } from '@/lib/auth-login-errors'
 
 function useRegisteredParam(): boolean {
   return useMemo(() => {
@@ -23,13 +24,25 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
-      setError('Email ou senha incorretos')
+    try {
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      })
+      if (authError) {
+        setError(getLoginErrorMessage(authError))
+        return
+      }
+      if (!data.session) {
+        setError(AUTH_UNAVAILABLE_MESSAGE)
+        return
+      }
+      router.push('/dashboard')
+    } catch {
+      setError(AUTH_UNAVAILABLE_MESSAGE)
+    } finally {
       setLoading(false)
-      return
     }
-    router.push('/dashboard')
   }
 
   return (
