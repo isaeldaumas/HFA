@@ -85,8 +85,21 @@ function parseArgs(argv: string[]): { input: string; sharedPlan: string; output:
   return { input, sharedPlan, output }
 }
 
+const HUMAN_REVIEW_DECISIONS = new Set([
+  'ACCEPT_AS_WORKING_HYPOTHESIS',
+  'REJECT_WORKING_HYPOTHESIS',
+  'REQUIRES_MORE_EVIDENCE',
+  'RETURN_FOR_REANALYSIS',
+])
+
+/** Completeness check, not independent verification of human origin. */
 function hasRealResult(row: CsvRow): boolean {
-  return Boolean(row.case_id?.trim() && row.reviewer_id?.trim() && row.review_submitted?.trim())
+  return Boolean(
+    row.case_id?.trim() &&
+    row.reviewer_id?.trim() &&
+    row.review_submitted?.trim().toUpperCase() === 'YES' &&
+    HUMAN_REVIEW_DECISIONS.has(row.reviewer_decision?.trim() ?? ''),
+  )
 }
 
 function agreementRate(planRows: CsvRow[], resultRows: CsvRow[], field: string): string {
@@ -137,6 +150,8 @@ function renderAgreement(input: string, sharedPlan: string, planRows: CsvRow[], 
     `Input: \`${path.relative(ROOT_DIR, input)}\``,
     `Shared plan: \`${path.relative(ROOT_DIR, sharedPlan)}\``,
     '',
+    'Descriptive agreement only: this report does not independently authenticate reviewers or establish scientific validation.',
+    '',
     '| Metric | Value |',
     '| --- | --- |',
     `| decision agreement | ${agreementRate(planRows, resultRows, 'reviewer_decision')} |`,
@@ -155,10 +170,20 @@ function main(): void {
   const { input, sharedPlan, output } = parseArgs(process.argv.slice(2))
   const resultRows = parseCsv(fs.readFileSync(input, 'utf8')).filter(hasRealResult)
   const planRows = parseCsv(fs.readFileSync(sharedPlan, 'utf8'))
-  const markdown =
-    resultRows.length === 0 ? renderPending(input, sharedPlan) : renderAgreement(input, sharedPlan, planRows, resultRows)
+  // A single submitted review is not a pairwise human agreement.
+  const comparablePairs = planRows.filter((shared) => {
+    const a = resultRows.find((row) => row.case_id === shared.case_id && row.reviewer_id === shared.reviewer_a)
+    const b = resultRows.find((row) => row.case_id === shared.case_id && row.reviewer_id === shared.reviewer_b)
+    return Boolean(
+      shared.case_id?.trim() && shared.reviewer_a?.trim() && shared.reviewer_b?.trim() &&
+      shared.reviewer_a !== shared.reviewer_b && a && b,
+    )
+  })
+  const markdown = comparablePairs.length === 0
+    ? renderPending(input, sharedPlan)
+    : renderAgreement(input, sharedPlan, comparablePairs, resultRows)
   fs.writeFileSync(output, markdown)
-  process.stdout.write(`${resultRows.length === 0 ? 'NO_REAL_SHARED_CASE_RESULTS_YET' : 'HUMAN_REVIEWER_SHARED_CASE_AGREEMENT_GENERATED'}\n`)
+  process.stdout.write(`${comparablePairs.length === 0 ? 'NO_REAL_SHARED_CASE_RESULTS_YET' : 'HUMAN_REVIEWER_SHARED_CASE_AGREEMENT_GENERATED'}\n`)
 }
 
 main()
