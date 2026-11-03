@@ -65,6 +65,9 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Registration consistency and cleanup
+        run: ./frontend/node_modules/.bin/tsx --test frontend/tests/register-compensating-rollback.test.ts
+
       - name: ERC containment runtime
         run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/erc-containment/erc-containment-trial-001.ts
 

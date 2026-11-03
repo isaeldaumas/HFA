@@ -211,6 +211,36 @@ export function assertEventDuplicateReconciliationContract(rootDir: string): voi
 }
 
 export function isAllowedSeraVNextProtectedApiPath(rootDir: string, changedPath: string): boolean {
+  if (changedPath === "frontend/src/app/api/auth/register/route.ts") {
+    // Explicit non-methodological exception: preserve the protected API gate,
+    // while permitting a tested fix for signup consistency (without touching SERA).
+    const source = readRel(rootDir, changedPath).trim();
+    assert.equal(source,
+      "import { handleRegisterRequest } from '@/lib/server/register-handler'\n\n" +
+      "export async function POST(req: Request) {\n  return handleRegisterRequest(req)\n}",
+      "Registration route must only delegate to the separately audited handler");
+    const handler = readRel(rootDir, "frontend/src/lib/server/register-handler.ts");
+    assert.ok(hasAll(handler, [
+      "cleanupIncompleteRegistration",
+      "admin.auth.admin.deleteUser",
+      "admin.from('tenants').delete().eq('id', tenantId)",
+      "if (userInsErr)",
+      "createdTenantId",
+      "createdAuthUserId",
+      "status: 500",
+    ]), "Registration rollback and fail-closed behavior must remain present");
+    const test = readRel(rootDir, "frontend/tests/register-compensating-rollback.test.ts");
+    assert.ok(hasAll(test, [
+      "public users insert failure returns 500",
+      "auth cleanup failure still tries tenant cleanup",
+      "unexpected public user API exception cleans auth and tenant",
+      "unexpected Auth API exception still cleans the tenant",
+    ]), "Registration error injection tests must remain present");
+    const ci = readRel(rootDir, ".github/workflows/hfa-core-ci.yml");
+    assert.ok(ci.includes("tsx --test frontend/tests/register-compensating-rollback.test.ts"),
+      "Registration compensating cleanup tests must run in required Core CI");
+    return true;
+  }
   if (changedPath === "frontend/src/app/api/analyze/route.ts") {
     assertAnalyzeRouteSanitizationContract(rootDir);
     return true;
