@@ -39,6 +39,11 @@ export async function apiCall(
     )
   }
   if (!res.ok) {
+    // Vercel WAF often sends HTML rather than JSON on a 429. Do not surface
+    // its opaque body or the unhelpful 'HTTP 429' fallback to signup users.
+    if (res.status === 429) {
+      throw new Error('Muitas tentativas em pouco tempo. Aguarde um minuto e tente novamente.')
+    }
     const error = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }))
     const detail =
       typeof error.detail === 'string'
