@@ -3,11 +3,12 @@
 **Aplicação verificada em 03/11/2026** no projeto Vercel `prj_Zqt0szU9Uxgglx710lABPAYJ7Rfa`, equipe `team_3NqdL34wnYaXdPexDmRC7xFH`.
 
 ## Regra ativa
-- Configuração WAF: `waf_2NhfKhe1ChpP`, versão 1.
+- Configuração WAF: `waf_2NhfKhe1ChpP`, versão ativa 2.
 - Regra: `rule_hfa_public_signup_10_requests_min_ip_XfsblA`.
 - Condições (AND): path equals `/api/auth/register`; method equals `POST`.
 - Janela fixa, chave IP, 10 solicitações por 60 segundos, excedentes HTTP 429.
 - Nenhuma regra para GET /register, GET /login ou demais APIs.
+- Bot Protection Managed Ruleset ativado na mesma configuração em **modo Log**: identifica suspeita de automação, mas não desafia ou bloqueia requisições. Não é controle anti-bot de enforcement.
 - Estado armazenado na Vercel, não em migrations SQL; este documento é registro de governança.
 
 ## Evidência e limitações
