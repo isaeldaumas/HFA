@@ -74,8 +74,21 @@ function parseArgs(argv: string[]): { input: string; output: string } {
   return { input, output }
 }
 
+const HUMAN_REVIEW_DECISIONS = new Set([
+  'ACCEPT_AS_WORKING_HYPOTHESIS',
+  'REJECT_WORKING_HYPOTHESIS',
+  'REQUIRES_MORE_EVIDENCE',
+  'RETURN_FOR_REANALYSIS',
+])
+
+/** Completeness check, not independent verification of human origin. */
 function hasRealResult(row: CsvRow): boolean {
-  return Boolean(row.case_id?.trim() && row.reviewer_id?.trim() && row.review_submitted?.trim())
+  return Boolean(
+    row.case_id?.trim() &&
+    row.reviewer_id?.trim() &&
+    row.review_submitted?.trim().toUpperCase() === 'YES' &&
+    HUMAN_REVIEW_DECISIONS.has(row.reviewer_decision?.trim() ?? ''),
+  )
 }
 
 function yesRate(rows: CsvRow[], field: string): string {
@@ -152,6 +165,8 @@ function renderMetrics(input: string, rows: CsvRow[]): string {
     '```',
     '',
     `Input: \`${path.relative(ROOT_DIR, input)}\``,
+    '',
+    'Descriptive, reviewer-declared data only: this report does not establish scientific validation.',
     '',
     '| Metric | Value |',
     '| --- | --- |',
