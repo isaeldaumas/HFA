@@ -370,6 +370,15 @@ export function isAllowedSeraVNextCanonicalTreePath(rootDir: string, changedPath
 }
 
 export function isAllowedPrimarySeraMigrationPath(rootDir: string, changedPath: string): boolean {
+  const securityMigration = "supabase/migrations/20261103204541_fix_event_duplicate_link_mutation_search_path_20261103.sql";
+  if (changedPath === securityMigration) {
+    const sql = readRel(rootDir, securityMigration);
+    const normalizedSql = sql.replace(/^--[^\n]*$/gm, "").replace(/\s+/g, " ").trim().toLowerCase();
+    assert.equal(normalizedSql,
+      "alter function public.reject_event_duplicate_link_mutation() set search_path = '';",
+      "Only the reviewed trigger-function search_path hardening is allowed; no other DDL or data changes");
+    return true;
+  }
   const actionMigration = "supabase/migrations/20260925163712_corrective_actions_primary_sera_analysis.sql";
   const deletionMigration = "supabase/migrations/20260925174644_block_current_sera_open_actions_on_event_delete.sql";
   const dynamicTreatmentMigration = "supabase/migrations/20260929004500_event_precondition_treatment_dynamic_recalculation.sql";

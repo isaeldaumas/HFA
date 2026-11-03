@@ -67,8 +67,8 @@ const remoteVersions = remote.map((m) => String(m.version));
 const remoteSet = new Set(remoteVersions);
 check(remoteSet.size === remote.length, 'Duplicate versions in Supabase snapshot');
 check(localSet.size === local.length, 'Duplicate local migration version');
-check(remote.length === 50, 'Unexpected remote migration count (snapshot requires review)');
-check(local.length === 46, 'Unexpected local migration count (snapshot requires review)');
+check(remote.length === 51, 'Unexpected remote migration count (snapshot requires review)');
+check(local.length === 47, 'Unexpected local migration count (snapshot requires review)');
 
 const knownHashes = snapshot.local_file_sha256 || {};
 check(Object.keys(knownHashes).length === local.length, 'Missing or extra source-file SHA256 in snapshot');

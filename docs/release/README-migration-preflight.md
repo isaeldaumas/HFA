@@ -4,8 +4,8 @@
 
 ## O que foi comprovado
 
-- O Supabase registrou **50 versões**; o checkout contém **46 arquivos SQL**.
-- **35** versões locais coincidem com as remotas.
+- O Supabase registrou **51 versões**; o checkout contém **47 arquivos SQL**.
+- **36** versões locais coincidem com as remotas.
 - Outros **10** arquivos locais têm conteúdo SQL equivalente a uma versão remota diferente (comparação lexical realizada na auditoria de 03/11/2026).
 - Uma migration histórica, `20260710010000_methodology_provenance_and_shadow_infra.sql`, não corresponde ao conjunto dos scripts de recuperação de produção que a substituíram. Não é segura para reaplicação automática.
 - Existem **5 versões complementares** no Supabase que não têm um arquivo correspondente no checkout. Preservar seu histórico.
@@ -38,3 +38,7 @@ A correção de `public.reject_event_duplicate_link_mutation()` (`ALTER FUNCTION
 ## O que este gate não prova
 
 A igualdade lexical de uma migration não certifica que todos os seus objetos persistem intactos hoje, porque migrations posteriores podem tê-los alterado. Da mesma forma, esta comparação não homologa autenticação real, permissões de usuários, cálculos de risco, a validação humana naturalística ou o runtime em produção. Os critérios são gates separados.
+
+## Correção de segurança 03/11/2026
+
+A migration `20261103204541_fix_event_duplicate_link_mutation_search_path_20261103.sql` foi aplicada no Supabase de produção como alteração isolada de configuração da função de imutabilidade. A versão local e a registrada no ledger remoto são idênticas. O hash MD5 do corpo da função permaneceu `0f7920a11ee5d99f799d951196aa613c`, com os dois gatilhos ativos e `prosecdef=false`. O verificador de segurança deixou de sinalizar `function_search_path_mutable`. O gate de `db-push` continua bloqueado por divergências históricas independentes.
