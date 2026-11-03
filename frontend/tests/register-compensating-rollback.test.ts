@@ -10,6 +10,7 @@ type Flags = {
   createTenantFailure?: boolean
   userInsertThrows?: boolean
   createAuthThrows?: boolean
+  duplicateAuth?: boolean
 }
 
 function fakeAdmin(flags: Flags = {}) {
@@ -17,13 +18,17 @@ function fakeAdmin(flags: Flags = {}) {
   const admin = {
     auth: {
       admin: {
-        listUsers: async () => {
-          calls.push('auth.listUsers')
-          return { data: { users: [] }, error: null }
-        },
-        createUser: async () => {
+        // Deliberately rejects a paginated user-list scan. Registration must
+        // rely on Auth's unique-email constraint rather than a race-prone list.
+        listUsers: async () => { throw new Error('Forbidden paginated listUsers') },
+        createUser: async (attributes: { email: string; password: string }) => {
           calls.push('auth.createUser')
+          calls.push('auth.email:' + attributes.email)
           if (flags.createAuthThrows) throw new Error('Simulated auth network crash')
+          if (flags.duplicateAuth) return {
+            data: { user: null },
+            error: { code: 'email_exists', status: 422, message: 'User already registered' },
+          }
           return flags.createAuthFailure
             ? { data: { user: null }, error: { message: 'Auth unavailable' } }
             : { data: { user: { id: 'auth-user-001' } }, error: null }
@@ -110,7 +115,7 @@ test('successful signup only acknowledges after public users insert', async () =
     assert.equal(result.status, 200)
     assert.equal(result.body.ok, true)
     assert.equal(result.body.tenant_id, 'tenant-001')
-    assert.deepEqual(result.calls, ['auth.listUsers','tenants.insert','auth.createUser','users.insert'])
+    assert.deepEqual(result.calls, ['tenants.insert','auth.createUser','auth.email:hfa-test-registered@example.invalid','users.insert'])
   })
 
   test('public users insert failure returns 500 and cleans auth then tenant', async () => {
@@ -119,7 +124,7 @@ test('successful signup only acknowledges after public users insert', async () =
     assert.equal(result.body.ok, undefined)
     assert.match(String(result.body.detail), /Tente novamente/)
     assert.deepEqual(result.calls, [
-      'auth.listUsers','tenants.insert','auth.createUser','users.insert',
+      'tenants.insert','auth.createUser','auth.email:hfa-test-registered@example.invalid','users.insert',
       'auth.deleteUser:auth-user-001','tenants.delete:id:tenant-001',
     ])
   })
@@ -171,6 +176,87 @@ test('successful signup only acknowledges after public users insert', async () =
     assert.equal(result.body.ok, undefined)
     assert.equal(result.calls.at(-1), 'tenants.delete:id:tenant-001')
     assert.ok(!result.calls.some(c => c.startsWith('auth.deleteUser:')))
+  })
+
+
+  test('Auth duplicate rejection returns 409 and rolls back the provisional tenant', async () => {
+    const result = await invoke({ duplicateAuth: true })
+    assert.equal(result.status, 409)
+    assert.match(String(result.body.detail), /Já existe uma conta/)
+    assert.ok(result.calls.includes('auth.createUser'))
+    assert.equal(result.calls.at(-1), 'tenants.delete:id:tenant-001')
+    assert.ok(!result.calls.includes('users.insert'))
+    assert.ok(!result.calls.some(c => c.startsWith('auth.deleteUser:')))
+  })
+
+  test('email normalization happens before Auth persistence', async () => {
+    const result = await invoke({}, { ...validBody, email: '  HFA-Test-Registered@EXAMPLE.INVALID  ' })
+    assert.equal(result.status, 200)
+    assert.ok(result.calls.includes('auth.email:hfa-test-registered@example.invalid'))
+  })
+
+  test('number-valued password rejected before any database call', async () => {
+    const result = await invoke({}, { ...validBody, password: 12345 } as unknown as typeof validBody)
+    assert.equal(result.status, 400)
+    assert.deepEqual(result.calls, [])
+  })
+
+  test('invalid untrusted slug rejected before any database call', async () => {
+    const result = await invoke({}, { ...validBody, slug: '../../other-tenant' })
+    assert.equal(result.status, 400)
+    assert.deepEqual(result.calls, [])
+  })
+
+  test('oversized registration rejected before any database call', async () => {
+    const result = await invoke({}, { ...validBody, full_name: 'z'.repeat(9000) })
+    assert.equal(result.status, 413)
+    assert.deepEqual(result.calls, [])
+  })
+
+  test('invalid email format rejected before any database call', async () => {
+    const result = await invoke({}, { ...validBody, email: 'not-an-email' })
+    assert.equal(result.status, 400)
+    assert.deepEqual(result.calls, [])
+  })
+
+  test('oversized password rejected before any database call', async () => {
+    const result = await invoke({}, { ...validBody, password: 'p'.repeat(1200) })
+    assert.equal(result.status, 400)
+    assert.deepEqual(result.calls, [])
+  })
+
+  test('malformed JSON rejected without calling Supabase', async () => {
+    const fixture = fakeAdmin()
+    const request = new Request('http://localhost/api/auth/register', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{ this is not valid json',
+    })
+    const response = await handleRegisterRequest(request, {
+      createAdminClient: () => fixture.admin as never,
+    })
+    assert.equal(response.status, 400)
+    assert.deepEqual(fixture.calls, [])
+  })
+
+  test('declared oversized payload rejected before body parsing or Supabase', async () => {
+    const fixture = fakeAdmin()
+    const request = new Request('http://localhost/api/auth/register', {
+      method: 'POST',
+      headers: { 'content-length': '9000' },
+      body: JSON.stringify(validBody),
+    })
+    const response = await handleRegisterRequest(request, {
+      createAdminClient: () => fixture.admin as never,
+    })
+    assert.equal(response.status, 413)
+    assert.deepEqual(fixture.calls, [])
+  })
+
+  test('large multibyte payload rejected before Supabase even with no content length', async () => {
+    const result = await invoke({}, { ...validBody, full_name: 'ã'.repeat(4300) })
+    assert.equal(result.status, 413)
+    assert.deepEqual(result.calls, [])
   })
 
   test('bad registration request cannot create tenant', async () => {
