@@ -50,31 +50,84 @@ function randomSlug(base: string): string {
   return `${clean || 'org'}-${suffix}`
 }
 
+const MAX_REGISTER_BODY_BYTES = 8_192
+
+/** Never buffer an unbounded request: content-length can be absent or untrusted. */
+async function readLimitedRegistrationBody(req: Request): Promise<{ raw?: string; tooLarge: boolean }> {
+  const declaredLength = req.headers.get('content-length')
+  if (declaredLength !== null && Number(declaredLength) > MAX_REGISTER_BODY_BYTES) {
+    return { tooLarge: true }
+  }
+  const reader = req.body?.getReader()
+  if (!reader) return { raw: '', tooLarge: false }
+  const decoder = new TextDecoder('utf-8', { fatal: true })
+  let raw = ''
+  let count = 0
+  while (true) {
+    const chunk = await reader.read()
+    if (chunk.done) break
+    count += chunk.value.byteLength
+    if (count > MAX_REGISTER_BODY_BYTES) {
+      await reader.cancel().catch(() => undefined)
+      return { tooLarge: true }
+    }
+    raw += decoder.decode(chunk.value, { stream: true })
+  }
+  raw += decoder.decode()
+  return { raw, tooLarge: false }
+}
+
 export async function handleRegisterRequest(req: Request, deps: RegisterDependencies = {}) {
   let activeAdmin: AdminClient | null = null
   let createdTenantId: string | null = null
   let createdAuthUserId: string | null = null
   try {
-    const { full_name, email, password, company_name, slug } = (await req.json()) as {
-      full_name?: string
-      email?: string
-      password?: string
-      company_name?: string
-      slug?: string
+    // Limit request size before parsing untrusted JSON. This is not a rate
+    // limiter: it only bounds work and rejects malformed input before writes.
+    const { raw, tooLarge } = await readLimitedRegistrationBody(req)
+    if (tooLarge) {
+      return NextResponse.json({ detail: 'Dados de cadastro excessivos.' }, { status: 413 })
     }
 
+    let body: unknown
+    try {
+      body = JSON.parse(raw ?? '')
+    } catch {
+      return NextResponse.json({ detail: 'Dados de cadastro inválidos.' }, { status: 400 })
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ detail: 'Dados de cadastro inválidos.' }, { status: 400 })
+    }
+    const values = body as Record<string, unknown>
+    if (typeof values.email !== 'string' || typeof values.password !== 'string' ||
+        typeof values.company_name !== 'string') {
+      return NextResponse.json({
+        detail: 'Email, senha e nome da empresa são obrigatórios.',
+      }, { status: 400 })
+    }
+    if (values.full_name !== undefined && typeof values.full_name !== 'string' ||
+        values.slug !== undefined && typeof values.slug !== 'string') {
+      return NextResponse.json({ detail: 'Campos de cadastro inválidos.' }, { status: 400 })
+    }
+    const email = values.email.trim().toLowerCase()
+    const password = values.password
+    const company_name = values.company_name.trim()
+    const full_name = typeof values.full_name === 'string' ? values.full_name.trim() : ''
+    const slug = typeof values.slug === 'string' ? values.slug.trim() : ''
     if (!email || !password || !company_name) {
-      return NextResponse.json(
-        { detail: 'Email, senha e nome da empresa são obrigatórios' },
-        { status: 400 }
-      )
+      return NextResponse.json({
+        detail: 'Email, senha e nome da empresa são obrigatórios.',
+      }, { status: 400 })
     }
-
-    if (password.length < 8) {
-      return NextResponse.json(
-        { detail: 'A senha deve ter pelo menos 8 caracteres' },
-        { status: 400 }
-      )
+    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+        company_name.length > 255 || full_name.length > 255 ||
+        slug.length > 80 || (slug && !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(slug))) {
+      return NextResponse.json({ detail: 'Formato dos dados de cadastro inválido.' }, { status: 400 })
+    }
+    if (password.length < 8 || password.length > 1_024) {
+      return NextResponse.json({
+        detail: 'A senha deve ter entre 8 e 1024 caracteres.',
+      }, { status: 400 })
     }
 
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
@@ -90,19 +143,9 @@ export async function handleRegisterRequest(req: Request, deps: RegisterDependen
     const admin = deps.createAdminClient?.(url, service) ?? createClient(url, service)
     activeAdmin = admin
 
-    // Verifica se o email já existe
-    const { data: existingUsers } = await admin.auth.admin.listUsers()
-    const alreadyExists = existingUsers?.users?.some(
-      (u) => u.email?.toLowerCase() === email.toLowerCase()
-    )
-
-    if (alreadyExists) {
-      return NextResponse.json(
-        { detail: 'Já existe uma conta com este email. Faça login.' },
-        { status: 409 }
-      )
-    }
-
+    // Do not use auth.admin.listUsers() to check for duplicates. It is
+    // paginated (50 users by default) and a preflight cannot prevent races.
+    // Supabase Auth enforces email uniqueness when createUser is called.
     // Cria o tenant primeiro
     const finalSlug = slug || randomSlug(company_name)
 
@@ -157,7 +200,10 @@ export async function handleRegisterRequest(req: Request, deps: RegisterDependen
     })
 
     if (createErr || !newUser?.user?.id) {
-      console.error('[auth/register] user creation failed', createErr)
+      console.error('[auth/register] user creation failed', {
+        code: createErr?.code,
+        status: createErr?.status,
+      })
 
       // A creation failure must not leave a newly funded trial tenant behind.
       // On a failed createUser call, ownership of any returned Auth identity
@@ -167,11 +213,14 @@ export async function handleRegisterRequest(req: Request, deps: RegisterDependen
         { detail: 'Falha ao concluir o cadastro. Entre em contato com o suporte.' },
         { status: 500 }
       )
-      const msg = createErr?.message || 'Falha ao criar usuário'
-      return NextResponse.json(
-        { detail: msg },
-        { status: 400 }
-      )
+      // Auth is the source of truth for duplicate identities. Preserve the
+      // previous 409 contract without exposing provider errors or user lists.
+      const duplicate = createErr?.code === 'email_exists' ||
+        createErr?.code === 'user_already_exists'
+      return NextResponse.json({
+        detail: duplicate ? 'Já existe uma conta com este email. Faça login.'
+          : 'Não foi possível criar o usuário. Confira os dados e tente novamente.',
+      }, { status: duplicate ? 409 : 400 })
     }
 
     const userId = newUser.user.id
