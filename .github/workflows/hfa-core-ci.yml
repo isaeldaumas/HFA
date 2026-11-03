@@ -57,6 +57,10 @@ jobs:
         working-directory: frontend
         run: npm audit --omit=dev --audit-level=high
 
+      - name: Development tooling vulnerability gate
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
       - name: TypeScript
         working-directory: frontend
         run: npx tsc --noEmit
