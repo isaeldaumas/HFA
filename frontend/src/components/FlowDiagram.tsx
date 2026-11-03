@@ -4,6 +4,9 @@ import mermaid from 'mermaid'
 
 mermaid.initialize({
   startOnLoad: false,
+  // Diagram text can originate from an operational analysis. Do not permit
+  // diagram directives to opt into loose HTML handling after dependency upgrades.
+  securityLevel: 'strict',
   theme: 'dark',
   themeVariables: {
     primaryColor: '#1e293b',
