@@ -53,6 +53,10 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Production dependency vulnerability gate
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
       - name: TypeScript
         working-directory: frontend
         run: npx tsc --noEmit
