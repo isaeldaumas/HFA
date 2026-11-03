@@ -96,7 +96,7 @@ export type SeraEvidenceTraceItem = {
 export type SeraAxisCandidate = {
   axis: CanonicalSeraAxis
   proposedCode: string | null
-  status: 'CANDIDATE' | 'NO_FAILURE' | 'INSUFFICIENT_EVIDENCE' | 'UNRESOLVED'
+  status: 'CANDIDATE' | 'NO_FAILURE' | 'INSUFFICIENT_EVIDENCE' | 'UNRESOLVED' | 'NOT_APPLICABLE'
   actor: string | null
   statementAtEscapePoint: string | null
   supportingEvidence: string[]
@@ -192,6 +192,7 @@ export type SeraSemanticEvidenceRole =
   | 'PERCEPTION_STATE'
   | 'OBJECTIVE_INTENT'
   | 'ACTION_STRATEGY'
+  | 'ACTION_MECHANISM'
   | 'PRECONDITION'
   | 'BARRIER'
   | 'OUTCOME'
@@ -221,6 +222,8 @@ export type SeraSemanticDecisionConcept =
   | 'implementedAction'
   | 'feedbackImplementationFailure'
   | 'slipLapse'
+  | 'proceduralOmission'
+  | 'implementationMismatch'
   | 'correctAction'
   | 'incorrectAction'
   | 'physicalActionLimitation'
@@ -231,6 +234,18 @@ export type SeraSemanticDecisionConcept =
   | 'selectionSubtype'
   | 'feedbackSubtype'
   | 'timeManagementAction'
+
+export type SeraSemanticPreconditionCausalStatus =
+  | 'PRESENT_CONTEXT'
+  | 'SOURCE_LINKED'
+
+export type SeraSemanticActionFailureMechanism =
+  | 'PROCEDURAL_OMISSION'
+  | 'IMPLEMENTATION_MISMATCH'
+  | 'MONITORING_ATTENTION_LAPSE'
+  | 'FEEDBACK_FAILURE'
+  | 'OTHER_ACTION_FAILURE'
+  | 'NONE_OR_UNKNOWN'
 
 export type SeraSemanticEvidenceAnnotation = {
   id: string
@@ -243,6 +258,36 @@ export type SeraSemanticEvidenceAnnotation = {
   assertionStatus: SeraAssertionStatus
   occurrenceScope: SeraOccurrenceScope
   preconditionCategory?: SeraCanonicalPreconditionCategory | null
+  /**
+   * Semantic interpretation of what the source itself says about a candidate precondition.
+   * PRESENT_CONTEXT means the factor is factually present before/at the escape point but
+   * the source does not explicitly link it to the active failure. SOURCE_LINKED is reserved
+   * for an explicit source statement that the factor contributed to or enabled the failure.
+   * This is evidence interpretation only; the deterministic SERA engine still decides how
+   * the factor may be used methodologically.
+   */
+  preconditionCausalStatus?: SeraSemanticPreconditionCausalStatus | null
+  /**
+   * Required for SOURCE_LINKED in semantic schema V2. It must quote the selected
+   * FIRST_DEPARTURE verbatim (or a verbatim span containing it) so the deterministic
+   * engine can verify that an AI causal claim is anchored to the actual SERA failure,
+   * rather than to another event, consequence, or contextual condition.
+   */
+  preconditionCausalTargetQuote?: string | null
+  /**
+   * Semantic mechanism of an observed action failure. This is interpretation supplied by
+   * the AI, not a SERA code. The deterministic tree only accepts implementation-failure
+   * branches when the mechanism is explicit and source-anchored.
+   */
+  actionFailureMechanism?: SeraSemanticActionFailureMechanism | null
+  /** Literal source quote that directly supports actionFailureMechanism. */
+  actionMechanismEvidenceQuote?: string | null
+  /**
+   * Optional display-only normalization for P/O/A descriptive roots. It may improve
+   * grammar in the human report, but is never evidence and is never consumed by the
+   * deterministic SERA branch logic.
+   */
+  displayInterpretation?: string | null
   confidence: SeraConfidence
   rationale?: string | null
 }
@@ -254,13 +299,20 @@ export type SeraSemanticSafeOperationModel = {
   confidence: SeraConfidence
 }
 
+export type SeraSemanticHumanEscapeDisposition =
+  | 'HUMAN_DEPARTURE'
+  | 'UNRESOLVED'
+  | 'NO_HUMAN_DEPARTURE'
+
 export type SeraSemanticEnrichmentMeta = {
   provider: string
   model: string
   requestedAt: string
   acceptedAnnotations: number
   rejectedAnnotations: number
-  schemaVersion: 'SERA_SEMANTIC_AI_V1'
+  schemaVersion: 'SERA_SEMANTIC_AI_V1' | 'SERA_SEMANTIC_AI_V2'
+  /** Independent semantic adjudication of whether a human safe→unsafe departure exists. */
+  humanEscapeDisposition?: SeraSemanticHumanEscapeDisposition
 }
 
 export type SeraVNextEngineInput = {
@@ -379,7 +431,7 @@ export type SeraVNextEngineOutput = {
   preconditions: SeraPreconditionCandidate[]
 
   canonicalTraversal: {
-    status: 'COMPLETED_CANDIDATE_ONLY' | 'PARTIAL' | 'REAL_TREE_MISSING' | 'INSUFFICIENT_EVIDENCE'
+    status: 'COMPLETED_CANDIDATE_ONLY' | 'PARTIAL' | 'REAL_TREE_MISSING' | 'INSUFFICIENT_EVIDENCE' | 'NOT_APPLICABLE'
     paths: SeraCanonicalPath[]
     unansweredQuestions: string[]
   }

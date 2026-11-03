@@ -1,31 +1,49 @@
 import { runSeraVNextEngineV0 } from '@/lib/sera-vnext/engine-v0/run-engine'
-import { enrichSeraNarrativeSemantically, enrichSeraPoaSemantically } from '@/lib/sera-vnext/ai/semantic-enrichment'
+import { enrichSeraNarrativeSemantically, enrichSeraPoaSemantically, mergeFocusedPoaSemanticEvidence } from '@/lib/sera-vnext/ai/semantic-enrichment'
 import { notFound, SeraVNextProductError } from '../errors'
-import { hashJson } from '../hashing'
+import { hashJson, sha256Hex } from '../hashing'
 import { assertValidAnalysisTransition } from '../transitions'
 import type { SeraVNextClarificationResponse, SeraVNextProductContext } from '../types'
 import type { SeraVNextEngineInput } from '@/lib/sera-vnext/engine-contract'
 import { getSeraVNextProductVersionSet } from '../versioning'
 import { createAuditEvent } from './create-audit-event'
+import { SERA_ENGINE_REFRESH_EPOCH } from '../engine-refresh'
 import { createSeraVNextProductRepository, type SeraVNextProductRepository } from './repositories'
 
 export async function reanalyzeSeraVNextAnalysis(args: {
   analysisId: string
   reason?: string
+  reprocessCurrentEngine?: boolean
+  /** New clarification facts are consumed deterministically with the previously audited semantic snapshot. */
+  preserveSemanticForClarifications?: boolean
+  updatedNarrative?: string
   clarificationResponses?: SeraVNextClarificationResponse[]
   carriedSupplementalEvidence?: SeraVNextEngineInput['supplementalEvidence']
   locale?: 'pt-BR' | 'en'
   context: SeraVNextProductContext
   repository?: SeraVNextProductRepository
+  semanticEnricher?: typeof enrichSeraNarrativeSemantically
 }) {
   const repository = args.repository ?? createSeraVNextProductRepository()
   const analysis = await repository.getAnalysis(args.context.tenantId, args.analysisId)
   if (!analysis) throw notFound()
-  if (analysis.status !== 'RETURNED_FOR_REANALYSIS' && analysis.status !== 'REQUIRES_MORE_EVIDENCE') {
-    throw new Error('SERA_VNEXT_PRODUCT_BETA_REANALYSIS_REQUIRES_RETURNED_OR_MORE_EVIDENCE')
+  if (analysis.status === 'ARCHIVED') {
+    throw new SeraVNextProductError('SERA_REANALYSIS_ARCHIVED', 'Análises arquivadas não podem ser reprocessadas.', 409)
   }
 
   const clarificationResponses = args.clarificationResponses ?? []
+  const narrative = args.updatedNarrative?.trim() || analysis.narrative
+  const hasNewNarrative = narrative !== analysis.narrative
+  if (args.reprocessCurrentEngine && (hasNewNarrative || clarificationResponses.length > 0)) {
+    throw new SeraVNextProductError(
+      'SERA_ENGINE_REFRESH_MUST_PRESERVE_EVIDENCE',
+      'O reprocessamento do motor só é permitido sem fatos novos ou respostas adicionais.',
+      422,
+    )
+  }
+  if (hasNewNarrative && !narrative.startsWith(analysis.narrative)) {
+    throw new SeraVNextProductError('SERA_REANALYSIS_MUST_PRESERVE_ORIGINAL', 'O relato e as evidências anteriores devem ser preservados integralmente.', 422)
+  }
   await createAuditEvent({
     repository,
     context: args.context,
@@ -37,7 +55,7 @@ export async function reanalyzeSeraVNextAnalysis(args: {
   })
 
   const versions = getSeraVNextProductVersionSet()
-  if (analysis.status === 'REQUIRES_MORE_EVIDENCE' && clarificationResponses.length === 0) {
+  if (analysis.status === 'REQUIRES_MORE_EVIDENCE' && clarificationResponses.length === 0 && !hasNewNarrative && !args.reprocessCurrentEngine) {
     throw new SeraVNextProductError(
       'SERA_VNEXT_CLARIFICATION_RESPONSE_REQUIRED',
       'Esta análise requer evidência adicional antes de uma nova execução.',
@@ -91,12 +109,23 @@ export async function reanalyzeSeraVNextAnalysis(args: {
     supplementalEvidence.push({ ...item, evidenceId })
   }
   const locale = args.locale ?? analysis.engine_input.locale ?? 'pt-BR'
-  let semantic = analysis.source_flow === 'VNEXT_CANONICAL'
-    ? await enrichSeraNarrativeSemantically({ narrative: analysis.narrative, locale })
+  // Engine-only correction is a deterministic replay of the immutable factual and
+  // source-anchored semantic evidence already audited for this analysis. Re-running an
+  // external LLM here is both operationally fragile (provider/timeouts) and can silently
+  // change evidence interpretation without the analyst supplying new facts. A full
+  // semantic pass remains reserved for genuine new narrative evidence. Submitted
+  // clarifications stay as new factual supplements with immutable source and
+  // evidence IDs; the deterministic engine can assess them without requiring
+  // a third-party provider to save the analyst's answer. No new semantic
+  // hypothesis is inferred from these answers.
+  const reuseExistingSemantic = args.reprocessCurrentEngine === true
+    || (args.preserveSemanticForClarifications === true && clarificationResponses.length > 0 && !hasNewNarrative)
+  let semantic = analysis.source_flow === 'VNEXT_CANONICAL' && !reuseExistingSemantic
+    ? await (args.semanticEnricher ?? enrichSeraNarrativeSemantically)({ narrative, locale })
     : null
   let engineInput: SeraVNextEngineInput = {
     ...analysis.engine_input,
-    narrative: analysis.narrative,
+    narrative,
     locale,
     supplementalEvidence,
     semanticEvidence: semantic?.annotations ?? analysis.engine_input.semanticEvidence,
@@ -117,22 +146,21 @@ export async function reanalyzeSeraVNextAnalysis(args: {
     && engineOutput.directActor.status === 'IDENTIFIED'
     && Boolean(engineOutput.directActor.actor)
     && Boolean(escapePoint)
-    && engineOutput.evidenceSufficiency.questions.some((question) => /-(P|O|A)_ROOT$/.test(question.id))
+    && engineOutput.evidenceSufficiency.questions.some((question) => ['PERCEPTION', 'OBJECTIVE', 'ACTION'].includes(question.stage))
   if (needsFocusedPoa && semantic && escapePoint && engineOutput.directActor.actor) {
     try {
       const focused = await enrichSeraPoaSemantically({
-        narrative: analysis.narrative,
+        narrative,
         locale,
         escapePoint,
         directActor: engineOutput.directActor.actor,
       })
       if (focused.annotations.length > 0) {
-        const merged = [...semantic.annotations]
-        const seen = new Set(merged.map((item) => `${item.sourceSentenceIndex}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}`))
-        for (const item of focused.annotations) {
-          const key = `${item.sourceSentenceIndex}:${item.roles.join(',')}:${item.actor ?? ''}:${item.preconditionCategory ?? ''}`
-          if (!seen.has(key)) { seen.add(key); merged.push(item) }
-        }
+        const merged = mergeFocusedPoaSemanticEvidence({
+          primary: semantic.annotations,
+          focused: focused.annotations,
+          directActor: engineOutput.directActor.actor,
+        })
         semantic = {
           ...semantic,
           annotations: merged,
@@ -157,6 +185,11 @@ export async function reanalyzeSeraVNextAnalysis(args: {
       console.warn('[SERA semantic P/O/A focus] falling back to primary semantic pass during reanalysis', error instanceof Error ? error.message : String(error))
     }
   }
+  if (engineOutput.selectedCode !== null || engineOutput.releasedCode !== null
+    || engineOutput.finalConclusion !== null || engineOutput.downstreamAllowed !== false
+    || engineOutput.classifiedOutput !== false || engineOutput.readyPromotion !== false) {
+    throw new Error('SERA_REANALYSIS_FINAL_OUTPUT_LOCK_VIOLATED')
+  }
   const nextStatus = engineOutput.evidenceSufficiency.status === 'NEEDS_CLARIFICATION'
     ? 'REQUIRES_MORE_EVIDENCE' as const
     : 'CANDIDATE_ANALYSIS_CREATED' as const
@@ -173,7 +206,7 @@ export async function reanalyzeSeraVNextAnalysis(args: {
     request_id: args.context.requestId,
     engine_version: versions.engineVersion,
     engine_runtime_version: versions.engineRuntimeVersion,
-    source_flow: versions.sourceFlow,
+    source_flow: analysis.source_flow ?? versions.sourceFlow,
     engine_input: engineInput,
     engine_output: engineOutput,
     engine_output_hash: outputHash,
@@ -181,18 +214,28 @@ export async function reanalyzeSeraVNextAnalysis(args: {
     metadata: {
       source: 'product_beta_reanalyze',
       clarificationResponses,
+      previousNarrativeHash: analysis.narrative_hash,
+      updatedNarrativeHash: sha256Hex(narrative),
+      additionalNarrativeEvidenceApplied: hasNewNarrative,
+      engineRefreshEpoch: SERA_ENGINE_REFRESH_EPOCH,
+      reprocessCurrentEngine: args.reprocessCurrentEngine === true,
       evidenceSufficiencyStatus: engineOutput.evidenceSufficiency.status,
       provenance: {
         codeCommit: versions.codeCommit,
         codeCommitSource: versions.codeCommitSource,
         deploymentId: versions.deploymentId,
         semanticEnrichment: semantic?.meta ?? analysis.engine_input.semanticEnrichmentMeta ?? null,
-        semanticLayer: semantic ? 'AI_EXTRACTION_DETERMINISTIC_SERA_TRAVERSAL' : 'DETERMINISTIC_FALLBACK',
+        semanticLayer: semantic ? 'AI_EXTRACTION_DETERMINISTIC_SERA_TRAVERSAL'
+          : reuseExistingSemantic && (analysis.engine_input.semanticEvidence?.length ?? 0) > 0
+            ? 'REUSED_SOURCE_ANCHORED_SEMANTICS_DETERMINISTIC_TRAVERSAL'
+            : 'DETERMINISTIC_FALLBACK',
       },
     },
   })
 
   const updated = await repository.updateAnalysis(args.context.tenantId, analysis.id, {
+    narrative,
+    narrative_hash: sha256Hex(narrative),
     status: nextStatus,
     review_status: nextReviewStatus,
     request_id: args.context.requestId,
@@ -204,7 +247,7 @@ export async function reanalyzeSeraVNextAnalysis(args: {
     input_schema_version: versions.inputSchemaVersion,
     output_schema_version: versions.outputSchemaVersion,
     code_commit: versions.codeCommit,
-    source_flow: versions.sourceFlow,
+    source_flow: analysis.source_flow ?? versions.sourceFlow,
     canonical_tree_version: versions.canonicalTreeVersion,
     engine_input: engineInput,
     engine_output: engineOutput,
@@ -230,8 +273,11 @@ export async function reanalyzeSeraVNextAnalysis(args: {
     toStatus: nextStatus,
     payload: {
       revisionNumber: nextRevision,
+      additionalNarrativeEvidenceApplied: hasNewNarrative,
       clarificationResponsesCount: clarificationResponses.length,
       clarificationQuestionIds: clarificationResponses.map((item) => item.questionId),
+      engineRefreshEpoch: SERA_ENGINE_REFRESH_EPOCH,
+      reprocessCurrentEngine: args.reprocessCurrentEngine === true,
       evidenceSufficiencyStatus: engineOutput.evidenceSufficiency.status,
       codeCommit: versions.codeCommit,
       codeCommitSource: versions.codeCommitSource,

@@ -161,6 +161,55 @@ export function assertLegacyRecalculationDisabledContract(rootDir: string, route
   assert.equal(source.includes("recalculate("), false, `${routePath}: legacy recalculation must not execute`);
 }
 
+export function assertEventSeraReviewHistoryContract(rootDir: string): void {
+  const routePath = "frontend/src/app/api/events/[eventId]/sera-reviews/route.ts";
+  const source = readRel(rootDir, routePath);
+  const required = [
+    "requireBearerUser(req)",
+    "getSupabaseAdmin()",
+    ".eq('id', eventId)",
+    ".eq('tenant_id', user.tenantId)",
+    ".eq('source_reference', eventId)",
+    ".eq('analysis_id', analysisId)",
+    ".in('analysis_id', relatedIds)",
+    "writerRoles.has(String(user.role).toLowerCase())",
+    "user.publicUserId",
+    "body.baseReviewVersion",
+    "body.baseEngineRevision",
+    "createSeraVNextReview",
+    "evidenceBlocked",
+    "Cache-Control",
+    "no-store",
+  ];
+  assert.ok(hasAll(source, required), `${routePath}: missing mandatory tenant/reviewer/version control`);
+  assert.equal(source.includes('service_role'), false, `${routePath}: no exposed service-role credentials`);
+  assert.equal(source.includes('supabase.auth.admin.createUser'), false, `${routePath}: reviews must not create users`);
+  assert.ok(existsSync(path.join(rootDir, "tests/sera-vnext/cal17-human-review-trial-001.ts")),
+    "CAL-17 human-review test is mandatory for this protected route");
+  assert.ok(existsSync(path.join(rootDir, "tests/sera-vnext/cal18-event-reanalysis-history-trial-001.ts")),
+    "CAL-18 reanalysis-history test is mandatory for this protected route");
+  const migration = readRel(rootDir, "supabase/migrations/20261014190000_sera_review_order_integrity.sql");
+  assert.ok(hasAll(migration, ['review_version_unique', 'prevent_sera_vnext_review_update', 'prevent_sera_vnext_review_delete']),
+    'Human review history must be append-only and version-unique');
+}
+
+export function assertEventDuplicateReconciliationContract(rootDir: string): void {
+  const route = readRel(rootDir, 'frontend/src/app/api/events/[eventId]/duplicates/route.ts');
+  for (const value of ['requireBearerUser(req)', 'getEvent(admin, user.tenantId, eventId)',
+    'getEvent(admin, user.tenantId, canonicalId)', 'isLikelyDuplicate(duplicate, canonical)',
+    'decided_by: user.publicUserId', 'event.duplicate_confirmed']) {
+    assert.ok(route.includes(value), `Duplicate reconciliation missing: ${value}`);
+  }
+  const creation = readRel(rootDir, 'frontend/src/app/api/events/route.ts');
+  assert.ok(creation.indexOf('const matches = await findTenantDuplicateCandidates') < creation.indexOf("stage = 'insert-event'"),
+    'Every event must be checked before an insertion or debit');
+  assert.ok(creation.includes('POSSIBLE_EVENT_DUPLICATE'), 'A duplicate must produce an explicit warning');
+  const migration = readRel(rootDir, 'supabase/migrations/20261014224000_event_duplicate_links.sql');
+  for (const lock of ['EVENT_DUPLICATE_TENANT_MISMATCH', 'EVENT_DUPLICATE_LINK_IMMUTABLE',
+    'event_duplicate_not_self', 'row level security']) assert.ok(migration.includes(lock), `Duplicate migration missing ${lock}`);
+  assert.ok(existsSync(path.join(rootDir, 'tests/sera-vnext/cal19-duplicate-reconciliation-trial-001.ts')));
+}
+
 export function isAllowedSeraVNextProtectedApiPath(rootDir: string, changedPath: string): boolean {
   if (changedPath === "frontend/src/app/api/analyze/route.ts") {
     assertAnalyzeRouteSanitizationContract(rootDir);
@@ -212,8 +261,23 @@ export function isAllowedSeraVNextProtectedApiPath(rootDir: string, changedPath:
     assertEventDetailVNextReadContract(rootDir);
     return true;
   }
+  if (changedPath === "frontend/src/app/api/safety/overview/route.ts") {
+    const source = readRel(rootDir, changedPath);
+    assert.ok(hasAll(source, ["requireBearerUser(req)", ".eq('tenant_id', user.tenantId)",
+      "from('event_duplicate_links')", "!confirmedDuplicateIds.has(event.id)"]),
+      'Safety Intelligence must exclude confirmed duplicates within tenant scope');
+    return true;
+  }
+  if (changedPath === "frontend/src/app/api/events/[eventId]/duplicates/route.ts") {
+    assertEventDuplicateReconciliationContract(rootDir);
+    return true;
+  }
   if (changedPath === "frontend/src/app/api/events/[eventId]/reanalyze-vnext/route.ts") {
     assertEventVNextReanalyzeContract(rootDir);
+    return true;
+  }
+  if (changedPath === "frontend/src/app/api/events/[eventId]/sera-reviews/route.ts") {
+    assertEventSeraReviewHistoryContract(rootDir);
     return true;
   }
   return false;

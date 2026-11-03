@@ -94,6 +94,7 @@ export function buildPreconditionReview(preconditions: SeraPreconditionCandidate
 
   const cards: SeraReviewerPreconditionCard[] = preconditions.map((p): SeraReviewerPreconditionCard => ({
     category: p.category,
+    canonicalCategory: p.canonicalCategory ?? null,
     plainLanguageLabel: p.canonicalCategory ? SERA_PRECONDITION_META[p.canonicalCategory].pt : labelForCategory(p.category),
     description: p.description,
     evidence: summarizeEvidence(p.evidence),

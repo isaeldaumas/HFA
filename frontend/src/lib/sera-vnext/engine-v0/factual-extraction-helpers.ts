@@ -109,8 +109,11 @@ export function isDirectControlResponseStatement(statement: string): boolean {
 
 export function isExplicitOperationalOmissionStatement(statement: string): boolean {
   const text = normalize(statement)
-  return /\b(procedimentos?|checklists?|acoes?|itens?|steps?|procedures?)\b.*\b(nao (?:foi|foram) (?:executad[oa]s?|realizad[oa]s?|cumprid[oa]s?|aplicad[oa]s?)|were not (?:executed|performed|completed|followed)|was not (?:executed|performed|completed|followed))\b/.test(text)
+  return /\b(procedimentos?|checklists?|acoes?|it(?:em|ens)|etapas?|passos?|steps?|procedures?)\b.*\b(nao (?:foi|foram) (?:executad[oa]s?|realizad[oa]s?|cumprid[oa]s?|aplicad[oa]s?)|foi omitid[oa]|foram omitid[oa]s?|were not (?:executed|performed|completed|followed)|was not (?:executed|performed|completed|followed)|was omitted|were omitted)\b/.test(text)
+    || /\b(omitiu|omitiram|omitted|skipped)\b.{0,140}\b(procedimento|checklist|item|etapa|passo|procedure|step)\b/.test(text)
+    || /\b(procedimento|checklist|item|etapa|passo|procedure|step)\b.{0,140}\b(omitiu|omitiram|omitted|skipped)\b/.test(text)
     || /\b(nao executou|nao realizou|nao cumpriu|deixou de executar|deixou de realizar|failed to execute|failed to perform|did not execute|did not perform)\b/.test(text)
+    || /\b(piloto|pilot|comandante|captain|copiloto|first officer|pf|pm|operador|operator)\b.{0,120}\b(deixou de acompanhar|deixou de monitorar|nao acompanhou|nao monitorou|failed to monitor|stopped monitoring|did not monitor)\b.{0,160}\b(indicacao|indication|display|informacao|information|parametro|parameter)\b/.test(text)
 }
 
 export function isExplicitOperationalDeviationStatement(statement: string): boolean {

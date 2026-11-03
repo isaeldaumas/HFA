@@ -7,6 +7,9 @@ export function runStep05UnsafeActCondition(input: {
   unsafeState: SeraVNextEngineOutput['unsafeState']
   escapePoint: SeraVNextEngineOutput['escapePoint']
 }): SeraVNextEngineOutput['unsafeActOrCondition'] {
+  if (input.escapePoint.status === 'NO_HUMAN_ESCAPE_POINT') {
+    return { type: 'UNRESOLVED', statement: null, evidence: [] }
+  }
   const escapeSource = input.escapePoint.firstDepartureCandidate
     ?? input.escapePoint.earliestCandidate
     ?? ''

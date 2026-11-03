@@ -78,9 +78,14 @@ export async function GET(req: Request, ctx: { params: Promise<{ eventId: string
       return jsonError(requestId, 'EVENT_DELETE_INTERNAL_ERROR', 'Não foi possível obter o evento.', 500)
     }
 
+    const duplicateLink = await admin.from('event_duplicate_links')
+      .select('canonical_event_id').eq('tenant_id', user.tenantId).eq('duplicate_event_id', eventId).maybeSingle()
+    if (duplicateLink.error) return jsonError(requestId, 'EVENT_DUPLICATE_LOOKUP_ERROR', 'Não foi possível consultar duplicidades.', 500)
+
     return NextResponse.json({
       ...data,
-      is_excluded_from_risk_profile: !!exclusion.data,
+      duplicate_of_event_id: duplicateLink.data?.canonical_event_id ?? null,
+      is_excluded_from_risk_profile: !!exclusion.data || !!duplicateLink.data,
       risk_profile_exclusion_id: exclusion.data?.id ?? null,
       risk_profile_exclusion_reason: exclusion.data?.reason ?? null,
       risk_profile_exclusion_at: exclusion.data?.excluded_at ?? null,

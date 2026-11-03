@@ -2,6 +2,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
+import Link from 'next/link'
+import { useMe } from '@/hooks/useMe'
+import { shouldShowConsumerCredits } from '@/lib/product/consumer-credit-visibility'
 
 type CreditPackage = {
   id: string
@@ -55,6 +58,8 @@ function pricePerAnalysis(valueInCents: number, credits: number): string {
 }
 
 export default function CreditsPage() {
+  const me = useMe()
+  const showConsumerCredits = shouldShowConsumerCredits(me)
   const [balance, setBalance] = useState(0)
   const [plan, setPlan] = useState('free')
   const [packages, setPackages] = useState<CreditPackage[]>([])
@@ -62,6 +67,7 @@ export default function CreditsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!showConsumerCredits) return
     async function load() {
       try {
         const { data } = await supabase.auth.getSession()
@@ -86,7 +92,17 @@ export default function CreditsPage() {
       }
     }
     void load()
-  }, [])
+  }, [showConsumerCredits])
+
+  if (!showConsumerCredits) {
+    return <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+      {me.loading ? <p className="text-slate-400">Carregando perfil...</p> : <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
+        <h1 className="text-xl font-semibold text-white">Área de créditos</h1>
+        <p className="mt-2 text-sm text-slate-400">Esta área está disponível somente para contas de clientes.</p>
+        <Link href="/dashboard" className="mt-4 inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white">Voltar ao Dashboard</Link>
+      </div>}
+    </div>
+  }
 
   const displayBalance = plan === 'enterprise' ? 'Ilimitado' : String(balance)
   const displayAnalyses = plan === 'enterprise' ? 'análises ilimitadas' : `${balance} análises`

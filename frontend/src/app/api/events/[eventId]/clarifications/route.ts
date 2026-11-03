@@ -8,6 +8,7 @@ import { validateClarificationResponses } from '@/lib/sera-vnext-product/schemas
 import { reanalyzeSeraVNextAnalysis } from '@/lib/sera-vnext-product/persistence/reanalyze-analysis'
 import { SeraVNextProductError } from '@/lib/sera-vnext-product/errors'
 import { mergeCanonicalSupplementalEvidence } from '@/lib/sera-vnext-product/canonical-event-analysis'
+import { hasNoNewActorEvidence } from '@/lib/sera-vnext-product/clarification-factuality'
 
 export async function POST(req: Request, ctx: { params: Promise<{ eventId: string }> }) {
   const requestId = getOrCreateRequestId(req)
@@ -27,7 +28,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
 
     const { data: analysisHistory, error: analysisError } = await admin
       .from('sera_vnext_analyses')
-      .select('id, engine_input')
+      .select('id, engine_input, engine_output')
       .eq('tenant_id', user.tenantId)
       .eq('source_reference', eventId)
       .is('deleted_at', null)
@@ -42,10 +43,21 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
     const raw = await req.json().catch(() => ({})) as Record<string, unknown>
     const clarificationResponses = validateClarificationResponses(raw.clarificationResponses)
     const locale: 'pt-BR' | 'en' = raw.locale === 'en' ? 'en' : 'pt-BR'
+    if (hasNoNewActorEvidence(analysis.engine_output.evidenceSufficiency.questions, clarificationResponses)) {
+      return NextResponse.json({
+        detail: 'A resposta confirma que não há dados para identificar o ator, mas não acrescenta evidência nova. Registre a insuficiência na revisão humana; não reexecute P/O/A.',
+        errorCode: 'SERA_CLARIFICATION_NO_NEW_ACTOR_EVIDENCE',
+        request_id: requestId,
+      }, { status: 422 })
+    }
+    // Preserve the source-audited semantic snapshot and feed clarification
+    // answers directly to the deterministic engine. This endpoint must not
+    // call an external AI provider merely to register known new facts.
     const publicUserId = await ensurePublicUserRow(admin, user.tenantId, user.userId, user.email, user.role)
     const result = await reanalyzeSeraVNextAnalysis({
       analysisId: analysis.id,
       reason: 'event_clarification_evidence',
+      preserveSemanticForClarifications: true,
       clarificationResponses,
       carriedSupplementalEvidence,
       locale,
@@ -96,7 +108,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
     if (error instanceof SeraVNextProductError) {
       return NextResponse.json({ detail: error.message, errorCode: error.code, request_id: requestId }, { status: error.status })
     }
-    console.error('[sera-clarifications]', { requestId, errorType: error instanceof Error ? error.name : typeof error })
-    return NextResponse.json({ detail: 'Não foi possível registrar as informações adicionais.', request_id: requestId }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const providerBilling = /(?:402|insufficient.balance|payment.required)/i.test(errorMessage)
+    console.error('[sera-clarifications]', { requestId, errorType: error instanceof Error ? error.name : typeof error, errorMessage })
+    return NextResponse.json({ detail: providerBilling
+      ? 'O provedor de IA configurado para esta conta está sem saldo. A resposta não foi incorporada; selecione um provedor disponível em Configurações IA e tente novamente.'
+      : 'Não foi possível registrar as informações adicionais. Verifique Configurações IA e tente novamente. Referência: ' + requestId,
+      request_id: requestId }, { status: providerBilling ? 503 : 500 })
   }
 }

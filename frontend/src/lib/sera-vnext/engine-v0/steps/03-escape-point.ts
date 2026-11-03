@@ -1,8 +1,12 @@
-import type { SeraSupplementalEvidenceInput, SeraTimelineItem, SeraVNextEngineInput, SeraVNextEngineOutput } from '../../engine-contract'
+import type { SeraSemanticEnrichmentMeta, SeraSupplementalEvidenceInput, SeraTimelineItem, SeraVNextEngineInput, SeraVNextEngineOutput } from '../../engine-contract'
 import { buildCandidateEscapeWindow, classifyHumanFactorEscapeStatement } from '../candidate-escape-window'
 import { isOperationalEventStatement } from '../factual-extraction-helpers'
 import { excludedPostEscapeEvidence } from '../utils'
 import { trimSemanticLandmarkToEventMoment } from '../../evidence/semantic-integrity'
+
+function normalizeLandmarkText(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+}
 
 function formatEscapeStatement(candidate: string | null, locale: SeraVNextEngineInput['locale']): string | null {
   if (!candidate) return null
@@ -49,6 +53,58 @@ function formatEscapeStatement(candidate: string | null, locale: SeraVNextEngine
   return `${prefix}${temporalLead ? ',' : ''} ${neutral.replace(/^[A-ZÁÉÍÓÚÃÕÇ]/, (m: string) => m.toLowerCase())}`
 }
 
+
+function splitCompoundEscapeLandmark(value: string): { first: string; later: string } | null {
+  const candidates = [
+    /\s*(?:,\s*)?(?:e\s*,?\s*)?(?:logo depois|em seguida|depois disso|posteriormente)\s*,?\s*/i,
+    /\s*,?\s*(?:and\s+)?(?:shortly after|then|next|after that)\s*,?\s*/i,
+  ]
+  for (const pattern of candidates) {
+    const match = pattern.exec(value)
+    if (!match?.index || match.index < 20) continue
+    const first = value.slice(0, match.index).trim().replace(/[;,]+$/g, '')
+    const later = value.slice(match.index + match[0].length).trim().replace(/^[,;]+/g, '')
+    if (first && later && classifyHumanFactorEscapeStatement(first)) return { first, later }
+  }
+
+  // A procedural omission followed in the same sentence by an aircraft-state consequence
+  // is still two methodological landmarks. Keep the omission as the first departure and the
+  // aircraft state as downstream evolution; do not make consequence part of the P/O/A anchor.
+  const consequence = /\s*,?\s+e\s+(?=(?:a|o)\s+(?:aeronave|aircraft)\b)/i.exec(value)
+  if (consequence?.index && consequence.index >= 20) {
+    const first = value.slice(0, consequence.index).trim().replace(/[;,]+$/g, '')
+    const later = value.slice(consequence.index + consequence[0].length).trim().replace(/^[,;]+/g, '')
+    if (first && later && classifyHumanFactorEscapeStatement(first)) return { first, later }
+  }
+  return null
+}
+
+/** The creation of a misleading environmental cue is not itself an operator's
+ * mistaken perception. Source-faithful semantic FIRST_DEPARTURE annotations can
+ * still confuse a *cause* of an illusion with the human encounter of that cue.
+ * Reject that anchor rather than falling forward to an aircraft-state result.
+ */
+function isExternalVisualCueMistakenForHumanDeparture(statement: string): boolean {
+  const text = normalizeLandmarkText(statement)
+  const cueProduced = /\b(?:criou|criaram|gerou|geraram|produziu|produziram|provocou|provocaram|formou|formaram)\s+(?:uma?\s+)?(?:impressao|ilusao|imagem|referencia)\s+(?:visual|ilusoria|enganosa)\b/.test(text)
+  const humanPerception = /\b(?:piloto|tripulacao|comandante|copiloto|operador|crew|pilot|captain|officer|operator)\b.{0,120}\b(?:julgou|julgavam|percebeu|perceberam|acreditou|acreditaram|interpretou|interpretaram|confundiu|confundiram)\b/.test(text)
+  return cueProduced && !humanPerception
+}
+
+/** A proposed future safe recovery (return/go-around/abort) does not demonstrate a
+ * human safe→unsafe transition on its own. The reporter may already have been operating
+ * unsafely, but that *other* fact must be anchored and examined independently. Do not
+ * select a narrator/instructor's recovery plan just because it precedes a pilot error.
+ */
+function prospectiveRecoveryPlanOnly(statement: string): boolean {
+  const text = normalizeLandmarkText(statement)
+  const prospectivePlan = /\b(?:estipulei|estipulou|defini|definiu|planejei|planejou|determinei|determinou|combinei|combinou|decidi|decidiu|planned|decided|established)\b.{0,220}\b(?:arremeter|arremeteria|arremeteremos|arremetemos|retornar|retornariamos|abort|go.around|return|discontinue|descontinuar)\b/.test(text)
+  if (!prospectivePlan) return false
+  const explicitUnsafeContinuation = /\b(?:continuou|continuaram|continuei|prosseguiu|prosseguiram|prossegui|permaneceu|permanecemos|mantivemos|manteve|desceu|descemos|descenderam|continued|proceeded|remained|descended)\b.{0,160}\b(?:abaixo|imc|sem referencia|sem visual|insegur|unsafe|below|without visual)\b/.test(text)
+    || /\b(?:decidi|decidiu|estipulei|estipulou|planejei|planejou)\b.{0,110}\b(?:continuar|prosseguir|descer|manter)\b.{0,110}\b(?:abaixo|imc|sem referencia|sem visual|insegur|unsafe|below)\b/.test(text)
+  return !explicitUnsafeContinuation
+}
+
 function usableDirectEscapeClarification(statement: string): boolean {
   const text = statement.trim()
   if (!text) return false
@@ -77,6 +133,7 @@ function escapeConfidence(args: {
 export function runStep03EscapePoint(input: {
   factualExtraction: SeraVNextEngineOutput['factualExtraction']
   supplementalEvidence?: SeraSupplementalEvidenceInput[]
+  semanticEnrichmentMeta?: SeraSemanticEnrichmentMeta
   locale: SeraVNextEngineInput['locale']
 }): SeraVNextEngineOutput['escapePoint'] {
   const legacyWindow = buildCandidateEscapeWindow(input.factualExtraction.timeline)
@@ -116,21 +173,152 @@ export function runStep03EscapePoint(input: {
         humanFactorGate: { status: 'PASSED' as const, anchorType: classifyHumanFactorEscapeStatement(directClarification.statement), rationale: ['Human clarification identifies an observable unsafe act/inaction or operator-controlled unsafe condition.'] },
       }
     : null
+  const semanticDisposition = input.semanticEnrichmentMeta?.humanEscapeDisposition
+  const semanticGateAuthoritative = !directClarificationWindow && !clarificationWindow.statement &&
+    (semanticDisposition === 'UNRESOLVED' || semanticDisposition === 'NO_HUMAN_DEPARTURE')
+  if (semanticGateAuthoritative) {
+    const noHuman = semanticDisposition === 'NO_HUMAN_DEPARTURE'
+    return {
+      status: noHuman ? 'NO_HUMAN_ESCAPE_POINT' : 'INSUFFICIENT_EVIDENCE',
+      statement: null,
+      earliestCandidate: null,
+      latestCandidate: null,
+      firstDepartureCandidate: null,
+      criticalUnsafeActCandidate: null,
+      criticalCandidateAlternatives: [],
+      irreversibilityBoundaryCandidate: legacyWindow.irreversibilityBoundaryCandidate ?? null,
+      anchorBasis: 'UNRESOLVED',
+      firstDepartureSupportingEvidence: [],
+      criticalUnsafeActSupportingEvidence: [],
+      poaAnchorCandidate: null,
+      poaAnchorSupportingEvidence: [],
+      poaAnchorBasis: 'UNRESOLVED',
+      directActor: null,
+      supportingEvidence: [],
+      counterEvidence: [
+        ...(legacyWindow.counterEvidence ?? []),
+        noHuman
+          ? 'Independent semantic human-factor gate found no human safe→unsafe departure; the source supports a technical/environmental/material departure instead.'
+          : 'Independent semantic human-factor gate could not establish a human safe→unsafe departure from the available evidence.',
+      ],
+      excludedPostEscapeEvidence: [],
+      episodeCandidates: (legacyWindow.episodeCandidates ?? []).map((item) => ({ ...item, selected: false })),
+      confidence: noHuman ? 'HIGH' : 'LOW',
+      humanFactorGate: {
+        status: 'BLOCKED',
+        anchorType: null,
+        rationale: [noHuman
+          ? 'No human action, decision, omission or perception is supported as the safe→unsafe departure; SERA P/O/A is not applicable to the technical/environmental departure.'
+          : 'A human safe→unsafe departure is not established with sufficient evidence; physical states/results cannot substitute for an operator act or perception.'],
+      },
+    }
+  }
+
   const selectedWindow = clarificationWindow.statement
     ? clarificationWindow
     : directClarificationWindow
       ? directClarificationWindow
       : legacyWindow
   const selectedFromNarrative = selectedWindow === legacyWindow && Boolean(legacyWindow.statement)
+  const rawFirstDepartureCandidate = selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate ?? ''
+  const rawCriticalUnsafeActCandidate = selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.latestCandidate ?? ''
+  // Treat an unsafe *episode* and a plan to recover from it as distinct facts.
+  // A source-verified high-confidence semantic tag cannot upgrade the latter to
+  // first departure without an unsafe transition evidenced in that quoted act.
+  if (prospectiveRecoveryPlanOnly(rawFirstDepartureCandidate)) {
+    const message = input.locale === 'pt-BR'
+      ? 'O trecho selecionado registra um plano/intenção de arremeter ou retornar, mas não comprova, por si só, a primeira ação humana que saiu da operação segura. Verifique separadamente a condição anterior, o momento de sua ultrapassagem e quem a produziu; a manobra posterior não pode ser promovida automaticamente.'
+      : 'The selected quote records a plan to go around or return, but does not itself establish the first human safe-to-unsafe departure. Verify the preceding condition, boundary and actor separately; do not automatically promote a later maneuver.'
+    return {
+      status: 'INSUFFICIENT_EVIDENCE', statement: null, earliestCandidate: null, latestCandidate: null,
+      firstDepartureCandidate: null, criticalUnsafeActCandidate: null, criticalCandidateAlternatives: [],
+      irreversibilityBoundaryCandidate: selectedWindow.irreversibilityBoundaryCandidate ?? null,
+      anchorBasis: 'UNRESOLVED', firstDepartureSupportingEvidence: [], criticalUnsafeActSupportingEvidence: [],
+      poaAnchorCandidate: null, poaAnchorSupportingEvidence: [], poaAnchorBasis: 'UNRESOLVED',
+      directActor: null, supportingEvidence: [], counterEvidence: [message],
+      excludedPostEscapeEvidence: [],
+      episodeCandidates: (selectedWindow.episodeCandidates ?? []).map((item) => ({ ...item, selected: false })),
+      confidence: 'LOW', humanFactorGate: { status: 'BLOCKED', anchorType: null, rationale: [message] },
+    }
+  }
+  const semanticFirstDeparture = Boolean(rawFirstDepartureCandidate && input.factualExtraction.timeline.some((item) =>
+    item.id.startsWith('TIME-SEM-')
+    && item.statement === rawFirstDepartureCandidate
+    && item.semanticConfidence !== 'LOW'
+    && item.semanticRoles?.includes('FIRST_DEPARTURE'),
+  ))
+  // The quote must itself entail the operator departure. An AI display gloss
+  // claiming that "the operator perceived incorrectly" cannot turn the
+  // environmental creation of an optical illusion into an operator unsafe act.
+  if (selectedWindow === legacyWindow && semanticFirstDeparture &&
+      isExternalVisualCueMistakenForHumanDeparture(rawFirstDepartureCandidate)) {
+    const pt = input.locale === 'pt-BR'
+    const explanation = pt
+      ? 'A frase indicada descreve a criação de uma impressão visual pelo ambiente, não a percepção, decisão ou ação de um operador identificado. A impressão pode ter influenciado a operação, mas não constitui por si só o ponto de fuga humano.'
+      : 'The selected quote describes the environment generating a misleading visual cue, not a supported operator perception, decision or act. The cue may affect the operation, but it is not itself a human escape point.'
+    return {
+      status: 'INSUFFICIENT_EVIDENCE',
+      statement: null,
+      earliestCandidate: null,
+      latestCandidate: null,
+      firstDepartureCandidate: null,
+      criticalUnsafeActCandidate: null,
+      criticalCandidateAlternatives: [],
+      irreversibilityBoundaryCandidate: selectedWindow.irreversibilityBoundaryCandidate ?? null,
+      anchorBasis: 'UNRESOLVED',
+      firstDepartureSupportingEvidence: [],
+      criticalUnsafeActSupportingEvidence: [],
+      poaAnchorCandidate: null,
+      poaAnchorSupportingEvidence: [],
+      poaAnchorBasis: 'UNRESOLVED',
+      directActor: null,
+      supportingEvidence: [],
+      counterEvidence: [explanation],
+      excludedPostEscapeEvidence: [],
+      episodeCandidates: (selectedWindow.episodeCandidates ?? []).map((item) => ({ ...item, selected: false })),
+      confidence: 'LOW',
+      humanFactorGate: {
+        status: 'BLOCKED',
+        anchorType: null,
+        rationale: [explanation],
+      },
+    }
+  }
+  const semanticCriticalAct = Boolean(rawCriticalUnsafeActCandidate && input.factualExtraction.timeline.some((item) =>
+    item.id.startsWith('TIME-SEM-')
+    && item.statement === rawCriticalUnsafeActCandidate
+    && item.semanticConfidence !== 'LOW'
+    && item.semanticRoles?.includes('CRITICAL_UNSAFE_ACT'),
+  ))
+  // Canonical AI path already supplies semantically isolated verbatim spans. Compound
+  // sentence splitting and event-moment trimming remain only as deterministic fallback
+  // for analyses without semantic landmark extraction.
+  const compoundLandmark = semanticFirstDeparture ? null : splitCompoundEscapeLandmark(rawFirstDepartureCandidate)
   const firstDepartureCandidate = trimSemanticLandmarkToEventMoment(
-    selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate ?? '',
+    semanticFirstDeparture ? rawFirstDepartureCandidate : compoundLandmark?.first ?? rawFirstDepartureCandidate,
   ) || null
-  const criticalUnsafeActCandidate = trimSemanticLandmarkToEventMoment(
-    selectedWindow.criticalUnsafeActCandidate ?? selectedWindow.latestCandidate ?? '',
-  ) || null
-  const poaAnchorCandidate = trimSemanticLandmarkToEventMoment(
-    selectedWindow.firstDepartureCandidate ?? selectedWindow.earliestCandidate ?? '',
-  ) || null
+  const normalizedFirstRaw = normalizeLandmarkText(rawFirstDepartureCandidate)
+  const normalizedCriticalRaw = normalizeLandmarkText(rawCriticalUnsafeActCandidate)
+  const sameRawLandmark = Boolean(normalizedFirstRaw && normalizedCriticalRaw && (
+    normalizedFirstRaw === normalizedCriticalRaw
+    || normalizedFirstRaw.includes(normalizedCriticalRaw)
+    || normalizedCriticalRaw.includes(normalizedFirstRaw)
+  ))
+  const criticalUnsafeActCandidate = sameRawLandmark && firstDepartureCandidate
+    ? firstDepartureCandidate
+    : semanticCriticalAct
+      ? rawCriticalUnsafeActCandidate || null
+      : trimSemanticLandmarkToEventMoment(
+          sameRawLandmark && compoundLandmark
+            ? compoundLandmark.later
+            : rawCriticalUnsafeActCandidate,
+        ) || null
+  const poaAnchorCandidate = firstDepartureCandidate
+  const effectiveAnchorBasis = firstDepartureCandidate && criticalUnsafeActCandidate
+    ? normalizeLandmarkText(firstDepartureCandidate) === normalizeLandmarkText(criticalUnsafeActCandidate)
+      ? 'FIRST_DEPARTURE_AND_CRITICAL_ACT' as const
+      : 'FIRST_DEPARTURE_PRIMARY' as const
+    : selectedWindow.anchorBasis
 
   const latestSentenceIndex = selectedFromNarrative
     ? input.factualExtraction.timeline.find((item) => firstDepartureCandidate && (item.statement === firstDepartureCandidate || item.statement.includes(firstDepartureCandidate) || firstDepartureCandidate.includes(item.statement)))?.sourceSentenceIndex ?? null
@@ -160,11 +348,15 @@ export function runStep03EscapePoint(input: {
     criticalUnsafeActCandidate,
     criticalCandidateAlternatives: selectedWindow.criticalCandidateAlternatives ?? [],
     irreversibilityBoundaryCandidate: selectedWindow.irreversibilityBoundaryCandidate ?? null,
-    anchorBasis: selectedWindow.anchorBasis,
-    firstDepartureSupportingEvidence: selectedWindow.firstDepartureSupportingEvidence,
-    criticalUnsafeActSupportingEvidence: selectedWindow.criticalUnsafeActSupportingEvidence,
+    anchorBasis: effectiveAnchorBasis,
+    firstDepartureSupportingEvidence: firstDepartureCandidate
+      ? [firstDepartureCandidate, ...selectedWindow.firstDepartureSupportingEvidence.filter((item) => item !== rawFirstDepartureCandidate)]
+      : selectedWindow.firstDepartureSupportingEvidence,
+    criticalUnsafeActSupportingEvidence: criticalUnsafeActCandidate
+      ? [criticalUnsafeActCandidate, ...selectedWindow.criticalUnsafeActSupportingEvidence.filter((item) => item !== rawCriticalUnsafeActCandidate)]
+      : selectedWindow.criticalUnsafeActSupportingEvidence,
     poaAnchorCandidate,
-    poaAnchorSupportingEvidence: selectedWindow.firstDepartureSupportingEvidence ?? [],
+    poaAnchorSupportingEvidence: firstDepartureCandidate ? [firstDepartureCandidate] : [],
     poaAnchorBasis: firstDepartureCandidate ? 'FIRST_DEPARTURE' : 'UNRESOLVED',
     directActor: null,
     supportingEvidence: selectedWindow.supportingEvidence,

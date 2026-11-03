@@ -6,6 +6,8 @@ import { getSupabaseAdmin } from '@/lib/server/supabase-admin'
  */
 export type AuditEventType =
   | 'event_created'
+  | 'event.duplicate_warning_overridden'
+  | 'event.duplicate_confirmed'
   | 'safety_event_reported'
   | 'safety_event_triaged'
   | 'safety_risk_assessment_created'

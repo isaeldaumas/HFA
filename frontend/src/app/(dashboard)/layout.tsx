@@ -13,6 +13,7 @@ import {
   Settings,
   CreditCard,
   ShieldAlert,
+  Presentation,
   ShieldCheck,
   LogOut,
   Menu,
@@ -24,7 +25,8 @@ import { supabase } from '@/lib/supabase'
 import { ensureOAuthTenant } from '@/lib/ensure-tenant'
 import { useT } from '@/lib/i18n'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
-import { useMe } from '@/hooks/useMe'
+import { MeProvider, useMe } from '@/hooks/useMe'
+import { shouldShowConsumerCredits } from '@/lib/product/consumer-credit-visibility'
 
 /* ── Nav config ─────────────────────────────────────────────── */
 type NavItem = {
@@ -67,6 +69,7 @@ const bottomNav: NavItem[] = [
 /* ── Breadcrumb map ─────────────────────────────────────────── */
 const ROUTE_LABELS: Record<string, string> = {
   '/dashboard':    'Dashboard',
+  '/demo':         'Apresentação demonstrativa',
   '/safety':       'Safety Intelligence',
   '/events':       'Eventos',
   '/events/new':   'Novo Evento',
@@ -136,7 +139,8 @@ function Sidebar({
   const t = useT()
   const me = useMe()
   const initials = userEmail ? userEmail.slice(0, 2).toUpperCase() : 'US'
-  const noCredits = !me.loading && !me.isUnlimited && me.credits === 0
+  const showConsumerCredits = shouldShowConsumerCredits(me)
+  const noCredits = showConsumerCredits && !me.isUnlimited && me.credits === 0
 
   return (
     <aside className="flex h-full w-60 flex-col bg-hfa-bg-subtle border-r border-hfa-border">
@@ -168,6 +172,13 @@ function Sidebar({
           </div>
         ))}
 
+        {me.isAdmin && (
+          <Link href="/demo" onClick={onNav} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${pathname === '/demo' ? 'bg-cyan-500/15 text-cyan-200' : 'text-cyan-300/80 hover:bg-cyan-500/10 hover:text-cyan-200'}`}>
+            <Presentation className="size-4 shrink-0" />
+            Apresentação (demo)
+          </Link>
+        )}
+
         {/* New Event CTA */}
         <div className="pt-2 pb-1">
           {noCredits ? (
@@ -188,7 +199,7 @@ function Sidebar({
         </div>
 
         {/* Credits indicator for free plan */}
-        {!me.loading && !me.isUnlimited && (
+        {showConsumerCredits && !me.isUnlimited && (
           <div className={`mx-1 px-3 py-2 rounded-lg text-xs ${noCredits ? 'bg-red-950/40 border border-red-900/50' : 'bg-slate-800/60'}`}>
             {noCredits ? (
               <p className="text-red-400 leading-snug">
@@ -224,7 +235,7 @@ function Sidebar({
             Admin
           </Link>
         )}
-        {bottomNav.map((item) => (
+        {bottomNav.filter((item) => showConsumerCredits || item.href !== '/credits').map((item) => (
           <NavLink
             key={item.href}
             item={{ ...item, label: t(item.labelKey) }}
@@ -355,6 +366,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
+    <MeProvider>
     <div className="min-h-screen bg-hfa-bg flex">
       {/* ── Desktop sidebar ──────────────────────────── */}
       <div className="hidden md:flex md:w-60 md:shrink-0">
@@ -404,5 +416,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
     </div>
+    </MeProvider>
   )
 }

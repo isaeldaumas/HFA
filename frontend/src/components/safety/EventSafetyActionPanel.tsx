@@ -28,6 +28,7 @@ export function EventSafetyActionPanel({ eventId, canEdit }: Props) {
   const [actions, setActions] = useState<SafetyAction[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({
     title: '',
@@ -85,6 +86,7 @@ export function EventSafetyActionPanel({ eventId, canEdit }: Props) {
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json?.error?.message || json?.detail || 'Não foi possível criar a ação.')
       setForm({ title: '', description: '', responsible: '', due_date: '', priority: 'medium', category: 'OUTRO' })
+      setShowForm(false)
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível criar a ação.')
@@ -161,7 +163,13 @@ export function EventSafetyActionPanel({ eventId, canEdit }: Props) {
         {!loading && actions.length === 0 && <p className="text-xs text-slate-600">Nenhuma ação geral de Safety registrada.</p>}
       </div>
 
-      {canEdit && (
+      {canEdit && !showForm && (
+        <button type="button" onClick={() => setShowForm(true)}
+          className="self-start rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 hover:border-blue-500 hover:text-white">
+          Adicionar ação de Safety
+        </button>
+      )}
+      {canEdit && showForm && (
         <div className="border-t border-slate-800 pt-4 space-y-3">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <input
@@ -214,7 +222,9 @@ export function EventSafetyActionPanel({ eventId, canEdit }: Props) {
               className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white"
             />
           </div>
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setShowForm(false)} disabled={saving}
+              className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:border-slate-500 disabled:opacity-50">Cancelar</button>
             <button
               type="button"
               disabled={saving || !form.title.trim()}

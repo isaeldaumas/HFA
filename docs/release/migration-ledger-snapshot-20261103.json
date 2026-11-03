@@ -1,0 +1,327 @@
+{
+  "schema": "hfa.migration-ledger.snapshot.v1",
+  "observed_at": "2026-11-03T20:01:13.834Z",
+  "source": "Supabase migration ledger, read-only",
+  "project_id": "vbdpweliprcsktyxodss",
+  "repository": "isaeldaumas/HFA",
+  "source_baseline_sha": "fa45e94e071bd20a189efc3a3ef4dad9ffb3033d",
+  "remote_migrations": [
+    {
+      "version": "20260507105001",
+      "name": "initial_schema"
+    },
+    {
+      "version": "20260507120000",
+      "name": "rls_policies"
+    },
+    {
+      "version": "20260507134756",
+      "name": "initial_schema"
+    },
+    {
+      "version": "20260507134940",
+      "name": "initial_schema"
+    },
+    {
+      "version": "20260507150000",
+      "name": "add_summary_and_migrate"
+    },
+    {
+      "version": "20260507180000",
+      "name": "add_analysis_edits"
+    },
+    {
+      "version": "20260508100000",
+      "name": "sera_document_sources"
+    },
+    {
+      "version": "20260508235000",
+      "name": "ai_settings_and_analysis_columns"
+    },
+    {
+      "version": "20260510000000",
+      "name": "add_erc_fields"
+    },
+    {
+      "version": "20260510010000",
+      "name": "plan_and_credits"
+    },
+    {
+      "version": "20260519000000",
+      "name": "add_traceability_fields"
+    },
+    {
+      "version": "20260519001000",
+      "name": "create_audit_log"
+    },
+    {
+      "version": "20260607135727",
+      "name": "sera_vnext_product_beta"
+    },
+    {
+      "version": "20260607164500",
+      "name": "sera_vnext_product_beta_non_final_status_fix"
+    },
+    {
+      "version": "20260608190000",
+      "name": "risk_profile_exclusions"
+    },
+    {
+      "version": "20260608210000",
+      "name": "sera_vnext_provenance_columns"
+    },
+    {
+      "version": "20260609123000",
+      "name": "undefined"
+    },
+    {
+      "version": "20260609200000",
+      "name": "event_deletion_lifecycle_events_and_rpcs"
+    },
+    {
+      "version": "20260609203626",
+      "name": "complete_event_deletion_closure"
+    },
+    {
+      "version": "20260609204934",
+      "name": "reconcile_missing_audit_log"
+    },
+    {
+      "version": "20260609205249",
+      "name": "fix_event_purge_digest_cast"
+    },
+    {
+      "version": "20260609214000",
+      "name": "reconcile_event_deletion_tombstone_select_policy"
+    },
+    {
+      "version": "20260910195647",
+      "name": "tenant_authorization_hardening_20260910"
+    },
+    {
+      "version": "20260910195759",
+      "name": "direct_auth_user_binding_trigger_20260910"
+    },
+    {
+      "version": "20260910202415",
+      "name": "20260910193000_db_authoritative_tenant_authorization"
+    },
+    {
+      "version": "20260910230820",
+      "name": "harden_sera_document_uploads_service_role_only"
+    },
+    {
+      "version": "20260910231118",
+      "name": "add_missing_fk_indexes_20260910"
+    },
+    {
+      "version": "20260910231149",
+      "name": "optimize_rls_auth_initplans_20260910"
+    },
+    {
+      "version": "20260910231728",
+      "name": "reconcile_shadow_infrastructure_20260910"
+    },
+    {
+      "version": "20260911002605",
+      "name": "shadow_observability_metrics_20260910"
+    },
+    {
+      "version": "20260911002727",
+      "name": "tighten_shadow_metrics_view_grants_20260910"
+    },
+    {
+      "version": "20260911002758",
+      "name": "noop_do_not_apply"
+    },
+    {
+      "version": "20260911002855",
+      "name": "correct_shadow_observability_metrics_20260910"
+    },
+    {
+      "version": "20260911032027",
+      "name": "sera_vnext_analyses_methodology_provenance_columns"
+    },
+    {
+      "version": "20260912003043",
+      "name": "prod_additive_gap_analyses_provenance_and_taxonomy_20260710"
+    },
+    {
+      "version": "20260924161847",
+      "name": "secure_sera_taxonomy_entries_service_role_only"
+    },
+    {
+      "version": "20260925163712",
+      "name": "corrective_actions_primary_sera_analysis"
+    },
+    {
+      "version": "20260925174644",
+      "name": "block_current_sera_open_actions_on_event_delete"
+    },
+    {
+      "version": "20260925174933",
+      "name": "block_current_sera_open_actions_on_event_delete"
+    },
+    {
+      "version": "20260928234247",
+      "name": "corrective_action_effectiveness_cycle"
+    },
+    {
+      "version": "20260929010654",
+      "name": "event_precondition_treatment_dynamic_recalculation"
+    },
+    {
+      "version": "20260929111706",
+      "name": "event_deletion_lookup_indexes"
+    },
+    {
+      "version": "20261002232359",
+      "name": "commercial_trial_window"
+    },
+    {
+      "version": "20261002235909",
+      "name": "safety_event_workflow_v1"
+    },
+    {
+      "version": "20261003000851",
+      "name": "safety_event_workflow_v1_fk_indexes"
+    },
+    {
+      "version": "20261003011854",
+      "name": "safety_risk_actions_v1"
+    },
+    {
+      "version": "20261003014004",
+      "name": "integration_connections_airtrust_v1"
+    },
+    {
+      "version": "20261003014545",
+      "name": "airtrust_integration_v1_compat"
+    },
+    {
+      "version": "20261014191523",
+      "name": "sera_review_order_integrity"
+    },
+    {
+      "version": "20261014213954",
+      "name": "event_duplicate_links_cal19"
+    }
+  ],
+  "alias_pairs": [
+    {
+      "local_version": "20260910193000",
+      "remote_version": "20260910202415",
+      "sql_comparison": "lexically_equivalent_2026-11-03"
+    },
+    {
+      "local_version": "20260929004500",
+      "remote_version": "20260929010654",
+      "sql_comparison": "lexically_equivalent_2026-11-03"
+    },
+    {
+      "local_version": "20260929112000",
+      "remote_version": "20260929111706",
+      "sql_comparison": "lexically_equivalent_2026-11-03"
+    },
+    {
+      "local_version": "20261002232320",
+      "remote_version": "20261002232359",
+      "sql_comparison": "lexically_equivalent_2026-11-03"
+    },
+    {
+      "local_version": "20261002235131",
+      "remote_version": "20261002235909",
+      "sql_comparison": "lexically_equivalent_2026-11-03"
+    },
+    {
+      "local_version": "20261003000822",
+      "remote_version": "20261003000851",
+      "sql_comparison": "lexically_equivalent_2026-11-03"
+    },
+    {
+      "local_version": "20261003001728",
+      "remote_version": "20261003011854",
+      "sql_comparison": "lexically_equivalent_2026-11-03"
+    },
+    {
+      "local_version": "20261003015000",
+      "remote_version": "20261003014545",
+      "sql_comparison": "lexically_equivalent_2026-11-03"
+    },
+    {
+      "local_version": "20261014190000",
+      "remote_version": "20261014191523",
+      "sql_comparison": "lexically_equivalent_2026-11-03"
+    },
+    {
+      "local_version": "20261014224000",
+      "remote_version": "20261014213954",
+      "sql_comparison": "lexically_equivalent_2026-11-03"
+    }
+  ],
+  "historical_replaced": [
+    {
+      "local_version": "20260710010000",
+      "name": "methodology_provenance_and_shadow_infra",
+      "status": "PARTIAL_STRUCTURAL_MATCH_NOT_EQUIVALENT",
+      "reapply_forbidden": true,
+      "noted_drift": "sera_taxonomy_entries.created_at absent; shadow triggers and RLS differ"
+    }
+  ],
+  "release_policy": "BLOCK_DB_PUSH_WITHOUT_MANUAL_HISTORY_RECONCILIATION",
+  "local_file_sha256": {
+    "20260507105001_initial_schema.sql": "89c358d9b132724f068bfa6f594e7d93f2c67d2f7c3ec561d8a5af4d6868d181",
+    "20260507120000_rls_policies.sql": "9e6f841993905c8ba4c46a3e527fa728d18201cce2957baf20642790186ea286",
+    "20260507134756_initial_schema.sql": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "20260507134940_initial_schema.sql": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "20260507150000_add_summary_and_migrate.sql": "f52868a52db253d47922c124ef1d79d77511c8174cc478584307f45aedc569e6",
+    "20260507180000_add_analysis_edits.sql": "7c079286527f7068ed078213ba880e1cd57594e01fb74d7e9434ef9d877d73f2",
+    "20260508100000_sera_document_sources.sql": "6cd810ed540a9da5e33a0d036108a3a228a7677d15b2bccf2a1d8be9d103fecb",
+    "20260508235000_ai_settings_and_analysis_columns.sql": "055a617e5167bf5b068bcd6ae1f75bf680cf54d5c8589414078b8723d85c81f3",
+    "20260510000000_add_erc_fields.sql": "ef4baf72c42e2f98c0168b0cda9ff5eb47dc2af2abaca1c9d41016b1b731a599",
+    "20260510010000_plan_and_credits.sql": "4be3cafe757c8e2f36f655d3a379391dc5ee863210342ecc82f00ddbbaf0cbbc",
+    "20260519000000_add_traceability_fields.sql": "a1b9c126ce08056cdb2c009f5148fb5e10225933655a1c9d8e9e7b5e18eef9bd",
+    "20260519001000_create_audit_log.sql": "0ea152e786155162bbc63c76840dd80326fc0b0d494d909afd82b1ba012dd685",
+    "20260607135727_sera_vnext_product_beta.sql": "be9e4b2ede78a4574ec9b502cec0796dbf699b61f630f39391eb7c72dc3548f2",
+    "20260607164500_sera_vnext_product_beta_non_final_status_fix.sql": "e019ff370b54c4fd5ac0bed2f8a8dfcd16c11c2e28df771346a7c016a3290059",
+    "20260608190000_risk_profile_exclusions.sql": "9b3f92634df402fac5a0243a4d4aff6e24b4c6966a65c596a3f8603fd5a816f8",
+    "20260608210000_sera_vnext_provenance_columns.sql": "0c6d0b509557b4c75e9e2d4356c80d2e5121e6d53ecaee474709a28f29352974",
+    "20260609123000_safe_event_deletion_lifecycle.sql": "f380c11e33b2210f6f816eaa61d2804de5b022c48c7b09efdac58883aa675ed4",
+    "20260609200000_event_deletion_lifecycle_events_and_rpcs.sql": "457f3ee7f4f08f0e63e10a721af03f06b20a2188d366fe1b9f6b3dd9e8d52270",
+    "20260609203626_complete_event_deletion_closure.sql": "348a56efbf2ddf571e9278f25fc7756f244bbe66963c56310b6b77e13be5ad6d",
+    "20260609204934_reconcile_missing_audit_log.sql": "17c84500556a69c23c1c6903c6c2712b376a40e3dee0ae1afcf8059d1c4883d0",
+    "20260609205249_fix_event_purge_digest_cast.sql": "b3c872094eb8a7fb6633da53befd596f2b42f2ecd7d544bca75244c2dad3b6b2",
+    "20260609214000_reconcile_event_deletion_tombstone_select_policy.sql": "c6c0c0d536b3d7d90114137c7dcb2337aa9bdd047965c64ebd7d0ec7945183cf",
+    "20260710010000_methodology_provenance_and_shadow_infra.sql": "03a8eda651bd33aea39c6a5bb463d6f79f4af12f08a4b9e101c05b58ebe406a5",
+    "20260910193000_db_authoritative_tenant_authorization.sql": "ec337f3b7483acb5fe31c7e320ab7e4fb55f96dde1e627f6e4f59f01254fb4b6",
+    "20260910230820_harden_sera_document_uploads_service_role_only.sql": "db38ea4a0395d1261622cf05239dc31f48ac606670fa9c09302956c1f01979cf",
+    "20260910231118_add_missing_fk_indexes_20260910.sql": "3d9afd682441d27f6fcde648ae89f675c26613c4f3c9535ac8151bd787c1ec14",
+    "20260910231149_optimize_rls_auth_initplans_20260910.sql": "39cdb474532599e5dde6f2579e3fbfc78b0cf325773d8b610d37216cc394ba73",
+    "20260910231728_reconcile_shadow_infrastructure_20260910.sql": "3c3b7af41bf724588fffcfff46ca860c4e0b5258c18b039b6465fc245c87dbef",
+    "20260911002605_shadow_observability_metrics_20260910.sql": "8d7036e36a7f7695074bc93d75b204ad9d31ff3463f869ba4168fcd3ae8d1aae",
+    "20260911002727_tighten_shadow_metrics_view_grants_20260910.sql": "3fcb46fb1e442fa95621cb8e58856babe840c6ac380b3eb94b250213b4983dde",
+    "20260911002758_noop_do_not_apply.sql": "d823c5548bfcad913c4a7c812559f3819dbcced96edc6b5ff02b6c7b39d668e4",
+    "20260911002855_correct_shadow_observability_metrics_20260910.sql": "604c04e2aede455f53c737db4078b6d2295c21c0e2dee622fd96fd0e6eacf8c4",
+    "20260911032027_sera_vnext_analyses_methodology_provenance_columns.sql": "6424f47d8f5cddb88016b7ae35319758c11c415164a927937df4eac9051d0d64",
+    "20260924161847_secure_sera_taxonomy_entries_service_role_only.sql": "ad1b5d6f54bfbfae89090804ae33e99d2f29759f658eac35ab2f519bfd2073e9",
+    "20260925163712_corrective_actions_primary_sera_analysis.sql": "758aa7094f1b0b2ef32ac98dad843b78fc65469acf92d5d836cc0034a73e8d7d",
+    "20260925174644_block_current_sera_open_actions_on_event_delete.sql": "b5702a56f01d4dd056d1cf682221461baf28c2a942691f0f5585d3758c064b16",
+    "20260928234247_corrective_action_effectiveness_cycle.sql": "fdec154ccb97b67be6259a8b3de4e5f5ec2c226892ec40b4e58a616d93e7c003",
+    "20260929004500_event_precondition_treatment_dynamic_recalculation.sql": "7837b9673e6e880710318b83ccbc4a164f7ae3bcc63e27325b5d96d286f457a8",
+    "20260929112000_event_deletion_lookup_indexes.sql": "aa692b7c9b768fbff0b0900ad9d26f46e2156ec538ee8c1e83f1385c38bf4cd3",
+    "20261002232320_commercial_trial_window.sql": "0fd5afbe5facb9e051cb3de0d597f04a82533fb94f23af663566b4481e526e6b",
+    "20261002235131_safety_event_workflow_v1.sql": "ec097ec278002ce777e4e83b70932f8480f46c83e85d39a748efc68d542268c9",
+    "20261003000822_safety_event_workflow_v1_fk_indexes.sql": "1885dd35d18a18f121aa994ef238cdd550091f1b7c2523659ac19aaaf174bdaa",
+    "20261003001728_safety_risk_actions_v1.sql": "bb14fd0074ae61020de4cb20fb2d6b7c7b20b7f5071c4ed63f579fca8fcb6e77",
+    "20261003015000_airtrust_integration_v1.sql": "6845e3bd9b815eb74832acd2a02802bf43fc66276226d3f4a8d20bd0bb2988f9",
+    "20261014190000_sera_review_order_integrity.sql": "63c99a6f44c17d251f3a92d3f70a2e8a4cf2115c59a68fb3caf3c87dd84a1de2",
+    "20261014224000_event_duplicate_links.sql": "a9a24255e7a35f0a29da6801652ced9f5085fa60a4e39fc11c4aaa4eb3455894"
+  },
+  "additional_remote_versions": [
+    "20260910195647",
+    "20260910195759",
+    "20260912003043",
+    "20260925174933",
+    "20261003014004"
+  ]
+}

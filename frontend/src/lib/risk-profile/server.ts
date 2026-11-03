@@ -377,7 +377,7 @@ export async function loadRiskProfileUniverse(
   tenantId: string,
   admin: SupabaseClient = getSupabaseAdmin(),
 ): Promise<RiskProfileUniverse> {
-  const [eventsRes, actionsRes, exclusionsRes, vnextRes] = await Promise.all([
+  const [eventsRes, actionsRes, exclusionsRes, vnextRes, duplicatesRes] = await Promise.all([
     admin
       .from('events')
       .select('id, tenant_id, title, status, created_at, occurred_at, analyses(id, perception_code, objective_code, action_code, preconditions, created_at)')
@@ -399,16 +399,20 @@ export async function loadRiskProfileUniverse(
       .eq('tenant_id', tenantId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false }),
+    admin.from('event_duplicate_links').select('duplicate_event_id').eq('tenant_id', tenantId),
   ])
 
   if (eventsRes.error) throw new Error(`RISK_PROFILE_EVENTS_QUERY_FAILED: ${eventsRes.error.message}`)
   if (actionsRes.error) throw new Error(`RISK_PROFILE_ACTIONS_QUERY_FAILED: ${actionsRes.error.message}`)
   if (exclusionsRes.error) throw new Error(`RISK_PROFILE_EXCLUSIONS_QUERY_FAILED: ${exclusionsRes.error.message}`)
   if (vnextRes.error) throw new Error(`RISK_PROFILE_VNEXT_QUERY_FAILED: ${vnextRes.error.message}`)
+  if (duplicatesRes.error) throw new Error('RISK_PROFILE_DUPLICATES_QUERY_FAILED')
 
   const exclusionLookup = buildExclusionLookup((exclusionsRes.data ?? []) as ExclusionRow[])
-  const legacyHistoricalCount = ((eventsRes.data ?? []) as LegacyEventRow[]).filter((row) => !!coerceLegacyAnalysis(row.analyses)).length
-  const activeEventIds = new Set(((eventsRes.data ?? []) as LegacyEventRow[]).map((row) => row.id))
+  const confirmedDuplicateIds = new Set((duplicatesRes.data ?? []).map((row) => row.duplicate_event_id))
+  const canonicalEvents = ((eventsRes.data ?? []) as LegacyEventRow[]).filter((row) => !confirmedDuplicateIds.has(row.id))
+  const legacyHistoricalCount = canonicalEvents.filter((row) => !!coerceLegacyAnalysis(row.analyses)).length
+  const activeEventIds = new Set(canonicalEvents.map((row) => row.id))
   const allVNextRows = (vnextRes.data ?? []) as VNextAnalysisRow[]
   // source_reference is the event identity for the current SERA engine. An event that is
   // soft-deleted is excluded here immediately; restore makes it eligible again on the next request.
@@ -456,7 +460,7 @@ export async function loadRiskProfileUniverse(
     allVNextRows.map((row) => [row.id, row.source_reference] as const),
   )
   const legacyEventByAnalysis = new Map<string, string>()
-  for (const event of (eventsRes.data ?? []) as LegacyEventRow[]) {
+  for (const event of canonicalEvents) {
     const analysis = coerceLegacyAnalysis(event.analyses)
     if (analysis?.id) legacyEventByAnalysis.set(analysis.id, event.id)
   }

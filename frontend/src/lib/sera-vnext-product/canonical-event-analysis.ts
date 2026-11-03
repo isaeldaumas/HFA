@@ -1,8 +1,22 @@
+import type { enrichSeraNarrativeSemantically } from '@/lib/sera-vnext/ai/semantic-enrichment'
 import type { SeraVNextCreateAnalysisInput, SeraVNextCreateAnalysisResult, SeraVNextProductContext } from '@/lib/sera-vnext-product/types'
 import { createSeraVNextAnalysis } from '@/lib/sera-vnext-product/persistence/create-analysis'
+import { reanalyzeSeraVNextAnalysis } from '@/lib/sera-vnext-product/persistence/reanalyze-analysis'
 
 type CanonicalEventMode = 'INITIAL' | 'REANALYSIS'
 
+
+/** Distinguish new factual evidence from a retry of evidence already recorded.
+ * Reprocessing the engine intentionally (without additional information) is separate.
+ */
+export function classifyCanonicalReanalysisEvidence(args: {
+  previousNarrative: string
+  updatedNarrative: string
+  suppliedNewInformation: boolean
+}): 'NEW_EVIDENCE' | 'ALREADY_APPLIED' | 'NO_NEW_EVIDENCE' {
+  if (args.updatedNarrative.trim() !== args.previousNarrative.trim()) return 'NEW_EVIDENCE'
+  return args.suppliedNewInformation ? 'ALREADY_APPLIED' : 'NO_NEW_EVIDENCE'
+}
 
 export function mergeCanonicalReanalysisNarrative(args: {
   baseNarrative: string
@@ -150,9 +164,30 @@ export async function createCanonicalEventAnalysis(args: {
   supplementalEvidence?: SeraVNextCreateAnalysisInput['supplementalEvidence']
   context: SeraVNextProductContext
   create?: typeof createSeraVNextAnalysis
+  preparedSemantic?: Awaited<ReturnType<typeof enrichSeraNarrativeSemantically>>
+  existingAnalysisId?: string
+  reprocessCurrentEngine?: boolean
+  reanalyze?: typeof reanalyzeSeraVNextAnalysis
 }): Promise<SeraVNextCreateAnalysisResult> {
+  if (args.mode === 'REANALYSIS' && args.existingAnalysisId) {
+    const reanalyze = args.reanalyze ?? reanalyzeSeraVNextAnalysis
+    const result = await reanalyze({
+      analysisId: args.existingAnalysisId,
+      updatedNarrative: args.narrative,
+      carriedSupplementalEvidence: args.supplementalEvidence,
+      locale: args.locale,
+      reason: args.reprocessCurrentEngine ? 'canonical_event_engine_refresh' : 'canonical_event_new_evidence',
+      reprocessCurrentEngine: args.reprocessCurrentEngine === true,
+      context: args.context,
+    })
+    if (result.analysis.source_reference !== args.eventId) {
+      throw new Error('SERA_CANONICAL_REANALYSIS_EVENT_IDENTITY_MISMATCH')
+    }
+    return { analysis: result.analysis, revision: result.revision, idempotent: false }
+  }
   const create = args.create ?? createSeraVNextAnalysis
   return create({
+    preparedSemantic: args.preparedSemantic,
     input: buildCanonicalEventAnalysisInput({
       eventId: args.eventId,
       title: args.title,

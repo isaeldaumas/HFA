@@ -147,7 +147,7 @@ function hasObservableHumanAct(statement: string): boolean {
   if (wrongOperationalTarget && /\b(tripulacao|crew|piloto|pilot|comandante|captain|copiloto|first officer|pf|pm)\b/.test(text)) return true
 
   if (!hasExplicitHumanActor(statement)) return false
-  if (/\b(nao notou|nao percebeu|nao reconheceu|nao processou|nao monitorou|nao verificou|nao confirmou|nao insistiu|deixou de monitorar|deixou de verificar|did not notice|did not perceive|did not recognize|did not process|did not monitor|did not verify|did not confirm|did not insist|failed to monitor|failed to verify)\b/.test(text)) return true
+  if (/\b(nao notou|nao percebeu|nao reconheceu|nao processou|nao acompanhou|nao monitorou|nao verificou|nao confirmou|nao insistiu|deixou de acompanhar|deixou de monitorar|deixou de verificar|did not notice|did not perceive|did not recognize|did not process|did not monitor|did not verify|did not confirm|did not insist|failed to monitor|failed to verify|stopped monitoring)\b/.test(text)) return true
   return /\b(decidiu|decidi|decidiram|decidimos|resolveu|resolvi|resolveram|resolvemos|optou|optei|escolheu|escolhi|continuou|continuei|continuaram|prosseguiu|prossegui|prosseguiram|manteve|mantive|mantiveram|selecionou|selecionei|acionou|acionei|desligou|desliguei|ligou|liguei|desacoplou|desacoplei|desacoplaram|cancelou|cancelei|cancelaram|reduziu|reduzi|reduziram|colocou|coloquei|colocaram|aplicou|apliquei|aplicaram|executou|executei|executaram|omitiu|omiti|deixou de|deixei de|falhou|falhei|iniciou|iniciei|iniciaram|iniciado|iniciada|inseriu|inseri|programou|programei|ajustou|ajustei|configurou|configurei|conduziu|conduzi|conduziram|preparou|preparei|prepararam|passou|passei|passaram|aproximou|aproximei|aproximaram|desceu|desci|desceram|subiu|subi|subiram|moveu|movi|moveram|puxou|puxei|puxaram|empurrou|empurrei|empurraram|alinhou|alinhei|alinharam|permitiu|permiti|permitiram|abandonou|abandonei|abandonaram|hesitou|hesitei|hesitaram|demorou|demorei|demoraram|esperou|esperei|esperaram|tirou|tirei|retirou|retirei|pegou|peguei|meteu|meti|julgou|julguei|preferiu|preferi|assumiu|assumi|desguarneci|mexeu|mexendo|decided|chose|opted|resolved|continued|proceeded|maintained|selected|disengaged|cancelled|reduced|put|applied|executed|failed to|did not|initiated|started|inserted|programmed|configured|conducted|prepared|approached|began|started|descended|climbed|moved|pulled|pushed|lined up|allowed|hesitated|delayed|waited)\b/.test(text)
 }
 
@@ -342,8 +342,9 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
   // i.e. the one on the occurrence trajectory from which only the direct outcome trajectory remains.
   // Upstream maintenance/dispatch/organizational material may set the scene without becoming the
   // first departure merely because it happened earlier. The first departure delimits the trajectory
-  // boundary. Hendy's P/O/A questions, however, stay bound to the operator and critical unsafe act/
-  // condition under analysis. These landmarks may coincide, but must never be silently conflated.
+  // boundary. Hendy's P/O/A questions stay bound to the operator of that first supported
+  // safe→unsafe departure. A later critical act/condition is retained only as downstream
+  // occurrence evolution. These landmarks may coincide, but must never be silently conflated.
   const humanFactorScored = scored.filter(({ item }) =>
     classifyHumanFactorEscapeStatement(item.statement) !== null ||
     item.semanticRoles?.some((role) => role === 'FIRST_DEPARTURE' || role === 'CRITICAL_UNSAFE_ACT'),
@@ -355,38 +356,43 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
   // trajectory. Prefer candidates whose operational phase is explicit; document order is
   // only a tie-breaker inside a phase and must never make a generic statement outrank a
   // clearly earlier operational phase.
-  const semanticCriticalActors = new Set(
-    humanFactorScored
-      .filter(({ item }) => item.semanticRoles?.includes('CRITICAL_UNSAFE_ACT') && item.semanticConfidence !== 'LOW')
-      .map(({ item }) => item.semanticActor?.trim())
-      .filter((actor): actor is string => Boolean(actor)),
+  const semanticSpanMode = timeline.some((item) => item.id.startsWith('TIME-SEM-'))
+  // V2 semantic spans are authoritative for the occurrence boundary even when a later
+  // CRITICAL_UNSAFE_ACT belongs to another actor. Different actors across these landmarks
+  // are expected in multi-crew events and must never suppress the first departure.
+  const semanticFirstPoolRaw = humanFactorScored.filter(({ item }) =>
+    item.semanticConfidence !== 'LOW' && item.semanticRoles?.includes('FIRST_DEPARTURE'),
   )
-  const sharedActor = (actor: string | null | undefined, statement: string): boolean => {
+  const legacyCriticalActors = new Set(humanFactorScored
+    .filter(({ item }) => item.semanticRoles?.includes('CRITICAL_UNSAFE_ACT') && item.semanticConfidence !== 'LOW')
+    .map(({ item }) => item.semanticActor?.trim())
+    .filter((actor): actor is string => Boolean(actor)))
+  const legacySharedActor = (actor: string | null | undefined, statement: string): boolean => {
     const value = `${actor ?? ''} ${statement}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
     return /\b(tripulacao|crew|nos|nós|a gente|ambos|eles|pilotos|pilots)\b/.test(value)
       || /,/.test(actor ?? '')
       || /\b(e|and)\b/.test(actor ?? '')
   }
-  const semanticFirstPoolRaw = humanFactorScored.filter(({ item }) => item.semanticRoles?.includes('FIRST_DEPARTURE'))
-  const semanticFirstPool = semanticCriticalActors.size
+  const legacySemanticFirstPool = legacyCriticalActors.size
     ? semanticFirstPoolRaw.filter(({ item }) => {
         const actor = item.semanticActor?.trim() ?? null
-        if (!actor || sharedActor(actor, item.statement)) return true
-        return semanticCriticalActors.has(actor)
+        if (!actor || legacySharedActor(actor, item.statement)) return true
+        return legacyCriticalActors.has(actor)
       })
     : semanticFirstPoolRaw
-  // Semantic extraction is advisory, not sovereign. If an isolated FIRST_DEPARTURE
-  // annotation belongs to a different individual than every supported critical-act actor,
-  // and it is not a shared/team decision, fall back to the factual candidate pool rather
-  // than allowing that annotation to redefine the occurrence boundary by itself.
-  const baseFirstPool = semanticFirstPool.length ? semanticFirstPool : humanFactorScored
-  const phaseResolvedFirstPool = baseFirstPool.some(({ item }) => operationalPhase(item.statement) !== 'GENERIC')
-    ? baseFirstPool.filter(({ item }) => operationalPhase(item.statement) !== 'GENERIC')
-    : baseFirstPool
-  const firstDepartureEntry = [...phaseResolvedFirstPool].sort((a, b) =>
-    phaseRank[operationalPhase(a.item.statement)] - phaseRank[operationalPhase(b.item.statement)] ||
-    a.item.sourceSentenceIndex - b.item.sourceSentenceIndex,
-  )[0] ?? null
+  const semanticFirstPool = semanticSpanMode ? semanticFirstPoolRaw : legacySemanticFirstPool
+  const firstDepartureEntry = semanticSpanMode && semanticFirstPool.length
+    ? [...semanticFirstPool].sort((a, b) => a.item.order - b.item.order)[0] ?? null
+    : (() => {
+        const baseFirstPool = semanticFirstPool.length ? semanticFirstPool : humanFactorScored
+        const phaseResolvedFirstPool = baseFirstPool.some(({ item }) => operationalPhase(item.statement) !== 'GENERIC')
+          ? baseFirstPool.filter(({ item }) => operationalPhase(item.statement) !== 'GENERIC')
+          : baseFirstPool
+        return [...phaseResolvedFirstPool].sort((a, b) =>
+          phaseRank[operationalPhase(a.item.statement)] - phaseRank[operationalPhase(b.item.statement)] ||
+          a.item.sourceSentenceIndex - b.item.sourceSentenceIndex,
+        )[0] ?? null
+      })()
   const firstDeparture = firstDepartureEntry?.item ?? null
 
   type MechanismTag = 'PITCH_CONTROL' | 'STALL_RECOVERY' | 'WARNING_RESPONSE' | 'ICING_MANAGEMENT' | 'APPROACH_CONTROL' | 'DISPATCH' | 'MAINTENANCE'
@@ -482,11 +488,42 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
     return total
   }
 
-  const criticalSelectionPool = selectedPool
-  const criticalRanked = [...criticalSelectionPool].sort((a, b) =>
-    criticalTrajectoryScore(b) - criticalTrajectoryScore(a) ||
-    b.item.sourceSentenceIndex - a.item.sourceSentenceIndex,
+  // The first-departure pool intentionally excludes post-escape material, but a later
+  // human-factor act/omission still belongs in the occurrence sequence as downstream
+  // evolution. Re-admit only concrete later unsafe acts/conditions for critical-landmark
+  // selection; they can never replace the first departure as the P/O/A anchor.
+  const downstreamHumanFactorScored = firstDeparture
+    ? timeline
+        .filter((item) => item.order > firstDeparture.order)
+        .filter((item) => !item.assertionStatus || item.assertionStatus === 'AFFIRMED')
+        .filter((item) => item.sourceSection !== 'REPORT_ANALYSIS' && item.sourceSection !== 'RECOMMENDATION' && item.sourceSection !== 'ADMINISTRATIVE')
+        .filter((item) => !['HISTORICAL_COMPARATOR', 'PRE_EVENT_CAUSAL_HISTORY'].includes(item.occurrenceScope ?? 'UNKNOWN'))
+        .filter((item) => !outcomeItem || item.sourceSentenceIndex < outcomeItem.sourceSentenceIndex)
+        .filter((item) => !hasOutcomeSignal(item.statement))
+        .map((item) => {
+          let score = candidateScore(item.statement)
+          if (item.semanticRoles?.includes('CRITICAL_UNSAFE_ACT')) score += item.semanticConfidence === 'HIGH' ? 12 : 8
+          return { item, score }
+        })
+        .filter(({ score }) => score >= 5)
+        .filter(({ item }) =>
+          classifyHumanFactorEscapeStatement(item.statement) !== null
+          || Boolean(item.semanticConfidence !== 'LOW' && item.semanticRoles?.includes('CRITICAL_UNSAFE_ACT')),
+        )
+    : []
+  const criticalSelectionPool = [
+    ...selectedPool,
+    ...downstreamHumanFactorScored.filter((candidate) => !selectedPool.some((existing) => existing.item.statement === candidate.item.statement)),
+  ]
+  const semanticCriticalPool = criticalSelectionPool.filter(({ item }) =>
+    item.semanticConfidence !== 'LOW' && item.semanticRoles?.includes('CRITICAL_UNSAFE_ACT'),
   )
+  const criticalRanked = semanticSpanMode && semanticCriticalPool.length
+    ? [...semanticCriticalPool].sort((a, b) => b.item.order - a.item.order)
+    : [...criticalSelectionPool].sort((a, b) =>
+        criticalTrajectoryScore(b) - criticalTrajectoryScore(a) ||
+        b.item.sourceSentenceIndex - a.item.sourceSentenceIndex,
+      )
 
   const isConcreteUnsafeActCandidate = (candidate: { item: SeraTimelineItem; score: number }): boolean => {
     const text = normalized(candidate.item.statement)
@@ -504,7 +541,7 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
   if (firstDeparture && criticalEntry?.item.statement === firstDeparture.statement) {
     const firstScore = criticalTrajectoryScore(criticalEntry)
     const downstreamConcrete = criticalRanked.find((candidate) =>
-      candidate.item.sourceSentenceIndex > firstDeparture.sourceSentenceIndex
+      candidate.item.order > firstDeparture.order
       && isConcreteUnsafeActCandidate(candidate)
       && criticalTrajectoryScore(candidate) >= Math.max(18, firstScore - 12),
     )
@@ -514,7 +551,7 @@ export function buildCandidateEscapeWindow(timeline: SeraTimelineItem[]): Candid
   const criticalCandidateAlternatives = criticalRanked
     .filter((candidate) => candidate.item.statement !== criticalEntry?.item.statement)
     .filter((candidate) => candidate.item.statement !== firstDeparture?.statement)
-    .filter((candidate) => criticalTopScore - criticalTrajectoryScore(candidate) <= 4)
+    .filter((candidate) => (semanticSpanMode && semanticCriticalPool.length > 0) || criticalTopScore - criticalTrajectoryScore(candidate) <= 4)
     .slice(0, 3)
     .map((candidate) => candidate.item.statement)
   const criticalAct = criticalEntry?.item ?? firstDeparture

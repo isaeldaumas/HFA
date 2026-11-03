@@ -6,11 +6,13 @@ import { resolveApiUrl } from '@/lib/api'
 import { TrialUsageCard } from '@/components/product/TrialUsageCard'
 import DocumentUpload from '@/components/sera/DocumentUpload'
 import { useMe } from '@/hooks/useMe'
+import { shouldShowConsumerCredits } from '@/lib/product/consumer-credit-visibility'
 import { useI18n } from '@/lib/i18n'
 
 type Tab = 'text' | 'upload'
 type SubmissionMode = 'register_only' | 'hfa'
 type ConfidentialityLevel = 'STANDARD' | 'CONFIDENTIAL'
+type DuplicateCandidate = { eventId: string; title: string; createdAt: string; reason: string }
 
 const PROGRESS_STEPS = [
   { delay: 0,     text: 'Iniciando análise SERA...' },
@@ -25,7 +27,7 @@ export default function NewEventPage() {
   const router = useRouter()
   const { locale } = useI18n()
   const me = useMe()
-  const noCredits = !me.loading && !me.isUnlimited && me.credits === 0
+  const noCredits = shouldShowConsumerCredits(me) && !me.isUnlimited && me.credits === 0
   const [tab, setTab] = useState<Tab>('text')
   const [analysisMode, setAnalysisMode] = useState<SubmissionMode>('register_only')
   const [confidentialityLevel, setConfidentialityLevel] = useState<ConfidentialityLevel>('STANDARD')
@@ -44,6 +46,9 @@ export default function NewEventPage() {
   const [fromInterview, setFromInterview] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [incompleteEventId, setIncompleteEventId] = useState<string | null>(null)
+  const [duplicateCandidates, setDuplicateCandidates] = useState<DuplicateCandidate[]>([])
+  const [independentReason, setIndependentReason] = useState('')
   const [progressText, setProgressText] = useState('')
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
@@ -97,8 +102,17 @@ export default function NewEventPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    await submitEvent(false)
+  }
+
+  async function submitEvent(override: boolean) {
+    if (override && independentReason.trim().length < 20) {
+      setError('Explique por que este cadastro representa uma ocorrência independente (pelo menos 20 caracteres).')
+      return
+    }
     setLoading(true)
     setError('')
+    setIncompleteEventId(null)
     if (analysisMode === 'hfa') startProgress()
     else setProgressText('Registrando evento de Safety...')
     try {
@@ -112,6 +126,7 @@ export default function NewEventPage() {
       if (tab === 'upload' && sourceFile) {
         const fd = new FormData()
         fd.set('title', form.title)
+        if (override) fd.set('duplicate_override_reason', independentReason.trim())
         fd.set('raw_input', form.raw_input)
         fd.set('operation_type', form.operation_type)
         fd.set('aircraft_type', form.aircraft_type)
@@ -132,7 +147,14 @@ export default function NewEventPage() {
           body: fd,
         })
         const data = await res.json().catch(() => ({}))
+        if (res.status === 409 && data.code === 'POSSIBLE_EVENT_DUPLICATE' && Array.isArray(data.duplicates)) {
+          setDuplicateCandidates(data.duplicates as DuplicateCandidate[])
+          clearProgress()
+          setLoading(false)
+          return
+        }
         if (!res.ok) {
+          if (typeof data.event_id === 'string') setIncompleteEventId(data.event_id)
           throw new Error(typeof data.detail === 'string' ? data.detail : `HTTP ${res.status}`)
         }
         clearProgress()
@@ -157,10 +179,18 @@ export default function NewEventPage() {
           locale,
           analysis_mode: analysisMode,
           confidentiality_level: confidentialityLevel,
+          ...(override ? { duplicate_override_reason: independentReason.trim() } : {}),
         }),
       })
       const data = await res.json().catch(() => ({}))
+      if (res.status === 409 && data.code === 'POSSIBLE_EVENT_DUPLICATE' && Array.isArray(data.duplicates)) {
+        setDuplicateCandidates(data.duplicates as DuplicateCandidate[])
+        clearProgress()
+        setLoading(false)
+        return
+      }
       if (!res.ok) {
+        if (typeof data.event_id === 'string') setIncompleteEventId(data.event_id)
         throw new Error(typeof data.detail === 'string' ? data.detail : `HTTP ${res.status}`)
       }
       clearProgress()
@@ -199,7 +229,7 @@ export default function NewEventPage() {
       </div>
       <p className="text-slate-400 mb-8">Registre o evento primeiro. A análise HFA/SERA é opcional e pode ser iniciada agora ou após a triagem de Safety.</p>
 
-      {analysisMode === 'hfa' && (
+      {analysisMode === 'hfa' && shouldShowConsumerCredits(me) && (
         <div className="mb-6">
           <TrialUsageCard compact showCreateCta={false} />
         </div>
@@ -273,6 +303,7 @@ export default function NewEventPage() {
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
             {error}
+            {incompleteEventId && <a href={`/events/${incompleteEventId}`} className="mt-2 block font-semibold underline text-cyan-300">Abrir o evento registrado e tentar novamente sem duplicar</a>}
           </div>
         )}
 
@@ -380,6 +411,21 @@ export default function NewEventPage() {
             Relatos brutos, narrativas parciais e documentos operacionais são aceitos. O sistema identifica lacunas de evidência e as sinaliza ao investigador.
           </p>
         </div>
+
+        {duplicateCandidates.length > 0 && (
+          <div role="alert" className="space-y-3 rounded-xl border border-amber-600 bg-amber-950/35 p-4 text-sm text-amber-100">
+            <h2 className="font-semibold">Possível duplicidade — cadastro interrompido</h2>
+            <p>Encontramos um relato equivalente nesta empresa. Nenhum novo evento nem análise foi criado e nenhum crédito foi debitado. Confira os registros antes de prosseguir.</p>
+            {duplicateCandidates.map((match) => (
+              <p key={match.eventId}><a className="text-cyan-300 underline" href={`/events/${match.eventId}`} target="_blank" rel="noopener noreferrer">Abrir ocorrência existente: {match.title}</a></p>
+            ))}
+            <label className="block text-xs">Caso seja realmente outra ocorrência, explique por que os relatos iguais representam eventos diferentes:
+              <textarea value={independentReason} onChange={(e) => setIndependentReason(e.target.value)} rows={2} className="mt-1 w-full rounded border border-amber-700/70 bg-slate-950 p-2 text-white" placeholder="Diferença factual verificada que demonstra duas ocorrências independentes…" />
+            </label>
+            <button type="button" disabled={loading || independentReason.trim().length < 20} onClick={() => void submitEvent(true)} className="rounded bg-amber-500 px-3 py-2 text-slate-950 font-semibold disabled:opacity-40">Registrar mesmo assim como ocorrência independente</button>
+            <p className="text-xs">O alerta não associa ou exclui eventos automaticamente. A decisão de registrar separadamente fica auditada.</p>
+          </div>
+        )}
 
         <div className="flex gap-4">
           <button

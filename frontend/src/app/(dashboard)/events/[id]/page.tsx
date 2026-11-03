@@ -17,15 +17,18 @@ import {
 import { EngineProvenanceBadge, type GeneratedByType, type ValidationStatus } from '@/components/sera/EngineProvenanceBadge'
 import { VNextEventAnalysisPanel } from '@/components/sera-vnext/VNextEventAnalysisPanel'
 import { SeraClarificationForm } from '@/components/sera-vnext/SeraClarificationForm'
+import { EventHumanReviewPanel } from '@/components/sera-vnext/EventHumanReviewPanel'
 import type { SeraVNextEngineOutput } from '@/lib/sera-vnext/engine-contract'
 import { inferOccurrenceDateFromNarrative } from '@/lib/sera-vnext/occurrence-date'
 import { localizeActor } from '@/lib/sera-vnext/engine-v0/localization'
 import { EventRiskPanel } from '@/components/safety/EventRiskPanel'
 import { EventSafetyActionPanel } from '@/components/safety/EventSafetyActionPanel'
+import { EventDuplicateReviewPanel } from '@/components/safety/EventDuplicateReviewPanel'
 
 const FlowDiagram = dynamic(() => import('@/components/FlowDiagram'), { ssr: false })
 
 type FlowTab = 'perception' | 'objective' | 'action'
+type EventDetailSection = 'sera' | 'safety' | 'history'
 type PdfState = 'idle' | 'loading' | 'done' | 'error'
 type FlowNodeLike = { justificativa: string; resposta: string; [key: string]: unknown }
 type DiscardedFlow = { nos_percorridos?: FlowNodeLike[] }
@@ -375,10 +378,13 @@ export default function EventDetailPage() {
   const [loading, setLoading]     = useState(true)
   const [flows, setFlows]         = useState<FlowMap | null>(null)
   const [activeTab, setActiveTab] = useState<FlowTab>('perception')
+  const [eventSection, setEventSection] = useState<EventDetailSection | null>(null)
+  const [showReanalysisForm, setShowReanalysisForm] = useState(false)
   const [pdfState, setPdfState]   = useState<PdfState>('idle')
   const [vnextPdfState, setVnextPdfState] = useState<PdfState>('idle')
   const [vnextReanalyzeState, setVnextReanalyzeState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [vnextReanalyzeError, setVnextReanalyzeError] = useState<string | null>(null)
+  const [vnextReanalyzeNotice, setVnextReanalyzeNotice] = useState<string | null>(null)
   const [firstHfaState, setFirstHfaState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [firstHfaError, setFirstHfaError] = useState<string | null>(null)
   const [vnextAdditionalInformation, setVnextAdditionalInformation] = useState('')
@@ -470,25 +476,33 @@ export default function EventDetailPage() {
     }
   }, [event, analysis, token])
 
-  const reanalyzeWithVNext = useCallback(async () => {
+  const reanalyzeWithVNext = useCallback(async (engineRefresh = false) => {
     if (!event || !token) return
+    if (engineRefresh && vnextAdditionalInformation.trim()) return
     setVnextReanalyzeState('loading')
     setVnextReanalyzeError(null)
+    setVnextReanalyzeNotice(null)
     try {
       const res = await fetch(`/api/events/${event.id}/reanalyze-vnext`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ locale, additionalInformation: vnextAdditionalInformation.trim() || undefined }),
+        body: JSON.stringify({ locale, additionalInformation: engineRefresh ? undefined : vnextAdditionalInformation.trim() || undefined,
+          reprocessCurrentEngine: engineRefresh }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
-        throw new Error(String(json?.error?.message ?? json?.detail ?? 'Falha ao executar a análise SERA.'))
+        const message = String(json?.error?.message ?? json?.detail ?? 'Falha ao executar a análise SERA.')
+        const reference = typeof json?.error?.requestId === 'string' ? json.error.requestId : null
+        throw new Error(reference ? `${message} (referência: ${reference})` : message)
       }
       const scope = searchParams?.get('scope') === 'deleted' ? 'deleted' : 'active'
       const refreshed = await apiCall(`/events/${event.id}?scope=${scope}`, {}, token) as EventPayload
       setEvent(refreshed)
       if (refreshed?.analyses) setAnalysis(refreshed.analyses)
       setVnextAdditionalInformation('')
+      setVnextReanalyzeNotice(json?.alreadyApplied ? String(json.message) : (engineRefresh
+        ? 'Motor atualizado aplicado ao mesmo evento. Versão anterior preservada para auditoria.'
+        : 'Reanálise registrada. O histórico anterior foi preservado.'))
       setVnextReanalyzeState('done')
       setTimeout(() => setVnextReanalyzeState('idle'), 3000)
     } catch (error) {
@@ -657,6 +671,11 @@ export default function EventDetailPage() {
     action:     `Ação ${flows?.action?.codigo ?? ''}`,
   }
 
+  // Safety reports without an HFA analysis open directly in Safety. Explicit
+  // user selection is never reset by event refreshes or by changing triage.
+  const selectedEventSection: EventDetailSection = eventSection ??
+    (event.vnext_analysis || analysis || event.event_kind === 'HFA_ANALYSIS' ? 'sera' : 'safety')
+
   const summaryText = analysis?.summary || analysis?.event_summary || null
   const eventOccurrenceDate = event.occurred_at ?? inferOccurrenceDateFromNarrative(event.raw_input) ?? analysis?.event_date ?? event.created_at
   const eventOccurrenceDateLabel = new Date(eventOccurrenceDate).toLocaleDateString('pt-BR')
@@ -789,46 +808,25 @@ export default function EventDetailPage() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-1">{event.title}</h1>
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-bold text-white mb-1 break-words">{event.title}</h1>
           <p className="text-slate-400 text-sm">
-            {event.operation_type} • {event.aircraft_type} •{' '}
-            {eventOccurrenceDateLabel}
+            {[event.operation_type, event.aircraft_type, eventOccurrenceDateLabel].filter(Boolean).join(' · ')}
           </p>
           <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
             <span className="rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-slate-300">
               {event.event_kind === 'SAFETY_REPORT' ? 'Evento de Safety' : 'Evento HFA'}
             </span>
             <span className="rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-slate-300">
-              Triagem: {event.triage_status ?? 'UNTRIAGED'}
+              Triagem: {{ UNTRIAGED: 'Pendente', MONITOR_ONLY: 'Monitoramento', GENERAL_INVESTIGATION: 'Investigação geral', HFA_SELECTED: 'Encaminhado para HFA', CLOSED: 'Encerrado' }[event.triage_status ?? 'UNTRIAGED']}
             </span>
             {event.confidentiality_level === 'CONFIDENTIAL' && (
               <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-amber-200">Confidencial</span>
             )}
           </div>
         </div>
-        <div className="flex gap-2 shrink-0">
-          {canManageDelete && !event.deleted_at && (
-            <button
-              type="button"
-              onClick={() => void deleteEventFromDetail()}
-              disabled={deletionBusy}
-              className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-200 hover:bg-red-500/20 disabled:opacity-50"
-            >
-              {deletionBusy ? 'Calculando impacto...' : 'Excluir evento'}
-            </button>
-          )}
-          {canManageDelete && !!event.deleted_at && event.deletion_status !== 'PURGED' && (
-            <button
-              type="button"
-              onClick={() => void restoreEventFromDetail()}
-              disabled={deletionBusy}
-              className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm font-medium text-green-200 hover:bg-green-500/20 disabled:opacity-50"
-            >
-              {deletionBusy ? 'Restaurando...' : 'Restaurar evento'}
-            </button>
-          )}
+        <div className="flex flex-wrap gap-2 xl:justify-end">
           {(!analysis || event.vnext_analysis || showLegacyHistorical) && (
             <a
               href={`/reports/event/${event.id}${event.deleted_at ? '?scope=deleted' : ''}`}
@@ -837,45 +835,7 @@ export default function EventDetailPage() {
               Relatorio do evento
             </a>
           )}
-          {canTriage && !event.deleted_at && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-white">Triagem de Safety</p>
-              <p className="mt-1 text-xs text-slate-400">Defina o tratamento do evento sem obrigar uma análise de fatores humanos.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {[
-                ['MONITOR_ONLY', 'Monitorar'],
-                ['GENERAL_INVESTIGATION', 'Investigação geral'],
-                ['HFA_SELECTED', 'Encaminhar para HFA'],
-                ['CLOSED', 'Encerrar'],
-              ].map(([status, label]) => (
-                <button
-                  key={status}
-                  type="button"
-                  disabled={triageBusy}
-                  onClick={() => void updateTriage(status)}
-                  className={`rounded-lg border px-3 py-2 text-xs font-medium transition disabled:opacity-50 ${event.triage_status === status ? 'border-blue-500 bg-blue-500/15 text-blue-200' : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-500'}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {triageError && <p className="mt-3 text-xs text-red-300">{triageError}</p>}
-        </div>
-      )}
-
-      {!event.deleted_at && (
-        <EventRiskPanel eventId={event.id} canEdit={canTriage} />
-      )}
-
-      {!event.deleted_at && (
-        <EventSafetyActionPanel eventId={event.id} canEdit={canTriage} />
-      )}
-
-      {event.vnext_analysis && (
+          {event.vnext_analysis && (
             <button
               onClick={downloadVNextPdf}
               disabled={vnextPdfState === 'loading'}
@@ -912,6 +872,94 @@ export default function EventDetailPage() {
       </div>
 
       {event.vnext_analysis && (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" aria-label="Resumo da análise SERA">
+          <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-3">
+            <p className="text-xs text-slate-500">Ponto de fuga</p>
+            <p className="mt-1 text-sm font-semibold text-slate-200">{event.vnext_analysis.escape_point_status === 'CANDIDATE' ? 'Candidato' : event.vnext_analysis.escape_point_status === 'INSUFFICIENT_EVIDENCE' ? 'Evidência insuficiente' : event.vnext_analysis.escape_point_status ?? 'Não estabelecido'}</p>
+          </div>
+          <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-3">
+            <p className="text-xs text-slate-500">Ator direto</p>
+            <p className="mt-1 text-sm font-semibold text-slate-200">{localizeActor(event.vnext_analysis.direct_actor ?? null, locale) ?? 'Não identificado'}</p>
+          </div>
+          <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-3">
+            <p className="text-xs text-slate-500">P / O / A · candidatos não finais</p>
+            <p className="mt-1 text-sm font-semibold text-slate-200">{event.vnext_analysis.perception_candidate_code ?? '—'} / {event.vnext_analysis.objective_candidate_code ?? '—'} / {event.vnext_analysis.action_candidate_code ?? '—'}</p>
+          </div>
+        </div>
+      )}
+
+      <nav className="rounded-xl border border-slate-800 bg-slate-900/60 p-1.5" aria-label="Áreas do evento">
+        <div role="tablist" aria-label="Áreas do evento" className="grid grid-cols-3 gap-1.5">
+          {([
+            { id: 'sera', label: 'Análise SERA', description: 'Fatores humanos' },
+            { id: 'safety', label: 'Safety', description: 'Triagem, risco e ações' },
+            { id: 'history', label: 'Histórico', description: 'Versões e decisões' },
+          ] as const).map((tab) => (
+            <button
+              key={tab.id}
+              id={`event-tab-${tab.id}`}
+              type="button"
+              role="tab"
+              aria-controls={selectedEventSection === tab.id ? `event-panel-${tab.id}` : undefined}
+              aria-selected={selectedEventSection === tab.id}
+              onClick={() => setEventSection(tab.id)}
+              className={`rounded-lg px-3 py-2.5 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400 ${selectedEventSection === tab.id
+                ? 'bg-cyan-800/50 text-white border border-cyan-600/50'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-transparent'}`}
+            >
+              <span className="block text-sm font-semibold">{tab.label}</span>
+              <span className="mt-0.5 hidden text-[11px] sm:block opacity-80">{tab.description}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      {selectedEventSection === 'safety' && (
+        <section id="event-panel-safety" role="tabpanel" aria-labelledby="event-tab-safety" className="space-y-5">
+      {canTriage && !event.deleted_at && (
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white">Triagem de Safety</p>
+              <p className="mt-1 text-xs text-slate-400">Defina o tratamento do evento sem obrigar uma análise de fatores humanos.</p>
+            </div>
+            <div className="flex flex-wrap gap-2 lg:justify-end">
+              {[
+                ['MONITOR_ONLY', 'Monitorar'],
+                ['GENERAL_INVESTIGATION', 'Investigação geral'],
+                ['HFA_SELECTED', 'Encaminhar para HFA'],
+                ['CLOSED', 'Encerrar'],
+              ].map(([status, label]) => (
+                <button
+                  key={status}
+                  type="button"
+                  disabled={triageBusy}
+                  onClick={() => void updateTriage(status)}
+                  className={`rounded-lg border px-3 py-2 text-xs font-medium transition disabled:opacity-50 ${event.triage_status === status ? 'border-blue-500 bg-blue-500/15 text-blue-200' : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-500'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {triageError && <p className="mt-3 text-xs text-red-300">{triageError}</p>}
+        </div>
+      )}
+
+      {!event.deleted_at && (
+        <EventRiskPanel eventId={event.id} canEdit={canTriage} />
+      )}
+
+      {!event.deleted_at && (
+        <EventSafetyActionPanel eventId={event.id} canEdit={canTriage} />
+      )}
+
+        </section>
+      )}
+
+      {selectedEventSection === 'sera' && (
+        <section id="event-panel-sera" role="tabpanel" aria-labelledby="event-tab-sera" className="space-y-5">
+      {event.vnext_analysis && (
         <div className="rounded-xl border border-cyan-700/50 bg-cyan-950/20 p-5 space-y-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-cyan-300">
@@ -923,27 +971,6 @@ export default function EventDetailPage() {
                 : 'This is the active methodological analysis of the event. Classification requires human review before formal release; the previous engine does not participate in this result.'}
             </p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs">
-            <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3">
-              <span className="text-slate-500">{locale === 'pt-BR' ? 'Ponto de fuga' : 'Escape point'}</span>
-              <p className="mt-1 text-slate-200">{event.vnext_analysis.escape_point_status === 'CANDIDATE' ? (locale === 'pt-BR' ? 'Candidato' : 'Candidate') : event.vnext_analysis.escape_point_status ?? '-'}</p>
-            </div>
-            <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3">
-              <span className="text-slate-500">{locale === 'pt-BR' ? 'Ator' : 'Actor'}</span>
-              <p className="mt-1 text-slate-200">{localizeActor(event.vnext_analysis.direct_actor ?? null, locale) ?? '-'}</p>
-            </div>
-            <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3"><span className="text-slate-500">P / O / A</span><p className="mt-1 text-slate-200">{event.vnext_analysis.perception_candidate_code ?? '-'} / {event.vnext_analysis.objective_candidate_code ?? '-'} / {event.vnext_analysis.action_candidate_code ?? '-'}</p></div>
-            <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3">
-              <span className="text-slate-500">{locale === 'pt-BR' ? 'Revisão' : 'Review'}</span>
-              <p className="mt-1 text-slate-200">
-                {event.vnext_analysis.review_status === 'MORE_EVIDENCE_REQUIRED'
-                  ? (locale === 'pt-BR' ? 'Mais evidências necessárias' : 'More evidence required')
-                  : event.vnext_analysis.review_status === 'NOT_REVIEWED'
-                    ? (locale === 'pt-BR' ? 'Não revisado' : 'Not reviewed')
-                    : event.vnext_analysis.review_status ?? (locale === 'pt-BR' ? 'Não revisado' : 'Not reviewed')}
-              </p>
-            </div>
-          </div>
           {analysis && (
             <p className="text-xs text-amber-300">
               {locale === 'pt-BR'
@@ -952,7 +979,13 @@ export default function EventDetailPage() {
             </p>
           )}
           {!event.deleted_at && (
-            <div className="space-y-2 pt-1">
+            <div className="space-y-3 pt-1">
+              <button type="button" onClick={() => setShowReanalysisForm((current) => !current)}
+                aria-expanded={showReanalysisForm}
+                className="rounded-lg border border-cyan-700/50 px-3 py-2 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/10">
+                {showReanalysisForm ? 'Ocultar opções de reanálise' : 'Adicionar evidências ou reprocessar análise'}
+              </button>
+              {showReanalysisForm && <div className="space-y-2 rounded-lg border border-slate-700/60 bg-slate-950/30 p-4">
               <label className="block text-xs font-medium text-slate-300">
                 {locale === 'pt-BR' ? 'Novas informações para reanálise' : 'New information for reanalysis'}
               </label>
@@ -968,25 +1001,39 @@ export default function EventDetailPage() {
               <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => void reanalyzeWithVNext()}
-                disabled={vnextReanalyzeState === 'loading'}
+                onClick={() => void reanalyzeWithVNext(false)}
+                disabled={vnextReanalyzeState === 'loading' || (event.vnext_analysis?.review_status === 'MORE_EVIDENCE_REQUIRED' && !vnextAdditionalInformation.trim())}
                 className="rounded-lg border border-cyan-600/50 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-60"
               >
                 {vnextReanalyzeState === 'loading'
                   ? (locale === 'pt-BR' ? 'Reanalisando…' : 'Reanalyzing…')
                   : (locale === 'pt-BR' ? 'Reanalisar com a versão atual' : 'Reanalyze with current version')}
               </button>
+              {!vnextAdditionalInformation.trim() && (
+                <button
+                  type="button"
+                  onClick={() => void reanalyzeWithVNext(true)}
+                  disabled={vnextReanalyzeState === 'loading'}
+                  className="rounded-lg border border-amber-600/60 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-500/20 disabled:opacity-60"
+                >
+                  {locale === 'pt-BR' ? 'Reprocessar com motor corrigido (sem novos fatos)' : 'Reprocess with corrected engine (no new facts)'}
+                </button>
+              )}
               <span className="self-center text-[11px] text-slate-500">
                 {locale === 'pt-BR'
-                  ? 'Sem texto novo, apenas reaplica a versão atual do motor. Com texto novo, incorpora a evidência à nova análise sem substituir o relato original.'
-                  : 'With no new text, this only reapplies the current engine. With new text, the evidence is incorporated without replacing the original narrative.'}
+                  ? 'Para fatos novos, preencha o campo acima. Para aplicar uma correção já publicada ao mesmo evento, use o reprocessamento sem novos fatos. As versões anteriores serão preservadas.'
+                  : 'When additional evidence is required, provide new facts before reanalysis. Prior evidence and the version history are preserved.'}
               </span>
               </div>
               {vnextReanalyzeError && <p className="text-xs text-red-300">{vnextReanalyzeError}</p>}
               {vnextReanalyzeState === 'done' && (
                 <p className="text-xs text-emerald-300">
-                  {locale === 'pt-BR' ? 'Análise atualizada. As novas informações foram incorporadas à reanálise.' : 'Analysis updated. New information was incorporated into the reanalysis.'}
+                  {vnextReanalyzeNotice ?? (locale === 'pt-BR' ? 'Reanálise registrada. O histórico anterior foi preservado.' : 'Analysis updated. Prior version history was preserved.')}
                 </p>
+              )}
+              </div>}
+              {!showReanalysisForm && vnextReanalyzeState === 'done' && (
+                <p role="status" className="text-xs text-emerald-300">{vnextReanalyzeNotice ?? 'Reanálise registrada com histórico preservado.'}</p>
               )}
             </div>
           )}
@@ -1003,6 +1050,10 @@ export default function EventDetailPage() {
             onUpdated={() => window.location.reload()}
           />
         </>
+      )}
+
+      {event.vnext_analysis && !event.deleted_at && token && (
+        <EventHumanReviewPanel key={`${event.vnext_analysis.id}:${event.vnext_analysis.updated_at ?? ''}:review`} eventId={event.id} analysisId={event.vnext_analysis.id} token={token} mode="review" />
       )}
 
       {analysis && !event.vnext_analysis && (
@@ -1024,10 +1075,10 @@ export default function EventDetailPage() {
             )}
             <button
               type="button"
-              onClick={() => setShowLegacyHistorical((value) => !value)}
+              onClick={() => { setShowLegacyHistorical(true); setEventSection('history') }}
               className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:border-slate-500"
             >
-              {showLegacyHistorical ? 'Ocultar histórico' : 'Ver histórico para auditoria'}
+              Ver histórico para auditoria
             </button>
           </div>
         </div>
@@ -1063,6 +1114,62 @@ export default function EventDetailPage() {
           )}
         </div>
       )}
+
+        </section>
+      )}
+
+      {selectedEventSection === 'history' && (
+        <section id="event-panel-history" role="tabpanel" aria-labelledby="event-tab-history" className="space-y-5">
+          <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+            <h2 className="text-base font-semibold text-white">Histórico e auditoria</h2>
+            <p className="mt-1 text-xs leading-relaxed text-slate-400">Versões anteriores, autoria, justificativas e registros relacionados são preservados. Esta área não altera a classificação metodológica automaticamente.</p>
+          </div>
+          {!event.deleted_at && token && (
+            <EventDuplicateReviewPanel eventId={event.id} token={token} />
+          )}
+          {event.vnext_analysis && token && (
+            <EventHumanReviewPanel key={`${event.vnext_analysis.id}:${event.vnext_analysis.updated_at ?? ''}:history`} eventId={event.id} analysisId={event.vnext_analysis.id} token={token} mode="history" />
+          )}
+          {analysis && !event.vnext_analysis && (
+            <div className="rounded-xl border border-slate-700 bg-slate-900 p-5 space-y-3">
+              <p className="text-sm font-semibold text-white">Registro do motor anterior</p>
+              <p className="text-xs text-slate-400">Material histórico somente para auditoria; não é a análise SERA ativa.</p>
+              <button type="button" onClick={() => setShowLegacyHistorical((current) => !current)} className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:border-cyan-600">
+                {showLegacyHistorical ? 'Ocultar relatório histórico' : 'Mostrar relatório histórico'}
+              </button>
+            </div>
+          )}
+          {!event.vnext_analysis && !analysis && (
+            <p className="rounded-xl border border-slate-800 bg-slate-900 p-5 text-sm text-slate-400">Este evento ainda não possui versões de análise SERA. O registro original permanece preservado.</p>
+          )}
+          {(canManageDelete && (!event.deleted_at || event.deletion_status !== 'PURGED')) && (
+            <div className="rounded-xl border border-red-900/30 bg-slate-900 p-5 space-y-3">
+              <p className="text-sm font-semibold text-slate-300">Administração do registro</p>
+              <p className="text-xs text-slate-500">A exclusão recuperável e a restauração têm confirmação e trilha de auditoria.</p>
+              <div className="flex flex-wrap gap-2">
+          {canManageDelete && !event.deleted_at && (
+            <button
+              type="button"
+              onClick={() => void deleteEventFromDetail()}
+              disabled={deletionBusy}
+              className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-200 hover:bg-red-500/20 disabled:opacity-50"
+            >
+              {deletionBusy ? 'Calculando impacto...' : 'Excluir evento'}
+            </button>
+          )}
+          {canManageDelete && !!event.deleted_at && event.deletion_status !== 'PURGED' && (
+            <button
+              type="button"
+              onClick={() => void restoreEventFromDetail()}
+              disabled={deletionBusy}
+              className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm font-medium text-green-200 hover:bg-green-500/20 disabled:opacity-50"
+            >
+              {deletionBusy ? 'Restaurando...' : 'Restaurar evento'}
+            </button>
+          )}
+              </div>
+            </div>
+          )}
 
       {analysis && !event.vnext_analysis && showLegacyHistorical && (
         <>
@@ -1318,6 +1425,8 @@ export default function EventDetailPage() {
             )
           )}
         </>
+      )}
+        </section>
       )}
     </div>
   )

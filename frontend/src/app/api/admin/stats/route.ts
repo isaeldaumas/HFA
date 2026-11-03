@@ -24,15 +24,17 @@ export async function GET(req: Request) {
     await requireAdmin(req)
     const admin = getSupabaseAdmin()
 
-    const [tenants, analyses, transactions, events, vnextAnalyses, exclusions] = await Promise.all([
+    const [tenants, analyses, transactions, events, vnextAnalyses, exclusions, duplicateLinks] = await Promise.all([
       admin.from('tenants').select('id, plan, created_at'),
       admin.from('analyses').select('id, created_at'),
       admin.from('credit_transactions').select('amount'),
       admin.from('events').select('id, deleted_at'),
       admin.from('sera_vnext_analyses').select('id, created_at, deleted_at, status, review_status'),
       admin.from('risk_profile_exclusions').select('id, restored_at'),
+      admin.from('event_duplicate_links').select('duplicate_event_id'),
     ])
 
+    if (duplicateLinks.error) return jsonError('Falha ao consultar reconciliações de eventos.', 500)
     const t = tenants.data ?? []
     const legacy = analyses.data ?? []
     const tx = transactions.data ?? []
@@ -59,13 +61,15 @@ export async function GET(req: Request) {
     }
 
     const creditsConsumed = tx.reduce((s, x) => s + (x.amount < 0 ? Math.abs(x.amount) : 0), 0)
-    const totalActiveEvents = e.filter((item) => !item.deleted_at).length
+    const duplicateIds = new Set((duplicateLinks.data ?? []).map((link) => link.duplicate_event_id))
+    const totalActiveEvents = e.filter((item) => !item.deleted_at && !duplicateIds.has(item.id)).length
     const softDeletedEvents = e.filter((item) => !!item.deleted_at).length
 
     return NextResponse.json({
       total_tenants: t.length,
       total_analyses: activeVNext.length,
       total_active_events: totalActiveEvents,
+      confirmed_duplicate_records: duplicateIds.size,
       soft_deleted_events: softDeletedEvents,
       analyzed_events: activeVNext.length,
       legacy_analyses: legacy.length,

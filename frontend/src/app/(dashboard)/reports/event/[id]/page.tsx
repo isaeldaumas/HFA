@@ -71,7 +71,7 @@ const VALIDATION_LABEL_PT: Record<string, string> = {
 
 function landmarkRelationshipLabel(value: SeraVNextEngineOutput['escapePoint']['anchorBasis'], pt: boolean): string {
   if (value === 'FIRST_DEPARTURE_AND_CRITICAL_ACT') return pt ? 'Primeira saída e ato crítico coincidem.' : 'First departure and critical act coincide.'
-  if (value === 'FIRST_DEPARTURE_PRIMARY') return pt ? 'A primeira saída antecede o ato crítico; ela delimita a trajetória seguro→inseguro, enquanto P/O/A permanece ligado ao ato crítico e ao seu ator direto.' : 'The first departure precedes the critical act; it delimits the safe→unsafe trajectory, while P/O/A remains bound to the critical act and its direct actor.'
+  if (value === 'FIRST_DEPARTURE_PRIMARY') return pt ? 'A primeira saída antecede a evolução crítica posterior; ela é a única âncora P/O/A. O marco posterior permanece apenas como evolução da ocorrência.' : 'The first departure precedes the later critical evolution; it is the sole P/O/A anchor. The later landmark remains occurrence evolution only.'
   if (value === 'FIRST_DEPARTURE_ONLY') return pt ? 'Somente a primeira saída foi estabelecida.' : 'Only the first departure was established.'
   return pt ? 'Relação ainda não determinada.' : 'Relationship not yet determined.'
 }
@@ -95,6 +95,17 @@ type EventPayload = {
     source_flow?: string | null
     engine_output?: SeraVNextEngineOutput | null
   } | null
+}
+
+function normalizeLandmarkForReport(value: string | null | undefined): string {
+  return (value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim().replace(/[.;]+$/, '')
+}
+
+function laterLandmarkForReport(output: SeraVNextEngineOutput): string | null {
+  const first = output.escapePoint.firstDepartureCandidate ?? output.escapePoint.statement
+  const later = output.escapePoint.criticalUnsafeActCandidate ?? output.escapePoint.latestCandidate
+  if (!later) return null
+  return first && normalizeLandmarkForReport(first) === normalizeLandmarkForReport(later) ? null : later
 }
 
 function formatDate(value: string | null | undefined, locale: 'pt-BR' | 'en') {
@@ -247,6 +258,8 @@ export default function EventReportPage() {
   const hypothesisVnextPreconditions = vnextPreconditions.filter((item) =>
     item.relationship !== 'CONTEXTUAL_PRECONDITION' && item.relationship !== 'ENABLING_PRECONDITION',
   )
+  const taxonomyOnlyVnextInvestigationGaps = hypothesisVnextPreconditions.filter((item) => item.basedOnCandidateCode && item.evidence.length === 0)
+  const evidenceHypothesisVnextPreconditions = hypothesisVnextPreconditions.filter((item) => !(item.basedOnCandidateCode && item.evidence.length === 0))
   const hfacsBridge = vnextOutput
     ? buildSeraHfacsBridge(
         [vnextOutput.axes.perception.proposedCode, vnextOutput.axes.objective.proposedCode, vnextOutput.axes.action.proposedCode],
@@ -382,7 +395,7 @@ export default function EventReportPage() {
             <>
               <div className="report-box space-y-1">
                 <p><strong>{L('Primeira saída da operação segura (Hendy)', 'First departure from safe operation (Hendy)')}:</strong> {vnextOutput.escapePoint.firstDepartureCandidate ?? vnextOutput.escapePoint.earliestCandidate ?? L('Não estabelecida', 'Not established')}</p>
-                <p><strong>{L('Ato/condição insegura crítica (Hendy)', 'Critical unsafe act/condition (Hendy)')}:</strong> {vnextOutput.escapePoint.criticalUnsafeActCandidate ?? vnextOutput.escapePoint.latestCandidate ?? L('Não estabelecido', 'Not established')}</p>
+                <p><strong>{L('Evolução crítica posterior (quando distinta)', 'Later critical evolution (when distinct)')}:</strong> {laterLandmarkForReport(vnextOutput) ?? L('Nenhum marco posterior distinto estabelecido', 'No distinct later landmark established')}</p>
                 {vnextOutput.escapePoint.irreversibilityBoundaryCandidate && (
                   <p><strong>{L('Marco de irreversibilidade / sem retorno', 'Irreversibility / no-return boundary')}:</strong> {vnextOutput.escapePoint.irreversibilityBoundaryCandidate}</p>
                 )}
@@ -508,7 +521,7 @@ export default function EventReportPage() {
                       <div key={item.id} className="report-box">
                         <p><strong>{item.canonicalCategory ? (pt ? SERA_PRECONDITION_META[item.canonicalCategory].pt : SERA_PRECONDITION_META[item.canonicalCategory].en) : preconditionCategoryLabel(item.category, pt)}:</strong> {item.description}</p>
                         {item.canonicalLevel ? <p className="text-xs text-slate-500 mt-1">{L('Nível SERA', 'SERA level')}: {item.canonicalLevel}</p> : null}
-                        {item.methodologyMatch ? <p className="text-xs text-slate-500 mt-1">{L('Tabela de pré-condições', 'Precondition table')}: {preconditionMethodologyMatchLabel(item.methodologyMatch, locale === 'pt-BR')}</p> : null}
+                        {item.methodologyMatch ? <p className="text-xs text-slate-500 mt-1">{L('Tabela de pré-condições', 'Precondition table')}: {preconditionMethodologyMatchLabel(item.methodologyMatch, locale === 'pt-BR', item.basedOnCandidateCode)}</p> : null}
                         {item.likelyForActiveFailureCodes?.length ? <p className="text-xs text-slate-500 mt-1">{L('Mais provável para', 'Most likely for')}: {item.likelyForActiveFailureCodes.join(', ')}</p> : null}
                         <p className="text-sm text-slate-700 mt-1">{L('Relação', 'Relationship')}: {preconditionRelationshipLabel(item.relationship, pt)}</p>
                         {contextReadout && (
@@ -525,19 +538,30 @@ export default function EventReportPage() {
                   })}
                 </div>
               )}
-              {hypothesisVnextPreconditions.length > 0 && (
+              {evidenceHypothesisVnextPreconditions.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-sm font-semibold text-amber-800">{L('Hipóteses preservadas — não confirmadas causalmente', 'Retained hypotheses — not causally confirmed')}</p>
+                  <p className="text-sm font-semibold text-amber-800">{L('Hipóteses contextuais preservadas — não confirmadas causalmente', 'Retained contextual hypotheses — not causally confirmed')}</p>
                   <p className="text-xs text-slate-600">{L('Estes itens aparecem porque foram mencionados ou sugeridos no material-fonte, mas não entram como pré-condições confirmadas nem no Perfil de Risco.', 'These items appear because they were mentioned or suggested in the source material, but they do not count as confirmed preconditions or enter the Risk Profile.')}</p>
-                  {hypothesisVnextPreconditions.map((item) => (
+                  {evidenceHypothesisVnextPreconditions.map((item) => (
                     <div key={item.id} className="report-box bg-amber-50">
                       <p><strong>{item.canonicalCategory ? (pt ? SERA_PRECONDITION_META[item.canonicalCategory].pt : SERA_PRECONDITION_META[item.canonicalCategory].en) : preconditionCategoryLabel(item.category, pt)}:</strong> {item.description}</p>
                       {item.canonicalLevel ? <p className="text-xs text-slate-500 mt-1">{L('Nível SERA', 'SERA level')}: {item.canonicalLevel}</p> : null}
-                      {item.methodologyMatch ? <p className="text-xs text-slate-500 mt-1">{L('Tabela de pré-condições', 'Precondition table')}: {preconditionMethodologyMatchLabel(item.methodologyMatch, locale === 'pt-BR')}</p> : null}
+                      {item.methodologyMatch ? <p className="text-xs text-slate-500 mt-1">{L('Tabela de pré-condições', 'Precondition table')}: {preconditionMethodologyMatchLabel(item.methodologyMatch, locale === 'pt-BR', item.basedOnCandidateCode)}</p> : null}
                       <p className="text-sm text-slate-700 mt-1">{L('Relação', 'Relationship')}: {preconditionRelationshipLabel(item.relationship, pt)}</p>
                       {item.evidence.length > 0 ? <p className="text-sm text-slate-700 mt-1">{L('Evidência contextual', 'Contextual evidence')}: {item.evidence.slice(0, 3).join(' | ')}</p> : null}
                     </div>
                   ))}
+                </div>
+              )}
+              {taxonomyOnlyVnextInvestigationGaps.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-slate-800">{L('Rotas de investigação sugeridas pela taxonomia', 'Investigation routes suggested by the taxonomy')}</p>
+                  <p className="text-xs text-slate-600">{L('Estas categorias vêm da correspondência da Tabela 1 com a falha ativa candidata. São perguntas de investigação, não fatores encontrados no relato e não causas presumidas.', 'These categories come from Table 1 correspondence with the candidate active failure. They are investigation prompts, not factors found in the source and not presumed causes.')}</p>
+                  <div className="report-box">
+                    {taxonomyOnlyVnextInvestigationGaps.map((item) => (
+                      <p key={item.id} className="text-sm text-slate-700"><strong>{item.canonicalCategory ? (pt ? SERA_PRECONDITION_META[item.canonicalCategory].pt : SERA_PRECONDITION_META[item.canonicalCategory].en) : preconditionCategoryLabel(item.category, pt)}:</strong> {item.description}</p>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
