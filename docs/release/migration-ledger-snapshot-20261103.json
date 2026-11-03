@@ -1,10 +1,10 @@
 {
   "schema": "hfa.migration-ledger.snapshot.v1",
-  "observed_at": "2026-11-03T20:01:13.834Z",
+  "observed_at": "2026-11-03T20:47:48.163154+00:00",
   "source": "Supabase migration ledger, read-only",
   "project_id": "vbdpweliprcsktyxodss",
   "repository": "isaeldaumas/HFA",
-  "source_baseline_sha": "fa45e94e071bd20a189efc3a3ef4dad9ffb3033d",
+  "source_baseline_sha": "7852fdc20352186275dd833f5e4a760b3bdae4fb",
   "remote_migrations": [
     {
       "version": "20260507105001",
@@ -205,6 +205,10 @@
     {
       "version": "20261014213954",
       "name": "event_duplicate_links_cal19"
+    },
+    {
+      "version": "20261103204541",
+      "name": "fix_event_duplicate_link_mutation_search_path_20261103"
     }
   ],
   "alias_pairs": [
@@ -315,7 +319,8 @@
     "20261003001728_safety_risk_actions_v1.sql": "bb14fd0074ae61020de4cb20fb2d6b7c7b20b7f5071c4ed63f579fca8fcb6e77",
     "20261003015000_airtrust_integration_v1.sql": "6845e3bd9b815eb74832acd2a02802bf43fc66276226d3f4a8d20bd0bb2988f9",
     "20261014190000_sera_review_order_integrity.sql": "63c99a6f44c17d251f3a92d3f70a2e8a4cf2115c59a68fb3caf3c87dd84a1de2",
-    "20261014224000_event_duplicate_links.sql": "a9a24255e7a35f0a29da6801652ced9f5085fa60a4e39fc11c4aaa4eb3455894"
+    "20261014224000_event_duplicate_links.sql": "a9a24255e7a35f0a29da6801652ced9f5085fa60a4e39fc11c4aaa4eb3455894",
+    "20261103204541_fix_event_duplicate_link_mutation_search_path_20261103.sql": "7bb07888e5b424f25545c926b6b8b1f8d05103999b55c25ea5b314bdcd9519fe"
   },
   "additional_remote_versions": [
     "20260910195647",
