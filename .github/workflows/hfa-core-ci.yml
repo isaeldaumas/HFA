@@ -61,6 +61,10 @@ jobs:
         working-directory: frontend
         run: npm audit --audit-level=high
 
+      - name: Signup WAF 429 UI contract
+        working-directory: frontend
+        run: ./node_modules/.bin/tsx --test tests/api-rate-limit-response.test.ts
+
       - name: TypeScript
         working-directory: frontend
         run: npx tsc --noEmit
