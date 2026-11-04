@@ -17,8 +17,24 @@ Todos os flags de shadow mode estão OFF:
 | `SERA_SHADOW_ADMIN_VIEW_ENABLED` | `false` |
 | `SERA_SHADOW_AUTO_COMPARISON_ENABLED` | `false` |
 | `SERA_SHADOW_VALIDATION_REPORTS_ENABLED` | `false` |
+| `NEXT_PUBLIC_SERA_SHADOW_ADMIN_VIEW_ENABLED` | `false` |
 
 Verificado pelo teste `shadow-mode-trial-001.ts` (suite HFA).
+
+### Intertravamento de build (04/11/2026)
+
+O script `frontend/tools/prebuild-shadow-production-guard.mjs` executa automaticamente
+antes de `npm run build` e bloqueia **qualquer** artefato compilado com uma
+das seis flags de shadow diferente de `false` / vazia / ausente, inclusive
+a flag pública de UI. A mudança vale também para preview/staging enquanto
+os gates de autorização estiverem pendentes; para qualquer futura ativação
+será necessária uma revisão formal do intertravamento e das evidências.
+
+O intertravamento é uma proteção de **build**, não prova do gate científico
+nem bloqueio de alterações dinâmicas em um processo já iniciado. O teste
+`shadow-mode-trial-003-rollback.ts` agora verifica que a flag pública
+isoladamente impede a declaração `assertShadowFullyDisabled() === true`.
+Recompilar o frontend é necessário após alterar flags `NEXT_PUBLIC_`.
 
 ## Arquitetura shadow mode
 

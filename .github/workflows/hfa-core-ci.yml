@@ -101,6 +101,10 @@ jobs:
       - name: Shadow rollback contract
         run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/shadow-mode/shadow-mode-trial-003-rollback.ts
 
+      - name: Shadow production build interlock (adversarial)
+        working-directory: frontend
+        run: node --test tests/shadow-prod-prebuild-guard.test.mjs
+
       - name: Tenant isolation contract
         run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/tenant-isolation/tenant-isolation-contract-trial-001.ts
 
