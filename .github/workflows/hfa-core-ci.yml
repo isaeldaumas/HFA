@@ -65,6 +65,10 @@ jobs:
         working-directory: frontend
         run: ./node_modules/.bin/tsx --test tests/api-rate-limit-response.test.ts
 
+      - name: Supabase direct signup policy audit contract
+        working-directory: frontend
+        run: node --test tests/auth-public-signup-policy.test.mjs
+
       - name: TypeScript
         working-directory: frontend
         run: npx tsc --noEmit

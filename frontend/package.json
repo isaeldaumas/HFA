@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "prebuild": "node tools/prebuild-shadow-production-guard.mjs",
+    "audit:auth:policy": "node tools/audit-supabase-auth-policy.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
