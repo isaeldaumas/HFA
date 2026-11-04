@@ -31,11 +31,15 @@ Do **not** invent duration, sample size, or agreement thresholds here. Author mu
 
 1. Confirm all `SERA_SHADOW_*=false` currently.
 2. Author written approval recorded (issue comment / signed note).
-3. Enable **only** `SERA_SHADOW_EXECUTION_ENABLED=true` first.
-4. Prove activation: shadow path no longer returns only `SKIPPED_DISABLED` for a **synthetic fixture tenant** (never production users without consent/LGPD).
-5. If persistence authorized separately: `SERA_SHADOW_PERSISTENCE_ENABLED=true`.
-6. If admin view authorized separately: `SERA_SHADOW_ADMIN_VIEW_ENABLED=true` **and** `NEXT_PUBLIC_SERA_SHADOW_ADMIN_VIEW_ENABLED=true`.
-7. Auto-comparison / validation-report flags only if explicitly authorized later.
+3. Only after the author-approved rollout plan and human gate PASS, review
+   the build-time shadow interlock in a **separate, audited change**. As long
+   as `frontend/tools/prebuild-shadow-production-guard.mjs` is active,
+   any `true` shadow flag blocks build (including staging).
+4. Enable **only** `SERA_SHADOW_EXECUTION_ENABLED=true` first.
+5. Prove activation: shadow path no longer returns only `SKIPPED_DISABLED` for a **synthetic fixture tenant** (never production users without consent/LGPD).
+6. If persistence authorized separately: `SERA_SHADOW_PERSISTENCE_ENABLED=true`.
+7. If admin view authorized separately: `SERA_SHADOW_ADMIN_VIEW_ENABLED=true` **and** `NEXT_PUBLIC_SERA_SHADOW_ADMIN_VIEW_ENABLED=true`.
+8. Auto-comparison / validation-report flags only if explicitly authorized later.
 
 User-facing product path must continue to return **legacy** results only. Shadow never substitutes production output.
 
@@ -57,8 +61,9 @@ Via `SERA_SHADOW_DIVERGENCE_V1` / admin comparisons (when enabled):
 Responsible: on-call / author designee named in the activation approval.
 
 1. Set all `SERA_SHADOW_*` (and `NEXT_PUBLIC_SERA_SHADOW_ADMIN_VIEW_ENABLED`) to `false` / unset.
-2. Restart/redeploy process so env is re-read.
-3. Verify `assertShadowFullyDisabled() === true` (or run `shadow-mode-trial-003-rollback.ts` harness).
+2. Rebuild and redeploy the frontend when `NEXT_PUBLIC_` flags change; a server restart alone cannot retract a public value compiled into the existing client bundle.
+3. Verify `assertShadowFullyDisabled() === true` across **all six** flags (five server flags plus public UI), using `shadow-mode-trial-003-rollback.ts`.
+   This is a simulated contract verification, not proof of a successful <5-minute live rollback.
 4. Verify `/api/admin/sera-shadow/comparisons` → 404.
 5. Verify `runShadowVNextIfEnabled` → `SKIPPED_DISABLED` without Supabase touch.
 6. Record evidence (timestamps, env snapshot boolean flags only — no narratives).

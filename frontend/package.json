@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node tools/prebuild-shadow-production-guard.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

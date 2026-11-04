@@ -28,6 +28,18 @@ for (const name of SHADOW_FLAG_NAMES) {
   check(snapshot[name] === false, `${name}=false`)
 }
 
+// Adversarial rollback rehearsal: each flag independently invalidates
+// "fully disabled". This includes the public build-time admin UI flag.
+for (const name of SHADOW_FLAG_NAMES) {
+  process.env[name] = 'true'
+  check(!assertShadowFullyDisabled(), `${name}=true prevents a false rollback PASS`)
+  process.env[name] = 'false'
+}
+process.env.NEXT_PUBLIC_SERA_SHADOW_ADMIN_VIEW_ENABLED = ' TRUE '
+check(!assertShadowFullyDisabled(), 'public UI flag normalization prevents false rollback PASS')
+process.env.NEXT_PUBLIC_SERA_SHADOW_ADMIN_VIEW_ENABLED = 'false'
+check(assertShadowFullyDisabled(), 'flags restored OFF after adversarial cases')
+
 const steps = describeShadowRollbackProcedure()
 check(steps.length >= 5, 'rollback procedure has documented steps')
 check(steps.some((step) => step.includes('< 5 minutes')), 'rollback target time documented')

@@ -15,3 +15,11 @@ Shadow flags remain **OFF**. Issue #13 is **not closed**.
 ```text
 SHADOW_13=TECHNICAL_READY_FLAGS_OFF_GATES_INCOMPLETE
 ```
+
+## Addendum — 2026-11-04: fail-closed release interlock
+
+- The rollback snapshot now covers the **sixth, public** `NEXT_PUBLIC_SERA_SHADOW_ADMIN_VIEW_ENABLED` flag.
+- `npm run build` now calls a production-oriented prebuild guard that refuses Shadow activation flags in **all** build environments until separately reviewed.
+- Added 12 adversarial build guard cases; the existing Shadow rollback trial checks each flag independently.
+- This is technical safety hardening only: `NATURALISTIC_VALIDATION=NOT_READY`, `FORMAL_AUTHOR_APPROVAL=AUTHOR_PENDING`, and real Shadow observation remains `NOT_STARTED`.
+- No live Shadow activation, real user data processing, or live <5-minute rollback was performed.
