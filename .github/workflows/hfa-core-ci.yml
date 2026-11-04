@@ -69,6 +69,10 @@ jobs:
         working-directory: frontend
         run: node --test tests/auth-public-signup-policy.test.mjs
 
+      - name: Two-tenant read-only E2E fixture contract
+        working-directory: frontend
+        run: node --test tests/two-tenant-readonly-e2e.test.mjs
+
       - name: TypeScript
         working-directory: frontend
         run: npx tsc --noEmit

@@ -6,6 +6,7 @@
     "dev": "next dev",
     "prebuild": "node tools/prebuild-shadow-production-guard.mjs",
     "audit:auth:policy": "node tools/audit-supabase-auth-policy.mjs",
+    "test:tenant:e2e:readonly": "node tools/verify-two-tenant-readonly-e2e.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
