@@ -59,7 +59,7 @@ jobs:
 
       - name: Development tooling vulnerability gate
         working-directory: frontend
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=moderate
 
       - name: Signup WAF 429 UI contract
         working-directory: frontend
