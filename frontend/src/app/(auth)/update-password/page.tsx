@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { isPasswordRecoveryEvent, verifyPasswordRecoveryCallback } from '@/lib/auth-recovery-session'
 
 export default function UpdatePasswordPage() {
   const [eligible, setEligible] = useState(false)
@@ -14,19 +15,20 @@ export default function UpdatePasswordPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
+    let active = true
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY' && session) setEligible(true)
+      if (active && isPasswordRecoveryEvent(event, session)) {
+        setEligible(true)
+        setChecking(false)
+      }
     })
-    // Recovery is allowed by an Auth event or a recovery URL plus session,
-    // not by the mere presence of a logged-in account.
-    const hash = new URLSearchParams(window.location.hash.slice(1))
-    const recoveryLink = hash.get('type') === 'recovery'
-    void supabase.auth.getSession().then(({ data }) => {
-      if (recoveryLink && data.session) setEligible(true)
-    }).catch(() => {
-      setError('Não foi possível verificar o link.')
-    }).finally(() => setChecking(false))
-    return () => listener.subscription.unsubscribe()
+    // Verifies implicit recovery tokens or exchanges a PKCE code. A prior
+    // logged-in session is never enough to authorize this form.
+    void verifyPasswordRecoveryCallback(supabase.auth, window.location.href)
+      .then((valid) => { if (active && valid) setEligible(true) })
+      .catch(() => { if (active) setError('Não foi possível verificar o link.') })
+      .finally(() => { if (active) setChecking(false) })
+    return () => { active = false; listener.subscription.unsubscribe() }
   }, [])
 
   async function changePassword(event: FormEvent<HTMLFormElement>) {

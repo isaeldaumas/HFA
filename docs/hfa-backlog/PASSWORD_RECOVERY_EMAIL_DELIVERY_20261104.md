@@ -39,3 +39,17 @@ Os 11 cenários cobrem autorização, redirecionamentos, validação de configur
 - https://supabase.com/docs/reference/javascript/auth-resetpasswordforemail
 - https://supabase.com/docs/guides/auth/redirect-urls
 - https://supabase.com/docs/guides/auth/auth-smtp
+
+## Complemento técnico — callback e PKCE (revisão de 04/11)
+
+- O formulário aceita somente evento Supabase `PASSWORD_RECOVERY` com sessão,
+  ou token explícito de recovery + sessão, ou código PKCE trocado com êxito.
+  Um `SIGNED_IN` normal ou fragmento `#type=recovery` não libera o formulário.
+- Se um código PKCE for inválido, o formulário não reutiliza uma sessão prévia.
+  O processamento automático do callback pelo SDK precisa ser validado com
+  link real e a configuração exata do fluxo (implicit/PKCE); testes de mock
+  não comprovam essa condição.
+- A rota de callback OAuth deixou de registrar URL, fragmentos e mensagens
+  brutas do provedor em logs. Verificar isso nos testes de regressão estática.
+- A liberação operacional ainda exige SMTP, allowlist exata da Redirect URL,
+  caixa postal de teste, expiração/revogação e teste de senha antiga/nova.
