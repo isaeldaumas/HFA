@@ -96,6 +96,9 @@ jobs:
       - name: GitHub and Vercel release drift (offline contract only)
         run: node --test tests/hfa-audit/gemini-release-readiness/vercel-github-drift-contract.test.mjs
 
+      - name: Multi-file upload validation and persistence regression
+        run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/gemini-multifile/run.ts
+
       - name: ERC containment runtime
         run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/erc-containment/erc-containment-trial-001.ts
 

@@ -24,6 +24,8 @@ import { join } from 'node:path'
 const ROOT = join(__dirname, '..', '..', '..')
 const EXTRACT_ROUTE = join(ROOT, 'frontend', 'src', 'app', 'api', 'extract-document', 'route.ts')
 const EVENTS_ROUTE = join(ROOT, 'frontend', 'src', 'app', 'api', 'events', 'route.ts')
+const FORM_UTIL = join(ROOT, 'frontend', 'src', 'lib', 'gemini-multifile-form.ts')
+const PERSIST_UTIL = join(ROOT, 'frontend', 'src', 'lib', 'event-document-persistence.ts')
 
 let failures = 0
 function check(cond: boolean, label: string) {
@@ -36,10 +38,14 @@ function runAudit() {
 
   const extractCode = readFileSync(EXTRACT_ROUTE, 'utf8')
   const eventsCode = readFileSync(EVENTS_ROUTE, 'utf8')
+  const formCode = readFileSync(FORM_UTIL, 'utf8')
+  const persistCode = readFileSync(PERSIST_UTIL, 'utf8')
 
   // --- /api/extract-document ---
   check(
-    extractCode.includes("form.getAll('files')") && extractCode.includes("form.getAll('file')"),
+    extractCode.includes('selectMultipartFiles(form)') &&
+      formCode.includes("form.getAll('files')") &&
+      formCode.includes("form.getAll('file')"),
     'extract-document: aceita tanto formato novo files[] quanto formato legado file'
   )
 
@@ -79,49 +85,55 @@ function runAudit() {
     'extract-document: tolera falhas parciais (nao falha se houver pelo menos uma extracao ou anexo valido)'
   )
 
-  // --- /api/events ---
+  // --- /api/events and its runtime-testable persistence module ---
   check(
-    eventsCode.includes("form.getAll('files')") && eventsCode.includes("form.getAll('file')"),
-    'events: coleta todos os arquivos enviados em files[] e no campo legado file'
+    eventsCode.includes('sourceFiles = selectMultipartFiles(form)') &&
+      formCode.includes('if (modern.length > 0) return modern'),
+    'events: formato moderno prevalece; alias legado não multiplica lote'
   )
-
   check(
-    eventsCode.includes('persistUploadedSourceFiles'),
-    'events: possui funcao dedicada para persistencia segura de multiplas fontes'
+    eventsCode.includes('prepareValidatedSourceFiles(sourceFiles)') &&
+      eventsCode.indexOf('prepareValidatedSourceFiles(sourceFiles)') <
+        eventsCode.indexOf("stage = 'insert-event'"),
+    'events: valida arquivos antes de criar evento'
   )
-
   check(
-    eventsCode.includes(".from('event_documents').insert({") &&
-      eventsCode.includes('storage_path: storagePath') &&
-      eventsCode.includes('tenant_id: tenantId') &&
-      eventsCode.includes('event_id: eventId'),
-    'events: persiste cada arquivo na tabela public.event_documents com tenant e event vinculados'
+    eventsCode.includes('persistUploadedSourceFiles') &&
+      persistCode.includes("admin.from('event_documents').insert({") &&
+      persistCode.includes('storage_path: storagePath') &&
+      persistCode.includes('tenant_id: tenantId') &&
+      persistCode.includes('event_id: eventId'),
+    'events: persiste documentos vinculados a evento e tenant'
   )
-
   check(
-    eventsCode.includes('shortHash = security.sha256.slice(0, 10)') &&
-      eventsCode.includes('storagePath = `${pathPrefix}/${i + 1}_${shortHash}_${safeName}`'),
-    'events: gera storage_path unico e auditavel com indice e hash SHA-256 para evitar colisoes'
+    persistCode.includes('security.sha256.slice(0, 10)') &&
+      persistCode.includes('upsert: false') &&
+      persistCode.includes('await storage.remove([storagePath])'),
+    'events: usa hash sem overwrite e compensa falha de metadados'
   )
-
   check(
     eventsCode.includes('sourceFiles: descriptors') &&
       eventsCode.includes('sourceFileUrl: descriptors[0]?.storagePath') &&
       eventsCode.includes('sourceFileName: descriptors[0]?.fileName'),
-    'events: atualiza metadados da analise com array sourceFiles e mantem compatibilidade com leitor legado'
+    'events: metadata SERA contém apenas descritores confirmados'
   )
-
   check(
     eventsCode.includes("input_type = 'pdf'") &&
       eventsCode.includes("input_type = 'docx'") &&
       eventsCode.includes("input_type = 'text'"),
-    'events: mapeia input_type exclusivamente para valores aceitos pelo ENUM Postgres (pdf, docx, text)'
+    'events: mantém input_type válido para o ENUM Postgres'
   )
-
   check(
-    eventsCode.includes('analysisMode === \'register_only\'') &&
-      eventsCode.includes('persistUploadedSourceFiles'),
-    'events: suporta persistencia de multiplos documentos tambem no modo register_only (Safety)'
+    eventsCode.includes("analysisMode === 'register_only'") &&
+      eventsCode.includes("attachments_status: 'partial'") &&
+      eventsCode.includes("attachments_status: 'failed'"),
+    'events: Safety informa falha parcial e preserva event_id'
+  )
+  check(
+    persistCode.includes("'stored_unprocessed'") &&
+      eventsCode.includes('documentsIncomplete') &&
+      eventsCode.includes('analysis_completed: true'),
+    'events: não inventa extração e diferencia persistência da análise'
   )
 
   console.log(`\nFim dos testes de contrato de rotas: ${failures === 0 ? 'TODOS PASSARAM' : `${failures} FALHAS`}`)

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { selectMultipartFiles } from '@/lib/gemini-multifile-form'
 import { requireBearerUser } from '@/lib/server/api-auth'
 import { getSupabaseAdmin } from '@/lib/server/supabase-admin'
 import {
@@ -27,23 +28,9 @@ export async function POST(req: Request) {
 
     const form = await req.formData()
 
-    // Coleta arquivos tanto do padrao novo ("files") quanto legado ("file")
-    const formFiles: File[] = []
+    // Do not count the legacy alias twice when multipart contains both.
+    const formFiles = selectMultipartFiles(form)
     const rawFilesList = form.getAll('files')
-    if (rawFilesList.length > 0) {
-      for (const item of rawFilesList) {
-        if (item instanceof File && item.size >= 0) formFiles.push(item)
-      }
-    }
-    const legacyFileList = form.getAll('file')
-    if (legacyFileList.length > 0) {
-      for (const item of legacyFileList) {
-        if (item instanceof File && item.size >= 0) {
-          // Evita duplicatas se o cliente enviou o mesmo objeto em ambos
-          if (!formFiles.includes(item)) formFiles.push(item)
-        }
-      }
-    }
 
     if (formFiles.length === 0) {
       return NextResponse.json(

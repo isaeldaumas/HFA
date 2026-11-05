@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server'
 import { requireBearerUser } from '@/lib/server/api-auth'
 import { getSupabaseAdmin, assertServiceRoleEnv } from '@/lib/server/supabase-admin'
 import { withOptionalUserAiSettings } from '@/lib/server/user-ai-settings'
+import { selectMultipartFiles } from '@/lib/gemini-multifile-form'
+import {
+  prepareValidatedSourceFiles,
+  persistUploadedSourceFiles,
+  UploadValidationError,
+  type PreparedSourceFile,
+} from '@/lib/event-document-persistence'
 import { debitCreditForEvent, ensurePublicUserRow, refundCreditForFailedAnalysis } from '@/lib/server/tenant-user'
 import { getOrCreateRequestId, buildErrorResponse } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
@@ -9,16 +16,6 @@ import { canonicalAnalyzeResponse, createCanonicalEventAnalysis } from '@/lib/se
 import { inferOccurrenceDateFromNarrative } from '@/lib/sera-vnext/occurrence-date'
 import { enrichSeraNarrativeSemantically } from '@/lib/sera-vnext/ai/semantic-enrichment'
 import { findTenantDuplicateCandidates, publicDuplicateMatches } from '@/lib/server/event-duplicates'
-import {
-  MAX_BATCH_FILE_COUNT,
-  MAX_SINGLE_FILE_BYTES,
-  MAX_TOTAL_BATCH_BYTES,
-  StoredDocumentDescriptor,
-} from '@/lib/gemini-multifile-types'
-import {
-  sanitizeFileName,
-  validateFileSecurity,
-} from '@/lib/gemini-multifile-security'
 
 export const maxDuration = 300
 
@@ -31,93 +28,6 @@ type SourceMeta = {
 function logEventsError(error: unknown, stage: string, extra: Record<string, unknown> = {}) {
   const e = error instanceof Error ? error : new Error(String(error))
   console.error('[/api/events Error]', { stage, message: e.message, stack: e.stack, cause: e.cause, ...extra })
-}
-
-/**
- * Persiste todos os arquivos do lote no Supabase Storage e na tabela public.event_documents.
- * Sanitiza caminhos contra path traversal e garante proveniencia criptografica individual.
- */
-async function persistUploadedSourceFiles(params: {
-  admin: ReturnType<typeof getSupabaseAdmin>
-  tenantId: string
-  submittedById: string
-  eventId: string
-  files: File[]
-  analysisId?: string
-}): Promise<StoredDocumentDescriptor[]> {
-  const { admin, tenantId, submittedById, eventId, files, analysisId } = params
-  const descriptors: StoredDocumentDescriptor[] = []
-
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i]
-    try {
-      if (file.size > MAX_SINGLE_FILE_BYTES) {
-        console.warn(`[persistUploadedSourceFiles] Arquivo excede 10MB: ${file.name}`)
-        continue
-      }
-      const buf = Buffer.from(await file.arrayBuffer())
-      const security = validateFileSecurity({
-        name: file.name,
-        size: file.size,
-        buffer: buf,
-        declaredMime: file.type,
-      })
-
-      if (!security.valid && security.status === 'mime_spoofing') {
-        console.warn(`[persistUploadedSourceFiles] Possivel spoofing rejeitado: ${file.name}`)
-        continue
-      }
-
-      const safeName = security.sanitizedName
-      const shortHash = security.sha256.slice(0, 10)
-      const pathPrefix = analysisId
-        ? `${submittedById}/${analysisId}`
-        : `events/${submittedById}/${eventId}`
-      const storagePath = `${pathPrefix}/${i + 1}_${shortHash}_${safeName}`
-
-      const { error: uploadError } = await admin.storage
-        .from('analysis-documents')
-        .upload(storagePath, buf, {
-          contentType: security.canonicalMime || file.type || 'application/octet-stream',
-          upsert: true,
-        })
-
-      if (uploadError) {
-        console.warn(`[persistUploadedSourceFiles] Erro no storage para ${file.name}:`, uploadError.message)
-        continue
-      }
-
-      // Insercao na tabela event_documents (preservando o schema oficial do Supabase)
-      const { error: insertError } = await admin.from('event_documents').insert({
-        tenant_id: tenantId,
-        event_id: eventId,
-        uploaded_by: submittedById,
-        file_name: file.name,
-        storage_path: storagePath,
-        mime_type: security.canonicalMime || file.type || null,
-        size_bytes: file.size,
-      })
-
-      if (insertError) {
-        console.warn(`[persistUploadedSourceFiles] Erro ao inserir event_documents:`, insertError.message)
-      }
-
-      descriptors.push({
-        fileName: file.name,
-        sanitizedName: safeName,
-        storagePath,
-        mimeType: security.canonicalMime || file.type || null,
-        sizeBytes: file.size,
-        sha256: security.sha256,
-        status: security.status,
-        wordCount: 0,
-      })
-    } catch (err) {
-      console.error(`[persistUploadedSourceFiles] Falha ao processar ${file.name}:`, err)
-    }
-  }
-
-  return descriptors
 }
 
 export async function GET(req: Request) {
@@ -232,7 +142,8 @@ export async function POST(req: Request) {
     let input_type: 'text' | 'pdf' | 'docx' = 'text'
     const sourceMeta: SourceMeta = { sourceType: 'text' }
     let sourceFile: File | null = null
-    const sourceFiles: File[] = []
+    let sourceFiles: File[] = []
+    let preparedSourceFiles: PreparedSourceFile[] = []
 
     if (ct.includes('multipart/form-data')) {
       const form = await req.formData()
@@ -254,23 +165,8 @@ export async function POST(req: Request) {
       const wc = form.get('source_word_count')
       if (wc) sourceMeta.sourceWordCount = Number(wc)
 
-      // Suporte a multiplos arquivos (padrao novo 'files' e retrocompatibilidade com 'file')
-      for (const item of form.getAll('files')) {
-        if (item instanceof File && item.size > 0) sourceFiles.push(item)
-      }
-      for (const item of form.getAll('file')) {
-        if (item instanceof File && item.size > 0 && !sourceFiles.includes(item)) {
-          sourceFiles.push(item)
-        }
-      }
-
-      if (sourceFiles.length > MAX_BATCH_FILE_COUNT) {
-        return jsonError(`Limite de arquivos excedido: máximo de ${MAX_BATCH_FILE_COUNT} arquivos por evento.`, 400)
-      }
-      const totalBatchBytes = sourceFiles.reduce((acc, f) => acc + f.size, 0)
-      if (totalBatchBytes > MAX_TOTAL_BATCH_BYTES) {
-        return jsonError('Tamanho total dos arquivos ultrapassa 30MB.', 400)
-      }
+      // Prefer the modern batch; ignore its duplicated legacy alias.
+      sourceFiles = selectMultipartFiles(form)
 
       if (sourceFiles.length > 0) {
         sourceFile = sourceFiles[0]
@@ -301,6 +197,19 @@ export async function POST(req: Request) {
     }
 
     if (!title.trim() || !raw_input.trim()) return jsonError('Título e relato são obrigatórios', 400)
+
+    // Validate all attachments before any event, credit or engine side effect.
+    try {
+      preparedSourceFiles = await prepareValidatedSourceFiles(sourceFiles)
+    } catch (validationError) {
+      if (validationError instanceof UploadValidationError) {
+        return NextResponse.json({
+          code: validationError.code, detail: validationError.message,
+        }, { status: 400, headers: { 'x-request-id': requestId } })
+      }
+      throw validationError
+    }
+
 
     // Check before any debit, record creation, SERA run or attachment upload.
     // The client must explicitly acknowledge an independent occurrence.
@@ -399,17 +308,37 @@ export async function POST(req: Request) {
     })
 
     if (analysisMode === 'register_only') {
-      if (sourceFiles.length > 0) {
+      if (preparedSourceFiles.length > 0) {
         try {
-          await persistUploadedSourceFiles({
+          const report = await persistUploadedSourceFiles({
             admin,
             tenantId: user.tenantId,
             submittedById,
+            authUserId: user.userId,
             eventId,
-            files: sourceFiles,
+            files: preparedSourceFiles,
           })
+          if (!report.complete) {
+            await writeAuditLog({
+              tenantId: user.tenantId, userId: user.userId, requestId,
+              eventType: 'safety_event_reported', entityType: 'event', entityId: eventId,
+              route: '/api/events', method: 'POST', status: 'partial',
+              metadata: { requested: report.requested, persisted: report.persisted },
+            })
+            return NextResponse.json({
+              event_id: eventId, status: 'received', analysis_started: false,
+              credits_used: 0, attachments_status: 'partial',
+              attachments_requested: report.requested, attachments_persisted: report.persisted,
+              detail: 'Evento registrado, mas nem todos os documentos foram salvos. Abra o evento existente para conferir os anexos; não crie uma ocorrência duplicada.',
+            }, { status: 503, headers: { 'x-request-id': requestId, 'Cache-Control': 'no-store' } })
+          }
         } catch (documentError) {
           logEventsError(documentError, 'store-safety-event-document', { requestId, eventId })
+          return NextResponse.json({
+            event_id: eventId, status: 'received', analysis_started: false,
+            credits_used: 0, attachments_status: 'failed',
+            detail: 'Evento registrado, mas os anexos não foram confirmados. Consulte o evento existente antes de reenviar.',
+          }, { status: 503, headers: { 'x-request-id': requestId, 'Cache-Control': 'no-store' } })
         }
       }
       await writeAuditLog({
@@ -418,7 +347,11 @@ export async function POST(req: Request) {
         route: '/api/events', method: 'POST', status: 'success',
         metadata: { triage_status: 'UNTRIAGED', investigation_path: 'NONE', credits_used: 0 },
       })
-      return NextResponse.json({ event_id: eventId, status: 'received', analysis_started: false, credits_used: 0 }, { status: 201, headers: { 'x-request-id': requestId } })
+      return NextResponse.json({
+        event_id: eventId, status: 'received', analysis_started: false,
+        credits_used: 0, attachments_status: 'complete',
+        attachments_persisted: preparedSourceFiles.length,
+      }, { status: 201, headers: { 'x-request-id': requestId } })
     }
 
     let creditDebited = false
@@ -453,19 +386,23 @@ export async function POST(req: Request) {
         context: { tenantId: user.tenantId, userId: submittedById, role: user.role, email: user.email ?? '', requestId },
       })
 
-      if (sourceFiles.length > 0) {
+      let documentsIncomplete = false
+      if (preparedSourceFiles.length > 0) {
         try {
-          const descriptors = await persistUploadedSourceFiles({
+          const report = await persistUploadedSourceFiles({
             admin,
             tenantId: user.tenantId,
             submittedById,
+            authUserId: user.userId,
             eventId,
-            files: sourceFiles,
+            files: preparedSourceFiles,
             analysisId: result.analysis.id,
           })
+          documentsIncomplete = !report.complete
 
-          if (descriptors.length > 0) {
-            await admin
+          if (report.descriptors.length > 0) {
+            const descriptors = report.descriptors
+            const metadataUpdate = await admin
               .from('sera_vnext_analyses')
               .update({
                 metadata: {
@@ -478,8 +415,10 @@ export async function POST(req: Request) {
               })
               .eq('id', result.analysis.id)
               .eq('tenant_id', user.tenantId)
+            if (metadataUpdate.error) documentsIncomplete = true
           }
         } catch (multiFileErr) {
+          documentsIncomplete = true
           logEventsError(multiFileErr, 'store-hfa-analysis-documents', { requestId, eventId })
         }
       }
@@ -507,8 +446,16 @@ export async function POST(req: Request) {
         },
       })
       success = true
+      if (documentsIncomplete) {
+        // The scientific result succeeded. Do not label it failed or refund
+        // credit; report the event ID and incomplete document persistence.
+        return NextResponse.json({
+          event_id: eventId, analysis_completed: true, attachments_status: 'partial',
+          detail: 'A análise foi concluída, mas um ou mais documentos não foram confirmados. Abra este evento para verificar os anexos; não crie outra ocorrência.',
+        }, { status: 503, headers: { 'x-request-id': requestId, 'Cache-Control': 'no-store' } })
+      }
       return NextResponse.json(
-        { ...canonicalAnalyzeResponse(result, eventId), status: needsClarification ? 'received' : 'completed' },
+        { ...canonicalAnalyzeResponse(result, eventId), status: needsClarification ? 'received' : 'completed', attachments_status: 'complete' },
         { headers: { 'x-request-id': requestId } },
       )
     } catch (err) {

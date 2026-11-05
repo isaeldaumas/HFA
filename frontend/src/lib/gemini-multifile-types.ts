@@ -8,6 +8,7 @@ export type SupportedDocumentKind = 'pdf' | 'docx' | 'txt' | 'jpeg' | 'png' | 'w
 export type MultiFileExtractionStatus =
   | 'extracted'
   | 'unsupported_ocr'
+  | 'stored_unprocessed'
   | 'corrupt'
   | 'password_protected'
   | 'invalid_type'

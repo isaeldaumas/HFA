@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 
 const DIR = __dirname
+const TSX = join(DIR, '..', '..', '..', 'frontend', 'node_modules', '.bin', 'tsx')
 
 const testSuites = [
   {
@@ -23,6 +24,10 @@ const testSuites = [
     name: 'Contratos da Interface UI (DocumentUpload e /events/new)',
     file: join(DIR, 'gemini-multifile-ui-contract.ts'),
   },
+  {
+    name: 'V27 persistência real isolada de anexos (sem rede)',
+    file: join(DIR, 'v27-attachment-persistence.test.ts'),
+  },
 ]
 
 console.log('===============================================================')
@@ -34,7 +39,7 @@ let anyFailed = false
 
 for (const suite of testSuites) {
   console.log(`\n▶ Executando: ${suite.name}...`)
-  const result = spawnSync('npx', ['tsx', suite.file], {
+  const result = spawnSync(TSX, [suite.file], {
     stdio: 'inherit',
     cwd: DIR,
     env: process.env,
@@ -53,6 +58,6 @@ if (anyFailed) {
   console.error('RESULTADO: FALHA EM UMA OU MAIS SUÍTES')
   process.exit(1)
 } else {
-  console.log('RESULTADO GERAL: TODAS AS 3 SUÍTES PASSARAM COM SUCESSO')
+  console.log('RESULTADO GERAL: TODAS AS 4 SUÍTES PASSARAM COM SUCESSO')
   console.log('===============================================================')
 }

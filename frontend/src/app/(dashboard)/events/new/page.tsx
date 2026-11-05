@@ -139,7 +139,6 @@ export default function NewEventPage() {
         fd.set('analysis_mode', analysisMode)
         fd.set('confidentiality_level', confidentialityLevel)
 
-        const firstFile = activeFiles[0]
         const hasPdf = activeFiles.some((f) => f.name.toLowerCase().endsWith('.pdf'))
         const hasDocx = activeFiles.some((f) => f.name.toLowerCase().endsWith('.docx'))
         const kind = hasPdf ? 'pdf' : hasDocx ? 'docx' : 'text'
@@ -152,10 +151,7 @@ export default function NewEventPage() {
         for (const f of activeFiles) {
           fd.append('files', f)
         }
-        // Preserva campo legado 'file' apontando para o primeiro arquivo
-        if (firstFile) {
-          fd.set('file', firstFile)
-        }
+        // Envie apenas 'files'. O campo legado seria contado duas vezes.
 
         const res = await fetch(url, {
           method: 'POST',

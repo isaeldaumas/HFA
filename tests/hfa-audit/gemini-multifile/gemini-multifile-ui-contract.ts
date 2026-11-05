@@ -13,7 +13,7 @@
  *   * Importa o componente de @/components/events/DocumentUpload
  *   * Mantem estado de array de arquivos (sourceFiles)
  *   * Submete todos os arquivos via FormData.append('files')
- *   * Mantem campo legado FormData.set('file') para interoperabilidade
+ *   * Envia apenas 'files' sem duplicar primeiro anexo
  *
  * Executar: npx tsx tests/hfa-audit/gemini-multifile/gemini-multifile-ui-contract.ts
  */
@@ -93,8 +93,9 @@ function runAudit() {
   )
 
   check(
-    pageCode.includes("fd.set('file', firstFile)"),
-    'events/new/page.tsx: preserva chave legada file apontando para fonte primaria'
+    !pageCode.includes("fd.set('file', firstFile)") &&
+      !pageCode.includes("fd.append('file', firstFile)"),
+    'events/new/page.tsx: não duplica o primeiro anexo no campo legado'
   )
 
   console.log(`\nFim dos testes de UI: ${failures === 0 ? 'TODOS PASSARAM' : `${failures} FALHAS`}`)

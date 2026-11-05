@@ -142,23 +142,22 @@ export function detectBufferKind(buffer: Buffer): {
  */
 function isUtf8Text(buf: Buffer): boolean {
   if (buf.length === 0) return true
-  // Se contem bytes nulos, quase certamente e binario executavel / objeto
-  for (let i = 0; i < Math.min(buf.length, 1024); i++) {
-    if (buf[i] === 0x00) return false
-  }
-
-  // Testa decodificacao UTF-8 estrita
+  let text: string
   try {
-    const text = buf.toString('utf8')
-    // Verifica se ha excesso de caracteres de substituicao (U+FFFD indica UTF-8 invalido)
-    const replacementChars = (text.match(/\uFFFD/g) || []).length
-    if (replacementChars > buf.length * 0.05 && replacementChars > 2) {
-      return false
-    }
-    return true
+    // Buffer.toString silently replaces malformed UTF-8. Fatal decoding
+    // prevents binary payloads from being misclassified as TXT.
+    text = new TextDecoder('utf-8', { fatal: true }).decode(buf)
   } catch {
     return false
   }
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i)
+    if ((code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d)
+      || (code >= 0x7f && code <= 0x9f)) {
+      return false
+    }
+  }
+  return true
 }
 
 export interface FileSecurityCheckResult {
