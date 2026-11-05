@@ -75,3 +75,19 @@ Critérios de aceite para a etapa posterior:
 ## Observação metodológica
 
 Fonte mestra e locks: Hendy -> processo SERA, Daumas -> aplicação operacional MDC/SERA; perguntas canônicas e taxonomia são autoridade do autor. A ausência de evidência fica UNRESOLVED/INSUFFICIENT_EVIDENCE, nunca se converte por silêncio em P-A/O-A/A-A. O-C exige consciência, regra aplicável, desvio consciente e natureza não rotineira. A-C exige falha de ação após feedback. A-A não representa falha. O-E é inexistente. Evidência pós-ponto-de-fuga não redefine o mecanismo causal no ponto de fuga.
+
+## Atualização técnica — bancada visual e rastreabilidade (v18)
+
+A mesma ferramenta agora aceita saída HTML autossuficiente, sem login, scripts ou recursos externos:
+
+    ./frontend/node_modules/.bin/tsx tests/sera-vnext/dev-calibration-workbench.ts --out /tmp/hfa-dev-calibration-v18.json --html /tmp/hfa-dev-calibration-v18.html
+
+Abrir o HTML localmente. Ele mostra por caso: P/O/A, resultado parcial V03, excertos de evidências sintéticas, trilha canônica, razões bloqueantes e perguntas que o motor solicita. Esse relatório **não é cego** e nunca deve ser entregue aos avaliadores do V04. Os artefatos são gravados com abertura exclusiva e permissão restrita fora do repositório.
+
+Resultados da rodada de baseline executada nesta worktree (ainda sujeitos ao CI):
+- 24/24 casos sintéticos compatíveis com as expectativas parciais V03; 1 código adicional O-A não pontuado no CAL-07.
+- 24/24 com NEEDS_CLARIFICATION; 9 pontos de fuga candidatos e 15 INSUFFICIENT_EVIDENCE.
+- Motivos bloqueantes por caso: OBJECTIVE_EVIDENCE_INSUFFICIENT = 22, ACTION_EVIDENCE_INSUFFICIENT = 22, PERCEPTION_EVIDENCE_INSUFFICIENT = 19, ESCAPE_POINT_NOT_ESTABLISHED = 15. Razões coexistem.
+- Inspeção de suporte textual **não literal** encontrou 14 formulações em 8 casos ao percorrer todos os trechos de evidência dos eixos. Não significa fabricação: abrange frases geradas/parafraseadas pelo motor e distingue dado primário e interpretação. Uma contagem exploratória anterior de quatro excertos por eixo e busca exata bruta encontrou 12; números e denominadores não são intercambiáveis.
+- Detalhe do CAL-07: docs/hfa-backlog/CALIBRATION_V03_CAL07_TRACE_REVIEW_20261105.md.
+- **Não** alterar oráculos nem gates para tornar a taxa de esclarecimento artificialmente menor; investigar se o corpus carece de fatos ou se existe bloqueio indevido.

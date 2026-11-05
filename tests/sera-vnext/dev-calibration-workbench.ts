@@ -7,6 +7,8 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { existsSync } from 'node:fs'
+import { renderDevelopmentCalibrationHtml } from './dev-calibration-html'
 import { runSeraVNextEngineV0 } from '../../frontend/src/lib/sera-vnext/engine-v0/run-engine'
 import { calibrationCases, validationCases, type EngineV03ValidationCase, type EngineV03Expected } from './engine-validation-v03-naturalistic/cases'
 
@@ -29,6 +31,18 @@ function finalBlocked(o: EngineResult): boolean {
 function postEscapeNotReused(o: EngineResult): boolean {
   return AXES.every(axis => o.escapePoint.excludedPostEscapeEvidence.every(quote =>
     !o.axes[axis].supportingEvidence.includes(quote)))
+}
+
+/**
+ * Text-only provenance screening. Absence of a literal substring is NOT
+ * proof of incorrect evidence: it can be a lawful paraphrase or engine-derived
+ * statement. The researcher must distinguish these meanings manually.
+ */
+export function isLiteralNarrativeEvidence(narrative: string, evidence: string): boolean {
+  const normalize = (value: string) =>
+    value.normalize('NFC').replace(/\s+/g, ' ').trim().toLocaleLowerCase('pt-BR')
+  const quote = normalize(evidence)
+  return quote.length > 0 && normalize(narrative).includes(quote)
 }
 
 export function evaluateDevelopmentCase(c: EngineV03ValidationCase) {
@@ -66,6 +80,10 @@ export function evaluateDevelopmentCase(c: EngineV03ValidationCase) {
     evidenceCount: o.axes[axis].supportingEvidence.length,
     counterEvidenceCount: o.axes[axis].counterEvidence.length,
     excludedPostEscapeCount: o.axes[axis].excludedPostEscapeEvidence.length,
+    nonLiteralSupportingEvidenceCount: o.axes[axis].supportingEvidence
+      .filter(quote => !isLiteralNarrativeEvidence(c.narrative, quote)).length,
+    nonLiteralSupportingEvidenceExcerpts: o.axes[axis].supportingEvidence
+      .filter(quote => !isLiteralNarrativeEvidence(c.narrative, quote)).slice(0, 4),
     // Synthetic-only excerpts: reviewer can see why a candidate was proposed,
     // without logging whole case narratives or changing a source of truth.
     supportingEvidenceExcerpts: o.axes[axis].supportingEvidence.slice(0, 4),
@@ -74,6 +92,7 @@ export function evaluateDevelopmentCase(c: EngineV03ValidationCase) {
   }])) as Record<Axis, {
     code: string | null; status: string; confidence: string;
     evidenceCount: number; counterEvidenceCount: number; excludedPostEscapeCount: number;
+    nonLiteralSupportingEvidenceCount: number; nonLiteralSupportingEvidenceExcerpts: string[];
     supportingEvidenceExcerpts: string[]; counterEvidenceExcerpts: string[];
     canonicalPath: string[];
   }>
@@ -85,6 +104,15 @@ export function evaluateDevelopmentCase(c: EngineV03ValidationCase) {
     guardrails,
     escapePointStatus: o.escapePoint.status,
     evidenceSufficiency: o.evidenceSufficiency.status,
+    blockingReasons: [...o.evidenceSufficiency.blockingReasons],
+    clarificationQuestions: o.evidenceSufficiency.questions.map(q => ({
+      id: q.id,
+      stage: q.stage,
+      question: q.question,
+      linkedNodeId: q.linkedNodeId,
+      requestedEvidence: [...q.requestedEvidence],
+      blocking: q.blocking,
+    })),
   }
 }
 
@@ -96,6 +124,13 @@ export function createDevelopmentCalibrationReport() {
   assert.equal(new Set(cases.map(c => c.caseId)).size, cases.length)
   const mismatch = cases.filter(c => c.outcome === 'MISMATCH')
   const unscoredCodeCases = cases.filter(c => c.extraUnscoredCodes.length > 0)
+  const nonLiteralCases = cases.filter(c =>
+    AXES.some(axis => c.actual[axis].nonLiteralSupportingEvidenceCount > 0))
+  const countCategories = (values: string[]) => Object.fromEntries(
+    [...new Set(values)].sort().map(value => [value, values.filter(v => v === value).length]))
+  const blockingReasonCounts = countCategories(cases.flatMap(c => c.blockingReasons))
+  const evidenceSufficiencyCounts = countCategories(cases.map(c => c.evidenceSufficiency))
+  const escapePointStatusCounts = countCategories(cases.map(c => c.escapePointStatus))
   const perAxis = Object.fromEntries(AXES.map(axis => [axis, {
     proposed: cases.filter(c => c.actual[axis].code !== null).length,
     unresolvedOrNotCoded: cases.filter(c => c.actual[axis].code === null).length,
@@ -117,7 +152,19 @@ export function createDevelopmentCalibrationReport() {
       perAxis,
       unscoredAdditionalCodeCases: unscoredCodeCases.length,
       unscoredAdditionalCodes: unscoredCodeCases.reduce((sum, c) => sum + c.extraUnscoredCodes.length, 0),
+      nonLiteralSupportingEvidenceCount: cases.reduce((sum, c) =>
+        sum + AXES.reduce((byAxis, axis) => byAxis + c.actual[axis].nonLiteralSupportingEvidenceCount, 0), 0),
+      casesWithNonLiteralEvidence: nonLiteralCases.length,
+      evidenceSufficiencyCounts,
+      escapePointStatusCounts,
+      blockingReasonCounts,
+      casesWithClarificationQuestions: cases.filter(c => c.clarificationQuestions.length > 0).length,
       criticalGuardrailsPass: cases.every(c => Object.values(c.guardrails).every(Boolean)),
+    },
+    textProvenanceScreen: {
+      mode: 'EXACT_SUBSTRING_AFTER_WHITESPACE_AND_CASE_NORMALIZATION',
+      countsDoNotImplyError: true,
+      note: 'Nonliteral wording may be inferred/generated by the engine. Require source-backed human review, not automatic rejection.',
     },
     mismatchingCaseIds: mismatch.map(c => c.caseId),
     pendingHumanReview: unscoredCodeCases.map(c => ({
@@ -132,27 +179,42 @@ export function createDevelopmentCalibrationReport() {
 
 function runCommand() {
   const args = process.argv.slice(2)
-  const outIdx = args.indexOf('--out')
-  if (args.length && (outIdx < 0 || args.length !== 2 || !args[outIdx + 1])) {
-    throw new Error('Use: tsx tests/sera-vnext/dev-calibration-workbench.ts [--out /tmp/report.json]')
+  const paths = new Map<string, string>()
+  for (let i = 0; i < args.length; i += 2) {
+    const key = args[i]
+    const output = args[i + 1]
+    if ((key !== '--out' && key !== '--html') || !output || paths.has(key)) {
+      throw new Error('Use: tsx dev-calibration-workbench.ts [--out /tmp/report.json] [--html /tmp/report.html]')
+    }
+    paths.set(key, path.resolve(output))
+  }
+  const repo = path.resolve(__dirname, '../..') + path.sep
+  for (const [key, output] of paths) {
+    const ext = key === '--html' ? '.html' : '.json'
+    if (output.startsWith(repo) || !output.endsWith(ext) || existsSync(output)) {
+      throw new Error('REPORT_OUTPUT_NOT_SAFE_OR_ALREADY_EXISTS')
+    }
   }
   const report = createDevelopmentCalibrationReport()
-  if (outIdx !== -1) {
-    const out = path.resolve(args[outIdx + 1])
-    const repo = path.resolve(__dirname, '../..') + path.sep
-    if (out.startsWith(repo) || !out.endsWith('.json')) throw new Error('REPORT_OUTPUT_MUST_BE_JSON_OUTSIDE_REPOSITORY')
-    mkdirSync(path.dirname(out), { recursive: true })
-    writeFileSync(out, JSON.stringify(report, null, 2) + '\n', { flag: 'wx', mode: 0o600 })
+  for (const [key, output] of paths) {
+    mkdirSync(path.dirname(output), { recursive: true })
+    const contents = key === '--html'
+      ? renderDevelopmentCalibrationHtml(report)
+      : JSON.stringify(report, null, 2) + '\n'
+    writeFileSync(output, contents, { flag: 'wx', mode: 0o600 })
   }
   console.log(JSON.stringify({
     schemaVersion: report.schemaVersion, total: report.metrics.total,
     matching: report.metrics.match, mismatches: report.metrics.mismatch,
     additionalUnscoredCodeCases: report.metrics.unscoredAdditionalCodeCases,
     additionalUnscoredCodes: report.metrics.unscoredAdditionalCodes,
+    nonLiteralSupportingEvidenceCount: report.metrics.nonLiteralSupportingEvidenceCount,
+    casesWithNonLiteralEvidence: report.metrics.casesWithNonLiteralEvidence,
+    evidenceSufficiencyCounts: report.metrics.evidenceSufficiencyCounts,
     guardrailsPass: report.metrics.criticalGuardrailsPass,
     scientificValidation: report.scientificValidation,
     methodologicalGate: report.methodologicalGate,
-    output: outIdx !== -1 ? path.resolve(args[outIdx + 1]) : 'NONE',
+    outputs: Object.fromEntries(paths),
   }, null, 2))
   if (report.metrics.mismatch || !report.metrics.criticalGuardrailsPass) process.exitCode = 1
 }
