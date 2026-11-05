@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { handleSeraVNextCandidateRequest } from "../../../frontend/src/app/api/admin/sera-vnext/candidate/route";
+import { handleSeraVNextCandidateRequest } from "../../../frontend/src/app/api/admin/sera-vnext/candidate/handler";
 import { analyzeSeraVNext } from "../../../frontend/src/lib/sera-vnext";
 import type { SeraVNextResult } from "../../../frontend/src/lib/sera-vnext/types";
 import {

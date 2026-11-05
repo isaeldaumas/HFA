@@ -143,6 +143,8 @@ for (const hit of importHits) {
         isAllowedSeraVNextProtectedApiPath(rootDir, "frontend/src/app/api/analyze/route.ts")) ||
       (hit.startsWith("frontend/src/app/api/admin/sera-vnext/status/route.ts:") && existsSync(a4r221IntegrationAuthorized)) ||
       (hit.startsWith("frontend/src/app/api/admin/sera-vnext/candidate/route.ts:") && existsSync(a4r225CandidateAuthorized)) ||
+      (hit.startsWith("frontend/src/app/api/admin/sera-vnext/status/handler.ts:") && existsSync(a4r221IntegrationAuthorized)) ||
+      (hit.startsWith("frontend/src/app/api/admin/sera-vnext/candidate/handler.ts:") && existsSync(a4r225CandidateAuthorized)) ||
       (hit.startsWith("frontend/src/app/(dashboard)/admin/sera-vnext/page.tsx:") && existsSync(a4r221IntegrationAuthorized)) ||
       hit.startsWith("frontend/src/lib/sera-vnext-runtime/"),
     `runtime module imported outside allowed scope: ${hit}`,
@@ -184,6 +186,8 @@ for (const file of changed) {
     assert.ok(
       file === "frontend/src/app/api/admin/sera-vnext/status/route.ts" ||
         file === "frontend/src/app/api/admin/sera-vnext/candidate/route.ts" ||
+        file === "frontend/src/app/api/admin/sera-vnext/status/handler.ts" ||
+        file === "frontend/src/app/api/admin/sera-vnext/candidate/handler.ts" ||
         isAllowedSeraVNextProtectedApiPath(rootDir, file),
       `unexpected API protected path changed: ${file}`,
     );

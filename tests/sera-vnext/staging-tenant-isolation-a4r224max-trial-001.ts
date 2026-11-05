@@ -1,6 +1,6 @@
 import { assertSafeTestEnvironment } from './helpers/assert-safe-test-environment'
 import assert from "node:assert/strict";
-import { handleSeraVNextStatusRequest } from "../../frontend/src/app/api/admin/sera-vnext/status/route";
+import { handleSeraVNextStatusRequest } from "../../frontend/src/app/api/admin/sera-vnext/status/handler";
 import { getSeraVNextRuntimeStatus } from "../../frontend/src/lib/sera-vnext-runtime/runtime-service";
 import type { ApiUserContext } from "../../frontend/src/lib/server/api-auth";
 
