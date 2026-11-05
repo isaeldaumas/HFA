@@ -24,7 +24,12 @@ export default function AcceptInvitePage() {
     })
     void supabase.auth.getSession().then(({ data, error: sessionError }) => {
       if (!active) return
-      if (!sessionError && data.session?.user?.email_confirmed_at) setEligible(true)
+      if (!sessionError && data.session?.user?.email_confirmed_at) {
+        setEligible(true)
+        // The Auth client has consumed the invitation callback. Avoid keeping
+        // any access token fragment in browser history.
+        if (window.location.hash) window.history.replaceState(null, '', window.location.pathname)
+      }
     }).catch(() => {
       if (active) setError('Não foi possível validar a sessão.')
     }).finally(() => {
@@ -56,8 +61,12 @@ export default function AcceptInvitePage() {
       setEligible(false)
       setPassword('')
       setRepeat('')
-      try { await supabase.auth.signOut({ scope: 'local' }) }
-      catch { setError('Senha definida. Por segurança, encerre a sessão antes de entrar novamente.') }
+      try {
+        const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' })
+        if (signOutError) setError('Senha definida. Por segurança, encerre a sessão antes de entrar novamente.')
+      } catch {
+        setError('Senha definida. Por segurança, encerre a sessão antes de entrar novamente.')
+      }
     } catch {
       setError('Não foi possível definir a senha.')
     } finally {

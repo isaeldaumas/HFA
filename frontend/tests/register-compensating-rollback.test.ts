@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test, { after } from 'node:test'
+import { readFileSync } from 'node:fs'
 import { handleRegisterRequest } from '../src/lib/server/register-handler'
 
 type Flags = {
@@ -303,6 +304,20 @@ test('successful signup only acknowledges after public users insert', async () =
     assert.ok(result.calls.includes('auth.inviteUserByEmail'))
     assert.ok(!result.calls.includes('auth.createUser'))
   })
+
+test('invitation form never collects password and verifies email before allowing account activation', () => {
+  const registration = readFileSync(new URL('../src/app/(auth)/register/page.tsx', import.meta.url), 'utf8')
+  const acceptance = readFileSync(new URL('../src/app/(auth)/accept-invite/page.tsx', import.meta.url), 'utf8')
+  const handler = readFileSync(new URL('../src/lib/server/register-handler.ts', import.meta.url), 'utf8')
+  assert.equal(registration.includes('name="password"'), false)
+  assert.equal(registration.includes('signInWithPassword'), false)
+  assert.equal(handler.includes('email_confirm: true'), false)
+  assert.equal(handler.includes('admin.auth.admin.deleteUser'), false)
+  assert.match(handler, /inviteUserByEmail\(email/)
+  assert.match(acceptance, /email_confirmed_at/)
+  assert.match(acceptance, /supabase.auth.updateUser\(\{ password \}\)/)
+  assert.match(acceptance, /signOutError/)
+})
 
 // Reset process when test runner finishes; isolated CI process.
 after(() => {
