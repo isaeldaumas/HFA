@@ -103,3 +103,7 @@ Resultados da rodada de baseline executada nesta worktree (ainda sujeitos ao CI)
 Comando: ./frontend/node_modules/.bin/tsx tests/sera-vnext/dev-calibration-workbench.ts --out /tmp/calibracao-v19.json --html /tmp/calibracao-v19.html
 
 Complemento diagnóstico CAL-07: o teste de 7 variantes derivadas de caso sintético exposto mostra que o O-A é sensível à expressão textual "finally called for the go-around", mas não à expressão neutra "later called for a go-around". O motor não foi modificado. Runner: tests/sera-vnext/dev-calibration-cal07-contrast-trial-001.ts. Requer adjudicação da evidência de intenção no ponto de fuga; detalhes em CALIBRATION_V19_TEMPORAL_PROVENANCE_20261105.md.
+
+## Atualização v20 — fila de revisão sem pontuação de risco
+
+A bancada v20 agora produz uma fila com três prioridades (P1/P2/P3) para organizar casos de desenvolvimento com base nas evidências existentes: 1 caso para adjudicação metodológica, 7 para proveniência/temporalidade e 16 para lacunas de evidência. Não atribui risco nem julga correção metodológica. O HTML dispõe de links internos por caso. Detalhes: docs/hfa-backlog/CALIBRATION_V20_REVIEW_QUEUE_20261105.md.

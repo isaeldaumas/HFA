@@ -254,6 +254,43 @@ export function createDevelopmentCalibrationReport() {
     proposed: cases.filter(c => c.actual[axis].code !== null).length,
     unresolvedOrNotCoded: cases.filter(c => c.actual[axis].code === null).length,
   }]))
+  // Review priority is a WORKFLOW ORDER, never a numeric probability of wrong
+  // classification. Every item remains provisional and demands adjudication.
+  const reviewQueue = cases.map(c => {
+    const changedAxes = c.postAnchorAblation?.changedAxes ?? []
+    const laterSupport = AXES.reduce((sum, axis) => sum +
+      c.sourceAudit[axis].filter(item => item.laterInTextThanAnchor).length, 0)
+    const derivedSupport = AXES.reduce((sum, axis) => sum +
+      c.sourceAudit[axis].filter(item => !item.exactEvidenceRecordMatch).length, 0)
+    const reasons = [
+      ...(changedAxes.length ? ['POST_ANCHOR_CONTEXT_SENSITIVITY'] : []),
+      ...(c.extraUnscoredCodes.length ? ['ADDITIONAL_CODE_WITHOUT_AXIS_ORACLE'] : []),
+      ...(laterSupport ? ['POST_ANCHOR_TEXTUAL_SUPPORT_REVIEW'] : []),
+      ...(derivedSupport ? ['DERIVED_SUPPORT_WITHOUT_DIRECT_EVIDENCE_LINK'] : []),
+      ...(c.escapePointStatus === 'INSUFFICIENT_EVIDENCE' ? ['ESCAPE_POINT_NOT_ESTABLISHED'] : []),
+      ...(c.evidenceSufficiency === 'NEEDS_CLARIFICATION' ? ['EVIDENCE_CLARIFICATION_REQUIRED'] : []),
+    ]
+    const tier = changedAxes.length || c.extraUnscoredCodes.length
+      ? 'P1_METHODOLOGICAL_ADJUDICATION'
+      : laterSupport || derivedSupport
+        ? 'P2_PROVENANCE_AND_TEMPORALITY_REVIEW'
+        : 'P3_EVIDENCE_GAPS_REVIEW'
+    return {
+      caseId: c.caseId,
+      tier,
+      reasons,
+      axesWithUnscoredCode: c.extraUnscoredCodes.map(item => item.axis),
+      axesSensitiveToLaterText: changedAxes,
+      laterSourceSupportCount: laterSupport,
+      derivedSupportCount: derivedSupport,
+      clarificationQuestionCount: c.clarificationQuestions.length,
+      scientificInterpretation: 'NO_VERDICT_DEVELOPMENT_TRIAGE_ONLY',
+    }
+  }).sort((a,b) => {
+    const tiers = ['P1_METHODOLOGICAL_ADJUDICATION', 'P2_PROVENANCE_AND_TEMPORALITY_REVIEW', 'P3_EVIDENCE_GAPS_REVIEW']
+    return tiers.indexOf(a.tier) - tiers.indexOf(b.tier) || a.caseId.localeCompare(b.caseId)
+  })
+  const reviewQueueTierCounts = countCategories(reviewQueue.map(q => q.tier))
   return {
     schemaVersion: 'HFA_DEV_CALIBRATION_READONLY_V1',
     baseCorpus: 'V03_DEVELOPMENT_EXPOSED_CAL_AND_VAL_ONLY',
@@ -285,6 +322,15 @@ export function createDevelopmentCalibrationReport() {
       blockingReasonCounts,
       casesWithClarificationQuestions: cases.filter(c => c.clarificationQuestions.length > 0).length,
       criticalGuardrailsPass: cases.every(c => Object.values(c.guardrails).every(Boolean)),
+      reviewQueueTierCounts,
+    },
+    reviewQueue,
+    reviewQueuePolicy: {
+      classification: 'NON_SCIENTIFIC_DEV_REVIEW_ORDER_ONLY',
+      rankingIsNotErrorProbability: true,
+      noAutomaticChanges: true,
+      noLabelChanges: true,
+      noDataFromSealedHoldout: true,
     },
     textProvenanceScreen: {
       mode: 'EXACT_SUBSTRING_AFTER_WHITESPACE_AND_CASE_NORMALIZATION',
@@ -369,6 +415,7 @@ function runCommand() {
     explicitlyPostEscapeItems: report.metrics.explicitlyPostEscapeSupportingItems,
     ablationsRun: report.metrics.postAnchorAblationsRun,
     ablationsWithChangedCodes: report.metrics.postAnchorAblationChangedCases,
+    reviewQueueTierCounts: report.metrics.reviewQueueTierCounts,
     guardrailsPass: report.metrics.criticalGuardrailsPass,
     scientificValidation: report.scientificValidation,
     methodologicalGate: report.methodologicalGate,

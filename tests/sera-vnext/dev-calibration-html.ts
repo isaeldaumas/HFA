@@ -67,7 +67,7 @@ export function renderDevelopmentCalibrationHtml(report: Report): string {
         '. Não aceitar ou rejeitar sem referência independente por eixo.</p>'
       : ''
     return [
-      '<details class="case"' + (extra ? ' open' : '') + '>',
+      '<details class="case" id="case-' + escapeDevelopmentHtml(c.caseId) + '"' + (extra ? ' open' : '') + '>',
       '<summary><span><b>' + heading + '</b><small>Expectativa V03: ' +
        escapeDevelopmentHtml(JSON.stringify(c.expected)) + '</small></span><span class="' +
        (extra ? 'needs' : c.outcome === 'MATCH' ? 'ok' : 'needs') + '">' +
@@ -114,6 +114,17 @@ export function renderDevelopmentCalibrationHtml(report: Report): string {
         escapeDevelopmentHtml(c.extraUnscoredCodes.map(x => x.axis + '=' + x.code).join(', ')) +
         ' — revisar separadamente, sem alterar a expectativa original.</li>').join('')
     : '<li>Sem códigos adicionais detectados nesta execução; validação humana continua pendente.</li>'
+  const priorityName: Record<string,string> = {
+    P1_METHODOLOGICAL_ADJUDICATION: 'P1 · Adjudicação metodológica',
+    P2_PROVENANCE_AND_TEMPORALITY_REVIEW: 'P2 · Origem e temporalidade',
+    P3_EVIDENCE_GAPS_REVIEW: 'P3 · Lacunas de evidência',
+  }
+  const reviewRows = report.reviewQueue.map(item =>
+    '<li><a href="#case-' + escapeDevelopmentHtml(item.caseId) + '"><b>' +
+    escapeDevelopmentHtml(item.caseId) + '</b></a> — ' +
+    escapeDevelopmentHtml(priorityName[item.tier] ?? item.tier) +
+    ' · ' + escapeDevelopmentHtml(item.reasons.join(' · ')) +
+    '</li>').join('')
   const css = [
     ':root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}',
     'body{margin:0;background:#0b1220;color:#e9edf5;line-height:1.5}',
@@ -134,6 +145,8 @@ export function renderDevelopmentCalibrationHtml(report: Report): string {
     '.axis ul{padding-left:18px;margin:4px 0}.axis li{font-size:.83rem;margin-bottom:4px}',
     '.followup{margin-top:16px;padding:12px 16px;background:#182235;border:1px solid #425371;border-radius:9px}',
     '.followup ol{padding-left:22px}.followup li{padding:3px 0;font-size:.87rem}',
+    '.queue{padding:16px 20px;background:#16253a;border:1px solid #44556f;border-radius:12px;margin:16px 0}',
+    '.queue ol{padding-left:22px}.queue li{font-size:.84rem;padding:4px 0;overflow-wrap:anywhere}',
     'code{overflow-wrap:anywhere}.method{padding:14px 18px;border-left:3px solid #7e9ccd;background:#15243a;margin:20px 0}',
     'a{color:#9ac9ff} @media(max-width:850px){.axis-grid{grid-template-columns:1fr}}',
     '@media print{body{background:white;color:#111}.hero,.case,.axis,.metric,.method{color:#111;background:white}.muted{color:#555}.case summary small{color:#555}}',
@@ -169,6 +182,12 @@ export function renderDevelopmentCalibrationHtml(report: Report): string {
     '<p class="muted small">A ordem das frases no documento NÃO equivale automaticamente à sequência temporal. Exige-se comparação com o conteúdo e o ponto de fuga antes de identificar contaminação causal.</p>',
     '<p class="muted small">Os excertos exibidos foram extraídos de casos sintéticos. Esta tela mostra propostas do motor e, portanto, NÃO serve como instrumento de avaliação cega V04.</p>',
     '</section>',
+    '<section class="queue"><h2>Fila de revisão técnica (sem veredito)</h2>',
+    '<p class="muted small">P1 prioriza ausência de julgamento por eixo ou sensibilidade da saída; P2 prioriza rastreabilidade e temporalidade; P3 trata lacunas documentais. Não é avaliação de risco nem estimativa de erro.</p>',
+    '<p class="muted small">Distribuição: ' +
+      escapeDevelopmentHtml(Object.entries(report.metrics.reviewQueueTierCounts)
+        .map(([tier,count]) => (priorityName[tier] ?? tier) + ': ' + count).join(' · ')) + '</p>',
+    '<ol>' + reviewRows + '</ol></section>',
     '<h2>Casos e caminhos de decisão</h2>',
     '<p class="muted small">Abra cada caso para inspecionar P/O/A, evidências e caminhos. A expectativa V03 pode cobrir apenas um dos três eixos.</p>',
     rows,
