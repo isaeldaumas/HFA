@@ -82,6 +82,7 @@ export default function LoginPage() {
               className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 py-3 rounded-lg font-medium transition">
               {loading ? 'Entrando...' : 'Entrar com Email'}
             </button>
+            <Link href="/forgot-password" className="block text-right text-blue-400 text-sm hover:underline">Esqueci minha senha</Link>
           </form>
 
           <p className="text-center text-slate-400 text-sm">
