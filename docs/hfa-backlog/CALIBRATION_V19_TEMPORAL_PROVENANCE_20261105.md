@@ -80,3 +80,15 @@ Todas as variantes permaneceram com escapePoint.status=CANDIDATE e outputs finai
 A diferença entre "finally called for the go-around" e "later called for a go-around" com a mesma sequência anterior sugere sensibilidade textual/lexical específica da regra atual. Isso é **evidência de fragilidade de generalização candidata**, não prova de que O-A seja necessariamente errado. Sem adjudicação do estado objetivo do PF no ponto de fuga, NÃO criar teste que force o motor a manter O-A em produção.
 
 O runner trava os bloqueios de publicação e apenas emite observações; não compara resultados com um novo oráculo autoral inventado. Mudanças futuras devem ser avaliadas por evidência e pela matriz canônica, não pela preservação de outputs observados.
+
+## Localização técnica da sensibilidade
+
+Inspeção de código sem alteração do runtime:
+
+- frontend/src/lib/sera-vnext/canonical-tree/evaluate-node.ts, função decideO, ramo O_ROOT (região das linhas 627–651): intendedGoal aceita expressões equivalentes a "called for ... go-around" quando o item entra em statements elegíveis.
+- No mesmo arquivo, função conciseRootResponse, ramo O (região das linhas 350–360): a expressão "called for ... go-around" é apresentada como "The operator intended to execute a go-around.".
+- A conversão é textual e não preserva, na frase resumida, a distinção entre chamada posterior e objetivo no primeiro ponto de fuga. O caso CAL-07 mostra o efeito: a variante "finally called for" produz O-A, enquanto "later called for" não produz.
+
+Esse é o mecanismo técnico **observado** na execução determinística. Sua admissibilidade como inferência sobre objetivo no ponto de fuga deve ser determinada pela metodologia, não pela simples presença de palavras-chave.
+
+Não executar correção ad hoc da expressão regular e não substituir a decisão autoral por um novo label de teste; qualquer patch futuro precisa de critérios de elegibilidade temporal, proveniência, ator do ponto de fuga e cobertura cruzada com outros exemplos de desenvolvimento.
