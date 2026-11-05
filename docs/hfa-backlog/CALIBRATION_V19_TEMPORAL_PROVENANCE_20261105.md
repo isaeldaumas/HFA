@@ -58,3 +58,25 @@ A-F x A-H também permanece não resolvido: a narrativa enfatiza atraso/omissão
 - V04 selado não executado; campanha selada atual não corresponde à árvore do runtime.
 - Relatório HTML exibe códigos do motor e não é instrumento de revisão cega.
 - Gate permanece ENGINE_NATURALISTIC_VALIDATION_NOT_READY.
+
+## Contrastes sintéticos controlados CAL-07 (segunda rodada)
+
+Runner reproduzível: tests/sera-vnext/dev-calibration-cal07-contrast-trial-001.ts.
+
+O relato até a frase da primeira não-arremetida do PF permanece idêntico em todas as variantes. Varia somente a frase acrescentada depois. Não são casos de validação independentes: todos derivam de um caso já exposto ao desenvolvimento.
+
+| Variante | Modificação após o ponto de fuga | Resultado O | Resultado A |
+|---|---|---|---|
+| FULL_ORIGINAL | Narrativa sintética integral | O-A | A-F |
+| PREFIX_TO_ANCHOR | Removidos todos os fatos textuais posteriores | sem código | A-F |
+| LATER_GO_AROUND_ONLY | Adicionada informação que o comandante FINALMENTE chamou a arremetida | O-A | A-F |
+| LATER_OUTCOME_ONLY | Adicionada somente consequência/dano após o evento | sem código | A-F |
+| LATER_GO_AROUND_NEUTRAL | Adicionada informação neutra de que houve chamada de arremetida depois | sem código | A-F |
+| LATER_INTENDED_GO_AROUND | Adicionada frase explicando intenção posterior e atraso | sem código | A-F |
+| LATER_PM_TESTIMONY | Adicionado depoimento posterior do PM sobre a intenção do comandante | sem código | A-F |
+
+Todas as variantes permaneceram com escapePoint.status=CANDIDATE e outputs finais bloqueados.
+
+A diferença entre "finally called for the go-around" e "later called for a go-around" com a mesma sequência anterior sugere sensibilidade textual/lexical específica da regra atual. Isso é **evidência de fragilidade de generalização candidata**, não prova de que O-A seja necessariamente errado. Sem adjudicação do estado objetivo do PF no ponto de fuga, NÃO criar teste que force o motor a manter O-A em produção.
+
+O runner trava os bloqueios de publicação e apenas emite observações; não compara resultados com um novo oráculo autoral inventado. Mudanças futuras devem ser avaliadas por evidência e pela matriz canônica, não pela preservação de outputs observados.

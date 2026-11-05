@@ -101,3 +101,5 @@ Resultados da rodada de baseline executada nesta worktree (ainda sujeitos ao CI)
 - Documentação: docs/hfa-backlog/CALIBRATION_V19_TEMPORAL_PROVENANCE_20261105.md.
 
 Comando: ./frontend/node_modules/.bin/tsx tests/sera-vnext/dev-calibration-workbench.ts --out /tmp/calibracao-v19.json --html /tmp/calibracao-v19.html
+
+Complemento diagnóstico CAL-07: o teste de 7 variantes derivadas de caso sintético exposto mostra que o O-A é sensível à expressão textual "finally called for the go-around", mas não à expressão neutra "later called for a go-around". O motor não foi modificado. Runner: tests/sera-vnext/dev-calibration-cal07-contrast-trial-001.ts. Requer adjudicação da evidência de intenção no ponto de fuga; detalhes em CALIBRATION_V19_TEMPORAL_PROVENANCE_20261105.md.
