@@ -5,6 +5,7 @@ import { withOptionalUserAiSettings } from '@/lib/server/user-ai-settings'
 import { selectMultipartFiles } from '@/lib/gemini-multifile-form'
 import {
   prepareValidatedSourceFiles,
+  assertStorageBucketSupportsSourceFiles,
   persistUploadedSourceFiles,
   UploadValidationError,
   type PreparedSourceFile,
@@ -201,11 +202,13 @@ export async function POST(req: Request) {
     // Validate all attachments before any event, credit or engine side effect.
     try {
       preparedSourceFiles = await prepareValidatedSourceFiles(sourceFiles)
+      await assertStorageBucketSupportsSourceFiles(admin, preparedSourceFiles)
     } catch (validationError) {
       if (validationError instanceof UploadValidationError) {
         return NextResponse.json({
           code: validationError.code, detail: validationError.message,
-        }, { status: 400, headers: { 'x-request-id': requestId } })
+        }, { status: validationError.status,
+          headers: { 'x-request-id': requestId, 'Cache-Control': 'no-store' } })
       }
       throw validationError
     }

@@ -28,6 +28,10 @@ const testSuites = [
     name: 'V27 persistência real isolada de anexos (sem rede)',
     file: join(DIR, 'v27-attachment-persistence.test.ts'),
   },
+  {
+    name: 'V29 preflight MIME do Storage e script staging API seguro',
+    file: join(DIR, 'v29-storage-preflight.test.ts'),
+  },
 ]
 
 console.log('===============================================================')
@@ -58,6 +62,6 @@ if (anyFailed) {
   console.error('RESULTADO: FALHA EM UMA OU MAIS SUÍTES')
   process.exit(1)
 } else {
-  console.log('RESULTADO GERAL: TODAS AS 4 SUÍTES PASSARAM COM SUCESSO')
+  console.log('RESULTADO GERAL: TODAS AS 5 SUÍTES PASSARAM COM SUCESSO')
   console.log('===============================================================')
 }

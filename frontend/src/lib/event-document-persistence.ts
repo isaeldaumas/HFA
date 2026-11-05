@@ -16,10 +16,60 @@ import {
 type SupabaseAdmin = ReturnType<typeof getSupabaseAdmin>
 
 export class UploadValidationError extends Error {
-  readonly status = 400
-  constructor(readonly code: string, detail: string) {
+  constructor(
+    readonly code: string,
+    detail: string,
+    readonly status: 400 | 415 | 503 = 400,
+  ) {
     super(detail)
     this.name = 'UploadValidationError'
+  }
+}
+
+/** The only MIME types the protected HFA document pipeline supports. */
+export const HFA_DOCUMENT_BUCKET_MIME_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+] as const
+export const HFA_DOCUMENT_BUCKET_ID = 'analysis-documents'
+export const HFA_DOCUMENT_BUCKET_LIMIT = MAX_SINGLE_FILE_BYTES
+export const HFA_DOCUMENT_BUCKET_INITIAL_MIME_TYPES = HFA_DOCUMENT_BUCKET_MIME_TYPES.slice(0, 2)
+
+/** Check provider settings, not only the file's magic bytes, before creating an event. */
+export function checkDocumentBucketPolicy(bucket: {
+  public: boolean
+  file_size_limit?: number
+  allowed_mime_types?: string[] | null
+}, requiredMimeTypes: readonly string[]): void {
+  if (bucket.public !== false ||
+      bucket.file_size_limit !== HFA_DOCUMENT_BUCKET_LIMIT ||
+      !Array.isArray(bucket.allowed_mime_types) ||
+      bucket.allowed_mime_types.length === 0) {
+    throw new UploadValidationError(
+      'STORAGE_BUCKET_POLICY_UNVERIFIED',
+      'Configuração de armazenamento não verificada; nenhum evento foi criado.',
+      503,
+    )
+  }
+  const approved = new Set<string>(HFA_DOCUMENT_BUCKET_MIME_TYPES)
+  const configured = bucket.allowed_mime_types
+  if (configured.some((mime) => !approved.has(mime))) {
+    throw new UploadValidationError(
+      'STORAGE_BUCKET_POLICY_UNVERIFIED',
+      'Configuração de armazenamento não verificada; nenhum evento foi criado.',
+      503,
+    )
+  }
+  if (requiredMimeTypes.some((mime) => !configured.includes(mime))) {
+    throw new UploadValidationError(
+      'STORAGE_MIME_NOT_ENABLED',
+      'Um dos formatos ainda não está habilitado no armazenamento. Nenhum evento foi criado.',
+      415,
+    )
   }
 }
 
@@ -67,6 +117,33 @@ export async function prepareValidatedSourceFiles(files: readonly File[]): Promi
     })
   }
   return prepared
+}
+
+/** Read actual Supabase bucket policy before insertion, credit debit or LLM use. */
+export async function assertStorageBucketSupportsSourceFiles(
+  admin: SupabaseAdmin,
+  files: readonly PreparedSourceFile[],
+): Promise<void> {
+  if (files.length === 0) return
+  let bucket: Awaited<ReturnType<typeof admin.storage.getBucket>>
+  try {
+    bucket = await admin.storage.getBucket(HFA_DOCUMENT_BUCKET_ID)
+  } catch {
+    throw new UploadValidationError(
+      'STORAGE_BUCKET_UNAVAILABLE',
+      'Não foi possível validar o armazenamento. Nenhum evento foi criado.',
+      503,
+    )
+  }
+  if (bucket.error || !bucket.data) {
+    throw new UploadValidationError(
+      'STORAGE_BUCKET_UNAVAILABLE',
+      'Não foi possível validar o armazenamento. Nenhum evento foi criado.',
+      503,
+    )
+  }
+  checkDocumentBucketPolicy(bucket.data, files.map((file) =>
+    file.security.canonicalMime.split(';')[0].trim()))
 }
 
 export interface DocumentPersistenceFailure {

@@ -223,23 +223,19 @@ test('invalid or forged auth ID cannot pick another Storage RLS folder', async (
   assert.equal(m.inserted.length, 0)
 })
 
-test('storage bucket MIME migration is additive, private and has drift guards', async () => {
+test('legacy SQL mutation migration is retired in favor of Storage API', async () => {
   const { readFileSync, readdirSync } = await import('node:fs')
   const { resolve, join } = await import('node:path')
   const folder = resolve(__dirname, '../../../supabase/migrations')
-  const file = readdirSync(folder).find(name => name.endsWith('_hfa_multifile_analysis_documents_mime.sql'))
-  assert.ok(file)
-  const sql = readFileSync(join(folder, file), 'utf8')
-  for (const mime of [
-    'application/pdf',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'text/plain', 'image/jpeg', 'image/png', 'image/webp',
-  ]) {
-    assert.ok(sql.includes(mime), 'Missing MIME: ' + mime)
-  }
-  assert.match(sql, /HFA_MULTIFILE_BUCKET_NOT_PRIVATE/)
-  assert.match(sql, /HFA_MULTIFILE_BUCKET_MIMES_DRIFT/)
-  assert.match(sql, /file_size_limit/)
-  assert.match(sql, /UPDATE storage\.buckets/)
-  assert.doesNotMatch(sql, /CREATE POLICY|DROP POLICY|SET\s+public\s*=\s*true/i)
+  assert.equal(
+    readdirSync(folder).some(name => name.endsWith('_hfa_multifile_analysis_documents_mime.sql')),
+    false,
+    'Storage metadata should be changed using the documented Storage API, not SQL',
+  )
+  const script = readFileSync(
+    join(__dirname, '../../../frontend/scripts/hfa-storage-mime-staging.ts'), 'utf8')
+  assert.match(script, /storage\.updateBucket\(/)
+  assert.match(script, /STAGING_STORAGE_SEPARATE_WRITE_APPROVAL_REQUIRED/)
+  assert.match(script, /STAGING_STORAGE_PROJECT_VERIFICATION_FAILED/)
+  assert.match(script, /HFA_DOCUMENT_BUCKET_MIME_TYPES/)
 })

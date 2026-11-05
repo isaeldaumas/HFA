@@ -68,3 +68,7 @@ O log local de execução está em /private/tmp/hfa-v27-sera-manifest-postcommit
 3. Usar dois usuários sintéticos distintos, incluindo um com public.users.id diferente de auth.users.id: testar upload de PDF/DOCX/TXT/PNG/JPEG/WebP, download autorizado, acesso cruzado negado, exclusão e reprocessamento.
 4. Testar erro de insert depois de upload, rollback e compensação falha com logs de operação, sem gerar evento duplicado.
 5. Executar todos os gates de CI, revisar mudanças no executor SERA e obter as autorizações independentes para GitHub e produção.
+
+## Atualização V29 (05/11/2026) — correção da estratégia de Storage
+
+O arquivo de migração SQL 20261105185907_hfa_multifile_analysis_documents_mime.sql descrito acima foi retirado da branch de integração antes de qualquer push ou aplicação. A documentação oficial atual do Supabase recomenda tratar o schema storage como metadados de leitura e configurar o bucket por meio da API Storage; a versão V29 substitui a atualização direta por um utilitário storage.updateBucket protegido, com alvo de staging explícito, pré-verificação e leitura posterior. O histórico V27 permanece aqui para transparência, mas a migração SQL não deve ser recuperada nem aplicada.

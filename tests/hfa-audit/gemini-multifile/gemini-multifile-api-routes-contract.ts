@@ -93,9 +93,10 @@ function runAudit() {
   )
   check(
     eventsCode.includes('prepareValidatedSourceFiles(sourceFiles)') &&
-      eventsCode.indexOf('prepareValidatedSourceFiles(sourceFiles)') <
+      eventsCode.includes('assertStorageBucketSupportsSourceFiles(admin, preparedSourceFiles)') &&
+      eventsCode.indexOf('assertStorageBucketSupportsSourceFiles(admin, preparedSourceFiles)') <
         eventsCode.indexOf("stage = 'insert-event'"),
-    'events: valida arquivos antes de criar evento'
+    'events: valida arquivos e capacidade real do bucket antes de criar evento'
   )
   check(
     eventsCode.includes('persistUploadedSourceFiles') &&
