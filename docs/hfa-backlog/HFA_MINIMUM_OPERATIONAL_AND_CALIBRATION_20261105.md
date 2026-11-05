@@ -22,7 +22,7 @@ Comando no diretório raiz, após instalar as dependências do frontend:
     ./frontend/node_modules/.bin/tsx tests/sera-vnext/dev-calibration-workbench.ts --out /tmp/hfa-dev-calibration.json
     ./frontend/node_modules/.bin/tsx tests/sera-vnext/dev-calibration-workbench-trial-001.ts
 
-- A ferramenta lê somente 24 narrativas sintéticas do corpus V03-CAL/V03-VAL, que já eram expostas ao desenvolvimento; não lê V03-HLD nem fontes V04 seladas.
+- A ferramenta executa somente 24 narrativas sintéticas do corpus V03-CAL/V03-VAL, que já eram expostas ao desenvolvimento; não executa V03-HLD nem acessa fontes V04 seladas.
 - Cada execução roda o motor candidato local e determinístico, com allowLlm=false e revisão humana requerida. Não efetua rede, login, migrations, escrita no banco nem alteração de flags.
 - Resultados por caso: hash SHA-256 da narrativa, P/O/A individual, status, confiança, contagens de evidência e contraindicação, eventual evidência pós-ponto-de-fuga, expectativa original e divergências.
 - Os relatórios são gravados exclusivamente fora da árvore versionada, com permissão 0600, sem texto integral das narrativas.

@@ -66,9 +66,16 @@ export function evaluateDevelopmentCase(c: EngineV03ValidationCase) {
     evidenceCount: o.axes[axis].supportingEvidence.length,
     counterEvidenceCount: o.axes[axis].counterEvidence.length,
     excludedPostEscapeCount: o.axes[axis].excludedPostEscapeEvidence.length,
+    // Synthetic-only excerpts: reviewer can see why a candidate was proposed,
+    // without logging whole case narratives or changing a source of truth.
+    supportingEvidenceExcerpts: o.axes[axis].supportingEvidence.slice(0, 4),
+    counterEvidenceExcerpts: o.axes[axis].counterEvidence.slice(0, 4),
+    canonicalPath: o.axes[axis].canonicalPath,
   }])) as Record<Axis, {
     code: string | null; status: string; confidence: string;
     evidenceCount: number; counterEvidenceCount: number; excludedPostEscapeCount: number;
+    supportingEvidenceExcerpts: string[]; counterEvidenceExcerpts: string[];
+    canonicalPath: string[];
   }>
   return {
     caseId: c.caseId, cohort: c.group, locale: c.locale,

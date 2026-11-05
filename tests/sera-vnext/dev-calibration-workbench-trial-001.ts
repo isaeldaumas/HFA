@@ -26,6 +26,9 @@ for (const entry of report.cases) {
   for (const axis of ['perception', 'objective', 'action'] as const) {
     assert.ok(entry.actual[axis].status)
     assert.ok(entry.actual[axis].evidenceCount >= 0)
+    assert.ok(entry.actual[axis].supportingEvidenceExcerpts.length <= 4)
+    assert.ok(entry.actual[axis].counterEvidenceExcerpts.length <= 4)
+    assert.ok(Array.isArray(entry.actual[axis].canonicalPath))
   }
 }
 assert.throws(() => evaluateDevelopmentCase(holdoutCases[0]), /SEALED_OR_UNAPPROVED_COHORT_FORBIDDEN/)
