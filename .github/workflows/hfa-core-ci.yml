@@ -116,6 +116,11 @@ jobs:
       - name: Tenant isolation contract
         run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/tenant-isolation/tenant-isolation-contract-trial-001.ts
 
+      - name: Platform admin and staging target fail-closed contract
+        run: |
+          ./frontend/node_modules/.bin/tsx tests/hfa-audit/gemini-tenancy-security/test-platform-admin-remediation.ts
+          ./frontend/node_modules/.bin/tsx tests/hfa-audit/gemini-release-readiness/staging-smoke-synthetic-plan.ts
+
 
       - name: Commercial trial contract
         run: ./frontend/node_modules/.bin/tsx tests/product/test-trial-usage.ts

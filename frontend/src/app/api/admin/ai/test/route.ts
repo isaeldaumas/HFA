@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import Groq from 'groq-sdk'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { requireAdmin, jsonError, isMasked } from '@/lib/server/admin-auth'
+import { requirePlatformAdmin, jsonError, isMasked } from '@/lib/server/admin-auth'
 import { getSupabaseAdmin } from '@/lib/server/supabase-admin'
 import { decryptString } from '@/lib/server/ai-settings-crypto'
 
@@ -124,7 +124,7 @@ async function runTest(provider: Provider, key: string, model: string): Promise<
 
 export async function POST(req: Request) {
   try {
-    const user = await requireAdmin(req)
+    const user = await requirePlatformAdmin(req)
     const admin = getSupabaseAdmin()
     const body = (await req.json().catch(() => ({}))) as TestPayload
 

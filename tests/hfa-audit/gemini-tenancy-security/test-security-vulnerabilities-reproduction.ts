@@ -6,7 +6,8 @@
  *
  * - VULN-01 [P0]: Python Backend user_metadata Tenant Spoofing & IDOR
  * - VULN-02 [P0]: applyUserAiSettingsToEnv Global process.env Mutation & Cross-Tenant Secret Leakage
- * - VULN-03 [P0]: Customer Enterprise Admin Conflated with Platform Superadmin (Cross-Tenant Admin Breach)
+ * - VULN-03 [P0]: Historical customer admin conflation mitigated in local
+ *                  integration review; cloud E2E authorization remains NOT_RUN
  * - VULN-04 [P1]: DELETE /api/events/[eventId] Cross-Tenant Audit Log Injection
  * - VULN-05 [P2]: Distinction between Application-Layer Service-Role Filtering vs Database RLS
  *
@@ -14,6 +15,7 @@
  */
 
 import assert from 'node:assert/strict'
+import { isPlatformAdminAuthorized } from '../../../frontend/src/lib/server/platform-admin-authority'
 import {
   TENANT_A,
   TENANT_B,
@@ -117,38 +119,28 @@ export async function runVulnerabilitiesReproductionSuite() {
     }
   })
 
-  // ── VULN-03 [P0]: Enterprise Customer Admin vs Superadmin Conflation ────────
-  test('REPRODUCTION VULN-03 [P0]: requireAdmin allows any Enterprise Customer Admin to access /api/admin/tenants and /api/admin/payments/transactions', () => {
-    // In frontend/src/lib/server/admin-auth.ts:
-    //   if (tenant.data?.plan !== 'enterprise' || role !== 'admin') throw 403
-    // Any paying customer organization on an Enterprise plan has an admin user with role: 'admin'!
+  // ── VULN-03 [P0]: Legacy tenant admin predicate remains broad; gate mitigates ──
+  test('MITIGATED VULN-03 [P0]: Enterprise Tenant Admin fails platform-only allowlist', () => {
+    // Historical vulnerable predicate: all tenant Enterprise admins qualify.
+    const oldCustomerAdminGate = TENANT_A.plan === 'enterprise' && USERS.A_ADMIN.role === 'admin'
+    assert.equal(oldCustomerAdminGate, true, 'HISTORICAL_BROAD_GATE_REPRODUCED')
 
-    const checkIsAdmin = (tenantPlan: string, userRole: string) => {
-      return tenantPlan === 'enterprise' && userRole === 'admin'
-    }
-
-    // Customer Admin of Tenant A (an airline using HFA Enterprise)
-    const isCustomerAdminAuthorized = checkIsAdmin(TENANT_A.plan, USERS.A_ADMIN.role)
-    assert.equal(isCustomerAdminAuthorized, true)
-
-    // Once authorized by requireAdmin, customer calls GET /api/admin/tenants:
-    // Route queries: admin.from('tenants').select('*') WITHOUT tenant_id filter!
-    const allPlatformTenants = [TENANT_A, TENANT_B]
-    const leakedTenants = allPlatformTenants.map((t) => ({ id: t.id, name: t.name, plan: t.plan }))
-
-    assert.equal(leakedTenants.length, 2)
-    assert.equal(leakedTenants.some((t) => t.id === TENANT_B.id), true)
-
-    // Customer calls GET /api/admin/payments/transactions:
-    // Route queries: admin.from('credit_transactions').select('*') WITHOUT tenant_id filter!
-    const allTransactions = [
-      { id: 'tx-1', tenant_id: TENANT_A.id, amount: 100, stripe_id: 'ch_alpha' },
-      { id: 'tx-2', tenant_id: TENANT_B.id, amount: 10, stripe_id: 'ch_bravo' },
-    ]
-    const leakedTransactions = allTransactions.filter((tx) => tx) // All returned!
-    assert.equal(leakedTransactions.length, 2)
-    assert.equal(leakedTransactions.some((tx) => tx.tenant_id === TENANT_B.id), true)
-    // PROOF: Customer Admin gained access to all platform tenants, users, and financial records!
+    const customerAuthId = 'b5ecab49-2d1b-43bf-80aa-88f58b738910'
+    const platformAuthId = '489d4eca-0e89-4adf-80ba-6a16c74d3201'
+    assert.equal(isPlatformAdminAuthorized({
+      authUserId: customerAuthId, role: 'admin',
+      allowlistedAuthUserIds: platformAuthId,
+    }), false, 'TENANT_ADMIN_CANNOT_READ_GLOBAL_RESOURCES')
+    assert.equal(isPlatformAdminAuthorized({
+      authUserId: customerAuthId, role: 'admin',
+      allowlistedAuthUserIds: undefined,
+    }), false, 'UNCONFIGURED_GATE_IS_FAIL_CLOSED')
+    assert.equal(isPlatformAdminAuthorized({
+      authUserId: platformAuthId, role: 'admin',
+      allowlistedAuthUserIds: platformAuthId,
+    }), true, 'EXPLICIT_GLOBAL_AUTHORIZATION_REQUIRED')
+    // Route-level enforcement is checked by test-platform-admin-remediation.ts.
+    // Neither test makes a live cloud authorization claim.
   })
 
   // ── VULN-04 [P1]: Cross-Tenant Audit Poisoning in DELETE /api/events/[id] ───

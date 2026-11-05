@@ -1,6 +1,7 @@
 import { requireBearerUser, type ApiUserContext } from './api-auth'
 import { getSupabaseAdmin } from './supabase-admin'
 import { NextResponse } from 'next/server'
+import { isPlatformAdminAuthorized } from './platform-admin-authority'
 
 export async function requireAdmin(req: Request): Promise<ApiUserContext> {
   const user = await requireBearerUser(req)
@@ -15,6 +16,29 @@ export async function requireAdmin(req: Request): Promise<ApiUserContext> {
       JSON.stringify({ detail: 'Acesso restrito a administradores enterprise' }),
       { status: 403, headers: { 'Content-Type': 'application/json' } }
     )
+  }
+  return user
+}
+
+/**
+ * Only explicitly authorized global HFA operators may access platform-wide
+ * tenants, billing, catalog, settings or administrative actions.
+ *
+ * A customer Enterprise admin remains a TENANT admin, not a platform admin.
+ * Absence of the protected server-side allowlist deliberately returns 403.
+ * Configure HFA_PLATFORM_ADMIN_AUTH_USER_IDS before enabling these screens.
+ */
+export async function requirePlatformAdmin(req: Request): Promise<ApiUserContext> {
+  const user = await requireAdmin(req)
+  const isAllowed = isPlatformAdminAuthorized({
+    authUserId: user.authUserId,
+    role: user.role,
+    allowlistedAuthUserIds: process.env.HFA_PLATFORM_ADMIN_AUTH_USER_IDS,
+  })
+  if (!isAllowed) {
+    throw new Response(JSON.stringify({ detail: 'Acesso administrativo global não autorizado' }), {
+      status: 403, headers: { 'Content-Type': 'application/json' },
+    })
   }
   return user
 }

@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin, jsonError } from '@/lib/server/admin-auth'
+import { requirePlatformAdmin, jsonError } from '@/lib/server/admin-auth'
 import { getSupabaseAdmin } from '@/lib/server/supabase-admin'
 
 export async function GET(req: Request) {
   try {
-    await requireAdmin(req)
+    await requirePlatformAdmin(req)
     const admin = getSupabaseAdmin()
 
     const url = new URL(req.url)

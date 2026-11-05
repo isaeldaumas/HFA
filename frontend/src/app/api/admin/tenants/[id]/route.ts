@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin, jsonError } from '@/lib/server/admin-auth'
+import { requirePlatformAdmin, jsonError } from '@/lib/server/admin-auth'
 import { getSupabaseAdmin } from '@/lib/server/supabase-admin'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAdmin(req)
+    await requirePlatformAdmin(req)
     const { id } = await params
     const body = await req.json()
     const admin = getSupabaseAdmin()

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin, jsonError, maskSensitive, isMasked } from '@/lib/server/admin-auth'
+import { requirePlatformAdmin, jsonError, maskSensitive, isMasked } from '@/lib/server/admin-auth'
 import { getSupabaseAdmin } from '@/lib/server/supabase-admin'
 import { decryptString, encryptString } from '@/lib/server/ai-settings-crypto'
 
@@ -52,7 +52,7 @@ function isMissingSystemSettings(error: unknown): boolean {
 
 export async function GET(req: Request) {
   try {
-    const user = await requireAdmin(req)
+    const user = await requirePlatformAdmin(req)
     const admin = getSupabaseAdmin()
     const { data, error } = await admin.from('system_settings').select('key, value')
     if (error && !isMissingSystemSettings(error)) throw error
@@ -117,7 +117,7 @@ export async function GET(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
-    const user = await requireAdmin(req)
+    const user = await requirePlatformAdmin(req)
     const body = await req.json() as Record<string, unknown>
     const updates = (body.updates && typeof body.updates === 'object')
       ? body.updates as Record<string, unknown>

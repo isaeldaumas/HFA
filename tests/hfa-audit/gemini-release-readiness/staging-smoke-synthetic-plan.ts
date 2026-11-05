@@ -9,6 +9,7 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { isAllowedStagingTarget } from './allowlisted-staging-target';
 
 const ROOT_DIR = join(__dirname, '../../..');
 
@@ -28,24 +29,18 @@ function proposed(label: string, prerequisite: string) {
 }
 
 console.log('=== CONTRATO 1: PROIBIÇÃO DE PRODUÇÃO EM TESTES INTEGRADOS/SMOKE ===');
-const FORBIDDEN_HOSTS = [
-  'https://systemhfa.vercel.app',
-  'https://systemhfa-systemhfa.vercel.app',
-  'https://frontend-systemhfa.vercel.app',
-  'systemhfa.vercel.app'
-];
-
-function isSafeTestTarget(url: string): boolean {
-  if (!url) return false;
-  for (const f of FORBIDDEN_HOSTS) {
-    if (url.includes(f)) return false;
-  }
-  return url.startsWith('http://127.0.0.1') || url.startsWith('http://localhost') || url.includes('staging');
-}
-
-check(isSafeTestTarget('http://127.0.0.1:3100'), 'http://127.0.0.1:3100 é aceito como alvo local');
-check(!isSafeTestTarget('https://systemhfa.vercel.app'), 'https://systemhfa.vercel.app é estritamente rejeitado');
-check(!isSafeTestTarget('https://systemhfa.vercel.app/api/auth/me'), 'Rotas de API em produção são estritamente rejeitadas');
+const approvedOrigin = 'https://hfa-staging.test.example';
+check(isAllowedStagingTarget('http://127.0.0.1:3100'), 'http://127.0.0.1:3100 é aceito como alvo local');
+check(!isAllowedStagingTarget('https://systemhfa.vercel.app'), 'Produção rejeitada sem exceção');
+check(!isAllowedStagingTarget('https://systemhfa.vercel.app/api/auth/me'), 'Subcaminhos da produção rejeitados');
+check(!isAllowedStagingTarget('https://attacker.example/path/staging'), 'Substring staging no caminho não autoriza host');
+check(!isAllowedStagingTarget('https://my-staging.evil.example'), 'Hostname staging não autoriza sem allowlist');
+check(!isAllowedStagingTarget('http://localhost.evil.example:3100'), 'Hostname falso local rejeitado');
+check(!isAllowedStagingTarget('https://systemhfa.vercel.app', ['https://systemhfa.vercel.app']), 'Produção rejeitada mesmo quando acidentalmente listada');
+check(isAllowedStagingTarget(approvedOrigin + '/api/auth/me', [approvedOrigin]), 'Staging explicitamente autorizado aceita paths');
+check(!isAllowedStagingTarget('https://hfa-staging.test.example.evil.com', [approvedOrigin]), 'Subdomínio confundível não é aceito');
+check(!isAllowedStagingTarget('https://user:pass@hfa-staging.test.example', [approvedOrigin]), 'URL com credenciais embutidas não autorizada');
+check(!isAllowedStagingTarget('https://attacker.example/path/staging', [approvedOrigin]), 'Allowlist exige origem exata');
 
 console.log('\n=== CONTRATO 2: IDENTIFICADORES SINTÉTICOS E SEGURANÇA MULTI-TENANT ===');
 // Verifica formato de IDs sintéticos de staging (UUID v4)
