@@ -5,7 +5,7 @@ import { handleRegisterRequest } from '../src/lib/server/register-handler'
 type Flags = {
   userInsertFailure?: boolean
   createAuthFailure?: boolean
-  deleteAuthFailure?: boolean
+  reusedUnconfirmedIdentity?: boolean
   deleteTenantFailure?: boolean
   createTenantFailure?: boolean
   userInsertThrows?: boolean
@@ -21,9 +21,11 @@ function fakeAdmin(flags: Flags = {}) {
         // Deliberately rejects a paginated user-list scan. Registration must
         // rely on Auth's unique-email constraint rather than a race-prone list.
         listUsers: async () => { throw new Error('Forbidden paginated listUsers') },
-        createUser: async (attributes: { email: string; password: string }) => {
-          calls.push('auth.createUser')
-          calls.push('auth.email:' + attributes.email)
+        createUser: async () => { throw new Error('UNVERIFIED_CREATE_USER_FORBIDDEN') },
+        inviteUserByEmail: async (email: string, options: { redirectTo: string }) => {
+          assert.equal(options.redirectTo, 'https://hfa.example.invalid/accept-invite')
+          calls.push('auth.inviteUserByEmail')
+          calls.push('auth.email:' + email)
           if (flags.createAuthThrows) throw new Error('Simulated auth network crash')
           if (flags.duplicateAuth) return {
             data: { user: null },
@@ -31,12 +33,9 @@ function fakeAdmin(flags: Flags = {}) {
           }
           return flags.createAuthFailure
             ? { data: { user: null }, error: { message: 'Auth unavailable' } }
-            : { data: { user: { id: 'auth-user-001' } }, error: null }
+            : { data: { user: { id: flags.reusedUnconfirmedIdentity ? 'existing-invited-user-001' : 'auth-user-001' } }, error: null }
         },
-        deleteUser: async (userId: string) => {
-          calls.push('auth.deleteUser:' + userId)
-          return { error: flags.deleteAuthFailure ? { message: 'Auth delete failed' } : null }
-        },
+        deleteUser: async () => { throw new Error('DELETING_UNPROVEN_INVITEE_FORBIDDEN') },
       },
     },
     from: (table: string) => {
@@ -91,7 +90,6 @@ function req(body: Record<string, unknown>) {
 const validBody = {
   full_name: 'Pilot Fixture',
   email: 'hfa-test-registered@example.invalid',
-  password: 'Just4FixtureOnly!',
   company_name: 'Fictitious Aviation',
   slug: 'fictitious-aviation',
 }
@@ -107,34 +105,40 @@ async function invoke(flags: Flags = {}, body = validBody) {
 
 const priorUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const priorKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const priorInviteReady = process.env.HFA_REGISTRATION_INVITES_READY
+const priorSiteUrl = process.env.NEXT_PUBLIC_SITE_URL
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://fixture.invalid'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'definitely-not-a-real-secret'
+process.env.HFA_REGISTRATION_INVITES_READY = 'true'
+process.env.NEXT_PUBLIC_SITE_URL = 'https://hfa.example.invalid'
 
 test('successful signup only acknowledges after public users insert', async () => {
     const result = await invoke()
     assert.equal(result.status, 200)
     assert.equal(result.body.ok, true)
-    assert.equal(result.body.tenant_id, 'tenant-001')
-    assert.deepEqual(result.calls, ['tenants.insert','auth.createUser','auth.email:hfa-test-registered@example.invalid','users.insert'])
+    assert.equal(result.body.invite_requested, true)
+    assert.equal(result.body.delivery_confirmed, false)
+    assert.equal(result.body.tenant_id, undefined)
+    assert.deepEqual(result.calls, ['tenants.insert','auth.inviteUserByEmail','auth.email:hfa-test-registered@example.invalid','users.insert'])
   })
 
-  test('public users insert failure returns 500 and cleans auth then tenant', async () => {
+  test('public users insert failure returns 500 and preserves invite identity while deleting provisional tenant', async () => {
     const result = await invoke({ userInsertFailure: true })
     assert.equal(result.status, 500)
     assert.equal(result.body.ok, undefined)
-    assert.match(String(result.body.detail), /Tente novamente/)
+    assert.match(String(result.body.detail), /suporte/)
     assert.deepEqual(result.calls, [
-      'tenants.insert','auth.createUser','auth.email:hfa-test-registered@example.invalid','users.insert',
-      'auth.deleteUser:auth-user-001','tenants.delete:id:tenant-001',
+      'tenants.insert','auth.inviteUserByEmail','auth.email:hfa-test-registered@example.invalid','users.insert',
+      'tenants.delete:id:tenant-001',
     ])
   })
 
-  test('auth cleanup failure still tries tenant cleanup; never returns success', async () => {
-    const result = await invoke({ userInsertFailure: true, deleteAuthFailure: true })
+  test('reinvited pending Auth user is never deleted when public row insert fails', async () => {
+    const result = await invoke({ userInsertFailure: true, reusedUnconfirmedIdentity: true })
     assert.equal(result.status, 500)
     assert.match(String(result.body.detail), /suporte/)
-    assert.equal(result.calls.at(-2), 'auth.deleteUser:auth-user-001')
     assert.equal(result.calls.at(-1), 'tenants.delete:id:tenant-001')
+    assert.ok(!result.calls.some((c) => c.includes('deleteUser')))
   })
 
   test('tenant cleanup failure after public users failure is visible as incomplete', async () => {
@@ -159,13 +163,12 @@ test('successful signup only acknowledges after public users insert', async () =
     assert.match(String(result.body.detail), /suporte/)
   })
 
-  test('unexpected public user API exception cleans auth and tenant', async () => {
+  test('unexpected public user API exception cleans provisional tenant only', async () => {
     const result = await invoke({ userInsertThrows: true })
     assert.equal(result.status, 500)
     assert.equal(result.body.ok, undefined)
-    assert.deepEqual(result.calls.slice(-3), [
+    assert.deepEqual(result.calls.slice(-2), [
       'users.insert',
-      'auth.deleteUser:auth-user-001',
       'tenants.delete:id:tenant-001',
     ])
   })
@@ -183,7 +186,7 @@ test('successful signup only acknowledges after public users insert', async () =
     const result = await invoke({ duplicateAuth: true })
     assert.equal(result.status, 409)
     assert.match(String(result.body.detail), /Já existe uma conta/)
-    assert.ok(result.calls.includes('auth.createUser'))
+    assert.ok(result.calls.includes('auth.inviteUserByEmail'))
     assert.equal(result.calls.at(-1), 'tenants.delete:id:tenant-001')
     assert.ok(!result.calls.includes('users.insert'))
     assert.ok(!result.calls.some(c => c.startsWith('auth.deleteUser:')))
@@ -195,7 +198,7 @@ test('successful signup only acknowledges after public users insert', async () =
     assert.ok(result.calls.includes('auth.email:hfa-test-registered@example.invalid'))
   })
 
-  test('number-valued password rejected before any database call', async () => {
+  test('legacy password payload rejected before any database call', async () => {
     const result = await invoke({}, { ...validBody, password: 12345 } as unknown as typeof validBody)
     assert.equal(result.status, 400)
     assert.deepEqual(result.calls, [])
@@ -219,8 +222,8 @@ test('successful signup only acknowledges after public users insert', async () =
     assert.deepEqual(result.calls, [])
   })
 
-  test('oversized password rejected before any database call', async () => {
-    const result = await invoke({}, { ...validBody, password: 'p'.repeat(1200) })
+  test('legacy oversized password rejected before any database call', async () => {
+    const result = await invoke({}, { ...validBody, password: 'p'.repeat(1200) } as unknown as typeof validBody)
     assert.equal(result.status, 400)
     assert.deepEqual(result.calls, [])
   })
@@ -268,8 +271,37 @@ test('successful signup only acknowledges after public users insert', async () =
   test('failed tenant creation does not create auth user or report success', async () => {
     const result = await invoke({ createTenantFailure: true })
     assert.equal(result.status, 500)
-    assert.ok(!result.calls.includes('auth.createUser'))
+    assert.ok(!result.calls.includes('auth.inviteUserByEmail'))
     assert.equal(result.body.ok, undefined)
+  })
+
+
+  test('not-ready registration fails closed before tenant or Auth writes', async () => {
+    delete process.env.HFA_REGISTRATION_INVITES_READY
+    try {
+      const r = await invoke()
+      assert.equal(r.status, 503)
+      assert.deepEqual(r.calls, [])
+    } finally {
+      process.env.HFA_REGISTRATION_INVITES_READY = 'true'
+    }
+  })
+
+  test('unsafe or missing invite redirect fails closed', async () => {
+    for (const siteUrl of ['', 'http://attacker.example.invalid/', 'https://user:pass@hfa.example.invalid/', 'https://hfa.example.invalid/path']) {
+      process.env.NEXT_PUBLIC_SITE_URL = siteUrl
+      const r = await invoke()
+      assert.equal(r.status, 503)
+      assert.deepEqual(r.calls, [])
+    }
+    process.env.NEXT_PUBLIC_SITE_URL = 'https://hfa.example.invalid'
+  })
+
+  test('invite never uses admin.createUser or auto-confirms email', async () => {
+    const result = await invoke()
+    assert.equal(result.status, 200)
+    assert.ok(result.calls.includes('auth.inviteUserByEmail'))
+    assert.ok(!result.calls.includes('auth.createUser'))
   })
 
 // Reset process when test runner finishes; isolated CI process.
@@ -278,4 +310,8 @@ after(() => {
   else process.env.NEXT_PUBLIC_SUPABASE_URL = priorUrl
   if (priorKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY
   else process.env.SUPABASE_SERVICE_ROLE_KEY = priorKey
+  if (priorInviteReady === undefined) delete process.env.HFA_REGISTRATION_INVITES_READY
+  else process.env.HFA_REGISTRATION_INVITES_READY = priorInviteReady
+  if (priorSiteUrl === undefined) delete process.env.NEXT_PUBLIC_SITE_URL
+  else process.env.NEXT_PUBLIC_SITE_URL = priorSiteUrl
 })
