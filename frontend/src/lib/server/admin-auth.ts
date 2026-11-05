@@ -25,11 +25,15 @@ export async function requireAdmin(req: Request): Promise<ApiUserContext> {
  * tenants, billing, catalog, settings or administrative actions.
  *
  * A customer Enterprise admin remains a TENANT admin, not a platform admin.
+ * A platform operator may be assigned to an active non-Enterprise tenant;
+ * billing plan is never a global privilege predicate.
  * Absence of the protected server-side allowlist deliberately returns 403.
  * Configure HFA_PLATFORM_ADMIN_AUTH_USER_IDS before enabling these screens.
  */
 export async function requirePlatformAdmin(req: Request): Promise<ApiUserContext> {
-  const user = await requireAdmin(req)
+  // Platform operators are authorized by authenticated identity + DB role +
+  // explicit allowlist, not by a customer's billing plan.
+  const user = await requireBearerUser(req)
   const isAllowed = isPlatformAdminAuthorized({
     authUserId: user.authUserId,
     role: user.role,

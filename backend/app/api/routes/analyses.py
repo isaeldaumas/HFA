@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional
-from app.api.deps import get_current_user
+from app.api.deps import get_authorized_user
 from app.database import get_supabase_admin
 
 router = APIRouter(prefix="/analyses", tags=["analyses"])
@@ -19,9 +19,9 @@ class RecalculateRequest(BaseModel):
 
 
 @router.get("/")
-async def list_analyses(user=Depends(get_current_user)):
+async def list_analyses(user=Depends(get_authorized_user)):
     admin = get_supabase_admin()
-    tenant_id = user.user.user_metadata.get("tenant_id")
+    tenant_id = user.tenant_id
     result = admin.table("analyses")\
         .select("*, events(title, occurred_at, operation_type, aircraft_type)")\
         .eq("tenant_id", tenant_id)\
@@ -31,9 +31,9 @@ async def list_analyses(user=Depends(get_current_user)):
 
 
 @router.get("/risk-profile")
-async def risk_profile(user=Depends(get_current_user)):
+async def risk_profile(user=Depends(get_authorized_user)):
     admin = get_supabase_admin()
-    tenant_id = user.user.user_metadata.get("tenant_id")
+    tenant_id = user.tenant_id
     result = admin.table("analyses")\
         .select("perception_code, objective_code, action_code, preconditions")\
         .eq("tenant_id", tenant_id)\
@@ -67,9 +67,9 @@ async def risk_profile(user=Depends(get_current_user)):
 
 
 @router.get("/{analysis_id}")
-async def get_analysis(analysis_id: str, user=Depends(get_current_user)):
+async def get_analysis(analysis_id: str, user=Depends(get_authorized_user)):
     admin = get_supabase_admin()
-    tenant_id = user.user.user_metadata.get("tenant_id")
+    tenant_id = user.tenant_id
     result = admin.table("analyses")\
         .select("*, events(title, raw_input, occurred_at)")\
         .eq("id", analysis_id)\
@@ -82,9 +82,9 @@ async def get_analysis(analysis_id: str, user=Depends(get_current_user)):
 
 
 @router.get("/{analysis_id}/pdf")
-async def download_pdf(analysis_id: str, user=Depends(get_current_user)):
+async def download_pdf(analysis_id: str, user=Depends(get_authorized_user)):
     admin = get_supabase_admin()
-    tenant_id = user.user.user_metadata.get("tenant_id")
+    tenant_id = user.tenant_id
     result = admin.table("analyses")\
         .select("*, events(title, operation_type, aircraft_type)")\
         .eq("id", analysis_id)\
@@ -122,10 +122,10 @@ async def download_pdf(analysis_id: str, user=Depends(get_current_user)):
 async def recalculate_analysis(
     analysis_id: str,
     body: RecalculateRequest,
-    user=Depends(get_current_user),
+    user=Depends(get_authorized_user),
 ):
     admin = get_supabase_admin()
-    tenant_id = user.user.user_metadata.get("tenant_id")
+    tenant_id = user.tenant_id
 
     result = admin.table("analyses")\
         .select("*, events(raw_input)")\
@@ -197,9 +197,9 @@ async def recalculate_analysis(
 
 
 @router.get("/{analysis_id}/edits")
-async def list_edits(analysis_id: str, user=Depends(get_current_user)):
+async def list_edits(analysis_id: str, user=Depends(get_authorized_user)):
     admin = get_supabase_admin()
-    tenant_id = user.user.user_metadata.get("tenant_id")
+    tenant_id = user.tenant_id
     result = admin.table("analysis_edits")\
         .select("*")\
         .eq("analysis_id", analysis_id)\
@@ -213,11 +213,11 @@ async def list_edits(analysis_id: str, user=Depends(get_current_user)):
 async def revert_edit(
     analysis_id: str,
     edit_id: str,
-    user=Depends(get_current_user),
+    user=Depends(get_authorized_user),
 ):
     """Revert a manual edit by re-running recalculate with the before value."""
     admin = get_supabase_admin()
-    tenant_id = user.user.user_metadata.get("tenant_id")
+    tenant_id = user.tenant_id
 
     edit_res = admin.table("analysis_edits")\
         .select("*")\
@@ -276,14 +276,14 @@ async def revert_edit(
 
 
 @router.get("/{analysis_id}/flows")
-async def get_analysis_flows(analysis_id: str, current_user=Depends(get_current_user)):
+async def get_analysis_flows(analysis_id: str, current_user=Depends(get_authorized_user)):
     from app.sera.flow_renderer import (
         build_perception_mermaid,
         build_objective_mermaid,
         build_action_mermaid,
     )
     admin = get_supabase_admin()
-    r = admin.table("analyses").select("*").eq("id", analysis_id).single().execute()
+    r = admin.table("analyses").select("*").eq("id", analysis_id).eq("tenant_id", current_user.tenant_id).single().execute()
     a = r.data
     if not a:
         raise HTTPException(404, "Análise não encontrada")

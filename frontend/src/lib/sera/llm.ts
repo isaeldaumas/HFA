@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { decryptString } from '@/lib/server/ai-settings-crypto'
+import { getScopedAiSettings } from '@/lib/server/ai-request-scope'
 
 export type AIProvider = 'deepseek' | 'openai' | 'anthropic' | 'google' | 'groq'
 
@@ -55,6 +56,7 @@ function isSeraTestContext(): boolean {
 }
 
 async function loadSeraAiSettingsFromSupabase(): Promise<void> {
+  if (getScopedAiSettings()) return // Never load or mutate shared env during a scoped HTTP request.
   if (!isSeraTestContext() || seraSupabaseLoaded) return
   seraSupabaseLoaded = true
 
@@ -97,8 +99,9 @@ async function loadSeraAiSettingsFromSupabase(): Promise<void> {
 
 function resolveDeepseekConfig() {
   const seraContext = isSeraTestContext()
-  loadFrontendEnvLocal({ overrideAiKeys: seraContext && !seraSupabaseLoaded })
-  const configuredModel = process.env.DEEPSEEK_MODEL?.trim()
+  const scoped = getScopedAiSettings()
+  if (!scoped) loadFrontendEnvLocal({ overrideAiKeys: seraContext && !seraSupabaseLoaded })
+  const configuredModel = scoped ? scoped.models.deepseek?.trim() : process.env.DEEPSEEK_MODEL?.trim()
   const model = configuredModel || DEFAULT_DEEPSEEK_MODEL
   const temperature = seraContext ? 0 : Number(process.env.DEEPSEEK_TEMPERATURE ?? '0')
   const topP = seraContext ? 1 : Number(process.env.DEEPSEEK_TOP_P ?? '1')
@@ -122,6 +125,8 @@ function resolveDeepseekConfig() {
 }
 
 export function getActiveProvider(): AIProvider {
+  const scoped = getScopedAiSettings()
+  if (scoped) return scoped.provider
   loadFrontendEnvLocal({ overrideAiKeys: isSeraTestContext() && !seraSupabaseLoaded })
   const p = (process.env.AI_PROVIDER ?? 'deepseek').toLowerCase()
   // Only accept known providers; fall back to deepseek for safety.
@@ -132,6 +137,14 @@ export function getActiveProvider(): AIProvider {
 
 export function getModelName(provider?: AIProvider): string {
   const p = provider ?? getActiveProvider()
+  const scoped = getScopedAiSettings()
+  if (scoped) {
+    return scoped.models[p] || ({
+      deepseek: DEFAULT_DEEPSEEK_MODEL, openai: DEFAULT_OPENAI_MODEL,
+      anthropic: 'claude-sonnet-4-5', google: 'gemini-2.0-flash',
+      groq: 'llama-3.3-70b-versatile',
+    } as Record<AIProvider, string>)[p]
+  }
   const deepseek = resolveDeepseekConfig()
   const models: Record<AIProvider, string> = {
     deepseek: deepseek.model,
@@ -144,7 +157,15 @@ export function getModelName(provider?: AIProvider): string {
 }
 
 function requireApiKey(envName: string, hint?: string): string {
-  const v = process.env[envName]?.trim()
+  const scoped = getScopedAiSettings()
+  const providerForEnv: Record<string, AIProvider> = {
+    DEEPSEEK_API_KEY: 'deepseek', OPENAI_API_KEY: 'openai',
+    ANTHROPIC_API_KEY: 'anthropic', GOOGLE_API_KEY: 'google',
+    GROQ_API_KEY: 'groq',
+  }
+  const v = scoped
+    ? scoped.apiKeys[providerForEnv[envName]]?.trim()
+    : process.env[envName]?.trim()
   const extra = hint ? ` ${hint}` : ''
   if (v && !v.includes('****')) return v
   if (v?.includes('****')) {
@@ -226,9 +247,10 @@ function isTransientError(e: Error): boolean {
 }
 
 async function callGoogle(system: string, user: string): Promise<string> {
-  const key =
-    process.env.GOOGLE_API_KEY?.trim() ||
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim()
+  const scoped = getScopedAiSettings()
+  const key = scoped
+    ? scoped.apiKeys.google?.trim()
+    : (process.env.GOOGLE_API_KEY?.trim() || process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim())
   if (!key) {
     throw new Error(
       'Chave Google ausente: defina GOOGLE_API_KEY ou GOOGLE_GENERATIVE_AI_API_KEY.'
@@ -252,7 +274,7 @@ export async function callAi(system: string, userMsg: string, maxTokens = 8192):
   if (provider === 'anthropic') {
     const client = new Anthropic({ apiKey: requireApiKey('ANTHROPIC_API_KEY'), timeout: LLM_TIMEOUT_MS })
     const msg = await client.messages.create({
-      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5',
+      model: getModelName('anthropic'),
       max_tokens: maxTokens,
       system: system,
       messages: [{ role: 'user', content: userMsg }],
@@ -391,7 +413,15 @@ export async function askJson(
  */
 export function assertLlmEnvConfigured(provider?: AIProvider): void {
   const p = provider ?? getActiveProvider()
-  const set = (k: string) => Boolean(process.env[k]?.trim())
+  const scoped = getScopedAiSettings()
+  const providerForEnv: Record<string, AIProvider> = {
+    DEEPSEEK_API_KEY: 'deepseek', OPENAI_API_KEY: 'openai',
+    ANTHROPIC_API_KEY: 'anthropic', GOOGLE_API_KEY: 'google',
+    GROQ_API_KEY: 'groq',
+  }
+  const set = (k: string) => scoped
+    ? Boolean(scoped.apiKeys[providerForEnv[k]]?.trim())
+    : Boolean(process.env[k]?.trim())
 
   if (p === 'anthropic') {
     if (!set('ANTHROPIC_API_KEY')) throw new Error('ANTHROPIC_API_KEY não definida (AI_PROVIDER=anthropic).')
@@ -402,7 +432,7 @@ export function assertLlmEnvConfigured(provider?: AIProvider): void {
     return
   }
   if (p === 'google') {
-    if (!process.env.GOOGLE_API_KEY?.trim() && !process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim()) {
+    if (scoped ? !set('GOOGLE_API_KEY') : (!process.env.GOOGLE_API_KEY?.trim() && !process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim())) {
       throw new Error('GOOGLE_API_KEY não definida (AI_PROVIDER=google).')
     }
     return

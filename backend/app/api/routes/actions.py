@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import Optional
-from app.api.deps import get_current_user
+from app.api.deps import get_authorized_user
 from app.database import get_supabase_admin
 
 router = APIRouter(prefix="/actions", tags=["actions"])
@@ -14,9 +14,9 @@ class ActionUpdate(BaseModel):
 
 
 @router.get("/")
-async def list_actions(user=Depends(get_current_user)):
+async def list_actions(user=Depends(get_authorized_user)):
     admin = get_supabase_admin()
-    tenant_id = user.user.user_metadata.get("tenant_id")
+    tenant_id = user.tenant_id
     result = admin.table("corrective_actions")\
         .select("*")\
         .eq("tenant_id", tenant_id)\
@@ -26,9 +26,9 @@ async def list_actions(user=Depends(get_current_user)):
 
 
 @router.patch("/{action_id}")
-async def update_action(action_id: str, data: ActionUpdate, user=Depends(get_current_user)):
+async def update_action(action_id: str, data: ActionUpdate, user=Depends(get_authorized_user)):
     admin = get_supabase_admin()
-    tenant_id = user.user.user_metadata.get("tenant_id")
+    tenant_id = user.tenant_id
     update_data = {k: v for k, v in data.dict().items() if v is not None}
     if data.status == "completed":
         from datetime import datetime

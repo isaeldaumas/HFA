@@ -4,17 +4,19 @@
  * Reproduces and documents specific architectural and implementation vulnerabilities
  * discovered during the route-by-route audit:
  *
- * - VULN-01 [P0]: Python Backend user_metadata Tenant Spoofing & IDOR
- * - VULN-02 [P0]: applyUserAiSettingsToEnv Global process.env Mutation & Cross-Tenant Secret Leakage
+ * - VULN-01 [P0]: Historical Python metadata tenant spoofing (mitigated in local integration)
+ * - VULN-02 [P0]: Historical process.env mutation mitigated by per-request AI scope
  * - VULN-03 [P0]: Historical customer admin conflation mitigated in local
  *                  integration review; cloud E2E authorization remains NOT_RUN
- * - VULN-04 [P1]: DELETE /api/events/[eventId] Cross-Tenant Audit Log Injection
+ * - VULN-04 [P1]: Historical cross-tenant hard-delete audit IDOR mitigated locally
  * - VULN-05 [P2]: Distinction between Application-Layer Service-Role Filtering vs Database RLS
  *
  * Run: npx tsx tests/hfa-audit/gemini-tenancy-security/test-security-vulnerabilities-reproduction.ts
  */
 
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { isPlatformAdminAuthorized } from '../../../frontend/src/lib/server/platform-admin-authority'
 import {
   TENANT_A,
@@ -53,70 +55,48 @@ function test(label: string, fn: () => void | Promise<void>) {
 export async function runVulnerabilitiesReproductionSuite() {
   console.log('\n--- EXECUTING SECURITY VULNERABILITIES REPRODUCTION SUITE ---')
 
-  // ── VULN-01 [P0]: Python Backend user_metadata IDOR ─────────────────────────
-  test('REPRODUCTION VULN-01 [P0]: Python backend trusts user_metadata.get("tenant_id") allowing complete tenant spoofing', () => {
-    // In Supabase Auth, any authenticated user can call supabase.auth.updateUser({ data: { tenant_id: victimId } })
-    // The Python backend (backend/app/api/routes/events.py) implements:
-    //   tenant_id = user.user.user_metadata.get("tenant_id")
-    //   result = admin.table("events").select("*").eq("tenant_id", tenant_id).execute()
-
+  // ── VULN-01 [P0]: Historical metadata vulnerability is now mitigated ──
+  test('MITIGATED VULN-01 [P0]: Python backend requires DB-authoritative tenant', () => {
     const maliciousUserAuthSession = {
       user: {
-        id: 'attacker-auth-id',
-        email: 'attacker@evil.synthetic',
-        // Attacker writes Tenant B's ID into user_metadata!
-        user_metadata: {
-          tenant_id: TENANT_B.id,
-          role: 'admin',
-        },
+        id: '10000000-aaaa-4000-a000-000000000001',
+        user_metadata: { tenant_id: TENANT_B.id, role: 'admin' },
       },
     }
-
-    // Python backend logic:
-    const backendResolvedTenantId = maliciousUserAuthSession.user.user_metadata.get
-      ? maliciousUserAuthSession.user.user_metadata.get('tenant_id')
-      : maliciousUserAuthSession.user.user_metadata.tenant_id
-
-    assert.equal(backendResolvedTenantId, TENANT_B.id)
-
-    // Attacker query on backend retrieves Tenant B's private events!
-    const backendEvents = [SYNTHETIC_EVENTS.EVENT_A1, SYNTHETIC_EVENTS.EVENT_B1]
-    const exposedToAttacker = backendEvents.filter((e) => e.tenant_id === backendResolvedTenantId)
-
-    assert.equal(exposedToAttacker.length, 1)
-    assert.equal(exposedToAttacker[0].id, SYNTHETIC_EVENTS.EVENT_B1.id)
-    assert.match(exposedToAttacker[0].title, /Bravo/)
-    // PROOF: Attacker successfully read Tenant B's events by manipulating user_metadata!
+    // Before patch: users of this API were resolved from metadata.
+    assert.equal(maliciousUserAuthSession.user.user_metadata.tenant_id, TENANT_B.id)
+    // The new resolver ignores metadata. The actual execution path is tested
+    // with in-memory Supabase mocks in backend/tests/test_authoritative_user.py,
+    // including this exact forged tenant versus the DB binding.
+    const pyDeps = readFileSync(
+      path.join(process.cwd(), 'backend/app/api/deps.py'), 'utf8')
+    const pyResolver = readFileSync(
+      path.join(process.cwd(), 'backend/app/api/authoritative_user.py'), 'utf8')
+    assert.match(pyDeps, /resolve_authorized_user/)
+    assert.doesNotMatch(pyResolver, /authenticated_user\.user_metadata/)
   })
 
-  // ── VULN-02 [P0]: Global process.env Mutation in applyUserAiSettingsToEnv ───
-  test('REPRODUCTION VULN-02 [P0]: applyUserAiSettingsToEnv mutates global process.env leaking private keys across tenants', () => {
-    // Save pristine env
-    const originalOpenAiKey = process.env.OPENAI_API_KEY
-    const originalProvider = process.env.AI_PROVIDER
-
-    try {
-      // Step 1: User A (Tenant A) makes a request and has a private OpenAI key configured
-      const userA_CustomKey = 'sk-alpha-confidential-user-a-secret-key-12345'
-      // applyUserAiSettingsToEnv sets:
-      process.env.OPENAI_API_KEY = userA_CustomKey
-      process.env.AI_PROVIDER = 'openai'
-
-      // Step 2: User B (Tenant B) makes a concurrent/subsequent request and has NO custom key
-      // If User B doesn't configure a key, the process.env remains populated with User A's key!
-      const userB_ResolvedKey = process.env.OPENAI_API_KEY
-      const userB_ResolvedProvider = process.env.AI_PROVIDER
-
-      assert.equal(userB_ResolvedKey, userA_CustomKey)
-      assert.equal(userB_ResolvedProvider, 'openai')
-      // PROOF: User B's LLM calls will execute using User A's billing and credentials!
-    } finally {
-      // Restore pristine env
-      if (originalOpenAiKey !== undefined) process.env.OPENAI_API_KEY = originalOpenAiKey
-      else delete process.env.OPENAI_API_KEY
-      if (originalProvider !== undefined) process.env.AI_PROVIDER = originalProvider
-      else delete process.env.AI_PROVIDER
+  // ── VULN-02 [P0]: Shared process.env setter replaced by isolated async scope ──
+  test('MITIGATED VULN-02 [P0]: AI keys are bound to request scope, never process.env', () => {
+    const aiLoader = readFileSync(path.join(process.cwd(),
+      'frontend/src/lib/server/user-ai-settings.ts'), 'utf8')
+    const scope = readFileSync(path.join(process.cwd(),
+      'frontend/src/lib/server/ai-request-scope.ts'), 'utf8')
+    assert.doesNotMatch(aiLoader, /process\.env(?:\.[A-Z_]+|\[[^\]]+\])\s*=/)
+    assert.match(scope, /AsyncLocalStorage/)
+    assert.match(aiLoader, /withRequestAiSettings/)
+    const allRoutes = [
+      'events/route.ts', 'analyze/route.ts', 'org/ai-insight/route.ts',
+      'events/[eventId]/reanalyze-vnext/route.ts',
+    ]
+    for (const rel of allRoutes) {
+      const route = readFileSync(path.join(process.cwd(),
+        'frontend/src/app/api', rel), 'utf8')
+      assert.match(route, /with(?:Optional)?UserAiSettings/)
+      assert.doesNotMatch(route, /applyUserAiSettingsToEnv/)
     }
+    // Concurrent cross-request key isolation is tested at the real scope
+    // boundary in test-ai-request-scope-trial-001.ts (no network).
   })
 
   // ── VULN-03 [P0]: Legacy tenant admin predicate remains broad; gate mitigates ──
@@ -143,32 +123,24 @@ export async function runVulnerabilitiesReproductionSuite() {
     // Neither test makes a live cloud authorization claim.
   })
 
-  // ── VULN-04 [P1]: Cross-Tenant Audit Poisoning in DELETE /api/events/[id] ───
-  test('REPRODUCTION VULN-04 [P1]: DELETE /api/events/[id] logs denial record with foreign eventId without validating event ownership', () => {
-    // In frontend/src/app/api/events/[eventId]/route.ts (DELETE handler):
-    //   const user = await requireAdmin(req)
-    //   const { eventId } = await ctx.params
-    //   await admin.from('event_deletion_events').insert({
-    //     tenant_id: user.tenantId,
-    //     event_id: eventId,
-    //     event_status: 'HARD_DELETE_DENIED',
-    //     ...
-    //   })
-
-    const user = USERS.A_ADMIN
-    const targetEventId = SYNTHETIC_EVENTS.EVENT_B1.id // Belongs to Tenant B!
-
-    // The route handler does not verify that targetEventId belongs to user.tenantId prior to logging denial!
-    const insertedRecord = {
-      tenant_id: user.tenantId, // Tenant A
-      event_id: targetEventId,  // Event belonging to Tenant B!
-      event_status: 'HARD_DELETE_DENIED',
-    }
-
-    assert.equal(insertedRecord.tenant_id, TENANT_A.id)
-    assert.equal(insertedRecord.event_id, SYNTHETIC_EVENTS.EVENT_B1.id)
-    assert.notEqual(SYNTHETIC_EVENTS.EVENT_B1.tenant_id, insertedRecord.tenant_id)
-    // PROOF: Cross-tenant foreign key linkage injected into event_deletion_events!
+  // ── VULN-04 [P1]: Ownership guard before deletion audit ──────────────
+  test('MITIGATED VULN-04 [P1]: foreign event IDs are denied before deletion audit', () => {
+    const route = readFileSync(path.join(process.cwd(),
+      'frontend/src/app/api/events/[eventId]/route.ts'), 'utf8')
+    const start = route.indexOf('export async function DELETE')
+    assert.ok(start > 0)
+    const deleteHandler = route.slice(start)
+    const ownership = deleteHandler.indexOf("const owned = await admin.from('events')")
+    const scopedTenant = deleteHandler.indexOf(".eq('tenant_id', user.tenantId)")
+    const denied404 = deleteHandler.indexOf("if (!owned.data)")
+    const audit = deleteHandler.indexOf("await writeCriticalAuditLog(")
+    const lifecycle = deleteHandler.indexOf("from('event_deletion_events')")
+    assert.ok(ownership >= 0 && scopedTenant > ownership)
+    assert.ok(denied404 > scopedTenant && denied404 < audit)
+    assert.ok(audit > denied404 && lifecycle > audit)
+    // Authenticated synthetic A cannot create a foreign-event lifecycle row;
+    // no DB E2E claim is made by the source contract.
+    assert.notEqual(USERS.A_ADMIN.tenant_id, SYNTHETIC_EVENTS.EVENT_B1.tenant_id)
   })
 
   // ── VULN-05 [P2]: Service-Role Client Bypass vs Database RLS Guarantee ──────

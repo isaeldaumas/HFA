@@ -121,6 +121,17 @@ jobs:
           ./frontend/node_modules/.bin/tsx tests/hfa-audit/gemini-tenancy-security/test-platform-admin-remediation.ts
           ./frontend/node_modules/.bin/tsx tests/hfa-audit/gemini-release-readiness/staging-smoke-synthetic-plan.ts
 
+      - name: Python backend DB-authoritative tenant boundary
+        run: |
+          python3 -m unittest discover -s backend/tests -p 'test_authoritative_user.py' -v
+          ./frontend/node_modules/.bin/tsx tests/hfa-audit/gemini-tenancy-security/test-python-authoritative-tenant-boundary.ts
+
+      - name: AI credentials request scope and concurrency isolation
+        run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/gemini-tenancy-security/test-ai-request-scope-trial-001.ts
+
+      - name: Hard delete cross-tenant lifecycle audit guard
+        run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/gemini-tenancy-security/test-hard-delete-tenant-ownership.ts
+
 
       - name: Commercial trial contract
         run: ./frontend/node_modules/.bin/tsx tests/product/test-trial-usage.ts

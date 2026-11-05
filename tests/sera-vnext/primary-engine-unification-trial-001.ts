@@ -22,7 +22,7 @@ const legacyRecalcRoutes = [
 for (const source of [analyze, events]) {
   assert.ok(source.includes('createCanonicalEventAnalysis'), 'new analyses must use SERA 0.3 canonical engine')
   assert.equal(source.includes('completeSeraAnalysisAfterEventCreated'), false, 'legacy engine must not be reachable')
-  assert.ok(source.includes('applyUserAiSettingsToEnv'), 'canonical analysis must load the user AI provider for semantic evidence extraction before deterministic SERA traversal')
+  assert.ok(source.includes('withUserAiSettings') || source.includes('withOptionalUserAiSettings'), 'canonical analysis must bind provider/key to the async request before semantic extraction')
   assert.equal(source.includes('isSeraVNextCanonicalAnalyzeEnabled'), false, 'primary engine must not be selected by rollout flag')
 }
 assert.equal(analyze.includes("toLowerCase() === 'admin'"), false, 'primary engine must not be admin-only')

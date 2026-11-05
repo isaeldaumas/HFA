@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireBearerUser } from '@/lib/server/api-auth'
 import { getSupabaseAdmin } from '@/lib/server/supabase-admin'
-import { applyUserAiSettingsToEnv } from '@/lib/server/apply-user-ai-settings-to-env'
+import { withOptionalUserAiSettings } from '@/lib/server/user-ai-settings'
 import { getOrCreateRequestId } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
 import { SeraVNextProductError } from '@/lib/sera-vnext-product/errors'
@@ -71,7 +71,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
     const requestedEngineRefresh = raw.reprocessCurrentEngine === true
     // A correction-only replay does not call the AI provider. Do not require a
     // configured/available external API key to replay existing source evidence.
-    if (!requestedEngineRefresh) await applyUserAiSettingsToEnv(admin, user.userId)
     if (requestedEngineRefresh && evidenceChange !== 'NO_NEW_EVIDENCE') {
       return jsonError(requestId, 'VNEXT_REPROCESS_REQUIRES_UNCHANGED_EVIDENCE',
         'Reprocessamento do motor não aceita fatos novos. Utilize a reanálise de evidências para acrescentar informações.', 422)
@@ -118,6 +117,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
         'A análise está bloqueada por evidência insuficiente. Informe fatos novos para reanalisar.', 422)
     }
 
+    return await withOptionalUserAiSettings(admin, user.userId, !requestedEngineRefresh, async () => {
     const result = await createCanonicalEventAnalysis({
       eventId,
       title: String(event.title ?? `SERA ${eventId}`),
@@ -173,6 +173,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
       canonicalAnalyzeResponse(result, eventId),
       { headers: { 'x-request-id': requestId } },
     )
+    })
   } catch (error) {
     if (error instanceof Response) return error
     if (error instanceof SeraVNextProductError) return jsonError(requestId, error.code, error.message, error.status)

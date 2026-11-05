@@ -95,7 +95,7 @@ async function main() {
   assert.equal(appended.length, 2)
   assert.equal(aiCalls, 0)
   const route = readFileSync('frontend/src/app/api/events/[eventId]/reanalyze-vnext/route.ts', 'utf8')
-  assert.ok(route.includes('if (!requestedEngineRefresh) await applyUserAiSettingsToEnv(admin, user.userId)'), 'replay cannot depend on configured AI API key')
+  assert.ok(route.includes('withOptionalUserAiSettings(admin, user.userId, !requestedEngineRefresh, async () => {'), 'replay cannot depend on configured AI API key')
   console.log('ENGINE_ONLY_REPLAY_OFFLINE_PASS: no LLM dependency; same analysis ID; revision appended; human gate intact; evidence unchanged')
 }
 main().catch((err) => { console.error(err); process.exitCode = 1 })

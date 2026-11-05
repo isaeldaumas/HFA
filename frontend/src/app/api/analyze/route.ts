@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireBearerUser } from '@/lib/server/api-auth'
 import { getSupabaseAdmin, assertServiceRoleEnv } from '@/lib/server/supabase-admin'
-import { applyUserAiSettingsToEnv } from '@/lib/server/apply-user-ai-settings-to-env'
+import { withUserAiSettings } from '@/lib/server/user-ai-settings'
 import {
   debitCreditForEvent,
   ensurePublicUserRow,
@@ -136,7 +136,7 @@ export async function POST(req: Request) {
     }
 
     const admin = getSupabaseAdmin()
-    await applyUserAiSettingsToEnv(admin, user.userId)
+    return await withUserAiSettings(admin, user.userId, async () => {
     let body: {
       eventoNarrativa: string
       userId?: string
@@ -409,6 +409,7 @@ export async function POST(req: Request) {
         }
       }
     }
+    })
   } catch (e) {
     if (e instanceof Response) return errorResponseFromAuthResponse(e, requestId)
     logAnalyzeError('unhandled_error', requestId, e)

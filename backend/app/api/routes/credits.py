@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from app.api.deps import get_current_user
+from app.api.deps import get_authorized_user
 from app.database import get_supabase_admin
 import os
 from app.config import settings
@@ -24,9 +24,9 @@ async def list_packages():
 
 
 @router.get("/balance")
-async def get_balance(user=Depends(get_current_user)):
+async def get_balance(user=Depends(get_authorized_user)):
     admin = get_supabase_admin()
-    tenant_id = user.user.user_metadata.get("tenant_id")
+    tenant_id = user.tenant_id
     result = admin.table("tenants")\
         .select("credits_balance")\
         .eq("id", tenant_id)\

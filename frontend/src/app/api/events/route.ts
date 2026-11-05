@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireBearerUser } from '@/lib/server/api-auth'
 import { getSupabaseAdmin, assertServiceRoleEnv } from '@/lib/server/supabase-admin'
-import { applyUserAiSettingsToEnv } from '@/lib/server/apply-user-ai-settings-to-env'
+import { withOptionalUserAiSettings } from '@/lib/server/user-ai-settings'
 import { debitCreditForEvent, ensurePublicUserRow, refundCreditForFailedAnalysis } from '@/lib/server/tenant-user'
 import { getOrCreateRequestId, buildErrorResponse } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
@@ -345,6 +345,7 @@ export async function POST(req: Request) {
       if (!isEnterprise && (tenant.credits_balance ?? 0) < 1) return jsonError('Créditos insuficientes para iniciar a análise HFA.', 402)
     }
 
+    return await withOptionalUserAiSettings(admin, user.userId, analysisMode === 'hfa', async () => {
     // Never insert an HFA event before the required semantic AI pass succeeds.
     // A provider billing error (e.g. DeepSeek HTTP 402) otherwise creates a
     // second 'failed' occurrence after duplicate override with no analysis.
@@ -352,7 +353,6 @@ export async function POST(req: Request) {
     if (analysisMode === 'hfa') {
       try {
         stage = 'preflight-ai'
-        await applyUserAiSettingsToEnv(admin, user.userId)
         preparedSemantic = await enrichSeraNarrativeSemantically({ narrative: raw_input, locale })
       } catch (aiError) {
         logEventsError(aiError, 'preflight-ai', context)
@@ -543,6 +543,7 @@ export async function POST(req: Request) {
         }
       }
     }
+    })
   } catch (e) {
     if (e instanceof Response) return e
     logEventsError(e, stage, context)

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from app.api.deps import get_current_user
+from app.api.deps import get_authorized_user
 from app.database import get_supabase_admin
 from postgrest.exceptions import APIError
 
@@ -18,9 +18,9 @@ class EventInput(BaseModel):
 
 
 @router.get("/")
-async def list_events(user=Depends(get_current_user)):
+async def list_events(user=Depends(get_authorized_user)):
     admin = get_supabase_admin()
-    tenant_id = user.user.user_metadata.get("tenant_id")
+    tenant_id = user.tenant_id
     result = admin.table("events")\
         .select("*")\
         .eq("tenant_id", tenant_id)\
@@ -30,32 +30,13 @@ async def list_events(user=Depends(get_current_user)):
 
 
 @router.post("/")
-async def create_event(data: EventInput, user=Depends(get_current_user)):
+async def create_event(data: EventInput, user=Depends(get_authorized_user)):
     admin = get_supabase_admin()
-    tenant_id = user.user.user_metadata.get("tenant_id")
-    user_id = user.user.id
-    user_email = getattr(user.user, "email", None)
-
-    # Garante que exista um usuário em `users` para satisfazer FK de submitted_by.
-    # Se o email já existir, reutiliza o id existente para evitar violação de unique(email).
-    submitted_by_id = user_id
-    existing_user = admin.table("users")\
-        .select("id")\
-        .eq("email", user_email)\
-        .limit(1)\
-        .execute()
-
-    if existing_user.data:
-        submitted_by_id = existing_user.data[0]["id"]
-    else:
-        admin.table("users").insert({
-            "id": user_id,
-            "tenant_id": tenant_id,
-            "email": user_email,
-            "full_name": (user_email.split("@")[0] if user_email else "user"),
-            "role": user.user.user_metadata.get("role", "admin"),
-            "is_active": True
-        }).execute()
+    tenant_id = user.tenant_id
+    # public.users is already resolved and active by the server-side
+    # database authorization dependency. Never bootstrap from untrusted metadata,
+    # nor re-bind by an unconfirmed email during event submission.
+    submitted_by_id = user.public_user_id
 
     # Verifica créditos (enterprise plan = ilimitado)
     tenant = admin.table("tenants")\
@@ -110,9 +91,9 @@ async def create_event(data: EventInput, user=Depends(get_current_user)):
 
 
 @router.get("/{event_id}")
-async def get_event(event_id: str, user=Depends(get_current_user)):
+async def get_event(event_id: str, user=Depends(get_authorized_user)):
     admin = get_supabase_admin()
-    tenant_id = user.user.user_metadata.get("tenant_id")
+    tenant_id = user.tenant_id
     result = admin.table("events")\
         .select("*, analyses(*)")\
         .eq("id", event_id)\

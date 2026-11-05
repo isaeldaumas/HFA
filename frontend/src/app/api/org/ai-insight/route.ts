@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { requireBearerUser } from '@/lib/server/api-auth'
 import { getSupabaseAdmin } from '@/lib/server/supabase-admin'
-import { applyUserAiSettingsToEnv } from '@/lib/server/apply-user-ai-settings-to-env'
-import { ask, safeParse, getModelName, assertLlmEnvConfigured } from '@/lib/sera/llm'
+import { withUserAiSettings } from '@/lib/server/user-ai-settings'
+import { ask, safeParse, getModelName, getActiveProvider, assertLlmEnvConfigured } from '@/lib/sera/llm'
 
 export const maxDuration = 60
 
@@ -38,10 +38,10 @@ export async function POST(req: Request) {
     userId = user.userId
     const admin = getSupabaseAdmin()
 
-    await applyUserAiSettingsToEnv(admin, user.userId)
-    assertLlmEnvConfigured()
-    console.log('[ai-insight] usando provider:', process.env.AI_PROVIDER ?? 'default')
 
+    return await withUserAiSettings(admin, user.userId, async () => {
+    assertLlmEnvConfigured()
+    console.log('[ai-insight] usando provider:', getActiveProvider())
     let body: { intelligence_data?: unknown }
     try {
       body = await req.json()
@@ -87,6 +87,7 @@ Retorne APENAS o JSON, sem texto adicional.`
       insight,
       generated_at: new Date().toISOString(),
       model_used: getModelName(),
+    })
     })
   } catch (e) {
     if (e instanceof Response) return e

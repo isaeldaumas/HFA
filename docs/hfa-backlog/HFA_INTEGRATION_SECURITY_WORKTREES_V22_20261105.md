@@ -23,7 +23,7 @@ Os quatro commits locais dos Gemini 1 (jornada), 2 (multifile), 4 (release) e 3 
 
 **Mitigação V22:**
 1. Predicado isPlatformAdminAuthorized em platform-admin-authority.ts, com allowlist explícita de auth.users.id e role admin autoritativo.
-2. Novo requirePlatformAdmin em admin-auth.ts exige o guard anterior requireAdmin e também identidade no ambiente de servidor HFA_PLATFORM_ADMIN_AUTH_USER_IDS.
+2. Novo requirePlatformAdmin em admin-auth.ts exige requireBearerUser (identidade validada e papel resolvido em public.users), além de identidade no ambiente de servidor HFA_PLATFORM_ADMIN_AUTH_USER_IDS; o plano comercial Enterprise não é requisito para operador da plataforma.
 3. Nove rotas globais usam o novo guard: /api/admin/tenants, /api/admin/tenants/[id], /api/admin/payments/transactions, /api/admin/packages, /api/admin/packages/[id], /api/admin/stats, /api/admin/settings, /api/admin/settings/password-reset e /api/admin/ai/test.
 4. Ausência de configuração, UUID inválido ou lista malformada causa HTTP 403 sem fallback a email, user_metadata, plano Enterprise ou body.
 5. As rotas SERA tenant-scoped existentes continuam usando as autorizações específicas ao tenant.

@@ -31,7 +31,7 @@ assert.equal(check(OP, '  ' + CUSTOMER_ADMIN + ', ' + OP), true)
 assert.equal(check('attacker-unsafe-id', OP), false)
 
 const auth = readFileSync(path.join(ROOT,'frontend/src/lib/server/admin-auth.ts'), 'utf8')
-assert.match(auth, /const user = await requireAdmin\(req\)/)
+assert.match(auth, /const user = await requireBearerUser\(req\)/)
 assert.match(auth, /authUserId:\s*user\.authUserId/)
 assert.match(auth, /process\.env\.HFA_PLATFORM_ADMIN_AUTH_USER_IDS/)
 assert.ok(!auth.includes('user_metadata'))

@@ -104,6 +104,19 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ eventId: str
     const user = await requireAdmin(req)
     const { eventId } = await ctx.params
     const admin = getSupabaseAdmin()
+
+    // A denied deletion must never create an audit row referencing an event
+    // belonging to another tenant. Treat foreign and nonexistent IDs equally.
+    const owned = await admin.from('events')
+      .select('id')
+      .eq('id', eventId)
+      .eq('tenant_id', user.tenantId)
+      .maybeSingle()
+    if (owned.error) throw new Error('EVENT_DELETE_OWNERSHIP_LOOKUP_FAILED')
+    if (!owned.data) {
+      return jsonError(requestId, 'EVENT_NOT_FOUND', 'Evento não encontrado.', 404)
+    }
+
     const publicUserId = await resolvePublicUserId({
       admin,
       tenantId: user.tenantId,
