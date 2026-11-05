@@ -12,7 +12,14 @@ export function resolveApiUrl(endpoint: string): string {
   const localSera =
     p === '/events' || p.startsWith('/events/') || p.startsWith('/analyses/')
 
-  if (localSera) return `/api${p}`
+  // Signup and tenant bootstrap MUST use same-origin Next.js routes regardless
+  // of NEXT_PUBLIC_API_URL. Legacy backend paths bypass signup WAF protection.
+  const canonicalAuth =
+    p === '/auth/register' ||
+    p === '/auth/oauth/bootstrap' ||
+    p === '/auth/bootstrap'
+
+  if (localSera || canonicalAuth) return `/api${p}`
 
   if (LEGACY_API) return `${LEGACY_API}${p}`
   return `/api${p}`

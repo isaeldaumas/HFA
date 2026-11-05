@@ -26,6 +26,9 @@ async function cleanupIncompleteRegistration(
       console.error('[auth/register] auth cleanup failed', {
         errorType: error instanceof Error ? error.name : typeof error,
       })
+      // Preserve provisional tenant for authorized reconciliation when Auth
+      // identity deletion fails; deleting it now would orphan the Auth user.
+      return false
     }
   }
   try {

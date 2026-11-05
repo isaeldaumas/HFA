@@ -183,101 +183,30 @@ def run(coro):
 
 
 class RouteSecurityTests(unittest.TestCase):
-    def test_no_enterprise_from_self_claimed_email(self):
+    def test_legacy_register_always_410_and_no_auth_or_tenant_calls(self):
         db = FakeDb()
-        signup, calls = signup_for("operator@example.test")
-        route = load_route("auth.py", db, signup)
-        result = run(route["register"](NS(
-            email="operator@example.test", password="synthetic",
-            company_name="Example Co", slug="example-co")))
-        self.assertEqual(result["tenant_id"], "tenant-new-1")
-        self.assertEqual(db.tables["tenants"][0]["plan"], "free")
-        self.assertEqual(db.tables["tenants"][0]["credits_balance"], 5)
-        self.assertEqual(db.tables["users"][0]["id"], AUTH_1)
-        self.assertEqual(db.tables["users"][0]["auth_user_id"], AUTH_1)
-        self.assertEqual(db.tables["users"][0]["role"], "admin")
-        self.assertEqual(db.tables["users"][0]["tenant_id"], "tenant-new-1")
-        self.assertEqual(calls[0]["email"], "operator@example.test")
-        self.assertNotIn("options", calls[0])
-        self.assertEqual(len(db.writes), 2)
-
-    def test_invalid_slug_denied_before_signup(self):
-        db = FakeDb()
-        signup, calls = signup_for()
+        signup, calls = signup_for("new@example.test")
         route = load_route("auth.py", db, signup)
         with self.assertRaises(HttpError) as exc:
-            run(route["register"](NS(
-                email="new@example.test", password="synthetic", company_name="X",
-                slug="../../other-tenant")))
-        self.assertEqual(exc.exception.status_code, 400)
+            run(route["register"]())
+        self.assertEqual(exc.exception.status_code, 410)
         self.assertEqual(calls, [])
+        self.assertEqual(db.calls, [])
         self.assertEqual(db.writes, [])
 
-    def test_blank_company_denied_before_signup(self):
-        db = FakeDb()
-        signup, calls = signup_for()
-        route = load_route("auth.py", db, signup)
-        with self.assertRaises(HttpError) as exc:
-            run(route["register"](NS(
-                email="new@example.test", password="synthetic", company_name="   ",
-                slug="valid-slug")))
-        self.assertEqual(exc.exception.status_code, 400)
-        self.assertEqual(calls, [])
-        self.assertEqual(db.writes, [])
-
-    def test_duplicate_email_denies_signup_before_writes(self):
-        db = FakeDb(users=[{"email": "new@example.test"}])
-        signup, calls = signup_for()
-        route = load_route("auth.py", db, signup)
-        with self.assertRaises(HttpError) as exc:
-            run(route["register"](NS(
-                email="new@example.test", password="synthetic", company_name="X", slug="x")))
-        self.assertEqual(exc.exception.status_code, 409)
-        self.assertEqual(calls, [])
-        self.assertEqual(db.writes, [])
-
-    def test_fake_supabase_existing_user_does_not_create_tenant(self):
-        db = FakeDb()
-        signup, _ = signup_for(identities=False)
-        route = load_route("auth.py", db, signup)
-        with self.assertRaises(HttpError) as exc:
-            run(route["register"](NS(
-                email="new@example.test", password="synthetic", company_name="X", slug="x")))
-        self.assertEqual(exc.exception.status_code, 409)
-        self.assertEqual(db.writes, [])
-
-    def test_signup_failure_does_not_create_tenant(self):
-        db = FakeDb()
-        def signup(_): raise ValueError("synthetic signup failure")
-        route = load_route("auth.py", db, signup)
-        with self.assertRaises(HttpError) as exc:
-            run(route["register"](NS(
-                email="new@example.test", password="synthetic", company_name="X", slug="x")))
-        self.assertEqual(exc.exception.status_code, 400)
-        self.assertEqual(db.writes, [])
-
-    def test_tenant_db_failure_reports_pending_instead_of_success(self):
-        db = FakeDb()
-        db.insert_failures.add("tenants")
-        signup, _ = signup_for()
-        route = load_route("auth.py", db, signup)
-        with self.assertRaises(HttpError) as exc:
-            run(route["register"](NS(
-                email="new@example.test", password="synthetic", company_name="X", slug="x")))
-        self.assertEqual(exc.exception.status_code, 503)
-        self.assertEqual(db.tables["users"], [])
-
-    def test_bootstrap_new_confirmed_user_is_free_and_bound_to_auth_id(self):
+    def test_legacy_bootstrap_new_confirmed_identity_410_without_writes(self):
         db = FakeDb()
         route = load_route("auth.py", db)
-        auth_user = NS(id=AUTH_1, email="new@example.test",
-                       email_confirmed_at="2026-11-05T10:00:00Z",
-                       user_metadata={"tenant_id": "foreign-tenant", "role": "admin"})
-        result = run(route["oauth_bootstrap"](NS(user=auth_user)))
-        self.assertEqual(result["created"], True)
-        self.assertEqual(db.tables["tenants"][0]["plan"], "free")
-        self.assertEqual(db.tables["users"][0]["auth_user_id"], AUTH_1)
-        self.assertNotEqual(db.tables["users"][0]["tenant_id"], "foreign-tenant")
+        auth_user = NS(
+            id=AUTH_1, email="new@example.test",
+            email_confirmed_at="2026-11-05T10:00:00Z",
+            user_metadata={"tenant_id": "foreign", "role": "admin"},
+        )
+        with self.assertRaises(HttpError) as exc:
+            run(route["oauth_bootstrap"](NS(user=auth_user)))
+        self.assertEqual(exc.exception.status_code, 410)
+        self.assertEqual(db.writes, [])
+        self.assertTrue(all(table == "users" for table, *_ in db.calls))
 
     def test_tenant_admin_flag_is_not_billing_plan_privilege(self):
         db = FakeDb(tenants=[{"id": "tenant-free", "plan": "free",
@@ -288,17 +217,6 @@ class RouteSecurityTests(unittest.TestCase):
         self.assertTrue(response["is_admin"])
         response_viewer = run(route["get_me"](NS(tenant_id="tenant-free", role="viewer")))
         self.assertFalse(response_viewer["is_admin"])
-
-    def test_mismatched_auth_sign_up_identity_does_not_create_tenant(self):
-        db = FakeDb()
-        signup, _ = signup_for(email="different@example.test")
-        route = load_route("auth.py", db, signup)
-        with self.assertRaises(HttpError) as exc:
-            run(route["register"](NS(
-                email="new@example.test", password="synthetic",
-                company_name="X", slug="x")))
-        self.assertEqual(exc.exception.status_code, 409)
-        self.assertEqual(db.writes, [])
 
     def test_bootstrap_unconfirmed_identity_denied(self):
         db = FakeDb()

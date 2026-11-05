@@ -129,12 +129,13 @@ test('successful signup only acknowledges after public users insert', async () =
     ])
   })
 
-  test('auth cleanup failure still tries tenant cleanup; never returns success', async () => {
+  test('auth cleanup failure preserves provisional tenant for support reconciliation', async () => {
     const result = await invoke({ userInsertFailure: true, deleteAuthFailure: true })
     assert.equal(result.status, 500)
     assert.match(String(result.body.detail), /suporte/)
-    assert.equal(result.calls.at(-2), 'auth.deleteUser:auth-user-001')
-    assert.equal(result.calls.at(-1), 'tenants.delete:id:tenant-001')
+    assert.equal(result.calls.at(-1), 'auth.deleteUser:auth-user-001')
+    assert.ok(!result.calls.some(c => c.startsWith('tenants.delete:')),
+      'Deleting the tenant while Auth identity remains would orphan an account')
   })
 
   test('tenant cleanup failure after public users failure is visible as incomplete', async () => {
