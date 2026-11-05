@@ -9,12 +9,11 @@ from app.database import get_supabase_client, get_supabase_admin
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-ENTERPRISE_EMAIL = "filipe.daumas@icloud.com"
+def _tenant_defaults(_email: str) -> dict:
+    """Public self-signup never grants an Enterprise plan by email.
 
-
-def _tenant_defaults(email: str) -> dict:
-    if email == ENTERPRISE_EMAIL:
-        return {"plan": "enterprise", "credits_balance": -1}
+    Enterprise provisioning must be an explicitly authorized platform action.
+    """
     return {"plan": "free", "credits_balance": 5}
 
 
@@ -32,41 +31,87 @@ class LoginInput(BaseModel):
 
 @router.post("/register")
 async def register(data: RegisterInput):
+    """Legacy self-signup — reject duplicates before DB writes, bind Auth ID.
+
+    Auth signup comes before tenant creation to avoid orphan tenant creation
+    when signup is rejected. The response may require email verification,
+    depending on the Supabase project settings. If a later database insert
+    fails, the user can return via the authenticated OAuth/bootstrap route;
+    we never delete Auth users as an unsafe compensation.
+    """
+    email = str(data.email).strip().lower()
+    company_name = data.company_name.strip()
+    slug = data.slug.strip().lower()
+    # Input validation must precede the Auth sign-up call. Otherwise a bad
+    # slug or blank company creates an Auth identity with no business record.
+    if not company_name or len(company_name) > 255:
+        raise HTTPException(status_code=400, detail="Nome da empresa inválido")
+    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", slug):
+        raise HTTPException(status_code=400, detail="Identificador da empresa inválido")
+
     admin = get_supabase_admin()
-    # Cria tenant
-    tenant = admin.table("tenants").insert({
-        "name": data.company_name,
-        "slug": data.slug,
-        **_tenant_defaults(data.email),
-    }).execute()
+    try:
+        existing = (
+            admin.table("users").select("id")
+            .eq("email", email).limit(2).execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Cadastro temporariamente indisponível") from exc
+    if getattr(existing, "error", None):
+        raise HTTPException(status_code=503, detail="Cadastro temporariamente indisponível")
+    if existing.data:
+        raise HTTPException(status_code=409, detail="Cadastro já existente")
 
-    if not tenant.data:
-        raise HTTPException(400, "Erro ao criar empresa")
-
-    tenant_id = tenant.data[0]["id"]
-
-    # Cria usuário no Supabase Auth
     client = get_supabase_client()
-    client.auth.sign_up({
-        "email": data.email,
-        "password": data.password,
-        "options": {
-            "data": {
-                "tenant_id": tenant_id,
-                "role": "admin"
-            }
-        }
-    })
+    try:
+        signup_result = client.auth.sign_up({
+            "email": email,
+            "password": data.password,
+            # No tenant/role fields in mutable auth user_metadata.
+        })
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Não foi possível iniciar o cadastro") from exc
 
-    # Cria registro na tabela users
-    admin.table("users").insert({
+    signed_user = getattr(signup_result, "user", None)
+    signed_id = getattr(signed_user, "id", None)
+    identities = getattr(signed_user, "identities", None)
+    signed_email = (getattr(signed_user, "email", "") or "").strip().lower()
+    # Supabase may return an obfuscated user for an already registered email
+    # when email confirmation is enabled. Never provision it as a new tenant.
+    if not signed_id or not identities or signed_email != email:
+        raise HTTPException(status_code=409, detail="Não foi possível concluir o cadastro")
+
+    try:
+        new_tenant = admin.table("tenants").insert({
+            "name": company_name,
+            "slug": slug,
+            **_tenant_defaults(email),
+        }).execute()
+        if getattr(new_tenant, "error", None) or not new_tenant.data:
+            raise ValueError("Tenant insert did not return a row")
+        tenant_id = new_tenant.data[0]["id"]
+
+        new_user = admin.table("users").insert({
+            "id": str(signed_id),
+            "auth_user_id": str(signed_id),
+            "tenant_id": tenant_id,
+            "email": email,
+            "full_name": email.split("@")[0],
+            "role": "admin",
+            "is_active": True,
+        }).execute()
+        if getattr(new_user, "error", None) or not new_user.data:
+            raise ValueError("User insert did not return a row")
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Cadastro iniciado; vínculo empresarial pendente de confirmação",
+        ) from exc
+
+    return {
+        "message": "Cadastro iniciado. Confirme seu e-mail, se solicitado.",
         "tenant_id": tenant_id,
-        "email": data.email,
-        "full_name": data.email.split("@")[0],
-        "role": "admin"
-    }).execute()
-
-    return {"message": "Conta criada com sucesso", "tenant_id": tenant_id}
+    }
 
 
 @router.post("/login")
@@ -92,8 +137,9 @@ async def get_me(user=Depends(get_authorized_user)):
     plan = tenant.data.get("plan", "free")
     credits_balance = tenant.data.get("credits_balance", 0)
     role = user.role
-    # Tenant administrator privilege does not imply global platform privilege.
-    is_admin = role == "admin" and plan == "enterprise"
+    # Tenant admin is a tenant permission, independent of Enterprise billing.
+    # This flag must NEVER be used as a global platform-admin permission.
+    is_admin = role == "admin"
     return {
         "plan": plan,
         "credits_balance": "unlimited" if credits_balance == -1 else credits_balance,

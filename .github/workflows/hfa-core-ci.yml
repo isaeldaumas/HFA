@@ -124,7 +124,26 @@ jobs:
       - name: Python backend DB-authoritative tenant boundary
         run: |
           python3 -m unittest discover -s backend/tests -p 'test_authoritative_user.py' -v
+          python3 -m unittest discover -s backend/tests -p 'test_legacy_routes_hardening.py' -v
           ./frontend/node_modules/.bin/tsx tests/hfa-audit/gemini-tenancy-security/test-python-authoritative-tenant-boundary.ts
+
+      - name: Setup Python 3.12 for FastAPI runtime security contract
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned FastAPI runtime contract dependencies
+        run: |
+          python3 -m pip install --disable-pip-version-check             fastapi==0.111.0             supabase==2.4.6             pydantic-settings==2.2.1             httpx==0.27.0             email-validator==2.2.0
+
+      - name: FastAPI actual HTTP routing security contracts (offline)
+        env:
+          SUPABASE_URL: https://example.supabase.co
+          SUPABASE_ANON_KEY: synthetic-anon
+          SUPABASE_SERVICE_ROLE_KEY: synthetic-service
+          PYTHONPATH: backend
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 -m unittest discover -s backend/tests -p 'test_fastapi_route_runtime_v24.py' -v
 
       - name: AI credentials request scope and concurrency isolation
         run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/gemini-tenancy-security/test-ai-request-scope-trial-001.ts

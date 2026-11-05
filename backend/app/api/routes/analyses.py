@@ -124,6 +124,8 @@ async def recalculate_analysis(
     body: RecalculateRequest,
     user=Depends(get_authorized_user),
 ):
+    if user.role not in {"admin", "analyst"}:
+        raise HTTPException(status_code=403, detail="Edição não autorizada")
     admin = get_supabase_admin()
     tenant_id = user.tenant_id
 
@@ -169,7 +171,7 @@ async def recalculate_analysis(
     updates["edit_count"] = (analysis.get("edit_count") or 0) + 1
 
     # Persist updated analysis
-    admin.table("analyses").update(updates).eq("id", analysis_id).execute()
+    admin.table("analyses").update(updates).eq("id", analysis_id).eq("tenant_id", tenant_id).execute()
 
     # Record edit history
     dep = DEPENDENCY_MAP.get(body.step_altered, {})
@@ -187,7 +189,7 @@ async def recalculate_analysis(
     edit_res = admin.table("analysis_edits").insert(edit_record).execute()
 
     # Return fresh analysis
-    fresh = admin.table("analyses").select("*").eq("id", analysis_id).single().execute()
+    fresh = admin.table("analyses").select("*").eq("id", analysis_id).eq("tenant_id", tenant_id).single().execute()
     return {
         "analysis": fresh.data,
         "edit": edit_res.data[0] if edit_res.data else edit_record,
@@ -216,6 +218,8 @@ async def revert_edit(
     user=Depends(get_authorized_user),
 ):
     """Revert a manual edit by re-running recalculate with the before value."""
+    if user.role not in {"admin", "analyst"}:
+        raise HTTPException(status_code=403, detail="Edição não autorizada")
     admin = get_supabase_admin()
     tenant_id = user.tenant_id
 
@@ -247,6 +251,8 @@ async def revert_edit(
         .eq("tenant_id", tenant_id)\
         .single()\
         .execute()
+    if not analysis_res.data:
+        raise HTTPException(status_code=404, detail="Análise não encontrada")
     analysis = analysis_res.data
     event = analysis.pop("events", {}) or {}
     raw_input = event.get("raw_input", "")
@@ -268,10 +274,10 @@ async def revert_edit(
     updates["edited_at"] = datetime.datetime.utcnow().isoformat()
     updates["edit_count"] = max(0, (analysis.get("edit_count") or 1) - 1)
 
-    admin.table("analyses").update(updates).eq("id", analysis_id).execute()
-    admin.table("analysis_edits").delete().eq("id", edit_id).execute()
+    admin.table("analyses").update(updates).eq("id", analysis_id).eq("tenant_id", tenant_id).execute()
+    admin.table("analysis_edits").delete().eq("id", edit_id).eq("analysis_id", analysis_id).eq("tenant_id", tenant_id).execute()
 
-    fresh = admin.table("analyses").select("*").eq("id", analysis_id).single().execute()
+    fresh = admin.table("analyses").select("*").eq("id", analysis_id).eq("tenant_id", tenant_id).single().execute()
     return {"analysis": fresh.data, "reverted_edit_id": edit_id}
 
 

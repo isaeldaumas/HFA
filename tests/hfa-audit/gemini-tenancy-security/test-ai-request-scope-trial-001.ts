@@ -74,12 +74,16 @@ class FakeAiAdmin {
     readonly global: Record<string, string>,
     readonly users: Record<string, Record<string, unknown>>,
     readonly failUser = false,
+    readonly missingSystemSettings = false,
   ) {}
   from(table: string) {
     const db = this
     return {
       select(_fields: string) {
         if (table === 'system_settings') {
+          if (db.missingSystemSettings) {
+            return Promise.resolve({ data: null, error: { code: 'PGRST205' } } as DbResult)
+          }
           return Promise.resolve({ data: Object.entries(db.global).map(([key, value]) => ({ key, value })), error: null } as DbResult)
         }
         if (table !== 'ai_settings') throw new Error('Unexpected table')
@@ -129,6 +133,14 @@ const liveLike = await Promise.all([
   }),
 ])
 assert.deepEqual(liveLike, ['tenant-a', 'tenant-b'])
+assert.equal(getScopedAiSettings(), undefined)
+
+// Read-only schema check in HFA found no public.system_settings table;
+ // the loader must preserve the deployment/env fallback without inventing
+ // an AI key or treating PGRST205 as a tenant identity.
+const systemSettingsAbsent = new FakeAiAdmin({}, {}, false, true)
+const fallbackResolved = await resolveUserAiSettings(systemSettingsAbsent as never, 'auth-a')
+assert.ok(fallbackResolved.provider)
 assert.equal(getScopedAiSettings(), undefined)
 
 const dbFailed = new FakeAiAdmin({}, {}, true)

@@ -45,7 +45,7 @@ function isPlausibleKey(provider: RequestAiProvider, key: string): boolean {
 
 function notFoundTable(error: unknown): boolean {
   return Boolean(error && typeof error === 'object' &&
-    (error as { code?: string }).code === 'PGRST205')
+    ['PGRST205', '42P01'].includes(String((error as { code?: string }).code ?? '')))
 }
 
 /**
