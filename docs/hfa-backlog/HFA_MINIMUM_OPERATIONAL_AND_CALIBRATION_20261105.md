@@ -107,3 +107,7 @@ Complemento diagnóstico CAL-07: o teste de 7 variantes derivadas de caso sinté
 ## Atualização v20 — fila de revisão sem pontuação de risco
 
 A bancada v20 agora produz uma fila com três prioridades (P1/P2/P3) para organizar casos de desenvolvimento com base nas evidências existentes: 1 caso para adjudicação metodológica, 7 para proveniência/temporalidade e 16 para lacunas de evidência. Não atribui risco nem julga correção metodológica. O HTML dispõe de links internos por caso. Detalhes: docs/hfa-backlog/CALIBRATION_V20_REVIEW_QUEUE_20261105.md.
+
+## Atualização v21 — contrato de registro autoral sem promoção automática
+
+Foi criado tests/sera-vnext/dev-author-adjudication-contract.ts, que gera ficha HTML offline e JSON para revisão humana dos casos sintéticos de desenvolvimento V03-CAL/VAL, com referências SHA-256 por relato/frase e avaliação P/O/A separada. O formato permite UNRESOLVED sem código, exige justificativas, mantém as propostas do motor ausentes do instrumento e **não valida identidade nem qualidade científica**. O validador nunca libera código ou downstream. Testes adversariais em tests/sera-vnext/dev-author-adjudication-contract-trial-001.ts. Guia operacional: docs/hfa-backlog/CALIBRATION_V21_AUTHOR_INPUT_PROTOCOL_20261105.md.

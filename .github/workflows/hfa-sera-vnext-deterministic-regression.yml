@@ -62,3 +62,6 @@ jobs:
 
       - name: CAL-07 synthetic context sensitivity (non-scientific)
         run: ./frontend/node_modules/.bin/tsx tests/sera-vnext/dev-calibration-cal07-contrast-trial-001.ts
+
+      - name: Offline author worksheet provenance and safety gate (non-scientific)
+        run: ./frontend/node_modules/.bin/tsx tests/sera-vnext/dev-author-adjudication-contract-trial-001.ts
