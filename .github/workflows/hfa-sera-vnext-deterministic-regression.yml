@@ -54,3 +54,8 @@ jobs:
 
       - name: SERA vNext Deterministic Regression
         run: ./frontend/node_modules/.bin/tsx scripts/run-sera-vnext-ci-regression.ts
+
+      # Only previously exposed synthetic V03-CAL/V03-VAL cases. This is NOT
+      # V04 human validation and never opens sealed case sources.
+      - name: Development calibration guardrails (non-scientific)
+        run: ./frontend/node_modules/.bin/tsx tests/sera-vnext/dev-calibration-workbench-trial-001.ts
