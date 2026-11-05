@@ -8,10 +8,16 @@ export async function requireAdmin(req: Request): Promise<ApiUserContext> {
   const admin = getSupabaseAdmin()
   const [tenant, userRow] = await Promise.all([
     admin.from('tenants').select('plan').eq('id', user.tenantId).single(),
-    admin.from('users').select('role').eq('id', user.publicUserId).maybeSingle(),
+    admin.from('users').select('role').eq('id', user.publicUserId).eq('tenant_id', user.tenantId).maybeSingle(),
   ])
-  const role = String(userRow.data?.role ?? user.role ?? '').toLowerCase()
-  if (tenant.data?.plan !== 'enterprise' || role !== 'admin') {
+  if (tenant.error || userRow.error || !tenant.data || !userRow.data) {
+    throw new Response(
+      JSON.stringify({ detail: 'Não foi possível verificar as permissões' }),
+      { status: 503, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+  const role = String(userRow.data.role ?? '').toLowerCase()
+  if (tenant.data.plan !== 'enterprise' || role !== 'admin') {
     throw new Response(
       JSON.stringify({ detail: 'Acesso restrito a administradores enterprise' }),
       { status: 403, headers: { 'Content-Type': 'application/json' } }

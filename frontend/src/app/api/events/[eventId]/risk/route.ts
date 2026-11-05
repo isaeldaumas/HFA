@@ -88,7 +88,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
       if (initial.error) return jsonError('Não foi possível validar a avaliação inicial.', 500)
       if (!initial.data?.length) return jsonError('Registre a avaliação de risco inicial antes da residual.', 409)
     }
-    const publicUserId = await ensurePublicUserRow(admin, user.tenantId, user.userId, user.email, user.role)
+    const publicUserId = await ensurePublicUserRow(admin, user)
     const risk = calculateSafetyRisk(probability, severityNumber as SafetySeverity)
     const result = await admin
       .from('event_risk_assessments')

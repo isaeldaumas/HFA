@@ -53,7 +53,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
     // Preserve the source-audited semantic snapshot and feed clarification
     // answers directly to the deterministic engine. This endpoint must not
     // call an external AI provider merely to register known new facts.
-    const publicUserId = await ensurePublicUserRow(admin, user.tenantId, user.userId, user.email, user.role)
+    const publicUserId = await ensurePublicUserRow(admin, user)
     const result = await reanalyzeSeraVNextAnalysis({
       analysisId: analysis.id,
       reason: 'event_clarification_evidence',

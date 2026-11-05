@@ -165,6 +165,9 @@ jobs:
       - name: V28 explicit auth binding and deletion actor conflict regression
         run: ./frontend/node_modules/.bin/tsx --test tests/hfa-audit/gemini-tenancy-security/v28-explicit-auth-binding.test.ts
 
+      - name: V30 authoritative write-actor revalidation and no implicit provisioning
+        run: ./frontend/node_modules/.bin/tsx --test tests/hfa-audit/gemini-tenancy-security/v30-authoritative-write-actor.test.ts
+
 
       - name: Commercial trial contract
         run: ./frontend/node_modules/.bin/tsx tests/product/test-trial-usage.ts

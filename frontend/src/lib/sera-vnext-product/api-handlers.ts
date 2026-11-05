@@ -44,13 +44,7 @@ function nowFn(deps: HandlerDeps): () => number {
 }
 
 async function buildContext(user: ApiUserContext, requestId: string): Promise<SeraVNextProductContext> {
-  const publicUserId = await ensurePublicUserRow(
-    getSupabaseAdmin(),
-    user.tenantId,
-    user.userId,
-    user.email,
-    user.role,
-  )
+  const publicUserId = await ensurePublicUserRow(getSupabaseAdmin(), user)
   return {
     userId: publicUserId,
     email: user.email,

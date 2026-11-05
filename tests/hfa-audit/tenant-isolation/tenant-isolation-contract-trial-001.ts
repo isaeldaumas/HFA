@@ -48,8 +48,12 @@ const KNOWN_TENANT_SAFE_HELPERS = [
   'ensurePublicUserRow',
   'debitCreditForEvent',
   'refundCreditForFailedAnalysis',
-  'requireAdmin',
-  'requireBearerUser',
+  // Enterprise tenant-admin access is not platform-wide authorization.
+  // Global tenant tables may be unscoped only behind a dedicated,
+  // allowlisted requirePlatformAdmin guard; requireAdmin alone is insufficient.
+  'requirePlatformAdmin',
+  // Merely authenticating a bearer token does not tenant-scope service-role
+  // queries; those must use .eq('tenant_id', ...) or a scoped repository.
   'createSeraVNextAnalysis',
   'handleGetSeraVNextAnalysisRequest',
   'handleListSeraVNextAnalysesRequest',

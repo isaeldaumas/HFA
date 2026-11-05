@@ -42,7 +42,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ eventId: strin
       .maybeSingle()
     if (error) return jsonError('Não foi possível obter o evento.', 500)
     if (!event || event.deleted_at) return jsonError('Evento não encontrado.', 404)
-    const publicUserId = await ensurePublicUserRow(admin, user.tenantId, user.userId, user.email, user.role)
+    const publicUserId = await ensurePublicUserRow(admin, user)
     const nextPath = investigationPath(triageStatus, event.investigation_path as string | null)
     const { data: updated, error: updateError } = await admin
       .from('events')

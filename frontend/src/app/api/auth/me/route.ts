@@ -13,10 +13,11 @@ export async function GET(req: Request) {
 
     const [tenantRes, userRes] = await Promise.all([
       admin.from('tenants').select('plan, credits_balance').eq('id', user.tenantId).single(),
-      admin.from('users').select('role').eq('id', user.publicUserId).maybeSingle(),
+      admin.from('users').select('role').eq('id', user.publicUserId).eq('tenant_id', user.tenantId).maybeSingle(),
     ])
 
-    if (tenantRes.error) return jsonError('Tenant não encontrado', 404)
+    if (tenantRes.error || !tenantRes.data) return jsonError('Tenant não encontrado', 404)
+    if (userRes.error || !userRes.data) return jsonError('Usuário não autorizado.', 403)
 
     const plan = (tenantRes.data?.plan as string) ?? 'free'
     const creditsBalance = (tenantRes.data?.credits_balance as number) ?? 0

@@ -162,7 +162,7 @@ export async function POST(req: Request) {
     if (!rawInput) return buildErrorResponse('ANALYZE_INVALID_INPUT', requestId, 400)
     if (body.userId && body.userId !== user.userId) return buildErrorResponse('ANALYZE_FORBIDDEN', requestId, 403)
 
-    const submittedById = await ensurePublicUserRow(admin, user.tenantId, user.userId, user.email, user.role)
+    const submittedById = await ensurePublicUserRow(admin, user)
 
     if (body.eventId) {
       const { data: ev, error: evErr } = await admin

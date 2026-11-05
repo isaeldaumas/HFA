@@ -12,9 +12,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ analysisId: str
   try {
     const user = await requireBearerUser(req)
     const { analysisId } = await ctx.params
-    const publicUserId = await ensurePublicUserRow(
-      getSupabaseAdmin(), user.tenantId, user.userId, user.email, user.role,
-    )
+    const publicUserId = await ensurePublicUserRow(getSupabaseAdmin(), user)
     const result = await exportSeraVNextAnalysisPdf({
       analysisId,
       context: {

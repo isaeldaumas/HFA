@@ -1,50 +1,50 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-const VALID_USER_ROLES = new Set(['admin', 'analyst', 'viewer'])
+import type { ApiUserContext } from './api-auth'
 
+/**
+ * Historical name retained for existing callers. No self-provisioning is
+ * authorized here: requireBearerUser has already resolved publicUserId,
+ * tenantId and role from public.users and verified the Auth token.
+ *
+ * Revalidate that exact row before writes; NEVER resolve by arbitrary email,
+ * create users, or fall back to a row in a different tenant.
+ */
 export async function ensurePublicUserRow(
   admin: SupabaseClient,
-  tenantId: string,
-  authUserId: string,
-  email: string | undefined,
-  role: string
+  user: ApiUserContext,
 ): Promise<string> {
-  const normalizedEmail = (email ?? '').trim().toLowerCase() || `${authUserId}@auth.local`
-  const normalizedRole = VALID_USER_ROLES.has(role) ? role : 'viewer'
-
-  const { data: existingById, error: existingByIdError } = await admin
+  if (!user.authUserId || !user.publicUserId || !user.tenantId) {
+    throw new Error('PUBLIC_USER_BINDING_MISSING')
+  }
+  const { data: row, error } = await admin
     .from('users')
-    .select('id')
-    .eq('id', authUserId)
+    .select('id, tenant_id, auth_user_id, role, is_active, email')
+    .eq('id', user.publicUserId)
+    .eq('tenant_id', user.tenantId)
     .maybeSingle()
-  if (existingByIdError) {
-    throw new Error(`ENSURE_PUBLIC_USER_ROW_LOOKUP_BY_ID_FAILED: ${existingByIdError.message}`)
-  }
-  if (existingById?.id) return authUserId
 
-  const { data: existingByEmail, error: existingByEmailError } = await admin
-    .from('users')
-    .select('id')
-    .eq('email', normalizedEmail)
-    .limit(1)
-    .maybeSingle()
-  if (existingByEmailError) {
-    throw new Error(`ENSURE_PUBLIC_USER_ROW_LOOKUP_BY_EMAIL_FAILED: ${existingByEmailError.message}`)
+  if (error) throw new Error('PUBLIC_USER_BINDING_LOOKUP_FAILED')
+  if (!row || row.is_active !== true || row.role !== user.role) {
+    throw new Error('PUBLIC_USER_BINDING_INVALID')
   }
-  if (existingByEmail?.id) return existingByEmail.id as string
-
-  const { error: insertError } = await admin.from('users').insert({
-    id: authUserId,
-    tenant_id: tenantId,
-    email: normalizedEmail,
-    full_name: normalizedEmail.split('@')[0] || 'user',
-    role: normalizedRole,
-    is_active: true,
-  })
-  if (insertError) {
-    throw new Error(`ENSURE_PUBLIC_USER_ROW_INSERT_FAILED: ${insertError.message}`)
+  if (row.auth_user_id && row.auth_user_id !== user.authUserId) {
+    throw new Error('PUBLIC_USER_BINDING_CONFLICT')
   }
-  return authUserId
+  if (user.identityBinding === 'DIRECT_AUTH_ID') {
+    if (row.id !== user.authUserId) throw new Error('PUBLIC_USER_BINDING_CONFLICT')
+  } else if (user.identityBinding === 'EXPLICIT_AUTH_LINK') {
+    if (row.auth_user_id !== user.authUserId) throw new Error('PUBLIC_USER_BINDING_CONFLICT')
+  } else if (user.identityBinding === 'LEGACY_CONFIRMED_EMAIL') {
+    if (row.auth_user_id !== null ||
+        !user.email ||
+        row.email?.trim().toLowerCase() !== user.email.trim().toLowerCase()) {
+      throw new Error('PUBLIC_USER_BINDING_CONFLICT')
+    }
+  } else {
+    throw new Error('PUBLIC_USER_BINDING_INVALID')
+  }
+  return String(row.id)
 }
 
 export async function debitCreditForEvent(params: {

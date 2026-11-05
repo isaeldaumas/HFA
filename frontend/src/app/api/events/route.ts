@@ -238,7 +238,7 @@ export async function POST(req: Request) {
     }
 
     stage = 'ensure-public-user-row'
-    const submittedById = await ensurePublicUserRow(admin, user.tenantId, user.userId, user.email, user.role)
+    const submittedById = await ensurePublicUserRow(admin, user)
 
     stage = 'fetch-tenant'
     const { data: tenant, error: terr } = await admin
