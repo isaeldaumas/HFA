@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { handleSeraVNextCandidateRequest } from '../../../frontend/src/app/api/admin/sera-vnext/candidate/route'
+import { handleSeraVNextCandidateRequest } from '../../../frontend/src/app/api/admin/sera-vnext/candidate/handler'
 import { analyzeSeraVNextCandidateOnly } from '../../../frontend/src/lib/sera-vnext-runtime'
 import type { ProductAlphaParityResult } from './types'
 

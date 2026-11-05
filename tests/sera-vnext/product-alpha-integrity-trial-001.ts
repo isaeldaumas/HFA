@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { handleSeraVNextCandidateRequest } from "../../frontend/src/app/api/admin/sera-vnext/candidate/route";
+import { handleSeraVNextCandidateRequest } from "../../frontend/src/app/api/admin/sera-vnext/candidate/handler";
 import { analyzeSeraVNextCandidateOnly } from "../../frontend/src/lib/sera-vnext-runtime";
 import type { ApiUserContext } from "../../frontend/src/lib/server/api-auth";
 

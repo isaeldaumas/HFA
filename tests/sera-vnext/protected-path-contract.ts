@@ -211,6 +211,29 @@ export function assertEventDuplicateReconciliationContract(rootDir: string): voi
 }
 
 export function isAllowedSeraVNextProtectedApiPath(rootDir: string, changedPath: string): boolean {
+  // Next.js 16 route modules may only export HTTP handlers and route options.
+  // Allow the two existing SERA test-injectable handlers to live beside their
+  // routes, without loosening auth, feature-flag or read-only guarantees.
+  for (const [name, verb, handlerName, requiredGate, requiredTokens] of [
+    ["candidate", "POST", "handleSeraVNextCandidateRequest", "product-alpha-security-trial-001.ts",
+      ["requireAdminUser(req)", "isReadOnlyEnabled()", "isInternalPilotEnabled()", "isCandidateOnlyEnabled()", "no-store"]],
+    ["status", "GET", "handleSeraVNextStatusRequest", "runtime-endpoint-page-a4r221max-trial-001.ts",
+      ["requireAdminUser(req)", "isReadOnlyEnabled()", "isInternalPilotEnabled()", "no-store"]],
+  ] as const) {
+    const prefix = `frontend/src/app/api/admin/sera-vnext/${name}/`;
+    if (changedPath !== prefix + "handler.ts") continue;
+    const route = readRel(rootDir, prefix + "route.ts");
+    const handler = readRel(rootDir, changedPath);
+    assert.ok(route.includes(`import { ${handlerName} } from './handler'`), `${name}: route must delegate to its reviewed handler`);
+    assert.ok(route.includes(`export const dynamic = 'force-dynamic'`), `${name}: dynamic endpoint required`);
+    assert.ok(route.includes(`export async function ${verb}(req: Request)`), `${name}: HTTP method required`);
+    assert.ok(hasAll(handler, [...requiredTokens]), `${name}: missing auth, feature-gate or no-store contract`);
+    for (const prohibited of ["writeFile", "appendFile", "releasedCode", "finalConclusion"]) {
+      assert.equal(handler.includes(prohibited), false, `${name}: forbidden handler capability ${prohibited}`);
+    }
+    assert.ok(existsSync(path.join(rootDir, "tests/sera-vnext", requiredGate)), `${name}: mandatory regression test missing`);
+    return true;
+  }
   if (changedPath === "frontend/src/app/api/auth/register/route.ts") {
     // Explicit non-methodological exception: preserve the protected API gate,
     // while permitting a tested fix for signup consistency (without touching SERA).

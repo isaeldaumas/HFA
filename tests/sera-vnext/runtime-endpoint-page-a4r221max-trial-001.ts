@@ -22,20 +22,23 @@ function restoreEnv() {
 
 async function main() {
   const routeSource = readFileSync(rel("frontend/src/app/api/admin/sera-vnext/status/route.ts"), "utf8");
+  const handlerSource = readFileSync(rel("frontend/src/app/api/admin/sera-vnext/status/handler.ts"), "utf8");
+  const protectedSource = routeSource + "\n" + handlerSource;
   const pageSource = readFileSync(rel("frontend/src/app/(dashboard)/admin/sera-vnext/page.tsx"), "utf8");
   const layoutSource = readFileSync(rel("frontend/src/app/(dashboard)/admin/layout.tsx"), "utf8");
 
-  assert.ok(routeSource.includes("requireAdmin") && routeSource.includes("requireAdminUser"), "endpoint must reuse admin auth guard");
-  assert.ok(routeSource.includes("isSeraVNextReadOnlyEnabled") && routeSource.includes("isReadOnlyEnabled"), "endpoint must be feature-flagged");
-  assert.ok(routeSource.includes("isSeraVNextInternalPilotEnabled") && routeSource.includes("isInternalPilotEnabled"), "endpoint must be internal-pilot-flagged");
-  assert.ok(routeSource.includes("no-store"), "endpoint must disable cache");
+  assert.ok(handlerSource.includes("requireAdmin") && handlerSource.includes("requireAdminUser"), "endpoint must reuse admin auth guard");
+  assert.ok(handlerSource.includes("isSeraVNextReadOnlyEnabled") && handlerSource.includes("isReadOnlyEnabled"), "endpoint must be feature-flagged");
+  assert.ok(handlerSource.includes("isSeraVNextInternalPilotEnabled") && handlerSource.includes("isInternalPilotEnabled"), "endpoint must be internal-pilot-flagged");
+  assert.ok(handlerSource.includes("no-store"), "endpoint must disable cache");
   assert.ok(routeSource.includes("dynamic = 'force-dynamic'"), "endpoint must be dynamic");
-  assert.ok(routeSource.indexOf("isReadOnlyEnabled()") < routeSource.indexOf("requireAdminUser(req)"), "flag-off path must not reveal auth details");
-  assert.equal(routeSource.includes("selectedCode"), false, "endpoint must not return selectedCode");
-  assert.equal(routeSource.includes("releasedCode"), false, "endpoint must not return releasedCode");
-  assert.equal(routeSource.includes("finalConclusion"), false, "endpoint must not return finalConclusion");
-  assert.equal(routeSource.includes("writeFile"), false, "endpoint must not write files");
-  assert.equal(routeSource.includes("appendFile"), false, "endpoint must not append files");
+  assert.ok(routeSource.includes("from './handler'"), "public endpoint must delegate to audited handler");
+  assert.ok(handlerSource.indexOf("isReadOnlyEnabled()") < handlerSource.indexOf("requireAdminUser(req)"), "flag-off path must not reveal auth details");
+  assert.equal(protectedSource.includes("selectedCode"), false, "endpoint must not return selectedCode");
+  assert.equal(protectedSource.includes("releasedCode"), false, "endpoint must not return releasedCode");
+  assert.equal(protectedSource.includes("finalConclusion"), false, "endpoint must not return finalConclusion");
+  assert.equal(protectedSource.includes("writeFile"), false, "endpoint must not write files");
+  assert.equal(protectedSource.includes("appendFile"), false, "endpoint must not append files");
 
   assert.ok(pageSource.includes("NEXT_PUBLIC_SERA_VNEXT_DIAGNOSTICS_ENABLED"), "page must be diagnostics-flagged");
   assert.ok(pageSource.includes("/api/admin/sera-vnext/status"), "page must call the internal admin endpoint");
