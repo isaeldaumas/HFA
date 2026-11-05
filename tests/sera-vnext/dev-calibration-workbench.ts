@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { existsSync } from 'node:fs'
 import { renderDevelopmentCalibrationHtml } from './dev-calibration-html'
 import { runSeraVNextEngineV0 } from '../../frontend/src/lib/sera-vnext/engine-v0/run-engine'
+import type { SeraEvidenceItem } from '../../frontend/src/lib/sera-vnext/evidence/types'
 import { calibrationCases, validationCases, type EngineV03ValidationCase, type EngineV03Expected } from './engine-validation-v03-naturalistic/cases'
 
 type Axis = 'perception' | 'objective' | 'action'
@@ -45,6 +46,40 @@ export function isLiteralNarrativeEvidence(narrative: string, evidence: string):
   return quote.length > 0 && normalize(narrative).includes(quote)
 }
 
+/**
+ * Provenance inspection is intentionally weaker than an evidence verdict.
+ * Sentence order is document order, NOT necessarily occurrence chronology.
+ * When explicit POST_ESCAPE metadata exists, it is a harder guardrail;
+ * UNKNOWN metadata after the anchor is a review lead, not proof of leakage.
+ */
+export function inspectDevelopmentSupportingEvidence(args: {
+  supportingEvidence: string[]
+  sourceEvidence: SeraEvidenceItem[]
+  narrative: string
+  anchorSentenceIndex: number | null
+}) {
+  return args.supportingEvidence.map(quote => {
+    const matching = args.sourceEvidence.filter(item => item.statement === quote)
+    const postAnchor = args.anchorSentenceIndex === null ? [] : matching
+      .filter(item => item.sourceSentenceIndex > args.anchorSentenceIndex!)
+    return {
+      quote,
+      literallyInNarrative: isLiteralNarrativeEvidence(args.narrative, quote),
+      exactEvidenceRecordMatch: matching.length > 0,
+      sources: matching.map(item => ({
+        evidenceId: item.evidenceId,
+        sourceSentenceIndex: item.sourceSentenceIndex,
+        temporalRelation: item.temporalRelation,
+        collectionSource: item.collectionSource ?? 'UNSPECIFIED_RAW_EXTRACTION',
+        sourceSection: item.sourceSection,
+        assertionStatus: item.assertionStatus,
+      })),
+      laterInTextThanAnchor: postAnchor.length > 0,
+      explicitlyPostEscape: matching.some(item => item.temporalRelation === 'POST_ESCAPE'),
+    }
+  })
+}
+
 export function evaluateDevelopmentCase(c: EngineV03ValidationCase) {
   assert.ok(c.group === 'calibration' || c.group === 'validation', 'SEALED_OR_UNAPPROVED_COHORT_FORBIDDEN')
   assert.equal(c.sourceType, 'synthetic', 'REAL_CASES_REQUIRE_SEPARATE_HUMAN_PROTOCOL')
@@ -60,10 +95,78 @@ export function evaluateDevelopmentCase(c: EngineV03ValidationCase) {
     options: { allowLlm: false, requireHumanReview: true, includeDebugTrace: true },
   })
   const codes = Object.fromEntries(AXES.map(axis => [axis, o.axes[axis].proposedCode])) as Record<Axis, string | null>
+  const escapeAnchor = o.escapePoint.poaAnchorCandidate
+    ?? o.escapePoint.firstDepartureCandidate
+    ?? o.escapePoint.earliestCandidate
+  const anchorSentenceIndex = escapeAnchor
+    ? o.factualExtraction.timeline.find(item =>
+        item.statement === escapeAnchor ||
+        item.statement.includes(escapeAnchor) ||
+        escapeAnchor.includes(item.statement))?.sourceSentenceIndex ?? null
+    : null
+  const fullCodes = Object.fromEntries(AXES.map(axis => [axis, o.axes[axis].proposedCode])) as Record<Axis, string | null>
+  // A documented sensitivity probe, not a causal/methodological verdict.
+  // Trim ONLY the already exposed synthetic narrative after the document-order
+  // position of the first-departure landmark. Do not access a sealed cohort.
+  let postAnchorAblation: null | {
+    method: 'TRUNCATE_AFTER_ANCHOR_BY_TEXT_ORDER'
+    fullCodes: Record<Axis, string | null>
+    prefixCodes: Record<Axis, string | null>
+    changedAxes: Axis[]
+    originalAnchorStatus: string
+    prefixAnchorStatus: string
+    prefixNarrativeSha256: string
+    truncatedSentenceCount: number
+    interpretation: string
+  } = null
+  if (anchorSentenceIndex !== null && o.factualExtraction.timeline.some(item =>
+    item.sourceSentenceIndex > anchorSentenceIndex)) {
+    const prefixStatements = o.factualExtraction.timeline
+      .filter(item => item.sourceSentenceIndex <= anchorSentenceIndex)
+      .map(item => item.statement)
+    const prefixNarrative = prefixStatements.join(' ')
+    const shortOutput = runSeraVNextEngineV0({
+      inputId: 'DEV-CAL-ABLATE-' + c.caseId,
+      narrative: prefixNarrative,
+      locale: c.locale,
+      sourceType: 'synthetic',
+      sourceReference: 'DEVELOPMENT_EXPOSED_ABLATION_NOT_SCIENTIFIC',
+      requestId: 'dev-cal-ablate-' + c.caseId,
+      mode: 'CANDIDATE_ONLY',
+      options: { allowLlm: false, requireHumanReview: true, includeDebugTrace: true },
+    })
+    // Do not let this tool turn a counterfactual run into a released conclusion.
+    assert.ok(finalBlocked(shortOutput) && shortOutput.humanReviewRequired === true,
+      'ABLATION_OUTPUT_RELEASE_BLOCK_BROKEN')
+    const prefixCodes = Object.fromEntries(AXES.map(axis =>
+      [axis, shortOutput.axes[axis].proposedCode])) as Record<Axis, string | null>
+    postAnchorAblation = {
+      method: 'TRUNCATE_AFTER_ANCHOR_BY_TEXT_ORDER',
+      fullCodes,
+      prefixCodes,
+      changedAxes: AXES.filter(axis => fullCodes[axis] !== prefixCodes[axis]),
+      originalAnchorStatus: o.escapePoint.status,
+      prefixAnchorStatus: shortOutput.escapePoint.status,
+      prefixNarrativeSha256: createHash('sha256').update(prefixNarrative, 'utf8').digest('hex'),
+      truncatedSentenceCount: o.factualExtraction.timeline
+        .filter(item => item.sourceSentenceIndex > anchorSentenceIndex).length,
+      interpretation: 'A change after removal of later narrative sentences indicates context sensitivity, NOT proof of invalid evidence or wrong code.',
+    }
+  }
+  const sourceAudit = Object.fromEntries(AXES.map(axis => [axis,
+    inspectDevelopmentSupportingEvidence({
+      supportingEvidence: o.axes[axis].supportingEvidence,
+      sourceEvidence: o.factualExtraction.evidence,
+      narrative: c.narrative,
+      anchorSentenceIndex,
+    }),
+  ])) as Record<Axis, ReturnType<typeof inspectDevelopmentSupportingEvidence>>
   const guardrails = {
     finalOutputsBlocked: finalBlocked(o),
     forbiddenOEAbsent: codes.objective !== 'O-E',
     postEscapeEvidenceNotUsed: postEscapeNotReused(o),
+    explicitlyPostEscapeEvidenceNotUsed: AXES.every(axis =>
+      sourceAudit[axis].every(item => !item.explicitlyPostEscape)),
     humanReviewRequired: o.humanReviewRequired === true,
   }
   // V03 code expectations only score the named axis. Other proposed codes
@@ -100,6 +203,9 @@ export function evaluateDevelopmentCase(c: EngineV03ValidationCase) {
     caseId: c.caseId, cohort: c.group, locale: c.locale,
     narrativeSha256: createHash('sha256').update(c.narrative, 'utf8').digest('hex'),
     expected: c.expected, actual, extraUnscoredCodes,
+    anchorSentenceIndex,
+    sourceAudit,
+    postAnchorAblation,
     outcome: expectedMatches(c.expected, codes) && Object.values(guardrails).every(Boolean) ? 'MATCH' : 'MISMATCH',
     guardrails,
     escapePointStatus: o.escapePoint.status,
@@ -126,6 +232,19 @@ export function createDevelopmentCalibrationReport() {
   const unscoredCodeCases = cases.filter(c => c.extraUnscoredCodes.length > 0)
   const nonLiteralCases = cases.filter(c =>
     AXES.some(axis => c.actual[axis].nonLiteralSupportingEvidenceCount > 0))
+  const laterSourceCases = cases.filter(c =>
+    AXES.some(axis => c.sourceAudit[axis].some(item => item.laterInTextThanAnchor)))
+  const afterAnchorSupportingItems = cases.reduce((sum, c) =>
+    sum + AXES.reduce((byAxis, axis) => byAxis +
+      c.sourceAudit[axis].filter(item => item.laterInTextThanAnchor).length, 0), 0)
+  const explicitlyPostEscapeSupportingItems = cases.reduce((sum, c) =>
+    sum + AXES.reduce((byAxis, axis) => byAxis +
+      c.sourceAudit[axis].filter(item => item.explicitlyPostEscape).length, 0), 0)
+  const unmatchedEvidenceRecordItems = cases.reduce((sum, c) =>
+    sum + AXES.reduce((byAxis, axis) => byAxis +
+      c.sourceAudit[axis].filter(item => !item.exactEvidenceRecordMatch).length, 0), 0)
+  const ablationCases = cases.filter(c => c.postAnchorAblation)
+  const ablationChangedCases = ablationCases.filter(c => c.postAnchorAblation!.changedAxes.length > 0)
   const countCategories = (values: string[]) => Object.fromEntries(
     [...new Set(values)].sort().map(value => [value, values.filter(v => v === value).length]))
   const blockingReasonCounts = countCategories(cases.flatMap(c => c.blockingReasons))
@@ -155,6 +274,12 @@ export function createDevelopmentCalibrationReport() {
       nonLiteralSupportingEvidenceCount: cases.reduce((sum, c) =>
         sum + AXES.reduce((byAxis, axis) => byAxis + c.actual[axis].nonLiteralSupportingEvidenceCount, 0), 0),
       casesWithNonLiteralEvidence: nonLiteralCases.length,
+      afterAnchorSupportingItems,
+      casesWithAfterAnchorSupportingItems: laterSourceCases.length,
+      explicitlyPostEscapeSupportingItems,
+      supportingItemsWithoutExactEvidenceRecord: unmatchedEvidenceRecordItems,
+      postAnchorAblationsRun: ablationCases.length,
+      postAnchorAblationChangedCases: ablationChangedCases.length,
       evidenceSufficiencyCounts,
       escapePointStatusCounts,
       blockingReasonCounts,
@@ -165,6 +290,34 @@ export function createDevelopmentCalibrationReport() {
       mode: 'EXACT_SUBSTRING_AFTER_WHITESPACE_AND_CASE_NORMALIZATION',
       countsDoNotImplyError: true,
       note: 'Nonliteral wording may be inferred/generated by the engine. Require source-backed human review, not automatic rejection.',
+    },
+    temporalProvenanceScreen: {
+      mode: 'LATER_SOURCE_SENTENCE_THAN_POA_ANCHOR_WITH_EXACT_EVIDENCE_LINK',
+      countsDoNotImplyError: true,
+      note: 'Sentence order is not necessarily event chronology. UNKNOWN temporal metadata requires investigation; explicit POST_ESCAPE support is a hard QA failure.',
+    },
+    pendingTemporalReview: laterSourceCases.map(c => ({
+      caseId: c.caseId,
+      anchorSentenceIndex: c.anchorSentenceIndex,
+      supportingAfterAnchor: AXES.flatMap(axis => c.sourceAudit[axis]
+        .filter(item => item.laterInTextThanAnchor)
+        .map(item => ({ axis, quote: item.quote, sources: item.sources }))),
+    })),
+    postAnchorAblationScreen: {
+      method: 'TRUNCATE_AFTER_ANCHOR_BY_TEXT_ORDER',
+      syntheticOnly: true,
+      notIndependentValidation: true,
+      casesWithChangedOutput: ablationChangedCases.map(c => ({
+        caseId: c.caseId,
+        changedAxes: c.postAnchorAblation!.changedAxes,
+        fullCodes: c.postAnchorAblation!.fullCodes,
+        prefixCodes: c.postAnchorAblation!.prefixCodes,
+        anchorStatuses: [
+          c.postAnchorAblation!.originalAnchorStatus,
+          c.postAnchorAblation!.prefixAnchorStatus,
+        ],
+      })),
+      note: 'Deleting narrative context can change a legitimate inference or anchor. Delta is a review lead, not a causal proof or an independent evaluation.',
     },
     mismatchingCaseIds: mismatch.map(c => c.caseId),
     pendingHumanReview: unscoredCodeCases.map(c => ({
@@ -211,6 +364,11 @@ function runCommand() {
     nonLiteralSupportingEvidenceCount: report.metrics.nonLiteralSupportingEvidenceCount,
     casesWithNonLiteralEvidence: report.metrics.casesWithNonLiteralEvidence,
     evidenceSufficiencyCounts: report.metrics.evidenceSufficiencyCounts,
+    sourceAfterAnchorItems: report.metrics.afterAnchorSupportingItems,
+    casesWithSourceAfterAnchor: report.metrics.casesWithAfterAnchorSupportingItems,
+    explicitlyPostEscapeItems: report.metrics.explicitlyPostEscapeSupportingItems,
+    ablationsRun: report.metrics.postAnchorAblationsRun,
+    ablationsWithChangedCodes: report.metrics.postAnchorAblationChangedCases,
     guardrailsPass: report.metrics.criticalGuardrailsPass,
     scientificValidation: report.scientificValidation,
     methodologicalGate: report.methodologicalGate,

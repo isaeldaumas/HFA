@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { createDevelopmentCalibrationReport, evaluateDevelopmentCase, isLiteralNarrativeEvidence } from './dev-calibration-workbench'
+import { createDevelopmentCalibrationReport, evaluateDevelopmentCase, isLiteralNarrativeEvidence, inspectDevelopmentSupportingEvidence } from './dev-calibration-workbench'
 import { holdoutCases } from './engine-validation-v03-naturalistic/cases'
 import { escapeDevelopmentHtml, renderDevelopmentCalibrationHtml } from './dev-calibration-html'
 
@@ -18,6 +18,36 @@ assert.equal(report.metrics.unscoredAdditionalCodeCases, 1)
 assert.equal(Object.values(report.metrics.evidenceSufficiencyCounts).reduce((sum, n) => sum + n, 0), 24)
 assert.equal(Object.values(report.metrics.escapePointStatusCounts).reduce((sum, n) => sum + n, 0), 24)
 assert.equal(report.metrics.blockingReasonCounts.OBJECTIVE_EVIDENCE_INSUFFICIENT, 22)
+assert.equal(report.metrics.afterAnchorSupportingItems, 6)
+assert.equal(report.metrics.casesWithAfterAnchorSupportingItems, 4)
+assert.equal(report.metrics.explicitlyPostEscapeSupportingItems, 0)
+assert.equal(report.metrics.postAnchorAblationsRun, 9)
+assert.equal(report.metrics.postAnchorAblationChangedCases, 1)
+assert.equal(report.postAnchorAblationScreen.notIndependentValidation, true)
+assert.deepEqual(report.postAnchorAblationScreen.casesWithChangedOutput.map(c => c.caseId), ['V03-CAL-07'])
+const ablation = report.cases.find(c => c.caseId === 'V03-CAL-07')?.postAnchorAblation
+assert.ok(ablation)
+assert.deepEqual(ablation.changedAxes, ['objective'])
+assert.equal(ablation.fullCodes.objective, 'O-A')
+assert.equal(ablation.prefixCodes.objective, null)
+assert.equal(ablation.fullCodes.action, 'A-F')
+assert.equal(ablation.prefixCodes.action, 'A-F')
+assert.equal(ablation.originalAnchorStatus, 'CANDIDATE')
+assert.equal(ablation.prefixAnchorStatus, 'CANDIDATE')
+assert.equal(report.temporalProvenanceScreen.countsDoNotImplyError, true)
+assert.ok(report.pendingTemporalReview.some(c => c.caseId === 'V03-CAL-07'))
+const evidenceProbe = inspectDevelopmentSupportingEvidence({
+  supportingEvidence: ['Before the anchor.', 'Later evidence.'],
+  narrative: 'Before the anchor. Later evidence.',
+  anchorSentenceIndex: 0,
+  sourceEvidence: [
+    { statement: 'Before the anchor.', sourceSentenceIndex: 0, temporalRelation: 'AT_ESCAPE', evidenceId: 'A' },
+    { statement: 'Later evidence.', sourceSentenceIndex: 1, temporalRelation: 'POST_ESCAPE', evidenceId: 'B' },
+  ] as Parameters<typeof inspectDevelopmentSupportingEvidence>[0]['sourceEvidence'],
+})
+assert.equal(evidenceProbe[0].laterInTextThanAnchor, false)
+assert.equal(evidenceProbe[1].laterInTextThanAnchor, true)
+assert.equal(evidenceProbe[1].explicitlyPostEscape, true)
 assert.ok(report.metrics.casesWithClarificationQuestions > 0)
 assert.ok(report.metrics.nonLiteralSupportingEvidenceCount > 0)
 assert.equal(report.textProvenanceScreen.countsDoNotImplyError, true)
@@ -58,6 +88,10 @@ assert.match(html, /V03-CAL-07/)
 assert.match(html, /O-A/)
 assert.match(html, /Verificar origem textual/)
 assert.match(html, /Informações que faltam para o motor/)
+assert.match(html, /SENSÍVEL AO TEXTO POSTERIOR/)
+assert.match(html, /Teste exploratório de retirada do texto posterior/)
+assert.match(html, /REVISAR TEMPORALIDADE/)
+assert.match(html, /ordem das frases no documento NÃO equivale/)
 assert.match(html, /OBJECTIVE_EVIDENCE_INSUFFICIENT/)
 assert.match(html, /<details class="case"/)
 assert.match(html, /default-src &#39;none&#39;/)

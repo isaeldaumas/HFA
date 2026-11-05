@@ -91,3 +91,13 @@ Resultados da rodada de baseline executada nesta worktree (ainda sujeitos ao CI)
 - Inspeção de suporte textual **não literal** encontrou 14 formulações em 8 casos ao percorrer todos os trechos de evidência dos eixos. Não significa fabricação: abrange frases geradas/parafraseadas pelo motor e distingue dado primário e interpretação. Uma contagem exploratória anterior de quatro excertos por eixo e busca exata bruta encontrou 12; números e denominadores não são intercambiáveis.
 - Detalhe do CAL-07: docs/hfa-backlog/CALIBRATION_V03_CAL07_TRACE_REVIEW_20261105.md.
 - **Não** alterar oráculos nem gates para tornar a taxa de esclarecimento artificialmente menor; investigar se o corpus carece de fatos ou se existe bloqueio indevido.
+
+## Atualização V19 — triagem temporal e sensibilidade ao contexto
+
+- A bancada acrescenta vínculo da evidência de apoio à extração factual (id, índice da frase, origem e relação temporal) e destaca 6 referências de frases com índice posterior ao ponto de fuga em 4 casos.
+- Nos 6 apoios a temporalidade é UNKNOWN. Uma frase posterior no documento pode narrar fato anterior; validar caso a caso.
+- Teste offline de retirada de frases posteriores aplicado a 9 casos ancorados: somente CAL-07 mudou, pois O-A desapareceu, preservando A-F e ponto de fuga. Diagnóstico de sensibilidade, não prova de classificação incorreta.
+- Não foram alterados runtime, oráculos, locks e conjunto selado.
+- Documentação: docs/hfa-backlog/CALIBRATION_V19_TEMPORAL_PROVENANCE_20261105.md.
+
+Comando: ./frontend/node_modules/.bin/tsx tests/sera-vnext/dev-calibration-workbench.ts --out /tmp/calibracao-v19.json --html /tmp/calibracao-v19.html

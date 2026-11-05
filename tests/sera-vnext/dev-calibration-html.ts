@@ -28,6 +28,9 @@ export function renderDevelopmentCalibrationHtml(report: Report): string {
     const extra = pendingIds.has(c.caseId)
     const nonLiteral = (['perception', 'objective', 'action'] as const)
       .reduce((sum, axis) => sum + c.actual[axis].nonLiteralSupportingEvidenceCount, 0)
+    const sourceAfterAnchor = (['perception', 'objective', 'action'] as const)
+      .reduce((sum, axis) => sum + c.sourceAudit[axis].filter(item => item.laterInTextThanAnchor).length, 0)
+    const ablation = c.postAnchorAblation
     const heading = escapeDevelopmentHtml(c.caseId + ' · ' + c.locale + ' · ' + c.cohort)
     const axisPanels = (['perception', 'objective', 'action'] as const).map(axis => {
       const a = c.actual[axis]
@@ -46,6 +49,14 @@ export function renderDevelopmentCalibrationHtml(report: Report): string {
             '):</b> estas formulações não são trechos literais da narrativa. Isso não implica erro.</p>' +
             safeArray(a.nonLiteralSupportingEvidenceExcerpts)
           : '',
+        c.sourceAudit[axis].some(item => item.laterInTextThanAnchor)
+          ? '<p class="flag small"><b>Verificar relação temporal:</b> estas evidências estão em frases do relato posteriores ao ponto de fuga; a ordem do texto NÃO prova ordem cronológica.</p><ul>' +
+            c.sourceAudit[axis].filter(item => item.laterInTextThanAnchor).map(item =>
+              '<li class="small">' + escapeDevelopmentHtml(item.quote) + ' <span class="muted">(frase ' +
+              escapeDevelopmentHtml(item.sources.filter(src => src.sourceSentenceIndex > (c.anchorSentenceIndex ?? Infinity)).map(src => String(src.sourceSentenceIndex)).join(', ')) +
+              '; relação temporal: ' + escapeDevelopmentHtml(item.sources.map(src => src.temporalRelation).join(', ')) +
+              ')</span></li>').join('') + '</ul>'
+          : '',
         '<p class="muted small">Trechos excluídos pós-ponto de fuga: ' + a.excludedPostEscapeCount + '</p>',
         '</section>',
       ].join('')
@@ -60,13 +71,25 @@ export function renderDevelopmentCalibrationHtml(report: Report): string {
       '<summary><span><b>' + heading + '</b><small>Expectativa V03: ' +
        escapeDevelopmentHtml(JSON.stringify(c.expected)) + '</small></span><span class="' +
        (extra ? 'needs' : c.outcome === 'MATCH' ? 'ok' : 'needs') + '">' +
-       (extra ? 'REVISAR EIXO' : c.outcome !== 'MATCH' ? 'DIVERGÊNCIA' :
+       (extra ? ((ablation && ablation.changedAxes.length > 0) ? 'REVISAR EIXO + SENSÍVEL AO TEXTO POSTERIOR' : 'REVISAR EIXO') : c.outcome !== 'MATCH' ? 'DIVERGÊNCIA' :
+         (ablation && ablation.changedAxes.length > 0) ? 'SENSÍVEL AO TEXTO POSTERIOR' :
+         sourceAfterAnchor ? 'REVISAR TEMPORALIDADE (' + sourceAfterAnchor + ')' :
          nonLiteral ? 'VERIFICAR ORIGEM (' + nonLiteral + ')' : 'MATCH PARCIAL') + '</span></summary>',
       '<div class="inside">', warning,
       '<p class="muted small">SHA-256 da narrativa: <code>' + escapeDevelopmentHtml(c.narrativeSha256) + '</code></p>',
       '<p class="muted small">Ponto de fuga: ' + escapeDevelopmentHtml(c.escapePointStatus) +
       ' · Suficiência: ' + escapeDevelopmentHtml(c.evidenceSufficiency) + '</p>',
       '<div class="axis-grid">' + axisPanels + '</div>',
+      ablation
+        ? '<section class="followup"><h4>Teste exploratório de retirada do texto posterior ao ponto de fuga</h4>' +
+          '<p class="small"><b>Códigos com narrativa completa:</b> ' + escapeDevelopmentHtml(JSON.stringify(ablation.fullCodes)) +
+          ' · <b>Códigos com relato truncado:</b> ' + escapeDevelopmentHtml(JSON.stringify(ablation.prefixCodes)) +
+          '</p><p class="small"><b>Eixos modificados:</b> ' +
+          escapeDevelopmentHtml(ablation.changedAxes.join(', ') || 'nenhum') +
+          ' · Status do ponto de fuga: ' +
+          escapeDevelopmentHtml(ablation.originalAnchorStatus + ' → ' + ablation.prefixAnchorStatus) + '</p>' +
+          '<p class="muted small">A alteração de códigos após suprimir frases posteriores indica sensibilidade ao contexto textual, e NÃO comprova contaminação causal nem erro de classificação.</p></section>'
+        : '',
       '<section class="followup"><h4>Informações que faltam para o motor</h4>',
       '<p class="small"><b>Razões bloqueantes:</b> ' +
       escapeDevelopmentHtml(c.blockingReasons.join(' · ') || 'nenhuma') + '</p>',
@@ -130,6 +153,9 @@ export function renderDevelopmentCalibrationHtml(report: Report): string {
     '<div class="metric"><strong>' + report.metrics.match + '/' + report.metrics.total + '</strong><span>Compatíveis com expectativa parcial V03</span></div>',
     '<div class="metric"><strong>' + report.metrics.unscoredAdditionalCodeCases + '</strong><span>Casos com código adicional não julgado</span></div>',
     '<div class="metric"><strong>' + report.metrics.nonLiteralSupportingEvidenceCount + '</strong><span>Formulações de apoio não literais — não presumir erro</span></div>',
+    '<div class="metric"><strong>' + report.metrics.afterAnchorSupportingItems + '</strong><span>Evidências de frases posteriores ao ponto de fuga no texto — revisar temporalidade</span></div>',
+    '<div class="metric"><strong>' + report.metrics.postAnchorAblationChangedCases + '/' + report.metrics.postAnchorAblationsRun +
+      '</strong><span>Casos cujo código muda ao retirar texto posterior — teste exploratório</span></div>',
     '<div class="metric"><strong>' + (report.metrics.evidenceSufficiencyCounts.NEEDS_CLARIFICATION ?? 0) +
       '</strong><span>Casos com pedido de esclarecimento</span></div>',
     '<div class="metric"><strong>' + (report.metrics.criticalGuardrailsPass ? 'PASS' : 'FAIL') + '</strong><span>Bloqueios técnicos testados</span></div>',
@@ -140,6 +166,7 @@ export function renderDevelopmentCalibrationHtml(report: Report): string {
       escapeDevelopmentHtml(Object.entries(report.metrics.blockingReasonCounts)
         .sort((a,b) => b[1] - a[1]).slice(0, 8)
         .map(([reason,count]) => reason + ': ' + count).join(' · ')) + '</p>',
+    '<p class="muted small">A ordem das frases no documento NÃO equivale automaticamente à sequência temporal. Exige-se comparação com o conteúdo e o ponto de fuga antes de identificar contaminação causal.</p>',
     '<p class="muted small">Os excertos exibidos foram extraídos de casos sintéticos. Esta tela mostra propostas do motor e, portanto, NÃO serve como instrumento de avaliação cega V04.</p>',
     '</section>',
     '<h2>Casos e caminhos de decisão</h2>',
