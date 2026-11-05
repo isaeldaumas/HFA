@@ -6,10 +6,19 @@ import { debitCreditForEvent, ensurePublicUserRow, refundCreditForFailedAnalysis
 import { getOrCreateRequestId, buildErrorResponse } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
 import { canonicalAnalyzeResponse, createCanonicalEventAnalysis } from '@/lib/sera-vnext-product/canonical-event-analysis'
-import { assertFileSize, detectDocumentKind } from '@/lib/sera/document-extraction'
 import { inferOccurrenceDateFromNarrative } from '@/lib/sera-vnext/occurrence-date'
 import { enrichSeraNarrativeSemantically } from '@/lib/sera-vnext/ai/semantic-enrichment'
 import { findTenantDuplicateCandidates, publicDuplicateMatches } from '@/lib/server/event-duplicates'
+import {
+  MAX_BATCH_FILE_COUNT,
+  MAX_SINGLE_FILE_BYTES,
+  MAX_TOTAL_BATCH_BYTES,
+  StoredDocumentDescriptor,
+} from '@/lib/gemini-multifile-types'
+import {
+  sanitizeFileName,
+  validateFileSecurity,
+} from '@/lib/gemini-multifile-security'
 
 export const maxDuration = 300
 
@@ -22,6 +31,93 @@ type SourceMeta = {
 function logEventsError(error: unknown, stage: string, extra: Record<string, unknown> = {}) {
   const e = error instanceof Error ? error : new Error(String(error))
   console.error('[/api/events Error]', { stage, message: e.message, stack: e.stack, cause: e.cause, ...extra })
+}
+
+/**
+ * Persiste todos os arquivos do lote no Supabase Storage e na tabela public.event_documents.
+ * Sanitiza caminhos contra path traversal e garante proveniencia criptografica individual.
+ */
+async function persistUploadedSourceFiles(params: {
+  admin: ReturnType<typeof getSupabaseAdmin>
+  tenantId: string
+  submittedById: string
+  eventId: string
+  files: File[]
+  analysisId?: string
+}): Promise<StoredDocumentDescriptor[]> {
+  const { admin, tenantId, submittedById, eventId, files, analysisId } = params
+  const descriptors: StoredDocumentDescriptor[] = []
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]
+    try {
+      if (file.size > MAX_SINGLE_FILE_BYTES) {
+        console.warn(`[persistUploadedSourceFiles] Arquivo excede 10MB: ${file.name}`)
+        continue
+      }
+      const buf = Buffer.from(await file.arrayBuffer())
+      const security = validateFileSecurity({
+        name: file.name,
+        size: file.size,
+        buffer: buf,
+        declaredMime: file.type,
+      })
+
+      if (!security.valid && security.status === 'mime_spoofing') {
+        console.warn(`[persistUploadedSourceFiles] Possivel spoofing rejeitado: ${file.name}`)
+        continue
+      }
+
+      const safeName = security.sanitizedName
+      const shortHash = security.sha256.slice(0, 10)
+      const pathPrefix = analysisId
+        ? `${submittedById}/${analysisId}`
+        : `events/${submittedById}/${eventId}`
+      const storagePath = `${pathPrefix}/${i + 1}_${shortHash}_${safeName}`
+
+      const { error: uploadError } = await admin.storage
+        .from('analysis-documents')
+        .upload(storagePath, buf, {
+          contentType: security.canonicalMime || file.type || 'application/octet-stream',
+          upsert: true,
+        })
+
+      if (uploadError) {
+        console.warn(`[persistUploadedSourceFiles] Erro no storage para ${file.name}:`, uploadError.message)
+        continue
+      }
+
+      // Insercao na tabela event_documents (preservando o schema oficial do Supabase)
+      const { error: insertError } = await admin.from('event_documents').insert({
+        tenant_id: tenantId,
+        event_id: eventId,
+        uploaded_by: submittedById,
+        file_name: file.name,
+        storage_path: storagePath,
+        mime_type: security.canonicalMime || file.type || null,
+        size_bytes: file.size,
+      })
+
+      if (insertError) {
+        console.warn(`[persistUploadedSourceFiles] Erro ao inserir event_documents:`, insertError.message)
+      }
+
+      descriptors.push({
+        fileName: file.name,
+        sanitizedName: safeName,
+        storagePath,
+        mimeType: security.canonicalMime || file.type || null,
+        sizeBytes: file.size,
+        sha256: security.sha256,
+        status: security.status,
+        wordCount: 0,
+      })
+    } catch (err) {
+      console.error(`[persistUploadedSourceFiles] Falha ao processar ${file.name}:`, err)
+    }
+  }
+
+  return descriptors
 }
 
 export async function GET(req: Request) {
@@ -136,6 +232,7 @@ export async function POST(req: Request) {
     let input_type: 'text' | 'pdf' | 'docx' = 'text'
     const sourceMeta: SourceMeta = { sourceType: 'text' }
     let sourceFile: File | null = null
+    const sourceFiles: File[] = []
 
     if (ct.includes('multipart/form-data')) {
       const form = await req.formData()
@@ -156,8 +253,34 @@ export async function POST(req: Request) {
       if (fn) sourceMeta.sourceFileName = String(fn)
       const wc = form.get('source_word_count')
       if (wc) sourceMeta.sourceWordCount = Number(wc)
-      const f = form.get('file')
-      if (f && f instanceof File && f.size > 0) sourceFile = f
+
+      // Suporte a multiplos arquivos (padrao novo 'files' e retrocompatibilidade com 'file')
+      for (const item of form.getAll('files')) {
+        if (item instanceof File && item.size > 0) sourceFiles.push(item)
+      }
+      for (const item of form.getAll('file')) {
+        if (item instanceof File && item.size > 0 && !sourceFiles.includes(item)) {
+          sourceFiles.push(item)
+        }
+      }
+
+      if (sourceFiles.length > MAX_BATCH_FILE_COUNT) {
+        return jsonError(`Limite de arquivos excedido: máximo de ${MAX_BATCH_FILE_COUNT} arquivos por evento.`, 400)
+      }
+      const totalBatchBytes = sourceFiles.reduce((acc, f) => acc + f.size, 0)
+      if (totalBatchBytes > MAX_TOTAL_BATCH_BYTES) {
+        return jsonError('Tamanho total dos arquivos ultrapassa 30MB.', 400)
+      }
+
+      if (sourceFiles.length > 0) {
+        sourceFile = sourceFiles[0]
+        if (!sourceMeta.sourceFileName) sourceMeta.sourceFileName = sourceFile.name
+        const hasPdf = sourceFiles.some((f) => f.name.toLowerCase().endsWith('.pdf'))
+        const hasDocx = sourceFiles.some((f) => f.name.toLowerCase().endsWith('.docx'))
+        if (hasPdf) input_type = 'pdf'
+        else if (hasDocx) input_type = 'docx'
+        else input_type = 'text'
+      }
     } else {
       const body = (await req.json()) as Record<string, unknown>
       title = String(body.title || '')
@@ -276,30 +399,15 @@ export async function POST(req: Request) {
     })
 
     if (analysisMode === 'register_only') {
-      if (sourceFile) {
+      if (sourceFiles.length > 0) {
         try {
-          assertFileSize(sourceFile.size)
-          const buf = Buffer.from(await sourceFile.arrayBuffer())
-          const kind = detectDocumentKind(buf)
-          const ext = sourceFile.name.toLowerCase().endsWith('.docx') || kind === 'docx' ? 'docx' : 'pdf'
-          if (!kind || (ext === 'docx' && kind !== 'docx') || (ext === 'pdf' && kind !== 'pdf')) throw new Error('Tipo de arquivo inválido para armazenamento')
-          const safeName = sourceFile.name.replace(/[^\w.\-]/g, '_').slice(0, 180)
-          const path = `events/${submittedById}/${eventId}/${safeName}`
-          const { error: uploadError } = await admin.storage.from('analysis-documents').upload(path, buf, {
-            contentType: sourceFile.type || (kind === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
-            upsert: false,
+          await persistUploadedSourceFiles({
+            admin,
+            tenantId: user.tenantId,
+            submittedById,
+            eventId,
+            files: sourceFiles,
           })
-          if (uploadError) throw uploadError
-          const documentInsert = await admin.from('event_documents').insert({
-            tenant_id: user.tenantId,
-            event_id: eventId,
-            uploaded_by: submittedById,
-            file_name: sourceFile.name,
-            storage_path: path,
-            mime_type: sourceFile.type || null,
-            size_bytes: sourceFile.size,
-          })
-          if (documentInsert.error) throw documentInsert.error
         } catch (documentError) {
           logEventsError(documentError, 'store-safety-event-document', { requestId, eventId })
         }
@@ -345,24 +453,34 @@ export async function POST(req: Request) {
         context: { tenantId: user.tenantId, userId: submittedById, role: user.role, email: user.email ?? '', requestId },
       })
 
-      if (sourceFile) {
-        assertFileSize(sourceFile.size)
-        const buf = Buffer.from(await sourceFile.arrayBuffer())
-        const kind = detectDocumentKind(buf)
-        const ext = sourceFile.name.toLowerCase().endsWith('.docx') || kind === 'docx' ? 'docx' : 'pdf'
-        if (!kind || (ext === 'docx' && kind !== 'docx') || (ext === 'pdf' && kind !== 'pdf')) throw new Error('Tipo de arquivo inválido para armazenamento')
-        const safeName = sourceFile.name.replace(/[^\w.\-]/g, '_').slice(0, 180)
-        const path = `${submittedById}/${result.analysis.id}/${safeName}`
-        const { error: uploadError } = await admin.storage.from('analysis-documents').upload(path, buf, {
-          contentType: sourceFile.type || (kind === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
-          upsert: true,
-        })
-        if (!uploadError) {
-          await admin
-            .from('sera_vnext_analyses')
-            .update({ metadata: { ...result.analysis.metadata, sourceFileUrl: path, sourceFileName: sourceFile.name, sourceType: sourceMeta.sourceType ?? input_type } })
-            .eq('id', result.analysis.id)
-            .eq('tenant_id', user.tenantId)
+      if (sourceFiles.length > 0) {
+        try {
+          const descriptors = await persistUploadedSourceFiles({
+            admin,
+            tenantId: user.tenantId,
+            submittedById,
+            eventId,
+            files: sourceFiles,
+            analysisId: result.analysis.id,
+          })
+
+          if (descriptors.length > 0) {
+            await admin
+              .from('sera_vnext_analyses')
+              .update({
+                metadata: {
+                  ...result.analysis.metadata,
+                  sourceFileUrl: descriptors[0]?.storagePath || null,
+                  sourceFileName: descriptors[0]?.fileName || null,
+                  sourceType: sourceMeta.sourceType ?? input_type,
+                  sourceFiles: descriptors,
+                },
+              })
+              .eq('id', result.analysis.id)
+              .eq('tenant_id', user.tenantId)
+          }
+        } catch (multiFileErr) {
+          logEventsError(multiFileErr, 'store-hfa-analysis-documents', { requestId, eventId })
         }
       }
 

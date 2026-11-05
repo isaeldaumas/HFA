@@ -4,10 +4,11 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { resolveApiUrl } from '@/lib/api'
 import { TrialUsageCard } from '@/components/product/TrialUsageCard'
-import DocumentUpload from '@/components/sera/DocumentUpload'
+import DocumentUpload from '@/components/events/DocumentUpload'
 import { useMe } from '@/hooks/useMe'
 import { shouldShowConsumerCredits } from '@/lib/product/consumer-credit-visibility'
 import { useI18n } from '@/lib/i18n'
+import type { MultiFileManifest } from '@/lib/gemini-multifile-types'
 
 type Tab = 'text' | 'upload'
 type SubmissionMode = 'register_only' | 'hfa'
@@ -39,6 +40,8 @@ export default function NewEventPage() {
     occurred_at: '',
   })
   const [sourceFile, setSourceFile] = useState<File | null>(null)
+  const [sourceFiles, setSourceFiles] = useState<File[]>([])
+  const [sourceManifest, setSourceManifest] = useState<MultiFileManifest | null>(null)
   const [sourceMeta, setSourceMeta] = useState<{ fileName: string; wordCount: number } | null>(
     null
   )
@@ -123,7 +126,8 @@ export default function NewEventPage() {
 
       const url = resolveApiUrl('/events/')
 
-      if (tab === 'upload' && sourceFile) {
+      if (tab === 'upload' && (sourceFiles.length > 0 || sourceFile)) {
+        const activeFiles = sourceFiles.length > 0 ? sourceFiles : (sourceFile ? [sourceFile] : [])
         const fd = new FormData()
         fd.set('title', form.title)
         if (override) fd.set('duplicate_override_reason', independentReason.trim())
@@ -134,12 +138,24 @@ export default function NewEventPage() {
         fd.set('locale', locale)
         fd.set('analysis_mode', analysisMode)
         fd.set('confidentiality_level', confidentialityLevel)
-        const kind = sourceFile.name.toLowerCase().endsWith('.docx') ? 'docx' : 'pdf'
+
+        const firstFile = activeFiles[0]
+        const hasPdf = activeFiles.some((f) => f.name.toLowerCase().endsWith('.pdf'))
+        const hasDocx = activeFiles.some((f) => f.name.toLowerCase().endsWith('.docx'))
+        const kind = hasPdf ? 'pdf' : hasDocx ? 'docx' : 'text'
         fd.set('input_type', kind)
         fd.set('source_type', kind)
-        fd.set('source_file_name', sourceMeta?.fileName || sourceFile.name)
+        fd.set('source_file_name', sourceMeta?.fileName || activeFiles.map((f) => f.name).join(', '))
         if (sourceMeta?.wordCount) fd.set('source_word_count', String(sourceMeta.wordCount))
-        fd.set('file', sourceFile)
+
+        // Adiciona todos os arquivos selecionados para ingestao com proveniencia individual
+        for (const f of activeFiles) {
+          fd.append('files', f)
+        }
+        // Preserva campo legado 'file' apontando para o primeiro arquivo
+        if (firstFile) {
+          fd.set('file', firstFile)
+        }
 
         const res = await fetch(url, {
           method: 'POST',
@@ -376,9 +392,11 @@ export default function NewEventPage() {
         {tab === 'upload' && (
           <DocumentUpload
             onFileReady={setSourceFile}
+            onFilesReady={setSourceFiles}
             onExtracted={(text, meta) => {
               setForm((p) => ({ ...p, raw_input: text }))
               setSourceMeta(meta)
+              if (meta.manifest) setSourceManifest(meta.manifest)
             }}
           />
         )}
