@@ -31,9 +31,8 @@ check(resolver.includes("from('users')"), 'resolver: queries public.users')
 
 // Resolver selects tenant_id from public.users
 check(
-  resolver.includes("'id, tenant_id, role, is_active, email'") ||
-    resolver.includes('"id, tenant_id, role, is_active, email"'),
-  'resolver: selects id, tenant_id, role, is_active, email from public.users'
+  resolver.includes("'id, tenant_id, role, is_active, email, auth_user_id'"),
+  'resolver: selects id, tenant_id, role, is_active, email and auth_user_id from public.users'
 )
 
 // Resolver checks is_active

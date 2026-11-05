@@ -162,6 +162,9 @@ jobs:
       - name: Hard delete cross-tenant lifecycle audit guard
         run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/gemini-tenancy-security/test-hard-delete-tenant-ownership.ts
 
+      - name: V28 explicit auth binding and deletion actor conflict regression
+        run: ./frontend/node_modules/.bin/tsx --test tests/hfa-audit/gemini-tenancy-security/v28-explicit-auth-binding.test.ts
+
 
       - name: Commercial trial contract
         run: ./frontend/node_modules/.bin/tsx tests/product/test-trial-usage.ts

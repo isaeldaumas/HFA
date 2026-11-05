@@ -14,8 +14,9 @@
  *
  * Resolution order:
  *   A. Match public.users by id = authUserId (DIRECT_AUTH_ID — preferred)
- *   B. Match public.users by email = authenticated confirmed email (LEGACY_CONFIRMED_EMAIL)
- *      Requires: email present AND emailConfirmedAt non-null, exactly one active row.
+ *   B. Match explicit public.users.auth_user_id = authUserId (EXPLICIT_AUTH_LINK)
+ *   C. Match public.users by authenticated, confirmed email (LEGACY_CONFIRMED_EMAIL)
+ *      Only if the row's auth_user_id is NULL or equals the caller.
  *      Rejects: unconfirmed email, ambiguous match, inactive row, DB error.
  *
  * Fail-closed: any ambiguity, inactivity, unconfirmed email, or missing
@@ -39,10 +40,11 @@ export type AuthenticatedIdentity = {
 
 /**
  * How the public.users row was bound to the auth identity.
- * DIRECT_AUTH_ID: public.users.id = auth.users.id (canonical, no ambiguity)
- * LEGACY_CONFIRMED_EMAIL: matched by confirmed email — planned for migration to DIRECT_AUTH_ID
+ * DIRECT_AUTH_ID: public.users.id = auth.users.id, no conflicting explicit binding
+ * EXPLICIT_AUTH_LINK: public.users.auth_user_id = auth.users.id (legacy UUID differs)
+ * LEGACY_CONFIRMED_EMAIL: confirmed email on a single unbound legacy row
  */
-export type IdentityBinding = 'DIRECT_AUTH_ID' | 'LEGACY_CONFIRMED_EMAIL'
+export type IdentityBinding = 'DIRECT_AUTH_ID' | 'EXPLICIT_AUTH_LINK' | 'LEGACY_CONFIRMED_EMAIL'
 
 export type AuthorizedUserContext = {
   /** UUID from auth.users — use for Supabase Auth Admin API calls (updateUserById etc.) */
@@ -62,6 +64,7 @@ type PublicUserRow = {
   role: string
   is_active: boolean
   email: string | null
+  auth_user_id: string | null
 }
 
 type TenantRow = {
@@ -117,7 +120,7 @@ export async function resolveAuthorizedUserContext(
   // No email required; works for all new registrations.
   const byId = await admin
     .from('users')
-    .select('id, tenant_id, role, is_active, email')
+    .select('id, tenant_id, role, is_active, email, auth_user_id')
     .eq('id', authUserId)
     .maybeSingle()
 
@@ -129,8 +132,32 @@ export async function resolveAuthorizedUserContext(
     return { ok: false, status: 503, detail: 'Erro temporário ao resolver autorização' }
   }
 
+  // Cross-check both authoritative indexes before accepting a direct match.
+  // If two different public rows point to the same authenticated UUID,
+  // choosing either silently would be a cross-tenant authorization risk.
+  const byAuth = await admin
+    .from('users')
+    .select('id, tenant_id, role, is_active, email, auth_user_id')
+    .eq('auth_user_id', authUserId)
+    .maybeSingle()
+
+  if (byAuth.error) {
+    console.error('[authorized-user-context] DB error resolving explicit auth binding', {
+      authUserId,
+    })
+    return { ok: false, status: 503, detail: 'Erro temporário ao resolver autorização' }
+  }
+  if (byId.data && byAuth.data && String(byId.data.id) !== String(byAuth.data.id)) {
+    return { ok: false, status: 403, detail: 'Vínculo de autenticação ambíguo' }
+  }
+
   if (byId.data) {
     const row = byId.data as PublicUserRow
+    // A direct public UUID match is NOT enough if its explicit Auth binding
+    // belongs to another identity. Never impersonate a differently bound row.
+    if (row.auth_user_id && row.auth_user_id !== authUserId) {
+      return { ok: false, status: 403, detail: 'Vínculo de autenticação conflitante' }
+    }
     if (!row.is_active) {
       return { ok: false, status: 403, detail: 'Conta inativa' }
     }
@@ -153,7 +180,30 @@ export async function resolveAuthorizedUserContext(
     }
   }
 
-  // ── Path B: LEGACY_CONFIRMED_EMAIL ────────────────────────────────────────
+  // ── Path B: EXPLICIT_AUTH_LINK ────────────────────────────────────────────
+  if (byAuth.data) {
+    const row = byAuth.data as PublicUserRow
+    if (row.auth_user_id !== authUserId) {
+      return { ok: false, status: 403, detail: 'Vínculo de autenticação conflitante' }
+    }
+    if (!row.is_active) return { ok: false, status: 403, detail: 'Conta inativa' }
+    if (!row.tenant_id) return { ok: false, status: 403, detail: 'Conta sem tenant associado' }
+    const tenantError = await assertTenantActive(admin, String(row.tenant_id))
+    if (tenantError) return tenantError
+    return {
+      ok: true,
+      context: {
+        authUserId,
+        publicUserId: String(row.id),
+        tenantId: String(row.tenant_id),
+        role: String(row.role ?? 'viewer'),
+        email,
+        identityBinding: 'EXPLICIT_AUTH_LINK',
+      },
+    }
+  }
+
+  // ── Path C: LEGACY_CONFIRMED_EMAIL ────────────────────────────────────────
   // Fallback for legacy rows where public.users.id ≠ auth.users.id.
   // Strict requirements: email present, confirmed, single active match.
   // When auth_user_id migration lands, this path will be eliminated.
@@ -179,7 +229,7 @@ export async function resolveAuthorizedUserContext(
 
   const byEmail = await admin
     .from('users')
-    .select('id, tenant_id, role, is_active, email')
+    .select('id, tenant_id, role, is_active, email, auth_user_id')
     .eq('email', normalizedEmail)
     .limit(2)
 
@@ -209,6 +259,11 @@ export async function resolveAuthorizedUserContext(
 
   const legacyRow = rows[0]
 
+  // A confirmed email does NOT override a row that has already been
+  // authoritatively linked to a different auth.users identity.
+  if (legacyRow.auth_user_id && legacyRow.auth_user_id !== authUserId) {
+    return { ok: false, status: 403, detail: 'Vínculo de autenticação conflitante' }
+  }
   if (!legacyRow.is_active) {
     return { ok: false, status: 403, detail: 'Conta inativa' }
   }

@@ -90,31 +90,53 @@ export async function resolvePublicUserId(args: {
 
   const byId = await admin
     .from('users')
-    .select('id, tenant_id, is_active')
+    .select('id, tenant_id, is_active, auth_user_id')
     .eq('id', authUserId)
     .eq('tenant_id', tenantId)
     .maybeSingle()
   if (byId.error) throw new Error('EVENT_DELETE_IDENTITY_LOOKUP_FAILED')
-  if (byId.data?.is_active !== false && byId.data?.id) return String(byId.data.id)
-
+  // Always inspect explicit Auth linkage even when public.id directly equals
+  // the token UUID: two different public rows can otherwise both claim it.
   const byAuth = await admin
     .from('users')
-    .select('id, tenant_id, is_active')
+    .select('id, tenant_id, is_active, auth_user_id')
     .eq('auth_user_id', authUserId)
     .eq('tenant_id', tenantId)
     .maybeSingle()
   if (byAuth.error) throw new Error('EVENT_DELETE_IDENTITY_LOOKUP_FAILED')
-  if (byAuth.data?.is_active !== false && byAuth.data?.id) return String(byAuth.data.id)
+  if (byId.data && byAuth.data && String(byId.data.id) !== String(byAuth.data.id)) {
+    throw new Error('EVENT_DELETE_FORBIDDEN')
+  }
+  if (byId.data) {
+    if (byId.data.is_active !== true ||
+      (byId.data.auth_user_id && byId.data.auth_user_id !== authUserId)) {
+      throw new Error('EVENT_DELETE_FORBIDDEN')
+    }
+    return String(byId.data.id)
+  }
+
+  if (byAuth.data) {
+    if (byAuth.data.is_active !== true || byAuth.data.auth_user_id !== authUserId) {
+      throw new Error('EVENT_DELETE_FORBIDDEN')
+    }
+    return String(byAuth.data.id)
+  }
 
   if (email?.trim()) {
     const byEmail = await admin
       .from('users')
-      .select('id, tenant_id, is_active')
+      .select('id, tenant_id, is_active, auth_user_id')
       .eq('email', email.trim())
       .eq('tenant_id', tenantId)
       .maybeSingle()
     if (byEmail.error) throw new Error('EVENT_DELETE_IDENTITY_LOOKUP_FAILED')
-    if (byEmail.data?.is_active !== false && byEmail.data?.id) return String(byEmail.data.id)
+    if (byEmail.data) {
+      if (byEmail.data.is_active !== true ||
+        (byEmail.data.auth_user_id && byEmail.data.auth_user_id !== authUserId)) {
+        throw new Error('EVENT_DELETE_FORBIDDEN')
+      }
+      return String(byEmail.data.id)
+    }
   }
 
   throw new Error('EVENT_DELETE_FORBIDDEN')
