@@ -107,8 +107,12 @@ def run() -> None:
     if UNIX:
         check(sql("SELECT inet_server_addr() IS NULL;") == "t", "Unix socket only")
     else:
-        check(sql("SELECT inet_server_addr() = '127.0.0.1'::inet;") == "t",
-              "GitHub ephemeral PostgreSQL bound to local loopback")
+        # In GitHub Actions the client uses 127.0.0.1:55439, but the
+        # PostgreSQL service runs inside a Docker bridge. inet_server_addr()
+        # is then the container interface (not the runner's loopback IP).
+        # The *client target* is already strictly pinned to localhost above.
+        check(sql("SELECT inet_server_addr() IS NOT NULL AND inet_client_addr() IS NOT NULL;") == "t",
+              "Synthetic PostgreSQL TCP endpoint available through pinned client localhost")
     privileges = sql("""SELECT
       has_function_privilege('anon','public.hfa_apply_credit_operation_v31(uuid,uuid,uuid,uuid,text,text)','EXECUTE'),
       has_function_privilege('authenticated','public.hfa_apply_credit_operation_v31(uuid,uuid,uuid,uuid,text,text)','EXECUTE'),

@@ -23,7 +23,15 @@ assert.doesNotMatch(auth, /auth\.sign_up\(/)
 assert.doesNotMatch(auth, /\.insert\(/)
 const event = get('backend/app/api/routes/events.py')
 assert.doesNotMatch(event, /\.eq\("email",\s*user_email\)/)
-assert.match(event, /user\.public_user_id/)
+// Python GET endpoints remain DB-authoritative and tenant-filtered.
+// POST was intentionally retired in V31; requiring a write actor there
+// would incorrectly force resurrection of the unsafe non-atomic debit path.
+assert.match(event, /@router\.get\("\/"\)/)
+assert.match(event, /@router\.get\("\/\{event_id\}"\)/)
+assert.match(event, /Depends\(get_authorized_user\)/)
+assert.match(event, /\.eq\("tenant_id", tenant_id\)/)
+assert.match(event, /@router\.post\("\/"\)[\s\S]*?async def create_event\(\):[\s\S]*?status_code=410/)
+assert.doesNotMatch(event, /admin\.table\("credit_transactions"\)/)
 const flows = get('backend/app/api/routes/analyses.py')
 assert.match(flows, /\.eq\("tenant_id", current_user\.tenant_id\)/)
 const deps = get('backend/app/api/deps.py')
