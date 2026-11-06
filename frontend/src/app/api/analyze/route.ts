@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { requireBearerUser } from '@/lib/server/api-auth'
 import { getSupabaseAdmin, assertServiceRoleEnv } from '@/lib/server/supabase-admin'
@@ -6,6 +7,7 @@ import {
   debitCreditForEvent,
   ensurePublicUserRow,
   refundCreditForFailedAnalysis,
+  HfaCreditOperationError,
 } from '@/lib/server/tenant-user'
 import { getOrCreateRequestId } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
@@ -183,6 +185,7 @@ export async function POST(req: Request) {
         .order('updated_at', { ascending: false })
       const latestVNext = vnextHistory?.[0] ?? null
       const firstHfaAnalysis = !latestVNext
+      const firstCreditOperationId = randomUUID()
       let firstCreditDebited = false
       let firstAnalysisEnterprise = false
       let success = false
@@ -209,9 +212,8 @@ export async function POST(req: Request) {
           tenantId: user.tenantId,
           submittedById,
           eventId: body.eventId,
+          operationId: firstCreditOperationId,
           title: String(ev.title ?? body.title ?? `SERA ${body.eventId}`),
-          isEnterprise: firstAnalysisEnterprise,
-          currentBalance: tenant.credits_balance ?? 0,
         })
         firstCreditDebited = true
       }
@@ -224,18 +226,22 @@ export async function POST(req: Request) {
           })
         : String(ev.raw_input ?? rawInput)
 
-      await admin
-        .from('events')
-        .update({
-          status: 'processing',
-          triage_status: 'HFA_SELECTED',
-          investigation_path: ev.investigation_path === 'GENERAL' ? 'BOTH' : 'HFA',
-          triaged_at: new Date().toISOString(),
-          triaged_by: submittedById,
-        })
-        .eq('id', body.eventId)
-        .eq('tenant_id', user.tenantId)
-        .is('deleted_at', null)
+      // Include event status mutation and audit in the compensation scope.
+      // A failure here must not skip the credit refund after the RPC debit.
+      try {
+        const eventProcessing = await admin
+          .from('events')
+          .update({
+            status: 'processing',
+            triage_status: 'HFA_SELECTED',
+            investigation_path: ev.investigation_path === 'GENERAL' ? 'BOTH' : 'HFA',
+            triaged_at: new Date().toISOString(),
+            triaged_by: submittedById,
+          })
+          .eq('id', body.eventId)
+          .eq('tenant_id', user.tenantId)
+          .is('deleted_at', null)
+        if (eventProcessing.error) throw new Error('HFA_EVENT_PROCESSING_UPDATE_FAILED')
 
       const auditSource = firstHfaAnalysis ? 'existing_event_first_hfa_analysis' : 'reanalysis'
       await writeAuditLog({
@@ -244,7 +250,6 @@ export async function POST(req: Request) {
         route: '/api/analyze', method: 'POST', metadata: { source: auditSource, engine_role: 'PRIMARY' },
       })
 
-      try {
         const result = await persistCanonicalResult({
           admin,
           eventId: body.eventId,
@@ -287,19 +292,13 @@ export async function POST(req: Request) {
       } finally {
         if (firstCreditDebited && !success) {
           try {
-            const { data: currentTenant } = await admin
-              .from('tenants')
-              .select('credits_balance')
-              .eq('id', user.tenantId)
-              .single()
             await refundCreditForFailedAnalysis({
               admin,
               tenantId: user.tenantId,
               submittedById,
               eventId: body.eventId,
+              operationId: firstCreditOperationId,
               title: String(ev.title ?? body.title ?? `SERA ${body.eventId}`),
-              isEnterprise: firstAnalysisEnterprise,
-              currentBalanceAfterDebit: currentTenant?.credits_balance ?? 0,
             })
           } catch (refundError) {
             logAnalyzeError('first_hfa_analysis_refund_failed', requestId, refundError, { eventId: body.eventId })
@@ -349,6 +348,7 @@ export async function POST(req: Request) {
       metadata: { source_type: body.sourceType ?? 'text', engine_role: 'PRIMARY' },
     })
 
+    const creditOperationId = randomUUID()
     let creditDebited = false
     let success = false
     try {
@@ -357,9 +357,8 @@ export async function POST(req: Request) {
         tenantId: user.tenantId,
         submittedById,
         eventId,
+        operationId: creditOperationId,
         title,
-        isEnterprise,
-        currentBalance: tenant.credits_balance ?? 0,
       })
       creditDebited = true
 
@@ -388,21 +387,27 @@ export async function POST(req: Request) {
       success = true
       return NextResponse.json(canonicalAnalyzeResponse(result, eventId), { headers: { 'x-request-id': requestId } })
     } catch (err) {
+      if (err instanceof HfaCreditOperationError) {
+        return NextResponse.json({
+          error: { code: err.code, requestId,
+            message: 'Evento registrado, mas a cobrança não foi autorizada. Reabra o evento existente antes de tentar novamente.' },
+          event_id: eventId,
+        }, { status: err.status,
+          headers: { 'x-request-id': requestId, 'Cache-Control': 'no-store' } })
+      }
       await admin.from('events').update({ status: 'failed' }).eq('id', eventId).eq('tenant_id', user.tenantId)
       logAnalyzeError('analysis_failed', requestId, err, { phase: 'new_analysis' })
       return buildErrorResponse('ANALYZE_ENGINE_UNAVAILABLE', requestId, 500)
     } finally {
       if (creditDebited && !success) {
         try {
-          const { data: tNow } = await admin.from('tenants').select('credits_balance').eq('id', user.tenantId).single()
           await refundCreditForFailedAnalysis({
             admin,
             tenantId: user.tenantId,
             submittedById,
             eventId,
+            operationId: creditOperationId,
             title,
-            isEnterprise,
-            currentBalanceAfterDebit: tNow?.credits_balance ?? 0,
           })
         } catch (refundErr) {
           logAnalyzeError('refund_failed', requestId, refundErr)
@@ -412,6 +417,12 @@ export async function POST(req: Request) {
     })
   } catch (e) {
     if (e instanceof Response) return errorResponseFromAuthResponse(e, requestId)
+    if (e instanceof HfaCreditOperationError) {
+      return NextResponse.json({
+        error: { code: e.code, requestId,
+          message: 'A operação financeira da análise não pôde ser concluída. Consulte a ocorrência existente.' },
+      }, { status: e.status, headers: { 'x-request-id': requestId, 'Cache-Control': 'no-store' } })
+    }
     logAnalyzeError('unhandled_error', requestId, e)
     return buildErrorResponse('ANALYZE_INTERNAL_ERROR', requestId, 500)
   }

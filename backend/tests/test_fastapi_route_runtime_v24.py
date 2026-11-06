@@ -69,6 +69,23 @@ class FastApiWireTests(unittest.TestCase):
                                     headers={"content-type": "text/plain"})
         self.assertEqual(response.status_code, 410, response.text)
 
+    def test_legacy_event_post_retired_410_without_financial_or_scientific_side_effect(self):
+        """The old Python handler cannot create an event or mutate credits."""
+        db = FakeDb(tenants=[{"id": "synthetic-tenant", "plan": "basic",
+                              "credits_balance": 2, "is_active": True}])
+        with patch("app.api.routes.events.get_supabase_admin", return_value=db):
+            response = self.client.post("/events/", json={
+                "title": "Synthetic occurrence",
+                "raw_input": "Synthetic narrative without personal records",
+                "input_type": "text",
+            })
+            malformed = self.client.post("/events/", content="not-json",
+                                         headers={"content-type": "text/plain"})
+        self.assertEqual(response.status_code, 410, response.text)
+        self.assertEqual(malformed.status_code, 410)
+        self.assertEqual(db.calls, [])
+        self.assertEqual(db.writes, [])
+
     def test_legacy_bootstrap_new_confirmed_identity_410_without_write(self):
         db = FakeDb()
         app.dependency_overrides[get_current_user] = lambda: NS(user=NS(

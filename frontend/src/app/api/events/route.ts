@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { requireBearerUser } from '@/lib/server/api-auth'
 import { getSupabaseAdmin, assertServiceRoleEnv } from '@/lib/server/supabase-admin'
@@ -10,7 +11,7 @@ import {
   UploadValidationError,
   type PreparedSourceFile,
 } from '@/lib/event-document-persistence'
-import { debitCreditForEvent, ensurePublicUserRow, refundCreditForFailedAnalysis } from '@/lib/server/tenant-user'
+import { debitCreditForEvent, ensurePublicUserRow, refundCreditForFailedAnalysis, HfaCreditOperationError } from '@/lib/server/tenant-user'
 import { getOrCreateRequestId, buildErrorResponse } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
 import { canonicalAnalyzeResponse, createCanonicalEventAnalysis } from '@/lib/sera-vnext-product/canonical-event-analysis'
@@ -357,6 +358,7 @@ export async function POST(req: Request) {
       }, { status: 201, headers: { 'x-request-id': requestId } })
     }
 
+    const creditOperationId = randomUUID()
     let creditDebited = false
     let success = false
     try {
@@ -366,9 +368,8 @@ export async function POST(req: Request) {
         tenantId: user.tenantId,
         submittedById,
         eventId,
+        operationId: creditOperationId,
         title,
-        isEnterprise,
-        currentBalance: tenant.credits_balance ?? 0,
       })
       creditDebited = true
 
@@ -462,6 +463,15 @@ export async function POST(req: Request) {
         { headers: { 'x-request-id': requestId } },
       )
     } catch (err) {
+      if (err instanceof HfaCreditOperationError) {
+        // The event exists; the database did not authorize its credit.
+        // Do not mark it failed or create a second occurrence on retry.
+        return NextResponse.json({
+          code: err.code, event_id: eventId, analysis_started: false,
+          detail: 'Evento registrado, mas a cobrança não foi autorizada. Reabra o evento existente antes de tentar novamente.',
+        }, { status: err.status,
+          headers: { 'x-request-id': requestId, 'Cache-Control': 'no-store' } })
+      }
       await admin.from('events').update({ status: 'failed' }).eq('id', eventId).eq('tenant_id', user.tenantId)
       logEventsError(err, stage, context)
       await writeAuditLog({
@@ -478,15 +488,13 @@ export async function POST(req: Request) {
     } finally {
       if (creditDebited && !success) {
         try {
-          const { data: tNow } = await admin.from('tenants').select('credits_balance').eq('id', user.tenantId).single()
           await refundCreditForFailedAnalysis({
             admin,
             tenantId: user.tenantId,
             submittedById,
             eventId,
+            operationId: creditOperationId,
             title,
-            isEnterprise,
-            currentBalanceAfterDebit: tNow?.credits_balance ?? 0,
           })
         } catch (refundErr) {
           logEventsError(refundErr, 'refund', context)

@@ -47,57 +47,111 @@ export async function ensurePublicUserRow(
   return String(row.id)
 }
 
-export async function debitCreditForEvent(params: {
-  admin: SupabaseClient
-  tenantId: string
-  submittedById: string
-  eventId: string
-  title: string
-  isEnterprise: boolean
-  currentBalance: number
-}) {
-  const { admin, tenantId, submittedById, eventId, title, isEnterprise, currentBalance } = params
-  if (!isEnterprise) {
-    await admin
-      .from('tenants')
-      .update({ credits_balance: currentBalance - 1 })
-      .eq('id', tenantId)
+/**
+ * No client-side balance read/modify/write. The V31 service-role-only RPC
+ * verifies the tenant, actor, event and unique attempt ID and takes a
+ * PostgreSQL row lock while writing tenant balance, event and ledger in ONE TX.
+ *
+ * Deploy dependency: the V31 migration MUST be present in staging before
+ * shipping these callers. Missing RPC is deliberately fail-closed.
+ */
+export class HfaCreditOperationError extends Error {
+  readonly status: 402 | 403 | 409 | 503
+  constructor(readonly code: string) {
+    super(code)
+    this.name = 'HfaCreditOperationError'
+    this.status =
+      code === 'HFA_CREDIT_INSUFFICIENT_BALANCE' || code === 'HFA_CREDIT_TRIAL_EXPIRED' ? 402 :
+      code === 'HFA_CREDIT_EVENT_ALREADY_CHARGED' || code === 'HFA_CREDIT_OPERATION_CONFLICT' ||
+      code === 'HFA_CREDIT_REFUND_WITHOUT_DEBIT' || code === 'HFA_CREDIT_ALREADY_REFUNDED' ? 409 :
+      code === 'HFA_CREDIT_USER_NOT_AUTHORIZED' || code === 'HFA_CREDIT_TENANT_NOT_ACTIVE' ||
+      code === 'HFA_CREDIT_EVENT_NOT_AUTHORIZED' ? 403 : 503
   }
-  await admin.from('credit_transactions').insert({
-    tenant_id: tenantId,
-    user_id: submittedById,
-    type: 'consumption',
-    amount: -1,
-    event_id: eventId,
-    description: `Análise SERA: ${title}`,
-  })
 }
 
-/** Devolve 1 crédito ao tenant quando a análise falha após o débito (espelha lógica de enterprise). */
-export async function refundCreditForFailedAnalysis(params: {
+type HfaCreditState = 'applied' | 'already_applied' | 'refunded' | 'already_refunded'
+export type HfaCreditResult = {
+  state: HfaCreditState
+  idempotent: boolean
+  balance: number
+  operationId: string
+}
+type CreditOperation = {
   admin: SupabaseClient
   tenantId: string
   submittedById: string
   eventId: string
+  operationId: string
   title: string
-  isEnterprise: boolean
-  /** Saldo atual já após o débito (para não-enterprise). */
-  currentBalanceAfterDebit: number
-}) {
-  const { admin, tenantId, submittedById, eventId, title, isEnterprise, currentBalanceAfterDebit } =
-    params
-  if (!isEnterprise) {
-    await admin
-      .from('tenants')
-      .update({ credits_balance: currentBalanceAfterDebit + 1 })
-      .eq('id', tenantId)
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const KNOWN_CREDIT_CODES = new Set([
+  'HFA_CREDIT_INVALID_INPUT',
+  'HFA_CREDIT_TENANT_NOT_ACTIVE',
+  'HFA_CREDIT_USER_NOT_AUTHORIZED',
+  'HFA_CREDIT_EVENT_NOT_AUTHORIZED',
+  'HFA_CREDIT_EVENT_ALREADY_CHARGED',
+  'HFA_CREDIT_TRIAL_EXPIRED',
+  'HFA_CREDIT_INSUFFICIENT_BALANCE',
+  'HFA_CREDIT_OPERATION_CONFLICT',
+  'HFA_CREDIT_REFUND_WITHOUT_DEBIT',
+])
+async function applyHfaCreditOperation(
+  params: CreditOperation,
+  action: 'debit' | 'refund',
+): Promise<HfaCreditResult> {
+  const { admin, tenantId, submittedById, eventId, operationId, title } = params
+  if (![tenantId, submittedById, eventId, operationId].every(value => UUID_PATTERN.test(value))) {
+    throw new HfaCreditOperationError('HFA_CREDIT_INVALID_INPUT')
   }
-  await admin.from('credit_transactions').insert({
-    tenant_id: tenantId,
-    user_id: submittedById,
-    type: 'refund',
-    amount: 1,
-    event_id: eventId,
-    description: `Estorno: análise não concluída — ${title}`,
+  const { data, error } = await admin.rpc('hfa_apply_credit_operation_v31', {
+    p_tenant_id: tenantId,
+    p_user_id: submittedById,
+    p_event_id: eventId,
+    p_operation_id: operationId,
+    p_action: action,
+    p_title: title,
   })
+  if (error) {
+    const matched = /HFA_CREDIT_[A-Z_]+/.exec(String(error.message ?? ''))
+    throw new HfaCreditOperationError(
+      matched && KNOWN_CREDIT_CODES.has(matched[0])
+        ? matched[0] : 'HFA_CREDIT_RPC_UNAVAILABLE'
+    )
+  }
+  const payload = data as Record<string, unknown> | null
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload) ||
+      payload.operation_id !== operationId ||
+      !['applied', 'already_applied', 'refunded', 'already_refunded'].includes(String(payload.state)) ||
+      typeof payload.idempotent !== 'boolean' ||
+      typeof payload.balance !== 'number') {
+    throw new HfaCreditOperationError('HFA_CREDIT_RPC_INVALID_RESPONSE')
+  }
+  const state = payload.state as HfaCreditState
+  if (action === 'debit' && state === 'already_refunded') {
+    throw new HfaCreditOperationError('HFA_CREDIT_ALREADY_REFUNDED')
+  }
+  if ((action === 'debit' && state === 'refunded') ||
+      (action === 'refund' && !['refunded', 'already_refunded'].includes(state))) {
+    throw new HfaCreditOperationError('HFA_CREDIT_RPC_INVALID_RESPONSE')
+  }
+  return {
+    state,
+    idempotent: payload.idempotent,
+    balance: payload.balance,
+    operationId,
+  }
+}
+
+/** Charge at most once per attempt; a second legitimate attempt uses a NEW UUID. */
+export async function debitCreditForEvent(params: CreditOperation): Promise<HfaCreditResult> {
+  return applyHfaCreditOperation(params, 'debit')
+}
+
+/** Compensate only a recorded debit of the SAME attempt, exactly once. */
+export async function refundCreditForFailedAnalysis(
+  params: CreditOperation,
+): Promise<HfaCreditResult> {
+  return applyHfaCreditOperation(params, 'refund')
 }

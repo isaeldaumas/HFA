@@ -6,6 +6,7 @@
  */
 
 import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
 import {
   InMemoryHfaDatabase,
   createMockSupabaseAdmin,
@@ -59,67 +60,107 @@ export async function runPartialFailureTests() {
     assert.equal(creditsAfter, initialCredits, 'Nenhum crédito deve ser debitado no preflight de IA')
   })
 
-  // ── Cenário 5.2: Falha no motor SERA pós-criação com estorno de créditos ───
-  await test('Falha na análise SERA pós-criação marca evento como "failed" e estorna o crédito debitado', async () => {
+  // ── Cenário 5.2: Falha pós-débito, refund V31 na mesma tentativa ─
+  await test('Falha da análise estorna a tentativa de crédito por RPC sem saldo divergente', async () => {
     db.seedStandardTenants()
-    const admin = createMockSupabaseAdmin(db)
     const user = db.users.get('user-alpha-admin')!
-    const initialBalance = db.tenants.get(user.tenant_id)!.credits_balance
+    const oldTenantId = user.tenant_id
+    const tenantId = randomUUID()
+    const publicUserId = randomUUID()
+    const eventId = randomUUID()
+    const operationId = randomUUID()
+    const tenant = db.tenants.get(oldTenantId)!
+    db.tenants.delete(oldTenantId)
+    db.tenants.set(tenantId, { ...tenant, id: tenantId })
+    user.id = publicUserId
+    user.tenant_id = tenantId
+    const initialBalance = tenant.credits_balance
+    const admin = createMockSupabaseAdmin(db)
+    const ledger = new Map<string, { refunded: boolean }>()
 
-    // 1. Evento é inserido com status inicial 'received'
+    // Only simulate the RPC wire protocol here. The *actual* PostgreSQL
+    // rollback/concurrency/permissions are tested by V31 PostgreSQL tests.
+    const rpcAdmin = Object.assign(admin, {
+      rpc: async (name: string, args: Record<string, string>) => {
+        assert.equal(name, 'hfa_apply_credit_operation_v31')
+        assert.equal(args.p_tenant_id, tenantId)
+        assert.equal(args.p_user_id, publicUserId)
+        assert.equal(args.p_event_id, eventId)
+        assert.equal(args.p_operation_id, operationId)
+        const currentTenant = db.tenants.get(tenantId)!
+        const currentEvent = db.events.get(eventId)!
+        const prior = ledger.get(operationId)
+        let state: string
+        let idempotent = false
+        if (args.p_action === 'debit') {
+          if (prior?.refunded) {
+            state = 'already_refunded'
+            idempotent = true
+          } else if (prior) {
+            state = 'already_applied'
+            idempotent = true
+          } else {
+            assert.ok(currentTenant.credits_balance > 0)
+            currentTenant.credits_balance -= 1
+            currentEvent.credits_used = 1
+            ledger.set(operationId, { refunded: false })
+            state = 'applied'
+          }
+        } else {
+          assert.equal(args.p_action, 'refund')
+          assert.ok(prior, 'No refund without an existing debit')
+          if (prior.refunded) {
+            state = 'already_refunded'
+            idempotent = true
+          } else {
+            currentTenant.credits_balance += 1
+            currentEvent.credits_used = 0
+            prior.refunded = true
+            state = 'refunded'
+          }
+        }
+        return { data: {
+          state, idempotent, balance: currentTenant.credits_balance,
+          operation_id: operationId,
+        }, error: null }
+      },
+    })
+
     const { data: eventRow } = await admin.from('events').insert({
-      tenant_id: user.tenant_id,
-      submitted_by: user.id,
-      title: 'Ocorrência que falhará no motor SERA',
-      raw_input: 'Narrativa operacional submetida que enfrentará timeout ou falha interna no motor de inferência.',
+      id: eventId,
+      tenant_id: tenantId,
+      submitted_by: publicUserId,
+      title: 'Ocorrência sintética que falhará no motor',
+      raw_input: 'Relato sintético apenas para teste de compensação de créditos.',
       input_type: 'text',
       status: 'received',
       event_kind: 'HFA_ANALYSIS',
       triage_status: 'HFA_SELECTED',
       investigation_path: 'HFA',
     }).select('id').single()
-
-    assert.ok(eventRow?.id)
-    const eventId = eventRow.id
-
-    // 2. Debita 1 crédito
+    assert.equal(eventRow?.id, eventId)
     await debitCreditForEvent({
-      admin: admin as any,
-      tenantId: user.tenant_id,
-      submittedById: user.id,
-      eventId,
-      title: 'Ocorrência que falhará no motor SERA',
-      isEnterprise: false,
-      currentBalance: initialBalance,
+      admin: rpcAdmin as any, tenantId, submittedById: publicUserId,
+      eventId, operationId, title: 'Synthetic analysis',
     })
+    assert.equal(db.tenants.get(tenantId)!.credits_balance, initialBalance - 1)
+    assert.equal(db.events.get(eventId)!.credits_used, 1)
 
-    const balanceAfterDebit = db.tenants.get(user.tenant_id)!.credits_balance
-    assert.equal(balanceAfterDebit, initialBalance - 1, 'Saldo deve ter 1 crédito debitado temporariamente')
-
-    // 3. Simula falha do motor SERA
-    const engineCrashed = true
-    if (engineCrashed) {
-      // Atualiza evento para 'failed'
-      await admin.from('events').update({ status: 'failed' }).eq('id', eventId).eq('tenant_id', user.tenant_id)
-
-      // Executa estorno compensatório
-      await refundCreditForFailedAnalysis({
-        admin: admin as any,
-        tenantId: user.tenant_id,
-        submittedById: user.id,
-        eventId,
-        title: 'Ocorrência que falhará no motor SERA',
-        isEnterprise: false,
-        currentBalanceAfterDebit: balanceAfterDebit,
-      })
-    }
-
-    // 4. Verifica integridade do estado final
-    const finalEvent = db.events.get(eventId)!
-    assert.equal(finalEvent.status, 'failed', 'Status do evento deve ficar marcado como failed')
-
-    const finalCredits = db.tenants.get(user.tenant_id)!.credits_balance
-    assert.equal(finalCredits, initialBalance, 'Crédito debitado deve ser integralmente estornado ao tenant')
+    await admin.from('events').update({ status: 'failed' }).eq('id', eventId).eq('tenant_id', tenantId)
+    const refund = await refundCreditForFailedAnalysis({
+      admin: rpcAdmin as any, tenantId, submittedById: publicUserId,
+      eventId, operationId, title: 'Synthetic analysis',
+    })
+    assert.equal(refund.state, 'refunded')
+    const duplicate = await refundCreditForFailedAnalysis({
+      admin: rpcAdmin as any, tenantId, submittedById: publicUserId,
+      eventId, operationId, title: 'Synthetic analysis',
+    })
+    assert.equal(duplicate.state, 'already_refunded')
+    assert.equal(db.events.get(eventId)?.status, 'failed')
+    assert.equal(db.events.get(eventId)?.credits_used, 0)
+    assert.equal(db.tenants.get(tenantId)!.credits_balance, initialBalance)
+    assert.equal(ledger.size, 1)
   })
 
   // ── Cenário 5.3: Degradação graciosa no upload de documento em register_only ─

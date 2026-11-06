@@ -168,9 +168,63 @@ jobs:
       - name: V30 authoritative write-actor revalidation and no implicit provisioning
         run: ./frontend/node_modules/.bin/tsx --test tests/hfa-audit/gemini-tenancy-security/v30-authoritative-write-actor.test.ts
 
+      - name: V31 client-RPC atomic debit and refund contract
+        run: ./frontend/node_modules/.bin/tsx --test tests/hfa-audit/gemini-release-readiness/v31-credit-rpc-client.test.ts
+
 
       - name: Commercial trial contract
         run: ./frontend/node_modules/.bin/tsx tests/product/test-trial-usage.ts
 
       - name: Safety event workflow contract
         run: ./frontend/node_modules/.bin/tsx tests/product/test-safety-event-workflow.ts
+
+
+  credit_atomic_postgres_v31:
+    name: V31 Credit Atomicity (Synthetic PostgreSQL 16)
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: local-v31-synthetic-only
+          POSTGRES_DB: hfa_v31_synthetic
+        ports:
+          - 55439:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hfa_v31_synthetic"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "55439"
+      PGUSER: postgres
+      PGDATABASE: hfa_v31_synthetic
+      PGPASSWORD: local-v31-synthetic-only
+      HFA_V31_CI_SYNTHETIC_POSTGRES: "YES"
+      HFA_V31_PG_HOST: 127.0.0.1
+      HFA_V31_PG_PORT: "55439"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PostgreSQL client only (isolated ephemeral CI database)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+
+      - name: Initialize synthetic-only PostgreSQL schema
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/hfa-audit/gemini-release-readiness/v31-synthetic-postgres-schema.sql
+
+      - name: Apply unpublished V31 migration only to synthetic PostgreSQL
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105235446_hfa_atomic_credit_operations_v31.sql
+
+      - name: Concurrent debit and refund, privileges, rollback (real PostgreSQL)
+        run: python3 tests/hfa-audit/gemini-release-readiness/v31-credits-postgres-concurrency.py
