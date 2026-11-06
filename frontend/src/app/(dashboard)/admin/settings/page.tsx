@@ -94,10 +94,12 @@ export default function AdminSettingsPage() {
         },
         body: JSON.stringify({ email: adminEmail }),
       })
-      if (!res.ok) throw new Error((await res.json()).detail || 'Falha ao gerar link de reset')
-      toast.success('Link de troca de senha gerado com sucesso')
+      if (!res.ok) throw new Error((await res.json()).detail || 'Falha ao solicitar recuperação')
+      const result = await res.json() as { request_accepted?: boolean }
+      if (!result.request_accepted) throw new Error('Solicitação não confirmada pelo provedor')
+      toast.success('Solicitação aceita pelo Supabase. A entrega do email ainda não está confirmada.')
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha ao gerar link')
+      toast.error(e instanceof Error ? e.message : 'Falha ao solicitar recuperação')
     } finally {
       setSendingReset(false)
     }
@@ -132,9 +134,10 @@ export default function AdminSettingsPage() {
                 disabled={sendingReset}
                 className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg"
               >
-                {sendingReset ? 'Enviando...' : 'Enviar link de troca de senha'}
+                {sendingReset ? 'Solicitando...' : 'Solicitar email de recuperação de senha'}
               </button>
             </div>
+            <p className="text-xs text-slate-400">O pedido é enviado ao Supabase Auth para processamento. A entrega do email deve ser confirmada no provedor e pelo destinatário; este botão não comprova recebimento.</p>
 
             <label className="block">
               <span className="text-xs text-slate-400">CORS origins (uma por linha)</span>
