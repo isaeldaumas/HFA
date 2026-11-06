@@ -38,6 +38,19 @@ assert.ok(!auth.includes('user_metadata'))
 
 for (const route of GLOBAL_ROUTES) {
   const src = readFileSync(path.join(ROOT, 'frontend/src/app/api/admin', route), 'utf8')
+  if (route === 'settings/password-reset/route.ts') {
+    // Password recovery PR118 delegates to a handler. The ROUTE and HANDLER
+    // must both be checked; simply finding an imported helper is insufficient.
+    assert.match(src, /import \{ handleAdminPasswordResetRequest \} from '@\/lib\/server\/password-reset-handler'/)
+    assert.match(src, /return handleAdminPasswordResetRequest\(req\)/)
+    assert.doesNotMatch(src, /requireAdmin\(req\)/)
+    const handler = readFileSync(path.join(
+      ROOT, 'frontend/src/lib/server/password-reset-handler.ts'), 'utf8')
+    assert.match(handler, /import \{ requirePlatformAdmin \} from '@\/lib\/server\/admin-auth'/)
+    assert.match(handler, /await \(deps\.authorize \?\? requirePlatformAdmin\)\(req\)/)
+    assert.doesNotMatch(handler, /requireAdmin/)
+    continue
+  }
   assert.match(src, /import \{[^}]*requirePlatformAdmin[^}]*\} from '@\/lib\/server\/admin-auth'/)
   assert.match(src, /await requirePlatformAdmin\(req\)/)
   assert.doesNotMatch(src, /await requireAdmin\(req\)/)
