@@ -245,18 +245,20 @@ export function isAllowedSeraVNextProtectedApiPath(rootDir: string, changedPath:
     const handler = readRel(rootDir, "frontend/src/lib/server/register-handler.ts");
     assert.ok(hasAll(handler, [
       "cleanupIncompleteRegistration",
-      "admin.auth.admin.deleteUser",
+      "admin.auth.admin.inviteUserByEmail",
       "admin.from('tenants').delete().eq('id', tenantId)",
       "if (userInsErr)",
       "createdTenantId",
-      "createdAuthUserId",
+      "HFA_REGISTRATION_INVITES_READY",
       "status: 500",
-    ]), "Registration rollback and fail-closed behavior must remain present");
+    ]), "Registration invitation, tenant cleanup and fail-closed behavior must remain present");
+    assert.equal(handler.includes('email_confirm: true'), false, "Registration must not forge email ownership");
+    assert.equal(handler.includes('admin.auth.admin.deleteUser'), false, "Never delete an unproven invited Auth identity");
     const test = readRel(rootDir, "frontend/tests/register-compensating-rollback.test.ts");
     assert.ok(hasAll(test, [
       "public users insert failure returns 500",
-      "auth cleanup failure still tries tenant cleanup",
-      "unexpected public user API exception cleans auth and tenant",
+      "reinvited pending Auth user is never deleted",
+      "unexpected public user API exception cleans provisional tenant only",
       "unexpected Auth API exception still cleans the tenant",
     ]), "Registration error injection tests must remain present");
     const ci = readRel(rootDir, ".github/workflows/hfa-core-ci.yml");
