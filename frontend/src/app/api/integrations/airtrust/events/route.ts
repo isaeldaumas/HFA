@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     const admin = getSupabaseAdmin()
     const { data: existing, error: existingError } = await admin
       .from('events')
-      .select('id, triage_status, investigation_path')
+      .select('id, title, raw_input, triage_status, investigation_path')
       .eq('tenant_id', connection.tenantId)
       .eq('source_system', 'AIRTRUST')
       .eq('external_reference', externalReference)
@@ -53,9 +53,12 @@ export async function POST(req: Request) {
     let eventId: string
     let created = false
     if (existing?.id) {
-      const { data, error } = await admin.from('events').update(common).eq('id', existing.id).eq('tenant_id', connection.tenantId).select('id').single()
-      if (error || !data) return jsonError('Falha ao atualizar evento integrado.', 500)
-      eventId = String(data.id)
+      // External references are immutable after ingestion. Never reset an event's
+      // status or overwrite evidence that may already have been investigated.
+      if (existing.title !== title || existing.raw_input !== rawInput) {
+        return jsonError('Referência externa já registrada com conteúdo diferente. Revisão manual necessária.', 409)
+      }
+      eventId = String(existing.id)
     } else {
       const { data, error } = await admin.from('events').insert({
         tenant_id: connection.tenantId,
@@ -81,7 +84,7 @@ export async function POST(req: Request) {
       metadata: { source_system: 'AIRTRUST', external_reference: externalReference, integration_connection_id: connection.id, created },
     })
 
-    return NextResponse.json({ event_id: eventId, created, analysis_started: false, credits_used: 0 }, {
+    return NextResponse.json({ event_id: eventId, created, ...(created ? { analysis_started: false } : {}), credits_used: 0 }, {
       status: created ? 201 : 200,
       headers: { 'x-request-id': requestId, 'cache-control': 'no-store' },
     })
