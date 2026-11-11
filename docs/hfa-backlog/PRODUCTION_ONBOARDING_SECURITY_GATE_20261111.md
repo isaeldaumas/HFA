@@ -29,3 +29,5 @@ Não reativar o cadastro antigo com `email_confirm:true`. Em incidentes de auten
 O convite ganha uma quota atômica compartilhada (PostgreSQL, transação e índice único): 3 tentativas por hora e 8 por dia por email normalizado. Os identificadores armazenados são HMAC-SHA256 gerados com HFA_REGISTRATION_RATE_LIMIT_SECRET, nunca endereços de email brutos. O segredo fica exclusivamente no servidor Vercel e deve ter ao menos 32 bytes UTF-8. Falhas de RPC/DB ou segredo ausente retornam 503, e limites excedidos retornam 429. Não há criação de empresa nem convite nesses casos. O WAF conserva seu limite por IP; a tabela privada elimina de forma limitada registros expirados após 3 dias. A função é SECURITY INVOKER, com EXECUTE apenas ao service_role.
 
 Mesmo com o rate limiter configurado, HFA_REGISTRATION_INVITES_READY permanece ausente em produção; novos cadastros NÃO estão liberados nem homologados.
+
+Migration Supabase prod: version 20261111223334 (registration_email_atomic_rate_limit), verificada no ledger. O arquivo original foi renomeado sem alterar o SQL para manter o historico do repositorio coerente com a execucao real.
