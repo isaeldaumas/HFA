@@ -23,5 +23,7 @@ assert.match(route, /existing\.title !== title \|\| existing\.raw_input !== rawI
 assert.match(route, /Revisão manual necessária\.', 409/)
 assert.doesNotMatch(route, /from\('events'\)\.update\(common\)/)
 assert.match(route, /created \? \{ analysis_started: false \} : \{\}/)
+assert.match(route, /error\?\.code === '23505'/)
+assert.match(route, /winner\.title !== title \|\| winner\.raw_input !== rawInput/)
 assert.match(connections, /token_visible_once: true/)
 console.log('AirTrust integration contract: PASS')

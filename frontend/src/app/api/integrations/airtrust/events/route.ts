@@ -67,9 +67,26 @@ export async function POST(req: Request) {
         triage_status: 'UNTRIAGED',
         investigation_path: 'NONE',
       }).select('id').single()
-      if (error || !data) return jsonError('Falha ao criar evento integrado.', 500)
-      eventId = String(data.id)
-      created = true
+      if (error?.code === '23505') {
+        // Concurrent requests may both miss the initial read. The database's
+        // unique external-reference index decides the winner; never overwrite it.
+        const { data: winner, error: winnerError } = await admin.from('events')
+          .select('id, title, raw_input')
+          .eq('tenant_id', connection.tenantId)
+          .eq('source_system', 'AIRTRUST')
+          .eq('external_reference', externalReference)
+          .is('deleted_at', null)
+          .maybeSingle()
+        if (winnerError || !winner) return jsonError('Conflito na sincronização. Tente consultar o evento.', 409)
+        if (winner.title !== title || winner.raw_input !== rawInput) {
+          return jsonError('Referência externa já registrada com conteúdo diferente. Revisão manual necessária.', 409)
+        }
+        eventId = String(winner.id)
+      } else {
+        if (error || !data) return jsonError('Falha ao criar evento integrado.', 500)
+        eventId = String(data.id)
+        created = true
+      }
     }
 
     await writeAuditLog({
