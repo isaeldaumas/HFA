@@ -3,12 +3,14 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { DEFAULT_TRIAL_DAYS, DEFAULT_TRIAL_LIMIT } from '@/lib/product/trial'
 import { verifyRegistrationTurnstile } from '@/lib/server/registration-turnstile'
 import { isHostedAuthSignupLocked } from '@/lib/server/registration-hosted-auth-policy'
+import { consumeRegistrationBudget, type BudgetResult } from '@/lib/server/registration-distributed-limit'
 
 type AdminClient = SupabaseClient
 export type RegisterDependencies = {
   createAdminClient?: (url: string, serviceRole: string) => AdminClient
   verifyChallenge?: (token: unknown, siteUrl: string) => Promise<boolean>
   checkHostedAuthPolicy?: () => Promise<boolean>
+  consumeBudget?: (admin: AdminClient, email: string) => Promise<BudgetResult>
 }
 
 /**
@@ -172,6 +174,20 @@ export async function handleRegisterRequest(req: Request, deps: RegisterDependen
 
     const admin = deps.createAdminClient?.(url, service) ?? createClient(url, service)
     activeAdmin = admin
+
+    // The WAF enforces 10/minute per IP; this server-only HMAC/RPC is shared
+    // across Vercel instances and limits each email to 3/hour and 8/day.
+    // No tenant credits or Auth identity may be created until it succeeds.
+    const budget = deps.consumeBudget
+      ? await deps.consumeBudget(admin, email)
+      : await consumeRegistrationBudget(admin, email, process.env.HFA_REGISTRATION_RATE_LIMIT_SECRET)
+    if (budget === 'limited') {
+      return NextResponse.json({ detail: 'Limite de tentativas de convite atingido. Tente mais tarde.' },
+        { status: 429, headers: { 'Retry-After': '3600' } })
+    }
+    if (budget !== 'allowed') {
+      return NextResponse.json({ detail: 'Serviço de convites temporariamente indisponível.' }, { status: 503 })
+    }
 
     // Do not use auth.admin.listUsers() to check for duplicates. It is
     // paginated (50 users by default) and a preflight cannot prevent races.

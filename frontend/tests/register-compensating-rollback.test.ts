@@ -102,6 +102,7 @@ async function invoke(flags: Flags = {}, body = validBody) {
     createAdminClient: () => fixture.admin as never,
     verifyChallenge: async () => true,
     checkHostedAuthPolicy: async () => true,
+    consumeBudget: async () => 'allowed',
   })
   return { ...fixture, status: result.status, body: await result.json() as Record<string, unknown> }
 }
@@ -364,4 +365,20 @@ test('unsafe hosted Auth signup configuration denies before tenant or Auth write
   })
   assert.equal(response.status, 503)
   assert.deepEqual(fixture.calls, [])
+})
+
+
+test('distributed email quota rejects before a tenant is created or email is sent', async () => {
+  for (const result of ['limited', 'unavailable'] as const) {
+    const fixture = fakeAdmin()
+    const response = await handleRegisterRequest(req(validBody), {
+      createAdminClient: () => fixture.admin as never,
+      verifyChallenge: async () => true,
+      checkHostedAuthPolicy: async () => true,
+      consumeBudget: async () => result,
+    })
+    assert.equal(response.status, result === 'limited' ? 429 : 503)
+    assert.deepEqual(fixture.calls, [])
+    if (result === 'limited') assert.equal(response.headers.get('Retry-After'), '3600')
+  }
 })
