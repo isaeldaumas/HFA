@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js'
 import { writeAuditLog } from '@/lib/observability/audit'
 import { getOrCreateRequestId } from '@/lib/observability/request-id'
 import { resolveAuthorizedUserContext } from '@/lib/server/authorized-user-context'
-import { DEFAULT_TRIAL_DAYS, DEFAULT_TRIAL_LIMIT } from '@/lib/product/trial'
 
 type BootstrapFailureCategory =
   | 'network_or_transient'
@@ -12,16 +11,6 @@ type BootstrapFailureCategory =
   | 'inconsistent_tenant'
   | 'unexpected_response'
   | 'unknown'
-
-function randomSlug(base: string): string {
-  const clean = base
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-  const suffix = Math.random().toString(36).slice(2, 10)
-  return `${clean || 'org'}-${suffix}`
-}
 
 const TRANSIENT_ERROR_RE = /(timeout|timed out|network|fetch failed|connection|temporar|unavailable|econn|etimedout|eai_again|socket)/i
 const PERMISSION_ERROR_RE = /(permission|not authorized|forbidden|row level security|rls|insufficient_privilege|unauthorized)/i
@@ -177,8 +166,6 @@ export async function POST(req: Request) {
 
     // user_metadata is NOT used as a source of tenant authorization.
     // Use the shared resolver for all existing-user paths (same logic as requireBearerUser).
-    const email = (user.email || `${user.id}@oauth.placeholder`).trim()
-    const local = email.split('@')[0] || 'user'
 
     const resolveResult = await resolveAuthorizedUserContext(admin, {
       authUserId: user.id,
@@ -204,7 +191,8 @@ export async function POST(req: Request) {
         userId,
       })
     } else if (resolveResult.status === 403) {
-      // Check detail to distinguish "not found" (can create) from active security blocks
+      // Distinguish an unprovisioned identity from active security blocks.
+      // Neither case authorizes creating a tenant.
       const isNotFound =
         resolveResult.detail === 'Usuário não encontrado e sem email para compatibilidade' ||
         resolveResult.detail === 'Usuário não encontrado'
@@ -224,71 +212,24 @@ export async function POST(req: Request) {
           userId,
         })
       }
-      // isNotFound — fall through to new-user creation path below
+      // No existing membership: deny below, without any database mutation.
     }
 
-    let created = false
-    if (foundTenantId) {
-      tenantId = foundTenantId
-    } else {
-      const trialStartedAt = new Date()
-      const trialExpiresAt = new Date(trialStartedAt.getTime() + DEFAULT_TRIAL_DAYS * 86_400_000)
-      const tenantIns = await admin
-        .from('tenants')
-        .insert({
-          name: local.slice(0, 255),
-          slug: randomSlug(local),
-          plan: 'trial',
-          credits_balance: DEFAULT_TRIAL_LIMIT,
-          trial_case_limit: DEFAULT_TRIAL_LIMIT,
-          trial_started_at: trialStartedAt.toISOString(),
-          trial_expires_at: trialExpiresAt.toISOString(),
-        })
-        .select('id')
-        .single()
-      if (tenantIns.error) {
-        return buildFailureResponse({
-          requestId,
-          stage: 'create_tenant',
-          category: classifySupabaseError(tenantIns.error),
-          reason: tenantIns.error,
-          status: 503,
-          userId,
-        })
-      }
-      if (!tenantIns.data?.id) {
-        return buildFailureResponse({
-          requestId,
-          stage: 'create_tenant',
-          category: 'unexpected_response',
-          reason: 'tenant_insert_missing_id',
-          status: 500,
-          userId,
-        })
-      }
-      tenantId = String(tenantIns.data.id)
-      created = true
-
-      const userIns = await admin.from('users').insert({
-        id: user.id,
-        tenant_id: tenantId,
-        email,
-        full_name: local.slice(0, 255),
-        role,
-        is_active: true,
+    // A valid Auth identity does not by itself authorize creation of a trial
+    // tenant. Registration must provision public.users through the verified
+    // invitation flow. Existing tenant bindings continue to work unchanged.
+    if (!foundTenantId) {
+      return buildFailureResponse({
+        requestId,
+        stage: 'provisioned_membership_required',
+        category: 'missing_tenant',
+        reason: 'oauth_self_provisioning_disabled',
+        status: 403,
+        userId,
       })
-      if (userIns.error) {
-        return buildFailureResponse({
-          requestId,
-          stage: 'create_public_user',
-          category: classifySupabaseError(userIns.error),
-          reason: userIns.error,
-          status: 503,
-          userId,
-          tenantId,
-        })
-      }
     }
+    tenantId = foundTenantId
+    const created = false
 
     const tenantCheck = await admin.from('tenants').select('id').eq('id', tenantId).maybeSingle()
     if (tenantCheck.error) {

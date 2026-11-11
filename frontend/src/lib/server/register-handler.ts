@@ -1,43 +1,32 @@
 import { NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { DEFAULT_TRIAL_DAYS, DEFAULT_TRIAL_LIMIT } from '@/lib/product/trial'
+import { verifyRegistrationTurnstile } from '@/lib/server/registration-turnstile'
+import { isHostedAuthSignupLocked } from '@/lib/server/registration-hosted-auth-policy'
 
 type AdminClient = SupabaseClient
 export type RegisterDependencies = {
   createAdminClient?: (url: string, serviceRole: string) => AdminClient
+  verifyChallenge?: (token: unknown, siteUrl: string) => Promise<boolean>
+  checkHostedAuthPolicy?: () => Promise<boolean>
 }
 
 /**
- * Compensating cleanup for a multi-API signup. Auth and PostgREST writes
- * cannot be committed atomically; report errors rather than claiming success.
+ * An invite may refer to an existing unconfirmed Auth identity. Never delete
+ * that user as compensation: doing so could destroy another registration.
+ * Roll back only the provisional tenant and flag orphan invites for support.
  */
-async function cleanupIncompleteRegistration(
-  admin: AdminClient,
-  tenantId: string,
-  authUserId: string | null,
-): Promise<boolean> {
-  let clean = true
-  if (authUserId) {
-    try {
-      const { error } = await admin.auth.admin.deleteUser(authUserId)
-      if (error) throw error
-    } catch (error) {
-      clean = false
-      console.error('[auth/register] auth cleanup failed', {
-        errorType: error instanceof Error ? error.name : typeof error,
-      })
-    }
-  }
+async function cleanupIncompleteRegistration(admin: AdminClient, tenantId: string): Promise<boolean> {
   try {
     const { error } = await admin.from('tenants').delete().eq('id', tenantId)
     if (error) throw error
+    return true
   } catch (error) {
-    clean = false
     console.error('[auth/register] tenant cleanup failed', {
       errorType: error instanceof Error ? error.name : typeof error,
     })
+    return false
   }
-  return clean
 }
 
 function randomSlug(base: string): string {
@@ -51,6 +40,19 @@ function randomSlug(base: string): string {
 }
 
 const MAX_REGISTER_BODY_BYTES = 8_192
+
+function inviteRedirect(siteUrl: string | undefined): string | null {
+  if (!siteUrl) return null
+  try {
+    const origin = new URL(siteUrl)
+    const localhost = origin.hostname === 'localhost' || origin.hostname === '127.0.0.1'
+    if (origin.protocol !== 'https:' && !(process.env.NODE_ENV !== 'production' && localhost && origin.protocol === 'http:')) return null
+    if (origin.username || origin.password || origin.search || origin.hash || origin.pathname !== '/') return null
+    return new URL('/accept-invite', origin).toString()
+  } catch {
+    return null
+  }
+}
 
 /** Never buffer an unbounded request: content-length can be absent or untrusted. */
 async function readLimitedRegistrationBody(req: Request): Promise<{ raw?: string; tooLarge: boolean }> {
@@ -80,8 +82,12 @@ async function readLimitedRegistrationBody(req: Request): Promise<{ raw?: string
 export async function handleRegisterRequest(req: Request, deps: RegisterDependencies = {}) {
   let activeAdmin: AdminClient | null = null
   let createdTenantId: string | null = null
-  let createdAuthUserId: string | null = null
   try {
+    // Production admission gate must run before parsing untrusted input or
+    // instantiating privileged clients. Missing flag means NO registration.
+    if (process.env.HFA_REGISTRATION_INVITES_READY !== 'true') {
+      return NextResponse.json({ detail: 'Novos cadastros temporariamente indisponíveis.' }, { status: 503 })
+    }
     // Limit request size before parsing untrusted JSON. This is not a rate
     // limiter: it only bounds work and rejects malformed input before writes.
     const { raw, tooLarge } = await readLimitedRegistrationBody(req)
@@ -99,10 +105,9 @@ export async function handleRegisterRequest(req: Request, deps: RegisterDependen
       return NextResponse.json({ detail: 'Dados de cadastro inválidos.' }, { status: 400 })
     }
     const values = body as Record<string, unknown>
-    if (typeof values.email !== 'string' || typeof values.password !== 'string' ||
-        typeof values.company_name !== 'string') {
+    if (typeof values.email !== 'string' || typeof values.company_name !== 'string') {
       return NextResponse.json({
-        detail: 'Email, senha e nome da empresa são obrigatórios.',
+        detail: 'Email e nome da empresa são obrigatórios.',
       }, { status: 400 })
     }
     if (values.full_name !== undefined && typeof values.full_name !== 'string' ||
@@ -110,13 +115,12 @@ export async function handleRegisterRequest(req: Request, deps: RegisterDependen
       return NextResponse.json({ detail: 'Campos de cadastro inválidos.' }, { status: 400 })
     }
     const email = values.email.trim().toLowerCase()
-    const password = values.password
     const company_name = values.company_name.trim()
     const full_name = typeof values.full_name === 'string' ? values.full_name.trim() : ''
     const slug = typeof values.slug === 'string' ? values.slug.trim() : ''
-    if (!email || !password || !company_name) {
+    if (!email || !company_name) {
       return NextResponse.json({
-        detail: 'Email, senha e nome da empresa são obrigatórios.',
+        detail: 'Email e nome da empresa são obrigatórios.',
       }, { status: 400 })
     }
     if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
@@ -124,10 +128,36 @@ export async function handleRegisterRequest(req: Request, deps: RegisterDependen
         slug.length > 80 || (slug && !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(slug))) {
       return NextResponse.json({ detail: 'Formato dos dados de cadastro inválido.' }, { status: 400 })
     }
-    if (password.length < 8 || password.length > 1_024) {
-      return NextResponse.json({
-        detail: 'A senha deve ter entre 8 e 1024 caracteres.',
-      }, { status: 400 })
+    // Passwords are set only by the mailbox owner after accepting an invite.
+    // Reject old clients that still submit a password; never accept it here.
+    if (values.password !== undefined) {
+      return NextResponse.json({ detail: 'A senha será definida após a confirmação por email.' }, { status: 400 })
+    }
+
+    // The early operational gate is required even with a valid request.
+    const redirectTo = inviteRedirect(process.env.NEXT_PUBLIC_SITE_URL)
+    if (!redirectTo) {
+      return NextResponse.json({ detail: 'Serviço de convites indisponível.' }, { status: 503 })
+    }
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? ''
+    const turnstileSecret = process.env.HFA_TURNSTILE_SECRET_KEY ?? ''
+    if (!deps.verifyChallenge && !turnstileSecret) {
+      return NextResponse.json({ detail: 'Verificação de segurança indisponível.' }, { status: 503 })
+    }
+    const verified = deps.verifyChallenge
+      ? await deps.verifyChallenge(values.turnstile_token, siteUrl)
+      : await verifyRegistrationTurnstile(values.turnstile_token, siteUrl, turnstileSecret)
+    if (!verified) {
+      return NextResponse.json({ detail: 'Verificação de segurança não aprovada. Tente novamente.' }, { status: 403 })
+    }
+    // Explicitly prevent re-enabling invitations while direct Supabase Auth
+    // signup is still open. The public settings endpoint is read-only.
+    const hostedPolicyOk = deps.checkHostedAuthPolicy
+      ? await deps.checkHostedAuthPolicy()
+      : await isHostedAuthSignupLocked(process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+    if (!hostedPolicyOk) {
+      return NextResponse.json({ detail: 'Política de confirmação de email ainda não homologada.' }, { status: 503 })
     }
 
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
@@ -178,7 +208,7 @@ export async function handleRegisterRequest(req: Request, deps: RegisterDependen
       .single()
 
     if (tenantErr || !tenantData?.id) {
-      console.error('[auth/register] tenant creation failed', tenantErr)
+      console.error('[auth/register] tenant creation failed', { code: tenantErr?.code ?? 'unknown' })
       return NextResponse.json(
         { detail: 'Falha ao configurar empresa. Tente novamente.' },
         { status: 500 }
@@ -188,15 +218,11 @@ export async function handleRegisterRequest(req: Request, deps: RegisterDependen
     const tenantId = String(tenantData.id)
     createdTenantId = tenantId
 
-    // Cria o usuário no Auth (admin, sem rate limit nem email confirmation).
-    // tenant_id e role NÃO são colocados em user_metadata (user-controlled).
-    // Autorização é resolvida exclusivamente por public.users (service-role query).
-    // app_metadata é registrado como referência descritiva apenas — não é fonte autoritativa.
-    const { data: newUser, error: createErr } = await admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      app_metadata: { tenant_id: tenantId, role: 'admin' },
+    // Invitation proves mailbox possession before first authentication.
+    // No user password or role/tenant claim is entrusted to user_metadata.
+    // The authoritative tenant/role mapping remains public.users.
+    const { data: newUser, error: createErr } = await admin.auth.admin.inviteUserByEmail(email, {
+      redirectTo,
     })
 
     if (createErr || !newUser?.user?.id) {
@@ -206,9 +232,9 @@ export async function handleRegisterRequest(req: Request, deps: RegisterDependen
       })
 
       // A creation failure must not leave a newly funded trial tenant behind.
-      // On a failed createUser call, ownership of any returned Auth identity
-      // is unproven. Never delete someone else's account on this branch.
-      const rolledBack = await cleanupIncompleteRegistration(admin, tenantId, null)
+      // A failed invite call might already have created an Auth identity.
+      // Its ownership cannot be proven, so only the tenant is rolled back.
+      const rolledBack = await cleanupIncompleteRegistration(admin, tenantId)
       if (!rolledBack) return NextResponse.json(
         { detail: 'Falha ao concluir o cadastro. Entre em contato com o suporte.' },
         { status: 500 }
@@ -224,7 +250,6 @@ export async function handleRegisterRequest(req: Request, deps: RegisterDependen
     }
 
     const userId = newUser.user.id
-    createdAuthUserId = userId
 
     // Insere na tabela pública users
     const { error: userInsErr } = await admin.from('users').insert({
@@ -241,17 +266,18 @@ export async function handleRegisterRequest(req: Request, deps: RegisterDependen
         code: userInsErr.code,
       })
       // Never report success for an account that cannot be authorized.
-      // Cleanup is best-effort across separate Supabase APIs.
-      const rolledBack = await cleanupIncompleteRegistration(admin, tenantId, userId)
+      // An invitation may reuse a pending Auth identity owned by another
+      // signup; deleting it would be an account integrity violation.
+      const rolledBack = await cleanupIncompleteRegistration(admin, tenantId)
       return NextResponse.json(
         { detail: rolledBack
-          ? 'Não foi possível concluir o cadastro. Tente novamente.'
+          ? 'Cadastro incompleto após o convite. Entre em contato com o suporte.'
           : 'Cadastro incompleto. Entre em contato com o suporte antes de tentar novamente.' },
         { status: 500 },
       )
     }
 
-    return NextResponse.json({ ok: true, tenant_id: tenantId })
+    return NextResponse.json({ ok: true, invite_requested: true, delivery_confirmed: false })
   } catch (e) {
     console.error('[auth/register] unexpected error', {
       errorType: e instanceof Error ? e.name : typeof e,
@@ -259,10 +285,10 @@ export async function handleRegisterRequest(req: Request, deps: RegisterDependen
     // Network exceptions are not returned as PostgREST { error }. They require
     // the same compensating cleanup as explicit failures after tenant creation.
     if (activeAdmin && createdTenantId) {
-      const rolledBack = await cleanupIncompleteRegistration(activeAdmin, createdTenantId, createdAuthUserId)
+      const rolledBack = await cleanupIncompleteRegistration(activeAdmin, createdTenantId)
       return NextResponse.json({
         detail: rolledBack
-          ? 'Não foi possível concluir o cadastro. Tente novamente.'
+          ? 'Cadastro não concluído. Caso tenha recebido o convite, entre em contato com o suporte.'
           : 'Cadastro incompleto. Entre em contato com o suporte antes de tentar novamente.',
       }, { status: 500 })
     }
