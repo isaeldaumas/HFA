@@ -1,4 +1,4 @@
-import { parseAirTrustRawInput } from '../../frontend/src/lib/server/airtrust-event-input'
+import { parseAirTrustRawInput, readAirTrustEventBody } from '../../frontend/src/lib/server/airtrust-event-input'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -35,4 +35,13 @@ assert.equal(parseAirTrustRawInput('a'.repeat(50_000)), 'a'.repeat(50_000))
 assert.equal(parseAirTrustRawInput('a'.repeat(50_001)), null)
 assert.equal(parseAirTrustRawInput('  \n  '), null)
 assert.equal(parseAirTrustRawInput({text: 'not a string'}), null)
-console.log('AirTrust integration contract and raw-evidence bounds: PASS')
+async function runBodyTests() {
+assert.deepEqual(await readAirTrustEventBody(new Request('https://example.test', { method: 'POST', body: JSON.stringify({ raw_input: 'test' }) })), { kind: 'ok', body: { raw_input: 'test' } })
+assert.deepEqual(await readAirTrustEventBody(new Request('https://example.test', { method: 'POST', body: 'null' })), { kind: 'invalid' })
+assert.deepEqual(await readAirTrustEventBody(new Request('https://example.test', { method: 'POST', body: '[1,2]' })), { kind: 'invalid' })
+assert.deepEqual(await readAirTrustEventBody(new Request('https://example.test', { method: 'POST', body: '{bad json}' })), { kind: 'invalid' })
+assert.deepEqual(await readAirTrustEventBody(new Request('https://example.test', { method: 'POST', body: 'x'.repeat(262_145) })), { kind: 'too_large' })
+assert.deepEqual(await readAirTrustEventBody(new Request('https://example.test', { method: 'POST', headers: { 'Content-Length': '300000' }, body: '{}' })), { kind: 'too_large' })
+  console.log('AirTrust integration contract, bounded JSON and evidence integrity: PASS')
+}
+void runBodyTests().catch((error) => { console.error(error); process.exitCode = 1 })

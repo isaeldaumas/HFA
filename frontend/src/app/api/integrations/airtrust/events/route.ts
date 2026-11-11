@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin, assertServiceRoleEnv } from '@/lib/server/supabase-admin'
 import { requireIntegrationConnection } from '@/lib/server/integration-auth'
-import { parseAirTrustRawInput } from '@/lib/server/airtrust-event-input'
+import { parseAirTrustRawInput, readAirTrustEventBody } from '@/lib/server/airtrust-event-input'
 import { getOrCreateRequestId, buildErrorResponse } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
 
@@ -16,7 +16,10 @@ export async function POST(req: Request) {
   try {
     assertServiceRoleEnv()
     const connection = await requireIntegrationConnection(req, 'AIRTRUST', 'events:write')
-    const body = await req.json().catch(() => ({})) as Record<string, unknown>
+    const parsed = await readAirTrustEventBody(req)
+    if (parsed.kind === 'too_large') return jsonError('Relato integrado excede o limite de tamanho.', 413)
+    if (parsed.kind === 'invalid') return jsonError('JSON de integração inválido.', 400)
+    const { body } = parsed
     const externalTenantRef = text(body.external_tenant_ref, 128)
     const externalReference = text(body.external_reference, 200)
     const title = text(body.title, 300)
