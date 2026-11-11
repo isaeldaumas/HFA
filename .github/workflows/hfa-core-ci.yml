@@ -89,6 +89,13 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Document extraction quota security contract
+        working-directory: frontend
+        run: node --test tests/document-extraction-quota-sql-contract.test.mjs
+
+      - name: Document extraction body and quota tests
+        run: ./frontend/node_modules/.bin/tsx --test frontend/tests/document-extraction-gate.test.ts
+
       - name: Distributed signup SQL security contract
         working-directory: frontend
         run: node --test tests/registration-distributed-sql-contract.test.mjs
