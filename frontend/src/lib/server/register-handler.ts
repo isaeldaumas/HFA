@@ -2,11 +2,13 @@ import { NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { DEFAULT_TRIAL_DAYS, DEFAULT_TRIAL_LIMIT } from '@/lib/product/trial'
 import { verifyRegistrationTurnstile } from '@/lib/server/registration-turnstile'
+import { isHostedAuthSignupLocked } from '@/lib/server/registration-hosted-auth-policy'
 
 type AdminClient = SupabaseClient
 export type RegisterDependencies = {
   createAdminClient?: (url: string, serviceRole: string) => AdminClient
   verifyChallenge?: (token: unknown, siteUrl: string) => Promise<boolean>
+  checkHostedAuthPolicy?: () => Promise<boolean>
 }
 
 /**
@@ -147,6 +149,15 @@ export async function handleRegisterRequest(req: Request, deps: RegisterDependen
       : await verifyRegistrationTurnstile(values.turnstile_token, siteUrl, turnstileSecret)
     if (!verified) {
       return NextResponse.json({ detail: 'Verificação de segurança não aprovada. Tente novamente.' }, { status: 403 })
+    }
+    // Explicitly prevent re-enabling invitations while direct Supabase Auth
+    // signup is still open. The public settings endpoint is read-only.
+    const hostedPolicyOk = deps.checkHostedAuthPolicy
+      ? await deps.checkHostedAuthPolicy()
+      : await isHostedAuthSignupLocked(process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+    if (!hostedPolicyOk) {
+      return NextResponse.json({ detail: 'Política de confirmação de email ainda não homologada.' }, { status: 503 })
     }
 
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()

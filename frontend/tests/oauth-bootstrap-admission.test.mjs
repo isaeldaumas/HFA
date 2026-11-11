@@ -26,4 +26,5 @@ test('public registration cannot bypass the disabled invitation gate or auto-con
   assert.match(register, /inviteUserByEmail\(email/)
   assert.doesNotMatch(register, /email_confirm:\s*true|\.createUser\(/)
   assert.match(register, /verifyRegistrationTurnstile/)
+  assert.match(register, /isHostedAuthSignupLocked/)
 })

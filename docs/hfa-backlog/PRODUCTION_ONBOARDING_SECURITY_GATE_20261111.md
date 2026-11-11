@@ -8,14 +8,14 @@
 
 ## Contenção de aplicação implementada
 
-1. A API de cadastro usa apenas o mecanismo de convite Supabase Auth, sem aceitar senha ou atribuir `email_confirm=true`. Um convite não equivale a email entregue. Quando `HFA_REGISTRATION_INVITES_READY` está ausente ou diferente de `true`, retorna 503 **antes de analisar o corpo ou usar service_role**. As credenciais Turnstile são obrigatórias quando a flag for ativada.
+1. A API de cadastro usa apenas o mecanismo de convite Supabase Auth, sem aceitar senha ou atribuir `email_confirm=true`. Um convite não equivale a email entregue. Quando `HFA_REGISTRATION_INVITES_READY` está ausente ou diferente de `true`, retorna 503 **antes de analisar o corpo ou usar service_role**. As credenciais Turnstile são obrigatórias quando a flag for ativada. Mesmo após verificar Turnstile, a API consulta a configuração pública da Auth e só permite convites se `disable_signup=true`, `mailer_autoconfirm=false` e o provedor de email permanecer habilitado; falhas de rede bloqueiam o cadastro.
 2. Na ausência de sitekey Turnstile pública, o formulário informa que novos cadastros estão temporariamente indisponíveis, com link para o login de contas existentes.
 3. O endpoint `/api/auth/oauth/bootstrap` deixa de criar qualquer novo tenant/usuário por identidade apenas autenticada. Somente associações previamente provisionadas em `public.users` podem ser aceitas; contas existentes não são apagadas.
 4. Nenhuma migração, alteração de créditos, exclusão de usuários ou autenticação real foi executada por esta mudança de código.
 
 ## Bloqueios que persistem (não declarar issue #106 concluída)
 
-- **Supabase hospedado:** a flag `disable_signup` permanece `false` até configuração administrativa revisada e validada na produção. Desabilitar inscrição direta não deve impedir sign-in de usuários existentes; testar também bypass por Auth Google/OTP.
+- **Supabase hospedado:** a flag `disable_signup` permanece `false` até configuração administrativa revisada e validada na produção. Desabilitar inscrição direta não deve impedir sign-in de usuários existentes; testar também bypass por Auth Google/OTP. Preferir PATCH direcionado da Management API (`disable_signup=true`) com manutenção de `external_email_enabled=true`, não um `supabase config push` indiscriminado: há registro de bug no CLI capaz de desligar o provedor de login por email (https://github.com/supabase/cli/issues/7055). A API de convites faz preflight fail-closed dessa configuração sem credenciais administrativas.
 - **Admissão de novos clientes:** falta configurar SMTP confiável, templates e allowlist `/accept-invite`, chaves Turnstile, proteção distribuída e atômica por email/IP, custo e limites de trial, e ensaio com caixa de email/tenants sintéticos autorizados.
 - **Recuperação:** falta teste de entrega de email e validação do link; a UI existente foi publicada com confirmação de recebimento explicitamente não garantida.
 - **Dados legados:** investigar contas Auth sem registro `public.users`, sem vincular automaticamente a tenant nem apagar identidades reais.

@@ -101,6 +101,7 @@ async function invoke(flags: Flags = {}, body = validBody) {
   const result = await handleRegisterRequest(req(body), {
     createAdminClient: () => fixture.admin as never,
     verifyChallenge: async () => true,
+    checkHostedAuthPolicy: async () => true,
   })
   return { ...fixture, status: result.status, body: await result.json() as Record<string, unknown> }
 }
@@ -350,5 +351,17 @@ test('failed server-side anti-bot verification makes zero database calls', async
     verifyChallenge: async () => false,
   })
   assert.equal(response.status, 403)
+  assert.deepEqual(fixture.calls, [])
+})
+
+
+test('unsafe hosted Auth signup configuration denies before tenant or Auth writes', async () => {
+  const fixture = fakeAdmin()
+  const response = await handleRegisterRequest(req(validBody), {
+    createAdminClient: () => fixture.admin as never,
+    verifyChallenge: async () => true,
+    checkHostedAuthPolicy: async () => false,
+  })
+  assert.equal(response.status, 503)
   assert.deepEqual(fixture.calls, [])
 })
