@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 
-const sql = readFileSync(new URL('../../supabase/migrations/20261111222007_registration_email_atomic_rate_limit.sql', import.meta.url), 'utf8')
+const sql = readFileSync(new URL('../../supabase/migrations/20261111223334_registration_email_atomic_rate_limit.sql', import.meta.url), 'utf8')
 const route = readFileSync(new URL('../src/lib/server/register-handler.ts', import.meta.url), 'utf8')
 
 test('only private hashed counters, RLS and service-role table grants', () => {
