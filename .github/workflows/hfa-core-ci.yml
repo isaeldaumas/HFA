@@ -69,6 +69,10 @@ jobs:
         working-directory: frontend
         run: node --test tests/auth-public-signup-policy.test.mjs
 
+      - name: OAuth bootstrap tenant admission regression
+        working-directory: frontend
+        run: node --test tests/oauth-bootstrap-admission.test.mjs
+
       - name: Two-tenant read-only E2E fixture contract
         working-directory: frontend
         run: node --test tests/two-tenant-readonly-e2e.test.mjs
@@ -85,8 +89,8 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-      - name: Registration consistency and cleanup
-        run: ./frontend/node_modules/.bin/tsx --test frontend/tests/register-compensating-rollback.test.ts
+      - name: Registration admission, challenge and rollback
+        run: ./frontend/node_modules/.bin/tsx --test frontend/tests/register-compensating-rollback.test.ts frontend/tests/registration-turnstile.test.ts
 
       - name: ERC containment runtime
         run: ./frontend/node_modules/.bin/tsx tests/hfa-audit/erc-containment/erc-containment-trial-001.ts
