@@ -1,3 +1,4 @@
+import { parseAirTrustRawInput } from '../../frontend/src/lib/server/airtrust-event-input'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -20,8 +21,7 @@ assert.match(route, /investigation_path: 'NONE'/)
 assert.match(route, /analysis_started: false/)
 assert.match(route, /external_reference/)
 assert.match(route, /value\.length > max/)
-assert.match(route, /preserveWhitespace \? value : value\.trim\(\)/)
-assert.match(route, /text\(body\.raw_input, 50000, true\)/)
+assert.match(route, /parseAirTrustRawInput\(body\.raw_input\)/)
 assert.doesNotMatch(route, /normalized\.slice\(0, max\)/)
 assert.match(route, /existing\.title !== title \|\| existing\.raw_input !== rawInput/)
 assert.match(route, /Revisão manual necessária\.', 409/)
@@ -30,4 +30,9 @@ assert.match(route, /created \? \{ analysis_started: false \} : \{\}/)
 assert.match(route, /error\?\.code === '23505'/)
 assert.match(route, /winner\.title !== title \|\| winner\.raw_input !== rawInput/)
 assert.match(connections, /token_visible_once: true/)
-console.log('AirTrust integration contract: PASS')
+assert.equal(parseAirTrustRawInput('  Original report.\n'), '  Original report.\n')
+assert.equal(parseAirTrustRawInput('a'.repeat(50_000)), 'a'.repeat(50_000))
+assert.equal(parseAirTrustRawInput('a'.repeat(50_001)), null)
+assert.equal(parseAirTrustRawInput('  \n  '), null)
+assert.equal(parseAirTrustRawInput({text: 'not a string'}), null)
+console.log('AirTrust integration contract and raw-evidence bounds: PASS')
