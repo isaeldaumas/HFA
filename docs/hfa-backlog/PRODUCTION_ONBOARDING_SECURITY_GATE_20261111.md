@@ -15,7 +15,7 @@
 
 ## Bloqueios que persistem (não declarar issue #106 concluída)
 
-- **Supabase hospedado:** a flag `disable_signup` permanece `false` até configuração administrativa revisada e validada na produção. Desabilitar inscrição direta não deve impedir sign-in de usuários existentes; testar também bypass por Auth Google/OTP. Preferir PATCH direcionado da Management API (`disable_signup=true`) com manutenção de `external_email_enabled=true`, não um `supabase config push` indiscriminado: há registro de bug no CLI capaz de desligar o provedor de login por email (https://github.com/supabase/cli/issues/7055). A API de convites faz preflight fail-closed dessa configuração sem credenciais administrativas.
+- **Supabase hospedado:** auth.enable_signup=false foi aplicado em producao em 11/11/2026 e o diff remoto confirmou zero divergencias. Email/confirmacoes foram preservados; a API continua verificando de forma fail-closed antes de permitir convite.
 - **Admissão de novos clientes:** falta configurar SMTP confiável, templates e allowlist `/accept-invite`, chaves Turnstile, proteção distribuída e atômica por email/IP, custo e limites de trial, e ensaio com caixa de email/tenants sintéticos autorizados.
 - **Recuperação:** falta teste de entrega de email e validação do link; a UI existente foi publicada com confirmação de recebimento explicitamente não garantida.
 - **Dados legados:** investigar contas Auth sem registro `public.users`, sem vincular automaticamente a tenant nem apagar identidades reais.
@@ -23,3 +23,9 @@
 ## Rollback
 
 Não reativar o cadastro antigo com `email_confirm:true`. Em incidentes de autenticação, restaurar somente a rota/versão funcional para usuários existentes mediante comparação e verificação de SHA. Não promover SERA vNext ou Shadow como consequência deste release.
+
+## Incremento — limitação distribuída por email
+
+O convite ganha uma quota atômica compartilhada (PostgreSQL, transação e índice único): 3 tentativas por hora e 8 por dia por email normalizado. Os identificadores armazenados são HMAC-SHA256 gerados com HFA_REGISTRATION_RATE_LIMIT_SECRET, nunca endereços de email brutos. O segredo fica exclusivamente no servidor Vercel e deve ter ao menos 32 bytes UTF-8. Falhas de RPC/DB ou segredo ausente retornam 503, e limites excedidos retornam 429. Não há criação de empresa nem convite nesses casos. O WAF conserva seu limite por IP; a tabela privada elimina de forma limitada registros expirados após 3 dias. A função é SECURITY INVOKER, com EXECUTE apenas ao service_role.
+
+Mesmo com o rate limiter configurado, HFA_REGISTRATION_INVITES_READY permanece ausente em produção; novos cadastros NÃO estão liberados nem homologados.
