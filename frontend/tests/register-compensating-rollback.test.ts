@@ -100,6 +100,7 @@ async function invoke(flags: Flags = {}, body = validBody) {
   // Dependency injection prevents any network or production database operation.
   const result = await handleRegisterRequest(req(body), {
     createAdminClient: () => fixture.admin as never,
+    verifyChallenge: async () => true,
   })
   return { ...fixture, status: result.status, body: await result.json() as Record<string, unknown> }
 }
@@ -329,4 +330,15 @@ after(() => {
   else process.env.HFA_REGISTRATION_INVITES_READY = priorInviteReady
   if (priorSiteUrl === undefined) delete process.env.NEXT_PUBLIC_SITE_URL
   else process.env.NEXT_PUBLIC_SITE_URL = priorSiteUrl
+})
+
+
+test('failed server-side anti-bot verification makes zero database calls', async () => {
+  const fixture = fakeAdmin()
+  const response = await handleRegisterRequest(req({ ...validBody, turnstile_token: 'invalid' }), {
+    createAdminClient: () => fixture.admin as never,
+    verifyChallenge: async () => false,
+  })
+  assert.equal(response.status, 403)
+  assert.deepEqual(fixture.calls, [])
 })

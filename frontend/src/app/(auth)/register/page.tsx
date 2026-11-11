@@ -1,7 +1,10 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
+import Script from 'next/script'
 import { apiCall } from '@/lib/api'
+
+const turnstileSiteKey = process.env.NEXT_PUBLIC_HFA_TURNSTILE_SITE_KEY
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ full_name: '', email: '', company_name: '', slug: '' })
@@ -18,12 +21,16 @@ export default function RegisterPage() {
     }))
   }
 
-  async function handleRegister(e: React.FormEvent) {
+  async function handleRegister(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    const turnstileToken = new FormData(e.currentTarget).get('cf-turnstile-response')
+    if (typeof turnstileToken !== 'string' || !turnstileToken) {
+      setError('Conclua a verificação de segurança.'); return
+    }
     setLoading(true)
     setError('')
     try {
-      await apiCall('/auth/register', { method: 'POST', body: JSON.stringify(form) })
+      await apiCall('/auth/register', { method: 'POST', body: JSON.stringify({ ...form, turnstile_token: turnstileToken }) })
       setInviteRequested(true)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Falha ao solicitar convite')
@@ -34,6 +41,7 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
+      {turnstileSiteKey && <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="afterInteractive" />}
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <span className="text-2xl font-bold text-blue-400">HFA Platform</span>
@@ -76,7 +84,10 @@ export default function RegisterPage() {
               className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
               placeholder="seu@email.com" required />
           </div>
-          <button type="submit" disabled={loading}
+          {turnstileSiteKey ? (
+            <div className="cf-turnstile" data-sitekey={turnstileSiteKey} />
+          ) : <p role="alert" className="text-sm text-amber-300">Verificação de segurança indisponível.</p>}
+          <button type="submit" disabled={loading || !turnstileSiteKey}
             className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 py-3 rounded-lg font-medium transition">
             {loading ? 'Solicitando convite...' : 'Solicitar convite de acesso'}
           </button>

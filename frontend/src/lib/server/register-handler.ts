@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { DEFAULT_TRIAL_DAYS, DEFAULT_TRIAL_LIMIT } from '@/lib/product/trial'
+import { verifyRegistrationTurnstile } from '@/lib/server/registration-turnstile'
 
 type AdminClient = SupabaseClient
 export type RegisterDependencies = {
   createAdminClient?: (url: string, serviceRole: string) => AdminClient
+  verifyChallenge?: (token: unknown, siteUrl: string) => Promise<boolean>
 }
 
 /**
@@ -133,6 +135,17 @@ export async function handleRegisterRequest(req: Request, deps: RegisterDependen
     const redirectTo = inviteRedirect(process.env.NEXT_PUBLIC_SITE_URL)
     if (!redirectTo) {
       return NextResponse.json({ detail: 'Serviço de convites indisponível.' }, { status: 503 })
+    }
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? ''
+    const turnstileSecret = process.env.HFA_TURNSTILE_SECRET_KEY ?? ''
+    if (!deps.verifyChallenge && !turnstileSecret) {
+      return NextResponse.json({ detail: 'Verificação de segurança indisponível.' }, { status: 503 })
+    }
+    const verified = deps.verifyChallenge
+      ? await deps.verifyChallenge(values.turnstile_token, siteUrl)
+      : await verifyRegistrationTurnstile(values.turnstile_token, siteUrl, turnstileSecret)
+    if (!verified) {
+      return NextResponse.json({ detail: 'Verificação de segurança não aprovada. Tente novamente.' }, { status: 403 })
     }
 
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
