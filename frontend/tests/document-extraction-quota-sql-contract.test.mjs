@@ -3,7 +3,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 
 const sql = readFileSync(
-  new URL('../../supabase/migrations/20261111232955_atomic_document_extraction_reservation.sql', import.meta.url),
+  new URL('../../supabase/migrations/20261111233733_atomic_document_extraction_reservation.sql', import.meta.url),
   'utf8',
 )
 const route = readFileSync(new URL('../src/app/api/extract-document/route.ts', import.meta.url), 'utf8')

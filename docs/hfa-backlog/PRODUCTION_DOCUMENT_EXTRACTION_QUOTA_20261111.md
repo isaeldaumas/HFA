@@ -21,3 +21,7 @@ A rota anterior chamava req.formData() antes de impor qualquer limite global ao 
 Nao faz OCR, nao adiciona anexos multiplos, nao altera P/O/A, taxonomia, validacao cientifica ou Shadow. Issue #122 continua aberta. Limite por usuario Auth e nao por tenant, preservando contrato anterior. A chamada REST direta ao RPC deve ser negada a anon/authenticated.
 
 Gates de producao: CI obrigatorio PR/main, migration aditiva isolada e registrada no ledger, inspecao ACL/RLS, teste de quota com rollback, deploy SHA exato Vercel CLI, smoke de endpoints sem autenticar e observacao 5xx. Nao criar identidades ou eventos reais para teste.
+
+## Ledger da primeira implantacao
+
+Supabase aplicou a funcao ao banco de producao com migration version 20261111233733 e nome atomic_document_extraction_reservation. O arquivo SQL foi renomeado para corresponder exatamente a esse ledger, sem modificar o conteudo. Verificado em banco: EXECUTE service_role=true, anon=false, authenticated=false. Um teste em transacao real registrou 10 reservas, negou a 11a, confirmou contagem de 10 e realizou ROLLBACK, sem persistir as reservas sintéticas.
