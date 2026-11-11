@@ -18,7 +18,7 @@ export default function AuthCallbackPage() {
       const err = url.searchParams.get('error') || url.searchParams.get('error_description')
 
       if (err) {
-        console.error('[auth/callback] provider returned error', { err, href: window.location.href })
+        console.error('[auth/callback] provider returned an authentication error')
         router.replace('/login?error=auth')
         return
       }
@@ -28,9 +28,7 @@ export default function AuthCallbackPage() {
       if (code) {
         const { error: exErr } = await supabase.auth.exchangeCodeForSession(code)
         if (exErr) {
-          console.error('[auth/callback] exchangeCodeForSession failed', {
-            message: exErr.message,
-          })
+          console.error('[auth/callback] exchangeCodeForSession failed', { code: exErr.code ?? 'unknown' })
           router.replace('/login?error=auth')
           return
         }
@@ -38,14 +36,14 @@ export default function AuthCallbackPage() {
 
       const { data, error: sessionErr } = await supabase.auth.getSession()
       if (sessionErr) {
-        console.error('[auth/callback] getSession failed', { message: sessionErr.message })
+        console.error('[auth/callback] getSession failed', { code: sessionErr.code ?? 'unknown' })
       }
       if (data.session) {
         try {
           await ensureOAuthTenant()
         } catch (bootstrapErr) {
           console.error('[auth/callback] tenant bootstrap blocked', {
-            reason: bootstrapErr instanceof Error ? bootstrapErr.message : String(bootstrapErr),
+            errorType: bootstrapErr instanceof Error ? bootstrapErr.name : typeof bootstrapErr,
             source: 'oauth_bootstrap',
           })
           router.replace('/login?error=tenant')
@@ -56,7 +54,7 @@ export default function AuthCallbackPage() {
       }
 
       // fallback: evita loop infinito no callback
-      console.error('[auth/callback] session missing after callback', { href: window.location.href })
+      console.error('[auth/callback] session missing after callback')
       router.replace('/login?error=auth')
     }
 
