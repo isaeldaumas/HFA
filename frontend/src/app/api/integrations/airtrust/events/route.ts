@@ -4,10 +4,9 @@ import { requireIntegrationConnection } from '@/lib/server/integration-auth'
 import { getOrCreateRequestId, buildErrorResponse } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
 
-function text(value: unknown, max = 10000): string | null {
-  if (typeof value !== 'string') return null
-  const normalized = value.trim()
-  return normalized ? normalized.slice(0, max) : null
+function text(value: unknown, max = 10000, preserveWhitespace = false): string | null {
+  if (typeof value !== 'string' || !value.trim() || value.length > max) return null
+  return preserveWhitespace ? value : value.trim()
 }
 
 export async function POST(req: Request) {
@@ -20,9 +19,9 @@ export async function POST(req: Request) {
     const externalTenantRef = text(body.external_tenant_ref, 128)
     const externalReference = text(body.external_reference, 200)
     const title = text(body.title, 300)
-    const rawInput = text(body.raw_input, 50000)
+    const rawInput = text(body.raw_input, 50000, true)
     if (!externalTenantRef || externalTenantRef !== connection.externalTenantRef) return jsonError('Tenant externo incompatível com a conexão.', 403)
-    if (!externalReference || !title || !rawInput) return jsonError('external_reference, title e raw_input são obrigatórios.', 400)
+    if (!externalReference || !title || !rawInput) return jsonError('external_reference, title e raw_input são obrigatórios, não podem ser vazios nem exceder seus limites.', 400)
 
     const admin = getSupabaseAdmin()
     const { data: existing, error: existingError } = await admin
