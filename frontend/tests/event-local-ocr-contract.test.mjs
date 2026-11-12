@@ -60,3 +60,23 @@ test('static assets carry component licenses for redistribution',()=>{
     assert.ok(read(f).length>1000)
   }
 })
+
+
+test('human correction, local self-declaration and export are never silent or persisted',()=>{
+  const ui=text('src/components/sera/EventLocalOcrPreview.tsx')
+  const helper=text('src/lib/browser/local-ocr-human-review.ts')
+  assert.match(ui,/buildLocalOcrReviewRecord/)
+  assert.match(ui,/comparedToOriginal/)
+  assert.match(ui,/checkedCorrections/)
+  assert.match(ui,/setLocalReview\(null\)/)
+  assert.match(ui,/result\.truncated/)
+  assert.match(ui,/Baixar transcrição e proveniência/)
+  assert.match(ui,/downloadLocalReview/)
+  assert.match(ui,/JSON\.stringify\(localReview/)
+  assert.match(ui,/Sem assinatura, identificação verificável/)
+  assert.match(helper,/reviewPersisted:false/)
+  assert.match(helper,/reviewSignatureVerified:false/)
+  assert.match(helper,/scientificallyValidated:false/)
+  assert.match(helper,/analysisChanged:false/)
+  assert.doesNotMatch(helper,/fetch\(|\.insert\(|\.update\(|\.upsert\(|https?:\/\//)
+})

@@ -2,6 +2,10 @@
 
 import { useState } from 'react'
 import {
+  buildLocalOcrReviewRecord,localOcrReviewFileName,
+  type LocalOcrReviewRecord,
+} from '@/lib/browser/local-ocr-human-review'
+import {
   downloadVerifiedOcrOriginal, LocalOcrError, OCR_MAX_RENDER_PIXELS,
   prepareOcrText, type OcrSourceIdentity,
 } from '@/lib/browser/local-ocr-original'
@@ -111,12 +115,22 @@ export function EventLocalOcrPreview({
   const [progress,setProgress]=useState('')
   const [error,setError]=useState('')
   const [result,setResult]=useState<Result|null>(null)
+  const [correctedText,setCorrectedText]=useState('')
+  const [comparedToOriginal,setComparedToOriginal]=useState(false)
+  const [checkedCorrections,setCheckedCorrections]=useState(false)
+  const [localReview,setLocalReview]=useState<LocalOcrReviewRecord|null>(null)
+  function invalidateReview() {
+    setLocalReview(null)
+    setComparedToOriginal(false)
+    setCheckedCorrections(false)
+  }
+
   const isPdf=mimeType==='application/pdf'
   const eligible=mimeType!==null &&
     (isPdf||['image/png','image/jpeg','image/webp'].includes(mimeType))
   async function recognize() {
     if(busy || !eligible || !sha256 || !mimeType || !accessToken) return
-    setBusy(true);setError('');setResult(null);setProgress('Conferindo original...')
+    setBusy(true);setError('');setResult(null);setCorrectedText('');invalidateReview();setProgress('Conferindo original...')
     let worker: Awaited<ReturnType<(typeof import('tesseract.js'))['createWorker']>>|null=null
     try {
       const source: OcrSourceIdentity = {
@@ -151,6 +165,7 @@ export function EventLocalOcrPreview({
         reviewedByHuman:false,analysisChanged:false,externalProviderUsed:false,
         extractionStatus:'OCR_UNREVIEWED',
       })
+      setCorrectedText(prepared.text)
       setProgress('')
     } catch(err) {
       setProgress('')
@@ -159,6 +174,40 @@ export function EventLocalOcrPreview({
     } finally {
       await worker?.terminate().catch(()=>undefined)
       setBusy(false)
+    }
+  }
+  function declareReview() {
+    if(!result || !sha256 || !mimeType) return
+    try {
+      const source:OcrSourceIdentity={
+        eventId,documentId,sourceOrdinal,sha256,mimeType,sizeBytes,
+      }
+      const record=buildLocalOcrReviewRecord({
+        source,pageNumber:result.pageNumber,originalText:result.text,
+        correctedText,ocrTruncated:result.truncated,
+        comparedToOriginal,checkedCorrections,
+      })
+      setLocalReview(record)
+      setError('')
+    } catch {
+      setLocalReview(null)
+      setError('Revisão não confirmada: verifique original, conteúdo integral e declarações.')
+    }
+  }
+  function downloadLocalReview() {
+    if(!localReview) return
+    // Explicit user action only: no server write or silent export.
+    const data=new Blob([JSON.stringify(localReview,null,2)],{
+      type:'application/json;charset=utf-8',
+    })
+    const url=URL.createObjectURL(data)
+    try {
+      const a=document.createElement('a')
+      a.href=url
+      a.download=localOcrReviewFileName(localReview)
+      a.click()
+    } finally {
+      setTimeout(()=>URL.revokeObjectURL(url),1000)
     }
   }
   if(!eligible) return null
@@ -198,11 +247,62 @@ export function EventLocalOcrPreview({
       <textarea value={result.text} readOnly rows={12}
         aria-label={'Texto OCR não revisado da fonte '+sourceOrdinal}
         className="w-full resize-y rounded border border-slate-700 bg-slate-900 p-3 font-mono text-xs text-slate-100"/>
+      <fieldset className="space-y-2 border-t border-slate-700 pt-3">
+        <legend className="text-xs font-semibold text-slate-200">
+          Conferência humana da transcrição (somente nesta sessão)
+        </legend>
+        <p className="text-xs text-slate-400">
+          Compare o OCR com o arquivo original por meio do download de anexos.
+          Corrija apenas erros de reconhecimento. Não acrescente interpretações,
+          hipóteses, conclusões causais ou fatos ausentes da fonte.
+        </p>
+        <textarea value={correctedText}
+          onChange={e=>{invalidateReview();setCorrectedText(e.target.value)}}
+          rows={12} maxLength={60000}
+          aria-label={'Transcrição corrigida da fonte '+sourceOrdinal}
+          className="w-full resize-y rounded border border-slate-600 bg-slate-900 p-3 font-mono text-xs text-slate-100"/>
+        <label className="flex items-start gap-2 text-xs text-slate-200">
+          <input type="checkbox" checked={comparedToOriginal} onChange={e=>{
+            setLocalReview(null);setComparedToOriginal(e.target.checked)
+          }}/>
+          Comparei pessoalmente a transcrição com a imagem ou página original.
+        </label>
+        <label className="flex items-start gap-2 text-xs text-slate-200">
+          <input type="checkbox" checked={checkedCorrections} onChange={e=>{
+            setLocalReview(null);setCheckedCorrections(e.target.checked)
+          }}/>
+          Revisei o texto, corrigi eventuais erros e não introduzi informações não presentes na fonte.
+        </label>
+        {result.truncated && <p role="alert" className="text-xs text-amber-300">
+          Prévia truncada: revisão integral indisponível. Não é possível declarar conferência concluída.
+        </p>}
+        <button type="button" onClick={declareReview}
+          disabled={result.truncated || !comparedToOriginal || !checkedCorrections ||
+            !correctedText.trim() || correctedText.length>60000}
+          className="rounded border border-slate-500 px-3 py-1.5 text-xs text-slate-100 disabled:opacity-40">
+          Declarar conferência local
+        </button>
+        {localReview && <div className="space-y-2">
+          <p role="status" className="text-xs text-amber-300">
+            Conferência declarada nesta sessão. Sem assinatura, identificação verificável
+            do revisor ou registro de auditoria no servidor.
+          </p>
+          <button type="button" onClick={downloadLocalReview}
+            className="rounded border border-slate-500 px-3 py-1.5 text-xs text-slate-100">
+            Baixar transcrição e proveniência (.json)
+          </button>
+          <p className="text-xs text-slate-400">
+            O arquivo é exportado somente por sua ação e pode conter informações
+            confidenciais. Guarde-o conforme a política da organização.
+            Exportação não equivale a validação científica nem a incorporação à análise.
+          </p>
+        </div>}
+      </fieldset>
       <p className="break-all font-mono text-[10px] text-slate-500">SHA-256: {sha256}</p>
       <p className="text-xs text-slate-400">
         Resultado temporário. Nenhum evento, narrativa, categoria P/O/A ou análise SERA foi alterado.
       </p>
-      <button type="button" onClick={()=>setResult(null)}
+      <button type="button" onClick={()=>{setResult(null);setCorrectedText('');invalidateReview()}}
         className="text-xs underline text-slate-400">Descartar prévia</button>
     </div>}
   </div>

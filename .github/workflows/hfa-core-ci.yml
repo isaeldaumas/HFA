@@ -93,6 +93,10 @@ jobs:
         working-directory: frontend
         run: ./node_modules/.bin/tsx --test tests/event-local-ocr-original.test.ts
 
+      - name: Local OCR explicit human transcript review and provenance
+        working-directory: frontend
+        run: ./node_modules/.bin/tsx --test tests/event-local-ocr-human-review.test.ts
+
       - name: Local OCR same-origin WASM, language assets and scientific non-mutation contract
         working-directory: frontend
         run: node --test tests/event-local-ocr-contract.test.mjs
