@@ -31,3 +31,12 @@ Data: 12/11/2026. Execução limitada à integridade operacional de anexos, sem 
 ## Procedimento de produção
 
 Required CI Core e regressão SERA em PR e main. Aplicar somente a migration aditiva específica em produção e reconciliar seu nome exato com o ledger. Confirmar coluna, constraint, unicidade, RLS e bucket privado sem exibir conteúdo. Fazer deploy Vercel --prod de SHA exato, verificar READY e HTTP 401 nas novas rotas sem autorização; consultar logs recentes. Não ligar Shadow nem cadastro.
+
+## Ledger de produção confirmado
+
+O Supabase aplicou a alteração no histórico de migrations na versão
+20261112181117, nome event_document_sha256_source_ordinal. O arquivo
+foi RENOMEADO sem modificar o conteúdo SQL. Duas colunas, duas
+constraints e um índice único verificados no banco; RLS permanece ativo,
+o bucket analysis-documents permanece privado, e não havia linhas de
+documentos existentes a reprocessar. Nenhum conteúdo de cliente foi consultado.

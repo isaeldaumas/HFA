@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {readFileSync} from 'node:fs'
-const migration=readFileSync(new URL('../../supabase/migrations/20261112193000_event_document_sha256_source_ordinal.sql',import.meta.url),'utf8')
+const migration=readFileSync(new URL('../../supabase/migrations/20261112181117_event_document_sha256_source_ordinal.sql',import.meta.url),'utf8')
 const persist=readFileSync(new URL('../src/lib/server/event-attachment.ts',import.meta.url),'utf8')
 const list=readFileSync(new URL('../src/app/api/events/[eventId]/documents/route.ts',import.meta.url),'utf8')
 const download=readFileSync(new URL('../src/app/api/events/[eventId]/documents/[documentId]/route.ts',import.meta.url),'utf8')
