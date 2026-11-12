@@ -6,8 +6,16 @@ import { debitCreditForEvent, ensurePublicUserRow, refundCreditForFailedAnalysis
 import { getOrCreateRequestId, buildErrorResponse } from '@/lib/observability/request-id'
 import { writeAuditLog } from '@/lib/observability/audit'
 import { canonicalAnalyzeResponse, createCanonicalEventAnalysis } from '@/lib/sera-vnext-product/canonical-event-analysis'
-import { assertFileSize, detectDocumentKind } from '@/lib/sera/document-extraction'
+import {
+  attachmentErrorStatus,
+  persistEventAttachment,
+  prepareEventAttachment,
+  readBoundedEventJson,
+  EventAttachmentError,
+  type PreparedAttachment,
+} from '@/lib/server/event-attachment'
 import { inferOccurrenceDateFromNarrative } from '@/lib/sera-vnext/occurrence-date'
+import { ExtractionPayloadTooLarge, readBoundedExtractionForm } from '@/lib/server/document-extraction-gate'
 import { enrichSeraNarrativeSemantically } from '@/lib/sera-vnext/ai/semantic-enrichment'
 import { findTenantDuplicateCandidates, publicDuplicateMatches } from '@/lib/server/event-duplicates'
 
@@ -136,9 +144,20 @@ export async function POST(req: Request) {
     let input_type: 'text' | 'pdf' | 'docx' = 'text'
     const sourceMeta: SourceMeta = { sourceType: 'text' }
     let sourceFile: File | null = null
+    let preparedAttachment: PreparedAttachment | null = null
 
     if (ct.includes('multipart/form-data')) {
-      const form = await req.formData()
+      let form: FormData
+      try {
+        form = await readBoundedExtractionForm(req)
+      } catch (error) {
+        return jsonError(error instanceof ExtractionPayloadTooLarge
+          ? 'O tamanho total da requisição não pode ultrapassar 11 MiB.'
+          : 'Formulário inválido.', error instanceof ExtractionPayloadTooLarge ? 413 : 400)
+      }
+      if (form.getAll('file').length > 1) {
+        return jsonError('Somente um anexo é aceito por evento nesta versão.', 400)
+      }
       title = String(form.get('title') || '')
       duplicateOverrideReason = String(form.get('duplicate_override_reason') || '')
       raw_input = String(form.get('raw_input') || '')
@@ -157,9 +176,23 @@ export async function POST(req: Request) {
       const wc = form.get('source_word_count')
       if (wc) sourceMeta.sourceWordCount = Number(wc)
       const f = form.get('file')
-      if (f && f instanceof File && f.size > 0) sourceFile = f
+      if (f !== null) {
+        if (!(f instanceof File) || f.size <= 0) {
+          return jsonError('Anexo vazio ou inválido.', 400)
+        }
+        sourceFile = f
+      }
     } else {
-      const body = (await req.json()) as Record<string, unknown>
+      let body: Record<string, unknown>
+      try {
+        body = await readBoundedEventJson(req)
+      } catch (error) {
+        return jsonError(
+          attachmentErrorStatus(error) === 413
+            ? 'A requisição JSON não pode ultrapassar 2 MiB.' : 'JSON inválido.',
+          attachmentErrorStatus(error) === 413 ? 413 : 400,
+        )
+      }
       title = String(body.title || '')
       duplicateOverrideReason = typeof body.duplicate_override_reason === 'string' ? body.duplicate_override_reason : ''
       raw_input = String(body.raw_input || '')
@@ -178,6 +211,20 @@ export async function POST(req: Request) {
     }
 
     if (!title.trim() || !raw_input.trim()) return jsonError('Título e relato são obrigatórios', 400)
+
+    // Verify evidence before creating an event or consuming a credit.
+    if (sourceFile) {
+      try {
+        preparedAttachment = await prepareEventAttachment(sourceFile)
+      } catch (error) {
+        const status = attachmentErrorStatus(error)
+        return jsonError(
+          status === 413 ? 'O arquivo não pode ultrapassar 10 MB.'
+            : 'O anexo precisa ser PDF ou DOCX válido, com extensão e assinatura compatíveis.',
+          status,
+        )
+      }
+    }
 
     // Check before any debit, record creation, SERA run or attachment upload.
     // The client must explicitly acknowledge an independent occurrence.
@@ -275,35 +322,46 @@ export async function POST(req: Request) {
       metadata: { source_type: sourceMeta.sourceType ?? input_type, analysis_mode: analysisMode, engine_role: analysisMode === 'hfa' ? 'PRIMARY' : 'NONE' },
     })
 
-    if (analysisMode === 'register_only') {
-      if (sourceFile) {
+    let persistedAttachmentPath: string | null = null
+    if (preparedAttachment) {
+      try {
+        stage = 'persist-event-attachment'
+        persistedAttachmentPath = await persistEventAttachment({
+          admin, tenantId: user.tenantId, eventId,
+          authUserId: user.authUserId, publicUserId: submittedById,
+          attachment: preparedAttachment,
+        })
+      } catch (documentError) {
+        // Retain the event for audit/recovery; do NOT claim attachment success.
+        await admin.from('events').update({ status: 'failed' })
+          .eq('id', eventId).eq('tenant_id', user.tenantId)
+        console.error('[/api/events Attachment Failure]', {
+          requestId, eventId,
+          errorCode: documentError instanceof EventAttachmentError
+            ? documentError.code : 'STORAGE_ERROR',
+        })
         try {
-          assertFileSize(sourceFile.size)
-          const buf = Buffer.from(await sourceFile.arrayBuffer())
-          const kind = detectDocumentKind(buf)
-          const ext = sourceFile.name.toLowerCase().endsWith('.docx') || kind === 'docx' ? 'docx' : 'pdf'
-          if (!kind || (ext === 'docx' && kind !== 'docx') || (ext === 'pdf' && kind !== 'pdf')) throw new Error('Tipo de arquivo inválido para armazenamento')
-          const safeName = sourceFile.name.replace(/[^\w.\-]/g, '_').slice(0, 180)
-          const path = `events/${submittedById}/${eventId}/${safeName}`
-          const { error: uploadError } = await admin.storage.from('analysis-documents').upload(path, buf, {
-            contentType: sourceFile.type || (kind === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
-            upsert: false,
+          await writeAuditLog({
+            tenantId: user.tenantId, userId: user.userId, requestId,
+            eventType: 'event_attachment_failed', entityType: 'event', entityId: eventId,
+            route: '/api/events', method: 'POST', status: 'failed',
+            metadata: { stage: 'persist-event-attachment', analysis_mode: analysisMode },
           })
-          if (uploadError) throw uploadError
-          const documentInsert = await admin.from('event_documents').insert({
-            tenant_id: user.tenantId,
-            event_id: eventId,
-            uploaded_by: submittedById,
-            file_name: sourceFile.name,
-            storage_path: path,
-            mime_type: sourceFile.type || null,
-            size_bytes: sourceFile.size,
-          })
-          if (documentInsert.error) throw documentInsert.error
-        } catch (documentError) {
-          logEventsError(documentError, 'store-safety-event-document', { requestId, eventId })
+        } catch {
+          // Keep event_id in the HTTP error even if audit persistence is down.
+          console.error('[/api/events Attachment Failure] audit unavailable', { requestId, eventId })
         }
+        return NextResponse.json({
+          detail: 'O evento foi criado, mas não foi possível confirmar o anexo. Abra o evento existente para verificar a situação, sem reenviar o formulário.',
+          event_id: eventId,
+          attachment_status: documentError instanceof EventAttachmentError &&
+            documentError.code === 'DOCUMENT_INDEX_CLEANUP_FAILED' ? 'unverified' : 'failed',
+          analysis_started: false,
+        }, { status: 502, headers: { 'x-request-id': requestId, 'Cache-Control': 'no-store' } })
       }
+    }
+
+    if (analysisMode === 'register_only') {
       await writeAuditLog({
         tenantId: user.tenantId, userId: user.userId, requestId,
         eventType: 'safety_event_reported', entityType: 'event', entityId: eventId,
@@ -345,24 +403,23 @@ export async function POST(req: Request) {
         context: { tenantId: user.tenantId, userId: submittedById, role: user.role, email: user.email ?? '', requestId },
       })
 
-      if (sourceFile) {
-        assertFileSize(sourceFile.size)
-        const buf = Buffer.from(await sourceFile.arrayBuffer())
-        const kind = detectDocumentKind(buf)
-        const ext = sourceFile.name.toLowerCase().endsWith('.docx') || kind === 'docx' ? 'docx' : 'pdf'
-        if (!kind || (ext === 'docx' && kind !== 'docx') || (ext === 'pdf' && kind !== 'pdf')) throw new Error('Tipo de arquivo inválido para armazenamento')
-        const safeName = sourceFile.name.replace(/[^\w.\-]/g, '_').slice(0, 180)
-        const path = `${submittedById}/${result.analysis.id}/${safeName}`
-        const { error: uploadError } = await admin.storage.from('analysis-documents').upload(path, buf, {
-          contentType: sourceFile.type || (kind === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
-          upsert: true,
-        })
-        if (!uploadError) {
-          await admin
-            .from('sera_vnext_analyses')
-            .update({ metadata: { ...result.analysis.metadata, sourceFileUrl: path, sourceFileName: sourceFile.name, sourceType: sourceMeta.sourceType ?? input_type } })
-            .eq('id', result.analysis.id)
-            .eq('tenant_id', user.tenantId)
+      if (persistedAttachmentPath && preparedAttachment) {
+        stage = 'link-analysis-attachment'
+        const patch = await admin.from('sera_vnext_analyses')
+          .update({
+            metadata: {
+              ...result.analysis.metadata,
+              sourceFileUrl: persistedAttachmentPath,
+              sourceFileName: preparedAttachment.fileName,
+              sourceType: sourceMeta.sourceType ?? input_type,
+            },
+          })
+          .eq('id', result.analysis.id)
+          .eq('tenant_id', user.tenantId)
+          .select('id')
+          .maybeSingle()
+        if (patch.error || !patch.data?.id) {
+          throw new Error('PRIMARY_SERA_DOCUMENT_METADATA_UPDATE_FAILED')
         }
       }
 
