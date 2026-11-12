@@ -8,6 +8,10 @@ import {
 } from './event-document-access'
 import { reserveDocumentExtractionQuota } from './document-extraction-gate'
 import {
+  extractPdfPageProvenance, PdfPageProvenanceError,
+  type PdfTextPage,
+} from './pdf-page-provenance'
+import {
   cleanExtractedText,
   countWords,
   detectDocumentKind,
@@ -26,7 +30,9 @@ export class EventSourcePreviewError extends Error {
       | 'RATE_LIMIT_UNAVAILABLE'
       | 'NO_TEXT'
       | 'FORMAT_MISMATCH'
-      | 'PREVIEW_UNAVAILABLE',
+      | 'PREVIEW_UNAVAILABLE'
+      | 'PAGE_LIMIT'
+      | 'PAGE_EXTRACTION_INCOMPLETE',
   ) {
     super(code)
     this.name = 'EventSourcePreviewError'
@@ -45,7 +51,9 @@ export type EventSourceTextPreview = {
   extractionStatus: 'TEXT_PREVIEW' | 'TEXT_PREVIEW_TRUNCATED'
   reviewedByHuman: false
   analysisChanged: false
-  citationLevel: 'DOCUMENT_ONLY'
+  citationLevel: 'DOCUMENT_ONLY' | 'PDF_PAGE_INDEXED'
+  pages: PdfTextPage[] | null
+  totalPages: number | null
   externalProviderUsed: false
 }
 
@@ -63,6 +71,7 @@ type Dependencies = {
   listManifest: typeof listEventDocumentManifest
   download: typeof downloadAuthorizedEventDocument
   parse: typeof extractTextFromBuffer
+  parsePdfPages?: typeof extractPdfPageProvenance
 }
 
 const defaults: Dependencies = {
@@ -70,6 +79,7 @@ const defaults: Dependencies = {
   listManifest: listEventDocumentManifest,
   download: downloadAuthorizedEventDocument,
   parse: extractTextFromBuffer,
+  parsePdfPages: extractPdfPageProvenance,
 }
 
 /**
@@ -115,16 +125,32 @@ export async function extractVerifiedEventSourcePreview(
         !original.fileName.toLowerCase().endsWith('.docx')))) {
     throw new EventSourcePreviewError('FORMAT_MISMATCH')
   }
-  const raw = await dependencies.parse(
-    Buffer.from(original.bytes), kind, original.fileName,
-  )
-  if (typeof raw !== 'string' || raw.trim().length === 0) {
-    throw new EventSourcePreviewError('NO_TEXT')
+  let text: string
+  let truncated: boolean
+  let pages: PdfTextPage[] | null = null
+  let totalPages: number | null = null
+  if (kind === 'pdf' && dependencies.parsePdfPages) {
+    // Page number comes ONLY from PDFJS page.pageNumber. An incomplete
+    // multi-page extraction never receives verified page references.
+    const result = await dependencies.parsePdfPages(Buffer.from(original.bytes))
+    pages = result.pages
+    totalPages = result.totalPages
+    truncated = result.truncated
+    text = cleanExtractedText(
+      pages.filter((page) => page.text).map((page) =>
+        '[Página ' + page.pageNumber + ']\\n' + page.text,
+      ).join('\\n\\n'),
+    )
+  } else {
+    const raw = await dependencies.parse(
+      Buffer.from(original.bytes), kind, original.fileName,
+    )
+    if (typeof raw !== 'string' || raw.trim().length === 0) {
+      throw new EventSourcePreviewError('NO_TEXT')
+    }
+    truncated = raw.length > MAX_PREVIEW_CHARS
+    text = cleanExtractedText(raw.slice(0, MAX_PREVIEW_CHARS))
   }
-  // Bounded response: never return >60k text characters through Vercel.
-  // Label the result clearly when the actual source had more text.
-  const truncated = raw.length > MAX_PREVIEW_CHARS
-  const text = cleanExtractedText(raw.slice(0, MAX_PREVIEW_CHARS))
   if (!text) throw new EventSourcePreviewError('NO_TEXT')
   return {
     documentId,
@@ -138,7 +164,9 @@ export async function extractVerifiedEventSourcePreview(
     extractionStatus: truncated ? 'TEXT_PREVIEW_TRUNCATED' : 'TEXT_PREVIEW',
     reviewedByHuman: false,
     analysisChanged: false,
-    citationLevel: 'DOCUMENT_ONLY',
+    citationLevel: pages ? 'PDF_PAGE_INDEXED' : 'DOCUMENT_ONLY',
+    pages,
+    totalPages,
     externalProviderUsed: false,
   }
 }
@@ -182,6 +210,15 @@ export function mapSourcePreviewError(error: unknown): {
       case 'FORMAT_MISMATCH':
         return { status: 422, code: error.code,
           message: 'Extensão, formato e assinatura do documento não coincidem.' }
+    }
+  }
+  if (error instanceof PdfPageProvenanceError) {
+    return {
+      status: error.code === 'PAGE_LIMIT' ? 413 : 422,
+      code: error.code,
+      message: error.code === 'PAGE_LIMIT'
+        ? 'PDF acima de 80 páginas. Divida o arquivo antes de solicitar a prévia.'
+        : 'Não foi possível comprovar a leitura de todas as páginas do PDF.',
     }
   }
   if (error instanceof DocumentExtractError) {

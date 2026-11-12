@@ -89,6 +89,9 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: PDF per-page source provenance, no-OCR and bounded parser
+        run: ./frontend/node_modules/.bin/tsx --test frontend/tests/pdf-page-provenance.test.ts
+
       - name: Original source preview authorization, hash and quota contract
         run: ./frontend/node_modules/.bin/tsx --test frontend/tests/event-source-preview.test.ts
 

@@ -202,3 +202,42 @@ test('parser failure cannot leak raw thrown exception into public error detail',
   assert.equal(mapped.status, 422)
   assert.ok(!JSON.stringify(mapped).includes('PRIVATE_PDF_TEXT_DO_NOT_LEAK'))
 })
+
+test('page-aware source preview preserves exact ordinal and page-level PDF locator without causal change', async () => {
+  const f = fixture()
+  const expected = [
+    {pageNumber:1,text:'Synthetic factual first page.',extractedChars:29,truncated:false,hasText:true},
+    {pageNumber:2,text:'Synthetic separate second page.',extractedChars:31,truncated:false,hasText:true},
+  ]
+  const result = await extractVerifiedEventSourcePreview(f.args,{
+    ...f.dependencies,
+    parsePdfPages: async ()=>{
+      f.calls.push('parse-pdf-pages')
+      return {pages:expected,totalPages:2,truncated:false}
+    },
+  })
+  assert.equal(result.citationLevel,'PDF_PAGE_INDEXED')
+  assert.equal(result.totalPages,2)
+  assert.deepEqual(result.pages,expected)
+  assert.match(result.text,/\\[Página 1\\]/)
+  assert.match(result.text,/\\[Página 2\\]/)
+  assert.equal(result.reviewedByHuman,false)
+  assert.equal(result.analysisChanged,false)
+  assert.equal(result.externalProviderUsed,false)
+  assert.ok(!f.calls.some(x=>x.startsWith('parse:')))
+})
+
+test('page parse failure cannot fabricate a page reference or return partial source text', async () => {
+  const f = fixture()
+  const originalCalls = f.calls.length
+  await assert.rejects(
+    extractVerifiedEventSourcePreview(f.args,{
+      ...f.dependencies,
+      parsePdfPages: async ()=>{
+        throw new Error('INTENTIONALLY FAILED PDF PAGE TEXT')
+      },
+    }),
+    /INTENTIONALLY FAILED PDF PAGE TEXT/,
+  )
+  assert.ok(f.calls.length>originalCalls)
+})
