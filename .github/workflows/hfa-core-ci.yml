@@ -89,6 +89,10 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Event document least-privilege SQL security
+        working-directory: frontend
+        run: node --test tests/event-document-least-privilege-sql.test.mjs
+
       - name: Event document provenance and private read-only access
         run: ./frontend/node_modules/.bin/tsx --test frontend/tests/event-document-provenance.test.ts
 
