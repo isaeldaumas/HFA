@@ -136,8 +136,8 @@ export function EventDocumentsPanel({
     const next: PendingDocument[] = []
     for (const file of candidates.slice(0, available)) {
       if (file.size === 0 || file.size > MAX_APPEND_BYTES ||
-          !/\.(pdf|docx|txt)$/i.test(file.name)) {
-        setUploadError('Arquivos adicionais devem ser PDF/DOCX/TXT UTF-8 de até 3,8 MB cada.')
+          !/\.(pdf|docx|txt|png|jpe?g|webp)$/i.test(file.name)) {
+        setUploadError('Arquivos adicionais devem ser PDF/DOCX/TXT/PNG/JPEG/WebP de até 3,8 MB cada.')
         continue
       }
       next.push({id:crypto.randomUUID(),file,state:'queued',message:'Aguardando envio'})
@@ -238,7 +238,13 @@ export function EventDocumentsPanel({
               <p className="mt-2 break-all font-mono text-[10px] text-slate-500">
                 SHA-256: {item.sha256 || 'não registrado (documento legado, integridade não comprovada)'}
               </p>
-              {canAppend && (
+              {canAppend && item.mimeType?.startsWith('image/') && (
+                <p className="mt-2 text-xs text-amber-300">
+                  Imagem original preservada. OCR indisponível; nenhum texto foi extraído,
+                  revisado ou incorporado à análise SERA.
+                </p>
+              )}
+              {canAppend && !item.mimeType?.startsWith('image/') && (
                 <EventSourceTextPreview
                   key={eventId + ':' + item.sha256}
                   eventId={eventId}
@@ -256,10 +262,10 @@ export function EventDocumentsPanel({
         <div className="mt-4 space-y-3 border-t border-slate-700 pt-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <p className="text-sm font-medium text-slate-200">Acrescentar fontes originais</p>
-            <p className="text-xs text-slate-400">{slots} vaga(s) · PDF/DOCX/TXT · 3,8 MB por arquivo</p>
+            <p className="text-xs text-slate-400">{slots} vaga(s) · PDF/DOCX/TXT/PNG/JPEG/WebP · 3,8 MB por arquivo</p>
           </div>
           <input ref={inputRef} type="file" multiple disabled={uploadBusy}
-            accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+            accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,image/png,image/jpeg,image/webp"
             className="hidden" onChange={(ev) => {
               if (ev.currentTarget.files) queueFiles(ev.currentTarget.files)
               ev.currentTarget.value = ''
@@ -269,7 +275,7 @@ export function EventDocumentsPanel({
             onDrop={(ev)=>{ev.preventDefault();queueFiles(ev.dataTransfer.files)}}
             onClick={()=>inputRef.current?.click()}
             className="w-full rounded-lg border-2 border-dashed border-slate-600 px-4 py-5 text-sm text-slate-300 hover:border-cyan-600 disabled:opacity-50">
-            Selecionar ou arrastar arquivos PDF/DOCX/TXT adicionais
+            Selecionar ou arrastar documentos ou imagens adicionais
           </button>
           {pending.length > 0 && (
             <ol className="space-y-2">
