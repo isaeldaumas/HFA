@@ -119,6 +119,9 @@ export async function extractVerifiedEventSourcePreview(
   }
   const isTxt = original.mimeType === PLAIN_TEXT_MIME &&
     original.fileName.toLowerCase().endsWith('.txt')
+  if (original.mimeType.startsWith('image/')) {
+    throw new EventSourcePreviewError('NO_TEXT')
+  }
   const kind = isTxt ? 'txt' : detectDocumentKind(original.bytes)
   if ((kind !== 'pdf' && kind !== 'docx' && kind !== 'txt') ||
       (kind === 'pdf' && (original.mimeType !== 'application/pdf' ||

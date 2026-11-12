@@ -10,9 +10,9 @@ const preview=readFileSync(new URL('../src/lib/server/event-source-preview.ts',i
 const panel=readFileSync(new URL('../src/components/sera/EventDocumentsPanel.tsx',import.meta.url),'utf8')
 const sql=readFileSync(new URL('../../supabase/migrations/20261112213954_event_documents_text_plain_allowlist.sql',import.meta.url),'utf8')
 test('TXT is supplemental only; initial event route remains PDF/DOCX by default',()=>{
-  assert.match(attachment,/options: \{allowText\?: boolean\} = \{\}/)
+  assert.match(attachment,/options: \{allowText\?: boolean;allowImages\?: boolean\} = \{\}/)
   assert.match(attachment,/lower\.endsWith\('\.txt'\) && options\.allowText/)
-  assert.match(append,/prepareEventAttachment\(file,\{allowText:true\}\)/)
+  assert.match(append,/prepareEventAttachment\(file,\{allowText:true,allowImages:true\}\)/)
 })
 test('TXT bytes are strictly validated; mismatch, NUL and bidi override disallowed',()=>{
   assert.match(text,/new TextDecoder\('utf-8', \{ fatal: true/)

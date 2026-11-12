@@ -35,7 +35,7 @@ export async function GET(req: Request, ctx: {params: Promise<{eventId:string}>}
 
 /**
  * Supplementary evidence only. Uploads remain independent of the SERA engine,
- * and one new PDF/DOCX is accepted per request to respect Vercel payload cap.
+ * and one new evidence file is accepted per request to respect Vercel payload cap.
  */
 export async function POST(req: Request, ctx: {params: Promise<{eventId:string}>}) {
   const requestId = getOrCreateRequestId(req)
@@ -51,7 +51,7 @@ export async function POST(req: Request, ctx: {params: Promise<{eventId:string}>
     const {eventId} = await ctx.params
     const form = await readBoundedDocumentAppendForm(req)
     if (form.getAll('file').length !== 1 || [...form.keys()].some((key)=>key!=='file')) {
-      return respond('Envie um único arquivo PDF, DOCX ou TXT UTF-8 por requisição.',400)
+      return respond('Envie um único PDF, DOCX, TXT UTF-8, PNG, JPEG ou WebP por requisição.',400)
     }
     const file = form.get('file')
     if (!(file instanceof File) || file.size===0) {
@@ -94,7 +94,7 @@ export async function POST(req: Request, ctx: {params: Promise<{eventId:string}>
     if (error instanceof EventAttachmentError) {
       return respond(error.code==='BODY_TOO_LARGE'?
         'O limite total da requisição é 4 MB.':
-        error.code==='INVALID_TYPE'?'PDF, DOCX ou TXT UTF-8 inválido.':
+        error.code==='INVALID_TYPE'?'PDF, DOCX, TXT UTF-8 ou imagem inválida.':
         'Formulário ou arquivo inválido.',
         error.code==='BODY_TOO_LARGE'?413:400)
     }
