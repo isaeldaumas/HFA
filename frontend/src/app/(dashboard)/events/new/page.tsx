@@ -110,6 +110,10 @@ export default function NewEventPage() {
       setError('Explique por que este cadastro representa uma ocorrência independente (pelo menos 20 caracteres).')
       return
     }
+    if (tab === 'upload' && (!sourceFile || !sourceMeta)) {
+      setError('Escolha um PDF/DOCX e confirme a extração antes de registrar o evento.')
+      return
+    }
     setLoading(true)
     setError('')
     setIncompleteEventId(null)
@@ -375,7 +379,10 @@ export default function NewEventPage() {
 
         {tab === 'upload' && (
           <DocumentUpload
-            onFileReady={setSourceFile}
+            onFileReady={(file)=>{
+              setSourceFile(file)
+              if (!file) setSourceMeta(null)
+            }}
             onExtracted={(text, meta) => {
               setForm((p) => ({ ...p, raw_input: text }))
               setSourceMeta(meta)
