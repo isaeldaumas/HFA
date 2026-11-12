@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import test from 'node:test'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
@@ -83,6 +84,10 @@ test('success writes unique scoped storage object and indexed evidence', async()
   assert.equal(m.calls[1].payload?.uploaded_by,publicUserId)
   assert.equal(m.calls[1].payload?.storage_path,path)
   assert.equal(m.calls[1].payload?.size_bytes,8)
+  assert.equal(m.calls[1].payload?.source_ordinal,1)
+  assert.equal(m.calls[1].payload?.content_sha256,
+    createHash('sha256').update(new Uint8Array([37,80,68,70,45,49,46,55])).digest('hex'))
+
   assert.equal(m.calls[0].payload?.contentType,mime)
   assert.equal(m.calls[0].payload?.upsert,false)
 })

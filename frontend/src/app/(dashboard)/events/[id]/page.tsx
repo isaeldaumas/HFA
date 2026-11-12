@@ -24,6 +24,7 @@ import { localizeActor } from '@/lib/sera-vnext/engine-v0/localization'
 import { EventRiskPanel } from '@/components/safety/EventRiskPanel'
 import { EventSafetyActionPanel } from '@/components/safety/EventSafetyActionPanel'
 import { EventDuplicateReviewPanel } from '@/components/safety/EventDuplicateReviewPanel'
+import { EventDocumentsPanel } from '@/components/sera/EventDocumentsPanel'
 
 const FlowDiagram = dynamic(() => import('@/components/FlowDiagram'), { ssr: false })
 
@@ -870,6 +871,8 @@ export default function EventDetailPage() {
           )}
         </div>
       </div>
+
+      {!event.deleted_at && <EventDocumentsPanel eventId={event.id} accessToken={token} />}
 
       {event.vnext_analysis && (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" aria-label="Resumo da análise SERA">

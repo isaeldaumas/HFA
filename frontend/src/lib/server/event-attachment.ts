@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   assertFileSize,
@@ -84,6 +84,8 @@ export async function persistEventAttachment(params: {
       storage_path: path,
       mime_type: attachment.mimeType,
       size_bytes: attachment.data.length,
+      content_sha256: createHash('sha256').update(attachment.data).digest('hex'),
+      source_ordinal: 1,
     })
     if (error) throw new EventAttachmentError('DOCUMENT_INDEX_FAILED')
   } catch {

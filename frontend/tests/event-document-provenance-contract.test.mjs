@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import {readFileSync} from 'node:fs'
+const migration=readFileSync(new URL('../../supabase/migrations/20261112181117_event_document_sha256_source_ordinal.sql',import.meta.url),'utf8')
+const persist=readFileSync(new URL('../src/lib/server/event-attachment.ts',import.meta.url),'utf8')
+const list=readFileSync(new URL('../src/app/api/events/[eventId]/documents/route.ts',import.meta.url),'utf8')
+const download=readFileSync(new URL('../src/app/api/events/[eventId]/documents/[documentId]/route.ts',import.meta.url),'utf8')
+const access=readFileSync(new URL('../src/lib/server/event-document-access.ts',import.meta.url),'utf8')
+const ui=readFileSync(new URL('../src/components/sera/EventDocumentsPanel.tsx',import.meta.url),'utf8')
+test('additive migration preserves legacy nullable hash and makes source ordinal unique',()=>{
+  assert.match(migration,/ADD COLUMN IF NOT EXISTS content_sha256 text/)
+  assert.match(migration,/ADD COLUMN IF NOT EXISTS source_ordinal smallint NOT NULL DEFAULT 1/)
+  assert.match(migration,/CHECK \(content_sha256 IS NULL OR content_sha256 ~ '\^\[0-9a-f\]\{64\}\$'\)/)
+  assert.match(migration,/CHECK \(source_ordinal BETWEEN 1 AND 5\)/)
+  assert.match(migration,/CREATE UNIQUE INDEX IF NOT EXISTS event_documents_tenant_event_ordinal_unique/)
+  assert.doesNotMatch(migration,/DROP TABLE|DELETE FROM|UPDATE public\.event_documents/)
+})
+test('attachment hash is of original bytes and stored on the same document index insert',()=>{
+  assert.match(persist,/createHash\('sha256'\)\.update\(attachment\.data\)\.digest\('hex'\)/)
+  assert.match(persist,/source_ordinal: 1/)
+  assert.match(persist,/content_sha256:/)
+})
+test('every download is authenticated and fully tenant scoped, no signed or public URLs',()=>{
+  assert.ok(list.indexOf('await requireBearerUser(req)')<list.indexOf('listEventDocumentManifest('))
+  assert.ok(download.indexOf('await requireBearerUser(req)')<download.indexOf('downloadAuthorizedEventDocument('))
+  assert.match(access, /\.eq\('tenant_id', tenantId\)/)
+  assert.match(access, /\.eq\('event_id', eventId\)/)
+  assert.match(access, /\.is\('deleted_at', null\)/)
+  assert.match(download,/Content-Disposition/)
+  assert.match(download,/X-Content-Type-Options/)
+  assert.match(download,/Cache-Control/)
+  assert.doesNotMatch(download,/createSignedUrl|publicUrl/)
+  assert.doesNotMatch(list,/storage_path|SUPABASE_SERVICE_ROLE_KEY/)
+})
+test('UI marks legacy hash as unverified and never describes attachment as OCR-extracted',()=>{
+  assert.match(ui,/integridade não comprovada/)
+  assert.match(ui,/não significa que seu conteúdo tenha sido extraído/)
+  assert.match(ui,/Authorization: 'Bearer ' \+ accessToken/)
+  assert.match(ui,/disabled=\{downloading !== null\}/)
+})
