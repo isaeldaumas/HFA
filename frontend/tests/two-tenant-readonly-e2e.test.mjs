@@ -95,7 +95,7 @@ test('requires independent tenants, events and tokens', () => {
 test('production host blocked even with valid synthetic fixtures', () => {
   for (const name of ['systemhfa.vercel.app','systemhfa-systemhfa.vercel.app']) {
     assert.throws(() => checkConfig({...cfg, baseUrl:'https://'+name,expectedHost:name}),
-      /STAGING_HOST_UNVERIFIED/)
+      /PRODUCTION_READONLY_APPROVAL_REQUIRED/)
   }
 })
 
@@ -105,7 +105,7 @@ test('rejects SSRF, cross-origin URLs and preview host mismatch', () => {
     'https://hfa-fixture-preview-123.vercel.app/path',
     'https://user@hfa-fixture-preview-123.vercel.app',
     'https://127.0.0.1:8000']) {
-    assert.throws(() => checkConfig({...cfg,baseUrl}), /STAGING_HOST_UNVERIFIED/)
+    assert.throws(() => checkConfig({...cfg,baseUrl}), /UNVERIFIED_E2E_HOST|PRODUCTION_SCOPE_MUST_MATCH_HOST/)
   }
 })
 
@@ -128,4 +128,36 @@ test('provider transport errors redact any token and arbitrary messages', async 
   const f=async () => { throw new Error('token: '+cfg.tokenA) }
   await assert.rejects(inspectTenantIsolation({config:cfg,fetchImpl:f}),
     (e)=>e.message==='E2E_REQUEST_UNREACHABLE')
+})
+
+test('an explicitly authorized production-only read-only synthetic fixture may run exactly six GETs', async () => {
+  const prodCfg = {...cfg, baseUrl:'https://systemhfa.vercel.app',
+    expectedHost:'systemhfa.vercel.app', productionReadonlyApproved:'YES'}
+  assert.equal(checkConfig(prodCfg).origin,'https://systemhfa.vercel.app')
+  const requests=[]
+  const {fetchImpl}=fixtureFetch()
+  const result=await inspectTenantIsolation({
+    config:prodCfg,
+    fetchImpl:async (url, options)=>{
+      requests.push({method:options.method,url:new URL(url).origin})
+      return fetchImpl(new URL(url.pathname,'https://'+cfg.expectedHost),options)
+    },
+  })
+  assert.equal(result.result,'PASS')
+  assert.equal(result.writes,0)
+  assert.equal(requests.length,6)
+  assert.ok(requests.every(item=>item.method==='GET' && item.url==='https://systemhfa.vercel.app'))
+})
+
+test('production opt-in cannot be used on preview, wrong host or arbitrary URL',()=>{
+  for(const fields of [
+    {baseUrl:cfg.baseUrl,expectedHost:cfg.expectedHost},
+    {baseUrl:'https://evil.vercel.app',expectedHost:'evil.vercel.app'},
+    {baseUrl:'https://systemhfa.vercel.app.evil.com',expectedHost:'systemhfa.vercel.app.evil.com'},
+    {baseUrl:'https://systemhfa.vercel.app:8443',expectedHost:'systemhfa.vercel.app'},
+    {baseUrl:'http://systemhfa.vercel.app',expectedHost:'systemhfa.vercel.app'},
+    {baseUrl:'https://systemhfa.vercel.app/path',expectedHost:'systemhfa.vercel.app'},
+  ]){
+    assert.throws(()=>checkConfig({...cfg,productionReadonlyApproved:'YES',...fields}))
+  }
 })
