@@ -33,3 +33,13 @@ Os binários publicáveis em `frontend/public/ocr/` são cópias das dependênci
 ## Regressão/rollback
 
 Este recurso é apenas de interface e arquivos estáticos. No caso de erro, o usuário ainda pode baixar o original e utilizar o extrator textual existente. O rollback não requer migração, e os documentos privados permanecem inalterados.
+
+## Atualização: conferência humana local (12/11/2026)
+
+- O usuário visualiza separadamente o texto original OCR e uma área editável de correção.
+- Declaração local exige **duas ações explícitas**: comparação com imagem/PDF original e confirmação de que foram corrigidos apenas erros de reconhecimento, sem inserir hipóteses ou conclusões.
+- Resultado truncado e transcrição vazia bloqueiam a declaração. Editar qualquer texto posteriormente invalida a declaração anterior; nova extração substitui e invalida a revisão existente.
+- A exportação JSON acontece somente após clique específico; preserva eventId, documentId, ordinal, SHA-256 do original, pageNumber da página PDF realmente renderizada, OCR bruto e texto humano corrigido. Não transmite texto ao servidor.
+- A declaração é SELF_DECLARED_LOCAL_ONLY: **não** comprova autoria, identidade autenticada do revisor, assinatura digital, aprovação científica, persistência ou trilha auditável. A integridade do JSON exportado não é garantida após seu armazenamento local. Não utilizar como evidência final sem processo institucional de conferência.
+- Registros SERA, classificações, narrative pipeline, API, banco e flags Shadow permanecem intocados.
+- A homologação de produção com dois tenants sintéticos continua bloqueada por falta de fixtures aprovadas: a consulta agregada à base constatou **zero** linhas em event_documents (momento da consulta), sem consultar conteúdo de usuários ou extrair documentos.
