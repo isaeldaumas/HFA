@@ -89,6 +89,13 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Event attachment persistence, compensation and request bounds
+        run: ./frontend/node_modules/.bin/tsx --test frontend/tests/event-attachment-integrity.test.ts
+
+      - name: Event attachment fail-closed route contract
+        working-directory: frontend
+        run: node --test tests/event-attachment-route-contract.test.mjs
+
       - name: Document extraction quota security contract
         working-directory: frontend
         run: node --test tests/document-extraction-quota-sql-contract.test.mjs
