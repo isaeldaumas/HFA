@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { EventSourceTextPreview } from './EventSourceTextPreview'
+import { EventLocalOcrPreview } from './EventLocalOcrPreview'
 
 type EventDocument = {
   id: string
@@ -240,9 +241,22 @@ export function EventDocumentsPanel({
               </p>
               {canAppend && item.mimeType?.startsWith('image/') && (
                 <p className="mt-2 text-xs text-amber-300">
-                  Imagem original preservada. OCR indisponível; nenhum texto foi extraído,
-                  revisado ou incorporado à análise SERA.
+                  Imagem original preservada. O OCR é opcional e executado localmente,
+                  sem revisão automática ou incorporação à análise SERA.
                 </p>
+              )}
+              {canAppend && item.mimeType &&
+                (item.mimeType.startsWith('image/') || item.mimeType === 'application/pdf') && (
+                  <EventLocalOcrPreview
+                    key={'ocr:'+eventId+':'+item.id+':'+item.sha256}
+                    eventId={eventId}
+                    documentId={item.id}
+                    sourceOrdinal={item.sourceOrdinal}
+                    sha256={item.sha256}
+                    mimeType={item.mimeType}
+                    sizeBytes={item.sizeBytes}
+                    accessToken={accessToken}
+                  />
               )}
               {canAppend && !item.mimeType?.startsWith('image/') && (
                 <EventSourceTextPreview
