@@ -6,7 +6,7 @@ const route=readFileSync(new URL('../src/app/api/events/[eventId]/documents/rout
 const index=readFileSync(new URL('../src/lib/server/event-attachment.ts',import.meta.url),'utf8')
 const ui=readFileSync(new URL('../src/components/sera/EventDocumentsPanel.tsx',import.meta.url),'utf8')
 const download=readFileSync(new URL('../src/app/api/events/[eventId]/documents/[documentId]/route.ts',import.meta.url),'utf8')
-const sql=readFileSync(new URL('../../supabase/migrations/20261112213000_event_document_sha256_unique.sql',import.meta.url),'utf8')
+const sql=readFileSync(new URL('../../supabase/migrations/20261112191818_event_document_sha256_unique.sql',import.meta.url),'utf8')
 test('route validates bearer/role before reading bounded multipart and any service-role storage',()=>{
   assert.ok(route.indexOf('requireBearerUser(req)')<route.indexOf('readBoundedDocumentAppendForm(req)'))
   assert.match(route,/\['admin','analyst'\]/)

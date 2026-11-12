@@ -74,3 +74,12 @@ CI obrigatório HFA Core e SERA na PR e na main. Aplicar somente a migration
 UNIQUE isolada em produção e registrar a versão exata no ledger Supabase;
 publicar SHA exato Vercel --prod sem staging. A homologação entre dois
 tenants reais sintéticos continua NOT_RUN até haver fixtures autorizadas.
+
+## Checkpoint de banco aplicado em 12/11/2026
+
+Supabase em PRODUÇÃO: migration event_document_sha256_unique executada com
+success=true e ledger versão 20261112191818. O SQL do arquivo foi apenas
+renomeado, preservando hash e conteúdo. Índice UNIQUE parcial verificado
+em pg_indexes para tenant_id, event_id, content_sha256 quando hash não nulo.
+RLS ON, bucket analysis-documents privado, zero registros atuais de
+documentos; nenhum conteúdo de cliente consultado ou reprocessado.
