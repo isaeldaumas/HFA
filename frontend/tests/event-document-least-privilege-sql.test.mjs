@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import {test} from 'node:test'
 import {readFileSync} from 'node:fs'
 const sql=readFileSync(
-  new URL('../../supabase/migrations/20261112203000_event_document_least_privilege.sql',import.meta.url),'utf8')
+  new URL('../../supabase/migrations/20261112182721_event_document_least_privilege.sql',import.meta.url),'utf8')
 test('public/tenant roles lose TRUNCATE and all mutation grants',()=>{
   assert.match(sql,/REVOKE ALL PRIVILEGES ON TABLE public\.event_documents FROM anon, authenticated/)
   assert.match(sql,/GRANT SELECT ON TABLE public\.event_documents TO authenticated/)

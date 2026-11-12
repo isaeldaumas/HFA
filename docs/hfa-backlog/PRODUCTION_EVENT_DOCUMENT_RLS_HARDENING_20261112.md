@@ -21,3 +21,15 @@
 - Exigir que service_role mantenha SELECT, INSERT, UPDATE, DELETE e TRUNCATE.
 - Verificar pg_policies USING tenant_id = public.get_tenant_id(), RLS ativo e SELECT SQL para sub sintético não vinculado retornando 0 linhas, com ROLLBACK.
 - CI Core e SERA na PR e na main antes do deploy direto; sem alteração no motor. Homologação autenticada de dois tenants verdadeiros continua NOT_RUN até haver fixtures seguras.
+
+## Evidência Supabase PROD
+
+Migration registrada como versão 20261112182721, nome
+event_document_least_privilege; SQL foi renomeado sem qualquer mudança.
+ACL pós-aplicação: anon SELECT/INSERT/TRUNCATE=false;
+authenticated SELECT=true, INSERT/UPDATE/DELETE/TRUNCATE=false;
+service_role preserva SELECT/INSERT/UPDATE/DELETE/TRUNCATE=true;
+RLS ON e policy tenant_id = public.get_tenant_id() ativa.
+Em transação SQL real com role authenticated e JWT sub sintético
+não vinculado, SELECT event_documents teve zero linhas e ROLLBACK.
+Sem recriar usuários/eventos reais ou consultar relatórios.
