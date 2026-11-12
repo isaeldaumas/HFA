@@ -53,3 +53,17 @@ test('UI always binds preview to exact source and keeps it temporary, not narrat
   assert.match(ui, /setPreview\(null\)/)
   assert.doesNotMatch(ui, /localStorage|sessionStorage|indexedDB|\/api\/analyze|\/api\/events\/.*update/)
 })
+
+test('PDF page references must come from page-numbered parser; DOCX remains document-only',()=>{
+  const pages = readFileSync(new URL('../src/lib/server/pdf-page-provenance.ts',import.meta.url),'utf8')
+  assert.match(pages,/page\.pageNumber/)
+  assert.match(pages,/ordered\.length !== parsed\.numpages/)
+  assert.match(pages,/page\.pageNumber !== index\+1/)
+  assert.match(pages,/MAX_PDF_PAGES_FOR_PREVIEW = 80/)
+  assert.match(source,/citationLevel: pages \? 'PDF_PAGE_INDEXED' : 'DOCUMENT_ONLY'/)
+  assert.match(source,/pages\.filter\(\(page\) => page\.text\)/)
+  assert.match(ui,/preview\.pages\.map/)
+  assert.match(ui,/sem camada de texto extraível/)
+  assert.match(ui,/Documento DOCX sem paginação verificável/)
+  assert.doesNotMatch(pages,/openai|anthropic|fetch\(|\.insert\(|\.upsert\(/i)
+})

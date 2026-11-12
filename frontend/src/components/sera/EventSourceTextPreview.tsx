@@ -14,7 +14,15 @@ type Preview = {
   extractionStatus: 'TEXT_PREVIEW' | 'TEXT_PREVIEW_TRUNCATED'
   reviewedByHuman: false
   analysisChanged: false
-  citationLevel: 'DOCUMENT_ONLY'
+  citationLevel: 'DOCUMENT_ONLY' | 'PDF_PAGE_INDEXED'
+  pages: Array<{
+    pageNumber: number
+    text: string
+    extractedChars: number
+    truncated: boolean
+    hasText: boolean
+  }> | null
+  totalPages: number | null
   externalProviderUsed: false
 }
 
@@ -59,7 +67,16 @@ export function EventSourceTextPreview({
           !('text' in result) || typeof result.text !== 'string' ||
           !('analysisChanged' in result) || result.analysisChanged !== false ||
           !('reviewedByHuman' in result) || result.reviewedByHuman !== false ||
-          !('citationLevel' in result) || result.citationLevel !== 'DOCUMENT_ONLY') {
+          !('citationLevel' in result) ||
+          !(['DOCUMENT_ONLY','PDF_PAGE_INDEXED'] as unknown[]).includes(result.citationLevel) ||
+          !('pages' in result) || !('totalPages' in result) ||
+          (result.citationLevel === 'PDF_PAGE_INDEXED' &&
+            (!Array.isArray(result.pages) || !Number.isInteger(result.totalPages) ||
+              Number(result.totalPages) < 1 || result.pages.length !== result.totalPages ||
+              result.pages.some((page: unknown,index: number) =>
+                typeof page !== 'object' || page === null ||
+                !('pageNumber' in page) || page.pageNumber !== index+1 ||
+                !('text' in page) || typeof page.text !== 'string')))) {
         throw new Error('A resposta da extração não corresponde à fonte original.')
       }
       setPreview(result as Preview)
@@ -107,16 +124,42 @@ export function EventSourceTextPreview({
               : ' Texto extraído para inspeção, sem validação científica.'}
           </p>
           <p className="text-xs text-slate-400">
-            Proveniência em nível de documento, sem citações por página. Nenhuma
-            alteração no relato, nos resultados SERA ou nas hipóteses causais.
+            {preview.citationLevel === 'PDF_PAGE_INDEXED'
+              ? 'Páginas identificadas pelo leitor do PDF; trechos extraídos ainda não são fatos validados.'
+              : 'Documento DOCX sem paginação verificável. Não atribuir número de página.'}
+            {' '}Nenhuma alteração no relato, nos resultados SERA ou nas hipóteses causais.
           </p>
-          <textarea
-            aria-label={'Texto extraído da fonte ' + preview.sourceOrdinal}
-            value={preview.text}
-            readOnly
-            rows={12}
-            className="w-full resize-y rounded-md border border-slate-700 bg-slate-900 p-3 font-mono text-xs text-slate-100"
-          />
+          {preview.pages ? (
+            <div className="max-h-[33rem] space-y-3 overflow-auto">
+              {preview.pages.map((page)=>(
+                <section key={page.pageNumber}
+                  aria-label={'Fonte '+preview.sourceOrdinal+' página '+page.pageNumber}
+                  className="rounded border border-slate-700 p-2">
+                  <p className="mb-2 text-xs font-semibold text-slate-300">
+                    {'Fonte '+preview.sourceOrdinal+' · Página '+page.pageNumber+
+                      ' de '+preview.totalPages}
+                    {page.truncated ? ' · trecho truncado' : ''}
+                    {!page.hasText ? ' · sem camada de texto extraível' : ''}
+                  </p>
+                  <textarea
+                    aria-label={'Texto da fonte '+preview.sourceOrdinal+' página '+page.pageNumber}
+                    value={page.text}
+                    readOnly
+                    rows={Math.min(10,Math.max(2,Math.ceil(page.text.length/90)))}
+                    className="w-full resize-y rounded-md border border-slate-700 bg-slate-900 p-3 font-mono text-xs text-slate-100"
+                  />
+                </section>
+              ))}
+            </div>
+          ) : (
+            <textarea
+              aria-label={'Texto extraído da fonte ' + preview.sourceOrdinal}
+              value={preview.text}
+              readOnly
+              rows={12}
+              className="w-full resize-y rounded-md border border-slate-700 bg-slate-900 p-3 font-mono text-xs text-slate-100"
+            />
+          )}
           <p className="break-all font-mono text-[10px] text-slate-500">
             SHA-256 do documento original: {preview.sha256}
           </p>
