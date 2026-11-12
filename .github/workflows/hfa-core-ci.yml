@@ -89,6 +89,13 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Event document provenance and private read-only access
+        run: ./frontend/node_modules/.bin/tsx --test frontend/tests/event-document-provenance.test.ts
+
+      - name: Event document source provenance SQL and API contract
+        working-directory: frontend
+        run: node --test tests/event-document-provenance-contract.test.mjs
+
       - name: Event attachment persistence, compensation and request bounds
         run: ./frontend/node_modules/.bin/tsx --test frontend/tests/event-attachment-integrity.test.ts
 
