@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { EventSourceTextPreview } from './EventSourceTextPreview'
 
 type EventDocument = {
   id: string
@@ -237,6 +238,16 @@ export function EventDocumentsPanel({
               <p className="mt-2 break-all font-mono text-[10px] text-slate-500">
                 SHA-256: {item.sha256 || 'não registrado (documento legado, integridade não comprovada)'}
               </p>
+              {canAppend && (
+                <EventSourceTextPreview
+                  key={eventId + ':' + item.sha256}
+                  eventId={eventId}
+                  documentId={item.id}
+                  sourceOrdinal={item.sourceOrdinal}
+                  sha256={item.sha256}
+                  accessToken={accessToken}
+                />
+              )}
             </li>
           ))}
         </ul>

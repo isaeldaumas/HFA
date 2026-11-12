@@ -79,7 +79,10 @@ export async function extractTextFromBuffer(
 
   // ── PDF ──────────────────────────────────────────────────────
   try {
-    const result = await PDFParse(buffer)
+    // pdf-parse-fork/pdf.js rejects some valid PDFs when passed a Node Buffer
+    // (bad XRef entry). A genuine Uint8Array copy preserves identical original
+    // bytes and reliably parses PDFs produced by PDFKit in the regression test.
+    const result = await PDFParse(new Uint8Array(buffer))
     const text = (result.text || '').trim()
     if (!text || text.length < 25) {
       throw new DocumentExtractError(

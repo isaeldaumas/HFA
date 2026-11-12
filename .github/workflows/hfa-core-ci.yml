@@ -89,6 +89,16 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Original source preview authorization, hash and quota contract
+        run: ./frontend/node_modules/.bin/tsx --test frontend/tests/event-source-preview.test.ts
+
+      - name: Actual PDF and DOCX text parser regression with synthetic originals
+        run: ./frontend/node_modules/.bin/tsx --test frontend/tests/event-source-preview-real-parsers.test.ts
+
+      - name: Original source preview privacy and no-scientific-mutation contract
+        working-directory: frontend
+        run: node --test tests/event-source-preview-contract.test.mjs
+
       - name: Event append, concurrency, idempotency and byte-range tests
         run: ./frontend/node_modules/.bin/tsx --test frontend/tests/event-document-append.test.ts
 
