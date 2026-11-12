@@ -60,3 +60,14 @@ Supabase após execução, preservando SQL byte a byte.
 - Ainda não suporta OCR de PDF escaneado/imagem, PNG/JPEG/WebP,
   DOC legado, citação por página de DOCX/TXT nem fusão automática
   de fontes. A issue #122 permanece OPEN.
+
+## Ledger Supabase de produção verificado
+
+Migration event_documents_text_plain_allowlist aplicada com SUCCESS na
+versão 20261112213954; arquivo SQL local foi RENOMEADO sem mudança de bytes.
+Storage analysis-documents verificado: public=false, limite 10485760 bytes,
+allowlist PDF+DOCX+text/plain; public.event_documents mantém RLS ON,
+zero documentos indexados no momento da verificação (sem backfill).
+
+Testes funcionais 52 e contratos 24 aprovados localmente antes do sync.
+Esta migração não precisa ser reaplicada. Revalidar checks da PR e da main.
