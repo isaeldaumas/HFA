@@ -21,7 +21,7 @@ test('attachment failure retains event ID and emits non-success, no duplicate bl
   assert.match(src,/event_id: eventId/)
   assert.match(src,/status: 502, headers:/)
   assert.match(ui,/setIncompleteEventId\(data.event_id\)/)
-  assert.match(ui,/Abrir o evento já registrado/)
+  assert.match(ui,/Abrir o evento registrado e tentar novamente sem duplicar/)
   assert.match(audit,/'event_attachment_failed'/)
 })
 test('multipart and JSON parsing use explicit bounded readers and prevent silent multiple files',()=>{

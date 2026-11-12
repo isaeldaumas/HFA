@@ -303,7 +303,7 @@ export default function NewEventPage() {
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
             {error}
-            {incompleteEventId && <a href={`/events/${incompleteEventId}`} className="mt-2 block font-semibold underline text-cyan-300">Abrir o evento já registrado (não envie outra ocorrência)</a>}
+            {incompleteEventId && <a href={`/events/${incompleteEventId}`} className="mt-2 block font-semibold underline text-cyan-300">Abrir o evento registrado e tentar novamente sem duplicar</a>}
           </div>
         )}
 
