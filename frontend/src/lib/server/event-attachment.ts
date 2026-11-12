@@ -6,11 +6,13 @@ import {
   DocumentExtractError,
 } from '@/lib/sera/document-extraction'
 
+import { decodeStrictUtf8TextOriginal, PlainTextOriginalError, PLAIN_TEXT_MIME } from './event-plain-text'
+
 const DOCUMENT_BUCKET = 'analysis-documents'
 
 export type PreparedAttachment = {
   data: Buffer
-  kind: 'pdf' | 'docx'
+  kind: 'pdf' | 'docx' | 'txt'
   fileName: string
   mimeType: string
 }
@@ -31,14 +33,36 @@ export class EventAttachmentError extends Error {
 }
 
 /** Verify actual signature, extension, MIME, and bytes before event creation. */
-export async function prepareEventAttachment(file: File): Promise<PreparedAttachment> {
+export async function prepareEventAttachment(
+  file: File,
+  options: {allowText?: boolean} = {},
+): Promise<PreparedAttachment> {
   if (file.size <= 0) throw new EventAttachmentError('EMPTY_FILE')
   assertFileSize(file.size)
   const lower = file.name.toLowerCase()
   const declaredKind = lower.endsWith('.pdf') ? 'pdf'
-    : lower.endsWith('.docx') ? 'docx' : null
+    : lower.endsWith('.docx') ? 'docx'
+    : lower.endsWith('.txt') && options.allowText ? 'txt' : null
   if (!declaredKind) throw new EventAttachmentError('INVALID_TYPE')
   const data = Buffer.from(await file.arrayBuffer())
+
+  if (declaredKind === 'txt') {
+    if (file.type && file.type !== PLAIN_TEXT_MIME) {
+      throw new EventAttachmentError('INVALID_TYPE')
+    }
+    try {
+      decodeStrictUtf8TextOriginal(data)
+    } catch (error) {
+      if (error instanceof PlainTextOriginalError) {
+        throw new EventAttachmentError('INVALID_TYPE')
+      }
+      throw error
+    }
+    return {
+      data,kind:'txt',fileName:file.name.slice(0,255),mimeType:PLAIN_TEXT_MIME,
+    }
+  }
+
   const kind = detectDocumentKind(data)
   if (!kind || kind !== declaredKind) throw new EventAttachmentError('INVALID_TYPE')
   const mimeType = kind === 'pdf' ? 'application/pdf'

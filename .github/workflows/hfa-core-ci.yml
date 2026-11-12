@@ -89,6 +89,13 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Supplemental TXT original UTF-8, tenant, SHA256 and fail-closed parser
+        run: ./frontend/node_modules/.bin/tsx --test frontend/tests/event-text-original.test.ts
+
+      - name: Supplemental TXT original allowlist and read-only preview contracts
+        working-directory: frontend
+        run: node --test tests/event-text-original-contract.test.mjs
+
       - name: PDF per-page source provenance, no-OCR and bounded parser
         run: ./frontend/node_modules/.bin/tsx --test frontend/tests/pdf-page-provenance.test.ts
 
