@@ -89,6 +89,14 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Local OCR evidence SHA256, adversarial download and range failures
+        working-directory: frontend
+        run: ./node_modules/.bin/tsx --test tests/event-local-ocr-original.test.ts
+
+      - name: Local OCR same-origin WASM, language assets and scientific non-mutation contract
+        working-directory: frontend
+        run: node --test tests/event-local-ocr-contract.test.mjs
+
       - name: Supplemental TXT original UTF-8, tenant, SHA256 and fail-closed parser
         run: ./frontend/node_modules/.bin/tsx --test frontend/tests/event-text-original.test.ts
 
