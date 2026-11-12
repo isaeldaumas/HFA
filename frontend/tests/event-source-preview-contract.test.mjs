@@ -64,6 +64,6 @@ test('PDF page references must come from page-numbered parser; DOCX remains docu
   assert.match(source,/pages\.filter\(\(page\) => page\.text\)/)
   assert.match(ui,/preview\.pages\.map/)
   assert.match(ui,/sem camada de texto extraível/)
-  assert.match(ui,/Documento DOCX sem paginação verificável/)
+  assert.match(ui,/Documento DOCX ou TXT sem paginação verificável/)
   assert.doesNotMatch(pages,/openai|anthropic|fetch\(|\.insert\(|\.upsert\(/i)
 })

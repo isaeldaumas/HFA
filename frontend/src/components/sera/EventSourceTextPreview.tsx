@@ -126,7 +126,7 @@ export function EventSourceTextPreview({
           <p className="text-xs text-slate-400">
             {preview.citationLevel === 'PDF_PAGE_INDEXED'
               ? 'Páginas identificadas pelo leitor do PDF; trechos extraídos ainda não são fatos validados.'
-              : 'Documento DOCX sem paginação verificável. Não atribuir número de página.'}
+              : 'Documento DOCX ou TXT sem paginação verificável. Não atribuir número de página.'}
             {' '}Nenhuma alteração no relato, nos resultados SERA ou nas hipóteses causais.
           </p>
           {preview.pages ? (

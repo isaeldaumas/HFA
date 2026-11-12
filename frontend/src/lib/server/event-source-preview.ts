@@ -7,6 +7,7 @@ import {
   listEventDocumentManifest,
 } from './event-document-access'
 import { reserveDocumentExtractionQuota } from './document-extraction-gate'
+import { decodeStrictUtf8TextOriginal, PlainTextOriginalError, PLAIN_TEXT_MIME } from './event-plain-text'
 import {
   extractPdfPageProvenance, PdfPageProvenanceError,
   type PdfTextPage,
@@ -116,20 +117,35 @@ export async function extractVerifiedEventSourcePreview(
       createHash('sha256').update(original.bytes).digest('hex') !== source.sha256) {
     throw new DocumentAccessError('INTEGRITY_MISMATCH')
   }
-  const kind = detectDocumentKind(original.bytes)
-  if ((kind !== 'pdf' && kind !== 'docx') ||
+  const isTxt = original.mimeType === PLAIN_TEXT_MIME &&
+    original.fileName.toLowerCase().endsWith('.txt')
+  const kind = isTxt ? 'txt' : detectDocumentKind(original.bytes)
+  if ((kind !== 'pdf' && kind !== 'docx' && kind !== 'txt') ||
       (kind === 'pdf' && (original.mimeType !== 'application/pdf' ||
         !original.fileName.toLowerCase().endsWith('.pdf'))) ||
       (kind === 'docx' && (original.mimeType !==
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-        !original.fileName.toLowerCase().endsWith('.docx')))) {
+        !original.fileName.toLowerCase().endsWith('.docx'))) ||
+      (kind === 'txt' && !isTxt)) {
     throw new EventSourcePreviewError('FORMAT_MISMATCH')
   }
   let text: string
   let truncated: boolean
   let pages: PdfTextPage[] | null = null
   let totalPages: number | null = null
-  if (kind === 'pdf' && dependencies.parsePdfPages) {
+  if (kind === 'txt') {
+    let raw: string
+    try {
+      raw = decodeStrictUtf8TextOriginal(original.bytes)
+    } catch (error) {
+      if (error instanceof PlainTextOriginalError) {
+        throw new EventSourcePreviewError('FORMAT_MISMATCH')
+      }
+      throw error
+    }
+    truncated = raw.length > MAX_PREVIEW_CHARS
+    text = cleanExtractedText(raw.slice(0, MAX_PREVIEW_CHARS))
+  } else if (kind === 'pdf' && dependencies.parsePdfPages) {
     // Page number comes ONLY from PDFJS page.pageNumber. An incomplete
     // multi-page extraction never receives verified page references.
     const result = await dependencies.parsePdfPages(Buffer.from(original.bytes))

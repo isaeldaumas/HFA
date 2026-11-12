@@ -16,7 +16,7 @@ test('route validates bearer/role before reading bounded multipart and any servi
   assert.match(route,/extractionStatus:'NOT_EXTRACTED',analysisChanged:false/)
 })
 test('single-file write verifies tenant and event before hash and Storage with compensation',()=>{
-  assert.ok(append.indexOf('.eq(\'tenant_id\',tenantId)')<append.indexOf('prepareEventAttachment(file)'))
+  assert.ok(append.indexOf('.eq(\'tenant_id\',tenantId)')<append.indexOf('prepareEventAttachment(file,{allowText:true})'))
   assert.match(append,/MAX_APPEND_MULTIPART_BYTES = 4_000_000/)
   assert.match(append,/MAX_APPEND_FILE_BYTES = 3_800_000/)
   assert.match(append,/MAX_EVENT_SOURCES = 5/)

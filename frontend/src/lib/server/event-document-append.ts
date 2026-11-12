@@ -103,7 +103,7 @@ export async function appendOriginalEventDocument(params: {
   if (eventError) throw new DocumentAccessError('UNAVAILABLE')
   if (!event?.id) throw new DocumentAccessError('NOT_FOUND')
 
-  const attachment = await prepareEventAttachment(file)
+  const attachment = await prepareEventAttachment(file,{allowText:true})
   const sha256 = createHash('sha256').update(attachment.data).digest('hex')
   const {data:existing,error:lookupError} = await admin.from('event_documents')
     .select('id,source_ordinal,content_sha256,size_bytes')
