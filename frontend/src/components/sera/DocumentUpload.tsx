@@ -8,7 +8,7 @@ type UiState = 'idle' | 'uploading' | 'success' | 'error'
 
 const MSGS: Record<string, string> = {
   INVALID_TYPE: 'Apenas arquivos PDF ou DOCX são aceitos',
-  TOO_LARGE: 'O arquivo não pode ultrapassar 10MB',
+  TOO_LARGE: 'Em produção, selecione um arquivo de até 3,8 MB por vez.',
   PDF_PASSWORD: 'Este PDF está protegido. Remova a senha antes de fazer o upload.',
   PDF_NO_TEXT:
     'Este PDF contém apenas imagens e não pode ser processado automaticamente. Por favor, digite o texto manualmente.',
@@ -34,9 +34,14 @@ export default function DocumentUpload({ onExtracted, onFileReady }: Props) {
   const uploadFile = useCallback(
     async (file: File) => {
       setErrMsg('')
-      setState('uploading')
       setFileName(file.name)
-      onFileReady?.(file)
+      onFileReady?.(null)
+      if (file.size === 0 || file.size > 3_800_000) {
+        setErrMsg(file.size === 0 ? 'Arquivo vazio.' : MSGS.TOO_LARGE)
+        setState('error')
+        return
+      }
+      setState('uploading')
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
         setErrMsg('Não autenticado')
@@ -71,6 +76,7 @@ export default function DocumentUpload({ onExtracted, onFileReady }: Props) {
         setExtractedPreview(text.slice(0, 4000))
         setState('success')
         onExtracted(text, { fileName: fn, wordCount: wc })
+        onFileReady?.(file)
       } catch {
         setErrMsg(MSGS.CORRUPT)
         setState('error')

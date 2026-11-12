@@ -62,8 +62,13 @@ export async function persistEventAttachment(params: {
   authUserId: string
   publicUserId: string
   attachment: PreparedAttachment
+  sourceOrdinal?: number
 }): Promise<string> {
   const { admin, tenantId, eventId, authUserId, publicUserId, attachment } = params
+  const ordinal = params.sourceOrdinal ?? 1
+  if (!Number.isInteger(ordinal) || ordinal < 1 || ordinal > 5) {
+    throw new EventAttachmentError('INVALID_BODY')
+  }
   const path = authUserId + '/events/' + eventId + '/' + randomUUID() + '.' + attachment.kind
   const store = admin.storage.from(DOCUMENT_BUCKET)
   try {
@@ -85,7 +90,7 @@ export async function persistEventAttachment(params: {
       mime_type: attachment.mimeType,
       size_bytes: attachment.data.length,
       content_sha256: createHash('sha256').update(attachment.data).digest('hex'),
-      source_ordinal: 1,
+      source_ordinal: ordinal,
     })
     if (error) throw new EventAttachmentError('DOCUMENT_INDEX_FAILED')
   } catch {

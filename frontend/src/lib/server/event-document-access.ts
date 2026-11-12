@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const EVENT_DOCUMENT_MAX_BYTES = 10 * 1024 * 1024
+// Vercel Functions cap both request and response bodies at 4.5 MB.
+export const EVENT_DOCUMENT_RESPONSE_CHUNK_BYTES = 3_800_000
 export const EVENT_DOCUMENT_BUCKET = 'analysis-documents'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MIME_TYPES = new Set([
@@ -21,7 +23,8 @@ export type EventDocumentInfo = {
 
 export class DocumentAccessError extends Error {
   constructor(
-    public readonly code: 'NOT_FOUND' | 'INVALID_ID' | 'UNAVAILABLE' | 'INTEGRITY_MISMATCH',
+    public readonly code: 'NOT_FOUND' | 'INVALID_ID' | 'UNAVAILABLE' |
+      'INTEGRITY_MISMATCH' | 'INVALID_RANGE' | 'RANGE_REQUIRED',
   ) {
     super(code)
     this.name = 'DocumentAccessError'
@@ -133,6 +136,41 @@ export async function downloadAuthorizedEventDocument(
     mimeType,
     hashVerified: hash !== null,
   }
+}
+
+export type DocumentByteRange = {
+  start: number
+  end: number
+  partial: boolean
+}
+
+/**
+ * Never emit >3.8 MB through a Vercel function. The entire original object
+ * is checked before slicing; the response is not evidence of file extraction.
+ */
+export function resolveAuthorizedDocumentRange(
+  requested: string | null,
+  size: number,
+): DocumentByteRange {
+  if (!Number.isSafeInteger(size) || size < 1 || size > EVENT_DOCUMENT_MAX_BYTES) {
+    throw new DocumentAccessError('INTEGRITY_MISMATCH')
+  }
+  if (!requested) {
+    if (size > EVENT_DOCUMENT_RESPONSE_CHUNK_BYTES) {
+      throw new DocumentAccessError('RANGE_REQUIRED')
+    }
+    return {start:0,end:size-1,partial:false}
+  }
+  const match = /^bytes=([0-9]+)-([0-9]+)$/.exec(requested)
+  if (!match) throw new DocumentAccessError('INVALID_RANGE')
+  const start = Number(match[1])
+  const end = Number(match[2])
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) ||
+      start < 0 || end < start || end >= size ||
+      end - start + 1 > EVENT_DOCUMENT_RESPONSE_CHUNK_BYTES) {
+    throw new DocumentAccessError('INVALID_RANGE')
+  }
+  return {start,end,partial:true}
 }
 
 /** Never allow CRLF, quotes, path separators or control characters in headers. */

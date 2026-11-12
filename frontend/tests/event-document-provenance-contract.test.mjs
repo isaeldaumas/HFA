@@ -17,7 +17,8 @@ test('additive migration preserves legacy nullable hash and makes source ordinal
 })
 test('attachment hash is of original bytes and stored on the same document index insert',()=>{
   assert.match(persist,/createHash\('sha256'\)\.update\(attachment\.data\)\.digest\('hex'\)/)
-  assert.match(persist,/source_ordinal: 1/)
+  assert.match(persist,/source_ordinal: ordinal/)
+  assert.match(persist,/const ordinal = params.sourceOrdinal/)
   assert.match(persist,/content_sha256:/)
 })
 test('every download is authenticated and fully tenant scoped, no signed or public URLs',()=>{

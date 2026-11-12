@@ -89,6 +89,13 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Event append, concurrency, idempotency and byte-range tests
+        run: ./frontend/node_modules/.bin/tsx --test frontend/tests/event-document-append.test.ts
+
+      - name: Event append API and scientific non-mutation contract
+        working-directory: frontend
+        run: node --test tests/event-document-append-contract.test.mjs
+
       - name: Event document least-privilege SQL security
         working-directory: frontend
         run: node --test tests/event-document-least-privilege-sql.test.mjs
