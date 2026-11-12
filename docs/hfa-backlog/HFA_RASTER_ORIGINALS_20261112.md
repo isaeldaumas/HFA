@@ -15,7 +15,7 @@ Data: 12/11/2026. A presente alteração **não implementa OCR**.
 
 ## Migration isolada
 
-A migration adiciona somente image/png, image/jpeg e image/webp à allowlist do bucket analysis-documents. Exige configuração anterior **exata** (privado, 10MiB, PDF/DOCX/TXT) antes da alteração; não modifica dados, policies ou grants. Após aprovação dos dois workflows na PR, aplicar migration no Supabase de produção, sincronizar versão do ledger e repetir gates da main antes de deployment.
+A migration adiciona somente image/png, image/jpeg e image/webp à allowlist do bucket analysis-documents. Exige configuração anterior **exata** (privado, 10MiB, PDF/DOCX/TXT) antes da alteração; não modifica dados, policies ou grants. Migration aplicada em produção após aprovação dos dois workflows da PR. Ledger Supabase: `20261112221735 event_documents_raster_allowlist`; SQL preservado byte a byte na versão do ledger (SHA-256 `b66c6d7d270fe3104ef6e0f648d37de476f9e9e2a3b99997b47929a312531d68`). Bucket privado, limite 10 MiB, allowlist PDF/DOCX/TXT/PNG/JPEG/WebP, RLS ativo. Restam novos gates após sincronização, merge, gates da main e deploy.
 
 ## Limites de validação
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import {test} from 'node:test'
 import {readFileSync} from 'node:fs'
 const read=(path)=>readFileSync(new URL(path,import.meta.url),'utf8')
-const migration=read('../../supabase/migrations/20261112220651_event_documents_raster_allowlist.sql')
+const migration=read('../../supabase/migrations/20261112221735_event_documents_raster_allowlist.sql')
 const attachment=read('../src/lib/server/event-attachment.ts')
 const append=read('../src/lib/server/event-document-append.ts')
 const access=read('../src/lib/server/event-document-access.ts')
