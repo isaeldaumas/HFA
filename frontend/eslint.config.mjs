@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated, pinned upstream OCR/WASM workers. Byte-for-byte provenance
+    // is checked by event-local-ocr-contract.test.mjs; not application code.
+    "public/ocr/core/*.wasm.js",
+    "public/ocr/worker.min.js",
+    "public/ocr/pdf.worker.min.mjs",
   ]),
   {
     rules: {
