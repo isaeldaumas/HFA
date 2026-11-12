@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Read-only authenticated two-tenant isolation check for an explicitly approved
- * staging environment. NEVER performs signup, POST, PATCH, PUT or DELETE.
- * The fixtures MUST be synthetic and independently provisioned by an owner.
+ * Read-only authenticated two-tenant isolation check for independently
+ * provisioned synthetic fixtures. NEVER performs signup or state-changing
+ * requests. Production requires an additional independent explicit opt-in.
  */
 import { pathToFileURL } from 'node:url'
 
@@ -25,13 +25,19 @@ export function checkConfig(config) {
     throw new Error('TWO_DISTINCT_TOKENS_REQUIRED')
   }
   let url
-  try { url = new URL(config.baseUrl) } catch { throw new Error('INVALID_STAGING_URL') }
+  try { url = new URL(config.baseUrl) } catch { throw new Error('UNVERIFIED_E2E_URL') }
+  const productionMode = config.productionReadonlyApproved === 'YES'
+  const productionHost = PROD_HOSTS.has(url.hostname)
+  if (productionMode !== productionHost) {
+    throw new Error(productionHost
+      ? 'PRODUCTION_READONLY_APPROVAL_REQUIRED'
+      : 'PRODUCTION_SCOPE_MUST_MATCH_HOST')
+  }
   if (url.protocol !== 'https:' || url.username || url.password || url.port ||
       url.pathname !== '/' || url.search || url.hash ||
-      PROD_HOSTS.has(url.hostname) ||
       !/^[a-z0-9-]+\.vercel\.app$/.test(url.hostname) ||
       url.hostname !== config.expectedHost) {
-    throw new Error('STAGING_HOST_UNVERIFIED')
+    throw new Error('UNVERIFIED_E2E_HOST')
   }
   return url
 }
@@ -124,6 +130,7 @@ async function main() {
     eventA: process.env.HFA_E2E_EVENT_A_ID,
     eventB: process.env.HFA_E2E_EVENT_B_ID,
     syntheticApproved: process.env.HFA_E2E_SYNTHETIC_FIXTURES_APPROVED,
+    productionReadonlyApproved: process.env.HFA_E2E_PRODUCTION_READONLY_APPROVED,
   }
   try {
     const outcome = await inspectTenantIsolation({ config })
