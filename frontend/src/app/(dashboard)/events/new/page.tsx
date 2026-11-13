@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { resolveApiUrl } from '@/lib/api'
 import { TrialUsageCard } from '@/components/product/TrialUsageCard'
 import DocumentUpload from '@/components/sera/DocumentUpload'
+import {queueAdditionalOriginals,appendAdditionalOriginals,type AdditionalOriginal} from '@/lib/browser/additional-originals'
 import { useMe } from '@/hooks/useMe'
 import { shouldShowConsumerCredits } from '@/lib/product/consumer-credit-visibility'
 import { useI18n } from '@/lib/i18n'
@@ -47,6 +48,8 @@ export default function NewEventPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [incompleteEventId, setIncompleteEventId] = useState<string | null>(null)
+  const [registeredEventId, setRegisteredEventId] = useState<string | null>(null)
+  const [additionalOriginals, setAdditionalOriginals] = useState<AdditionalOriginal[]>([])
   const [duplicateCandidates, setDuplicateCandidates] = useState<DuplicateCandidate[]>([])
   const [independentReason, setIndependentReason] = useState('')
   const [progressText, setProgressText] = useState('')
@@ -100,24 +103,62 @@ export default function NewEventPage() {
     }
   }, [])
 
+  function queueMore(files: FileList | null) {
+    if (!files || registeredEventId || loading) return
+    const max = tab === 'upload' ? 4 : 5
+    const {entries,rejected}=queueAdditionalOriginals(additionalOriginals,Array.from(files),max)
+    setAdditionalOriginals(entries)
+    setError(rejected.join(' '))
+  }
+  function moveMore(id:string,delta:-1|1) {
+    if (registeredEventId || loading) return
+    setAdditionalOriginals(current=>{
+      const a=current.slice()
+      const i=a.findIndex(x=>x.id===id),j=i+delta
+      if(i<0||j<0||j>=a.length)return current
+      ;[a[i],a[j]]=[a[j],a[i]]
+      return a
+    })
+  }
+  async function persistMore(eventId:string,accessToken:string) {
+    if (!additionalOriginals.length) return
+    const result=await appendAdditionalOriginals({
+      eventId,accessToken,originals:additionalOriginals,
+      onStatus:(id,status,message)=>setAdditionalOriginals(current=>
+        current.map(row=>row.id===id?{...row,status,message}:row)),
+    })
+    if(!result.success) throw new Error(
+      'Evento registrado, mas há '+result.failed+' envio(s) sem confirmação e '+
+      result.unverified+' auditoria(s) pendente(s). Retome o envio ou abra o evento.'
+    )
+  }
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     await submitEvent(false)
   }
 
   async function submitEvent(override: boolean) {
-    if (override && independentReason.trim().length < 20) {
+    if (!registeredEventId && override && independentReason.trim().length < 20) {
       setError('Explique por que este cadastro representa uma ocorrência independente (pelo menos 20 caracteres).')
       return
     }
-    if (tab === 'upload' && (!sourceFile || !sourceMeta)) {
+    if (!registeredEventId && tab === 'upload' && (!sourceFile || !sourceMeta)) {
       setError('Escolha um PDF/DOCX e confirme a extração antes de registrar o evento.')
+      return
+    }
+    if (!registeredEventId && incompleteEventId) {
+      setError('O cadastro anterior pode estar parcialmente registrado. Abra o evento existente antes de criar outro.')
+      return
+    }
+    if (!registeredEventId && additionalOriginals.length > (tab === 'upload' ? 4 : 5)) {
+      setError('Cada evento aceita no máximo cinco fontes, incluindo a fonte principal.')
       return
     }
     setLoading(true)
     setError('')
-    setIncompleteEventId(null)
-    if (analysisMode === 'hfa') startProgress()
+    if (!registeredEventId) setIncompleteEventId(null)
+    if (registeredEventId) setProgressText('Retomando originais pendentes...')
+    else if (analysisMode === 'hfa') startProgress()
     else setProgressText('Registrando evento de Safety...')
     try {
       const {
@@ -125,6 +166,12 @@ export default function NewEventPage() {
       } = await supabase.auth.getSession()
       if (!session) throw new Error('Não autenticado')
 
+      if (registeredEventId) {
+        await persistMore(registeredEventId,session.access_token)
+        clearProgress()
+        router.push('/events/'+registeredEventId)
+        return
+      }
       const url = resolveApiUrl('/events/')
 
       if (tab === 'upload' && sourceFile) {
@@ -161,6 +208,10 @@ export default function NewEventPage() {
           if (typeof data.event_id === 'string') setIncompleteEventId(data.event_id)
           throw new Error(typeof data.detail === 'string' ? data.detail : `HTTP ${res.status}`)
         }
+        if(typeof data.event_id!=='string') throw new Error('Evento registrado sem ID válido.')
+        setRegisteredEventId(data.event_id)
+        setIncompleteEventId(data.event_id)
+        await persistMore(data.event_id,session.access_token)
         clearProgress()
         router.push(`/events/${data.event_id}`)
         return
@@ -197,6 +248,10 @@ export default function NewEventPage() {
         if (typeof data.event_id === 'string') setIncompleteEventId(data.event_id)
         throw new Error(typeof data.detail === 'string' ? data.detail : `HTTP ${res.status}`)
       }
+      if(typeof data.event_id!=='string') throw new Error('Evento registrado sem ID válido.')
+      setRegisteredEventId(data.event_id)
+      setIncompleteEventId(data.event_id)
+      await persistMore(data.event_id,session.access_token)
       clearProgress()
       router.push(`/events/${data.event_id}`)
     } catch (err: unknown) {
@@ -390,6 +445,64 @@ export default function NewEventPage() {
           />
         )}
 
+        <section aria-label="Fontes documentais adicionais"
+          onDragOver={(ev)=>{if (!registeredEventId && !loading) ev.preventDefault()}}
+          onDrop={(ev)=>{ev.preventDefault();queueMore(ev.dataTransfer.files)}}
+          className="rounded-xl border border-slate-700 bg-slate-900/60 p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-slate-200">Fontes originais adicionais (opcional)</h2>
+          <p className="text-xs text-slate-400">
+            Até cinco originais por evento, incluindo o PDF/DOCX principal quando houver.
+            Arquivos adicionais são armazenados separadamente após a criação do evento,
+            sem alterar automaticamente o relato, a análise HFA/SERA ou as hipóteses causais.
+          </p>
+          <input type="file" multiple
+            disabled={loading || registeredEventId !== null}
+            aria-label="Selecionar arquivos adicionais"
+            accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp"
+            onChange={(e)=>{queueMore(e.target.files);e.target.value=''}}
+            className="block w-full text-xs text-slate-300 disabled:opacity-40"
+          />
+          <p className="text-xs text-slate-500">
+            PDF, DOCX, TXT UTF-8, PNG, JPEG ou WebP. Máximo de 3,8 MB por arquivo.
+            {' '+additionalOriginals.length+' arquivo(s) na fila.'}
+          </p>
+          {registeredEventId && (
+            <p className="text-xs text-amber-300">
+              O evento já foi registrado. Retome somente os arquivos pendentes,
+              sem criar outro evento ou repetir a análise.
+            </p>
+          )}
+          {additionalOriginals.length>0 && (
+            <ol className="space-y-2">
+              {additionalOriginals.map((row,index)=>(
+                <li key={row.id}
+                  className="flex items-center justify-between gap-2 rounded border border-slate-700 p-2 text-xs text-slate-200">
+                  <div className="min-w-0">
+                    <p className="break-all">{index+1}. {row.file.name} · {Math.ceil(row.file.size/1024)} KiB</p>
+                    <p className="text-slate-400">{row.message}</p>
+                  </div>
+                  {!registeredEventId && (
+                    <div className="flex shrink-0 gap-1">
+                      <button type="button" aria-label={'Subir '+row.file.name}
+                        disabled={loading || index===0}
+                        onClick={()=>moveMore(row.id,-1)}
+                        className="rounded border border-slate-600 px-2 py-1 disabled:opacity-40">↑</button>
+                      <button type="button" aria-label={'Descer '+row.file.name}
+                        disabled={loading || index===additionalOriginals.length-1}
+                        onClick={()=>moveMore(row.id,1)}
+                        className="rounded border border-slate-600 px-2 py-1 disabled:opacity-40">↓</button>
+                      <button type="button" aria-label={'Remover '+row.file.name}
+                        disabled={loading}
+                        onClick={()=>setAdditionalOriginals(current=>current.filter(x=>x.id!==row.id))}
+                        className="rounded border border-slate-600 px-2 py-1 disabled:opacity-40">Remover</button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+
         <div>
           <label className="block text-sm text-slate-400 mb-1">Relato do evento *</label>
           {showExtractBanner && (
@@ -440,7 +553,7 @@ export default function NewEventPage() {
             disabled={loading || (analysisMode === 'hfa' && noCredits)}
             className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed px-8 py-3 rounded-lg font-medium transition text-white"
           >
-            {analysisMode === 'hfa' ? '🔍 Registrar e iniciar análise HFA' : 'Registrar evento de Safety'}
+            {registeredEventId ? 'Retomar documentos pendentes' : analysisMode === 'hfa' ? '🔍 Registrar e iniciar análise HFA' : 'Registrar evento de Safety'}
           </button>
           <button
             type="button"
