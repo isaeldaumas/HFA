@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireBearerUser } from '@/lib/server/api-auth'
 import { getSupabaseAdmin } from '@/lib/server/supabase-admin'
 import { getOrCreateRequestId } from '@/lib/observability/request-id'
+import { hasUnexpectedPreviewRequestBody } from '@/lib/server/preview-request-body'
 import {
   extractVerifiedEventSourcePreview,
   mapSourcePreviewError,
@@ -32,9 +33,7 @@ export async function POST(
     }
     // No body or caller-provided tenant, storage path, extracted text or
     // sampling metadata is accepted. Source identity is resolved server-side.
-    if (req.body !== null ||
-        req.headers.get('content-length') !== null &&
-        req.headers.get('content-length') !== '0') {
+    if (await hasUnexpectedPreviewRequestBody(req)) {
       return NextResponse.json(
         { code: 'BODY_NOT_ALLOWED', message: 'Esta operação não aceita conteúdo de requisição.' },
         { status: 400, headers },

@@ -119,6 +119,9 @@ jobs:
       - name: PDF per-page source provenance, no-OCR and bounded parser
         run: ./frontend/node_modules/.bin/tsx --test frontend/tests/pdf-page-provenance.test.ts
 
+      - name: Empty POST bodies and forged preview payloads fail closed
+        run: ./frontend/node_modules/.bin/tsx --test frontend/tests/preview-request-body.test.ts
+
       - name: Original source preview authorization, hash and quota contract
         run: ./frontend/node_modules/.bin/tsx --test frontend/tests/event-source-preview.test.ts
 
