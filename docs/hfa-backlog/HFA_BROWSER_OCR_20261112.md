@@ -43,3 +43,15 @@ Este recurso é apenas de interface e arquivos estáticos. No caso de erro, o us
 - A declaração é SELF_DECLARED_LOCAL_ONLY: **não** comprova autoria, identidade autenticada do revisor, assinatura digital, aprovação científica, persistência ou trilha auditável. A integridade do JSON exportado não é garantida após seu armazenamento local. Não utilizar como evidência final sem processo institucional de conferência.
 - Registros SERA, classificações, narrative pipeline, API, banco e flags Shadow permanecem intocados.
 - A homologação de produção com dois tenants sintéticos continua bloqueada por falta de fixtures aprovadas: a consulta agregada à base constatou **zero** linhas em event_documents (momento da consulta), sem consultar conteúdo de usuários ou extrair documentos.
+
+## Atualização: histórico persistente de conferência OCR
+
+- Um novo registro imutável por operação explicitamente solicitada é armazenado em event_document_ocr_reviews, separado dos eventos, narrativas e classificações SERA.
+- POST e GET exigem bearer autenticado, papel admin/analyst obtido de public.users e escopo tenant/event/document revalidado no servidor. A gravação confere hash SHA-256 do original privado antes de aceitar a declaração.
+- Banco mantém texto OCR, transcrição corrigida, hash de cada texto, identidade pseudonimizada do usuário autenticado e reviewed_by FK; cada revisão recebe ID/timestamp gerados no banco e hash de idempotência. Reenvios idênticos não produzem outra revisão.
+- RLS está ligado e anon/authenticated sem nenhum GRANT direto; apenas a API server-side com service-role vê os textos. O histórico JSON expõe apenas metadados de proveniência, sem texto confidencial.
+- Uma unique FK composta mantém a revisão ligada à empresa/evento/documento; ao purgar o documento, as revisões são eliminadas por CASCADE. UPDATE é proibido por trigger, preservando uma sequência append-only enquanto o original existir.
+- A persistência é opcional e exige clique separado: ao salvar, o usuário é avisado de que o texto entra no servidor. Erros de gravação ou de verificação deixam o resultado sem confirmação. A revisão continua sendo declaração autenticada, não validação independente da verdade factual ou do texto OCR.
+- O número da página informado no registro permanece *reivindicação do cliente* (1 a 80). O servidor confirma apenas integridade do PDF, não reprocessa cada página; citações factuais exigem conferência humana com o original.
+- A lista de revisões é limitada a 20 registros mais recentes; até 10 novas declarações por hora por identidade (controle aplicativo não transacional, sem garantia estrita sob múltiplas requisições concorrentes).
+- Esta implementação não provisiona usuários de testes nem documentos falsos na base de produção. Isolamento com dois tenants sintéticos autenticados ainda necessita fixtures aprovadas.
