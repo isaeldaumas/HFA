@@ -111,6 +111,15 @@ class OCRQualityTests(unittest.TestCase):
         self.case['reference_sha256']=sha256(b'    ').hexdigest()
         with self.assertRaises(InvalidEvidence):self.run_case()
 
+    def test_edit_distance_cpu_budget(self):
+        # A valid-size but adversarial transcript must fail quickly, not hang.
+        with self.assertRaisesRegex(InvalidEvidence, 'computation budget'):
+            edits('A'*6000, 'B'*6000)
+
+    def test_large_equal_transcripts_without_quadratic_work(self):
+        self.assertEqual(edits('A'*100_000, 'A'*100_000), 0)
+        self.assertEqual(edits('A'*100_000+'X', 'A'*100_000+'Y'), 1)
+
     def test_edit_distance_boundaries(self):
         self.assertEqual(edits([],[]),0)
         self.assertEqual(edits('abcd','ab'),2)

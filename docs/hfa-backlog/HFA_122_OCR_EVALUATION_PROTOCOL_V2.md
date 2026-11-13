@@ -20,6 +20,10 @@ python3 tools/hfa122_ocr_eval.py /caminho/privado/manifest.json --out /caminho/p
 
 Os resultados incluem CER e WER globais e por tipo/estrato. O avaliador calcula distância de Levenshtein estrita e com espaços normalizados. Não copia transcrições para relatórios e não transmite documentos pela rede.
 
+## Limite computacional
+
+O cálculo exato de Levenshtein em Python é quadrático no tamanho dos trechos não coincidentes. O avaliador remove prefixos e sufixos idênticos e recusa casos cujo produto dos comprimentos restantes ultrapasse 25 milhões de células de alinhamento. Essa recusa não é uma medida CER/WER e não pode ser registrada como resultado de precisão. Para documentos longos que atingirem o limite, dividir por páginas independentes, obter referência humana e hashes individuais por página e avaliar cada segmento como caso separado; não truncar silenciosamente o texto.
+
 ## Governança
 
 Medir também erros críticos de números, datas, matrículas, negações e termos aeronáuticos. Critérios de aceitabilidade devem ser fixados antes de examinar os resultados. Resultados sintéticos não comprovam precisão naturalística. A interpretação temporal/causal deve ser confirmada por investigador humano e não deve ser inferida automaticamente.
