@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto'
+import {extractPdfPageProvenance} from './pdf-page-provenance'
 import type {SupabaseClient} from '@supabase/supabase-js'
 import {
   DocumentAccessError,downloadAuthorizedEventDocument,
@@ -150,6 +151,21 @@ export async function storeAuthorizedOcrReview(
   if(!bytes.hashVerified||sha(bytes.bytes)!==source.sha256||
      bytes.mimeType!==source.mimeType) {
     throw new DocumentAccessError('INTEGRITY_MISMATCH')
+  }
+  // A client page number is a claim, not proof that the private PDF has
+  // that page. Verify against the original before both replay and insert.
+  if(source.mimeType==='application/pdf') {
+    try {
+      const parsed=await extractPdfPageProvenance(Buffer.from(bytes.bytes))
+      if(review.pageNumber===null||review.pageNumber>parsed.totalPages)
+        fail('INVALID_BODY')
+    } catch {
+      // Parser errors (including incomplete extraction) must not turn into
+      // success; do not expose private PDF parsing diagnostics to callers.
+      fail('REVIEW_NOT_AVAILABLE')
+    }
+  } else if(review.pageNumber!==null) {
+    fail('INVALID_BODY')
   }
   const reviewer=sha(args.authUserId)
   const ocrHash=sha(review.ocrText)
