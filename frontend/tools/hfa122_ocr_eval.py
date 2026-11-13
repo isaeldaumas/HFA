@@ -2,10 +2,11 @@
 """HFA #122: offline OCR quality measurement; no uploads or scientific certification."""
 from __future__ import annotations
 import argparse
-from collections import defaultdict
+from collections import Counter, defaultdict
 from hashlib import sha256
 import json
 from pathlib import Path
+import re
 import sys
 import unicodedata
 
@@ -63,7 +64,7 @@ def safe_path(root:Path,name:str,suffixes:tuple[str,...])->Path:
         raise InvalidEvidence('Path traversal or missing file')
     return resolved
 
-def verify_original(root:Path,case:dict)->None:
+def verify_original(root:Path,case:dict)->Path:
     kind=case['kind']
     path=safe_path(root,case.get('original_path'),KINDS[kind])
     if not 1<=path.stat().st_size<=MAX_ORIGINAL:
@@ -81,16 +82,50 @@ def verify_original(root:Path,case:dict)->None:
                'jpeg':header.startswith(b'\xff\xd8\xff'),
                'webp':header[:4]==b'RIFF' and header[8:12]==b'WEBP'}[kind]
     if not signature: raise InvalidEvidence('Original signature mismatch')
+    return path
 
-def text_from(root:Path,path:str,expected:str)->str:
+def text_from(root:Path,path:str,expected:str)->tuple[str,Path]:
     candidate=safe_path(root,path,('.txt',))
     if not 1<=candidate.stat().st_size<=MAX_TRANSCRIPT:
         raise InvalidEvidence('Transcript size invalid')
     data=candidate.read_bytes()
     if sha256(data).hexdigest()!=expected:
         raise InvalidEvidence('Transcript SHA mismatch')
-    try: return data.decode('utf-8',errors='strict')
+    try: return data.decode('utf-8',errors='strict'), candidate
     except UnicodeError as exc: raise InvalidEvidence('Transcript not UTF-8') from exc
+
+DATE_RE=re.compile(r'\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}[/-]\d{1,2}[/-]\d{1,2})\b')
+REG_RE=re.compile(r'\b(?:P[RTPS]-[A-Z0-9]{3}|N[1-9][0-9]{0,4}[A-Z]{0,2}|[A-Z]{1,2}-[A-Z0-9]{3,5})\b')
+NUM_RE=re.compile(r'\b\d+(?:[.,:/-]\d+)*\b')
+NEG_RE=re.compile(r'\b(?:não|nao|nunca|jamais|sem|nem|nenhum|nenhuma|not|no|never|without|neither|nor|none)\b',re.IGNORECASE)
+AERO_TERMS=frozenset({
+    'flaps','flap','trem','pouso','decolagem','arremetida','motor','pane','combustivel','combustível',
+    'altimetro','altímetro','velocidade','estol','stall','go-around','gear','runway','pista','torre',
+    'atc','metar','ifr','vfr','qnh','altitude','proa','heading','checklist','mayday','pan-pan',
+    'gpws','tcas','mel','aog','fod','cfit','loc-i','colisao','colisão','turbulencia','turbulência','gelo','icing',
+})
+WORD_RE=re.compile(r"[A-Za-zÀ-ÿ0-9-]+")
+
+def _critical_tokens(text:str)->dict[str,Counter[str]]:
+    norm=unicodedata.normalize('NFC',text)
+    dates=Counter(DATE_RE.findall(norm))
+    regs=Counter(REG_RE.findall(norm))
+    nums=Counter(NUM_RE.findall(norm))
+    negs=Counter(m.lower() for m in NEG_RE.findall(norm))
+    aero=Counter(w.lower() for w in WORD_RE.findall(norm) if w.lower() in AERO_TERMS)
+    return {'dates':dates,'registrations':regs,'numbers':nums,'negations':negs,'aeronautical_terms':aero}
+
+def critical_discrepancies(reference:str,ocr:str)->dict[str,int]:
+    ref_tok=_critical_tokens(reference)
+    ocr_tok=_critical_tokens(ocr)
+    out:dict[str,int]={}
+    total=0
+    for cat in ('numbers','dates','registrations','negations','aeronautical_terms'):
+        diff=sum((ref_tok[cat]-ocr_tok[cat]).values())+sum((ocr_tok[cat]-ref_tok[cat]).values())
+        out[cat]=diff
+        total+=diff
+    out['total']=total
+    return out
 
 def summary(rows:list[dict])->dict:
     result={'n_cases':len(rows)}
@@ -137,12 +172,16 @@ def evaluate(manifest_file:Path)->dict:
                 raise InvalidEvidence('Invalid hash '+key)
         if case.get('reference_path')==case.get('ocr_path'):
             raise InvalidEvidence('Reference and OCR must be independent')
-        verify_original(root,case)
-        reference=text_from(root,case.get('reference_path'),case['reference_sha256'])
-        result=text_from(root,case.get('ocr_path'),case['ocr_sha256'])
+        orig_resolved=verify_original(root,case)
+        reference,ref_resolved=text_from(root,case.get('reference_path'),case['reference_sha256'])
+        result,ocr_resolved=text_from(root,case.get('ocr_path'),case['ocr_sha256'])
+        if ref_resolved==ocr_resolved or orig_resolved in (ref_resolved,ocr_resolved):
+            raise InvalidEvidence('Reference, OCR, and original must be distinct files')
+        crit=critical_discrepancies(reference,result)
         item={'id':ident,'kind':kind,'sampling_stratum':case['sampling_stratum'],
               'source_document_sha256':case['source_document_sha256'],
-              'ocr_engine_version':case['ocr_engine_version']}
+              'ocr_engine_version':case['ocr_engine_version'],
+              'critical_errors':crit}
         for mode in ['strict','whitespace']:
             ref=normalize(reference,mode)
             ocr=normalize(result,mode)
@@ -164,6 +203,10 @@ def evaluate(manifest_file:Path)->dict:
                 kind+' / '+stratum:summary(items)
                 for (kind,stratum),items in sorted(grouped.items())
             },
+            'critical_errors_total':{
+                cat:sum(row['critical_errors'][cat] for row in rows)
+                for cat in ('numbers','dates','registrations','negations','aeronautical_terms','total')
+            },
             'cases':[{'id':row['id'],'kind':row['kind'],
                       'sampling_stratum':row['sampling_stratum'],
                       'source_document_sha256':row['source_document_sha256'],
@@ -171,7 +214,8 @@ def evaluate(manifest_file:Path)->dict:
                       'strict_CER':round(row['strict']['character_edits']/row['strict']['reference_characters'],6),
                       'strict_WER':round(row['strict']['word_edits']/row['strict']['reference_words'],6),
                       'whitespace_CER':round(row['whitespace']['character_edits']/row['whitespace']['reference_characters'],6),
-                      'whitespace_WER':round(row['whitespace']['word_edits']/row['whitespace']['reference_words'],6)}
+                      'whitespace_WER':round(row['whitespace']['word_edits']/row['whitespace']['reference_words'],6),
+                      'critical_errors':row['critical_errors']}
                      for row in rows],
             'limitations':['No institutional threshold is defined',
                            'Synthetic documents do not prove real-world OCR quality',
@@ -187,7 +231,11 @@ def main()->int:
         print('EVALUATION_REFUSED: '+str(exc),file=sys.stderr)
         return 2
     output=json.dumps(result,ensure_ascii=False,indent=2)+'\n'
-    if args.out: args.out.write_text(output,encoding='utf-8')
+    if args.out:
+        if args.out.is_symlink() or any(p.is_symlink() for p in args.out.parents):
+            print('EVALUATION_REFUSED: Output path must not use symlinks',file=sys.stderr)
+            return 2
+        args.out.write_text(output,encoding='utf-8')
     else: print(output,end='')
     return 0
 
