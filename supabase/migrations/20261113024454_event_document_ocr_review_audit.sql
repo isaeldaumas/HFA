@@ -58,6 +58,8 @@ CREATE TRIGGER event_document_ocr_review_no_update
 
 ALTER TABLE public.event_document_ocr_reviews ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.event_document_ocr_reviews FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, DELETE ON TABLE public.event_document_ocr_reviews TO service_role;
+REVOKE UPDATE ON TABLE public.event_document_ocr_reviews FROM service_role;
 REVOKE ALL ON FUNCTION public.prevent_event_document_ocr_review_update()
   FROM PUBLIC, anon, authenticated;
 -- In particular, direct authenticated REST must NEVER expose the review text.

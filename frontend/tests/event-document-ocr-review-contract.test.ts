@@ -3,7 +3,7 @@ import {test} from 'node:test'
 import {readFileSync} from 'node:fs'
 
 const read=(path:string)=>readFileSync(new URL('../../'+path,import.meta.url),'utf8')
-const sql=read('supabase/migrations/20261113023002_event_document_ocr_review_audit.sql')
+const sql=read('supabase/migrations/20261113024454_event_document_ocr_review_audit.sql')
 const api=read('frontend/src/app/api/events/[eventId]/documents/[documentId]/ocr-reviews/route.ts')
 const handler=read('frontend/src/lib/server/event-document-ocr-review.ts')
 const ui=read('frontend/src/components/sera/EventLocalOcrPreview.tsx')
