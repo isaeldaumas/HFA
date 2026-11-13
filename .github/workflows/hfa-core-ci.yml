@@ -128,6 +128,9 @@ jobs:
       - name: Actual PDF and DOCX text parser regression with synthetic originals
         run: ./frontend/node_modules/.bin/tsx --test frontend/tests/event-source-preview-real-parsers.test.ts
 
+      - name: Strict per-source SHA and PDF page citations in read-only consolidation
+        run: ./frontend/node_modules/.bin/tsx --test frontend/tests/verified-source-bundle.test.ts
+
       - name: Original source preview privacy and no-scientific-mutation contract
         working-directory: frontend
         run: node --test tests/event-source-preview-contract.test.mjs
