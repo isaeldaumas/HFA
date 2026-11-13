@@ -135,6 +135,10 @@ jobs:
         working-directory: frontend
         run: node --test tests/event-source-preview-contract.test.mjs
 
+      - name: Offline OCR evidence provenance and CER/WER adversarial checks
+        working-directory: frontend
+        run: python3 -B -m unittest discover -s tests -p 'test_hfa122_ocr_eval.py' -v
+
       - name: Initial event multi-original queue, retries and audit fail-closed
         run: ./frontend/node_modules/.bin/tsx --test frontend/tests/additional-originals.test.ts
 

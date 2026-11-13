@@ -61,10 +61,17 @@ export async function appendAdditionalOriginals(params:{
         body:fd,redirect:'error',cache:'no-store',
       })
       const result:unknown=await response.json()
+      // The acknowledgement must correspond to the exact uploaded bytes, not
+      // just a successful HTTP code or an unrelated indexed source.
+      const hashBytes=await crypto.subtle.digest('SHA-256',await item.file.arrayBuffer())
+      const localSha=Array.from(new Uint8Array(hashBytes),x=>x.toString(16).padStart(2,'0')).join('')
+      const reportedSha=typeof result==='object' && result!==null && 'sha256' in result
+        ? result.sha256 : null
       const status=typeof result==='object'&&result!==null&&
         'status' in result ? result.status : null
-      if ((response.status===201&&status==='created') ||
-          (response.status===200&&status==='already_present')) {
+      if (((response.status===201&&status==='created') ||
+           (response.status===200&&status==='already_present')) &&
+          reportedSha===localSha) {
         onStatus(item.id,'saved',status==='created'?
           'Original preservado. Sem extração automática.':
           'Original já registrado, sem duplicidade.')

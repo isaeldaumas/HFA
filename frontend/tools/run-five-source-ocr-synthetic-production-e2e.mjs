@@ -321,6 +321,53 @@ async function verifyFiveSources(a,b){
   console.log('REAL_PRODUCTION_FIVE_SOURCES_PER_TENANT_ALL_HASHES_ISOLATION_PREVIEWS_PASS')
 }
 
+
+async function verifyActualApiEventAndFiveSources(a,b){
+  const response=await call('POST','/api/events',a.token,201,{
+    title:'HFA 122 SYNTHETIC FULL FIVE SOURCE API',
+    raw_input:'Synthetic-only event registration and five original sources. No operational content.',
+    input_type:'text',source_type:'text',analysis_mode:'register_only',
+    confidentiality_level:'STANDARD',locale:'pt-BR',
+  })
+  const eventId=response.event_id
+  assert.match(eventId,/^[0-9a-f-]{36}$/i)
+  created.events.push(eventId);checkpoint()
+  const actor={...a,eventId}
+  const first=new FormData()
+  first.set('file',new File([image],'source.png',{type:'image/png'}))
+  const initial=await fetch('https://systemhfa.vercel.app/api/events/'+eventId+'/documents',{
+    method:'POST',headers:{Authorization:'Bearer '+a.token},
+    body:first,redirect:'error',cache:'no-store',signal:AbortSignal.timeout(25000),
+  })
+  assert.equal(initial.status,201,'API_EVENT_PNG_'+initial.status)
+  assert.equal((await initial.json()).status,'created')
+  for(const spec of fiveFixtures){
+    const result=await appendFiveFixture(actor,spec)
+    assert.equal(result.status,201,'API_EVENT_APPEND_'+spec.name+'_'+result.status)
+    assert.equal(result.obj.status,'created')
+    assert.equal(result.obj.analysisChanged,false)
+  }
+  const rows=await verifiedManifest(actor)
+  assert.equal(rows.length,5)
+  assert.deepEqual(rows.map(x=>x.sourceOrdinal).sort((x,y)=>x-y),[1,2,3,4,5])
+  const expected=new Map([['source.png',image],...fiveFixtures.map(x=>[x.name,fixtureBytes.get(x.name)])])
+  for(const [name,bytes] of expected){
+    const row=rows.find(x=>x.fileName===name)
+    assert.ok(row,'MISSING_FULL_API_SOURCE_'+name)
+    assert.equal(row.sha256,createHash('sha256').update(bytes).digest('hex'))
+    const otherRows=await call('GET','/api/events/'+eventId+'/documents',b.token,404)
+  }
+  const same=await appendFiveFixture(actor,fiveFixtures[0])
+  assert.equal(same.status,200)
+  assert.equal(same.obj.status,'already_present')
+  assert.equal((await verifiedManifest(actor)).length,5)
+  const count=await admin.from('events').select('id',{count:'exact',head:true})
+    .eq('tenant_id',a.tenantId).eq('title','HFA 122 SYNTHETIC FULL FIVE SOURCE API')
+  assert.equal(count.error,null)
+  assert.equal(count.count,1)
+  console.log('PRODUCTION_AUTHENTICATED_API_EVENT_CREATION_FIVE_ORIGINALS_PASS')
+}
+
 async function cleanup(){
   let issues=[]
   async function attempt(label,fn){
@@ -388,6 +435,7 @@ try{
   const a=actor('A'),b=actor('B')
   await provision(a)
   await provision(b)
+  await verifyActualApiEventAndFiveSources(a,b)
   await verify(a,b)
   await verifyFiveSources(a,b)
   console.log('PRODUCTION_AUTHENTICATED_SYNTHETIC_E2E_PASS')
