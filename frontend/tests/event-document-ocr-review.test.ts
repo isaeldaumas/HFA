@@ -164,3 +164,77 @@ test('rate cap, backend error and scoped history fail closed',async()=>{
   assert.ok(m.log.some(x=>x.action==='eq:tenant_id'&&x.value===tenant))
   assert.ok(m.log.some(x=>x.action==='eq:document_id'&&x.value===documentId))
 })
+
+async function pdfFixture(pages:string[]):Promise<Buffer>{
+  const PDFDocument=(await import('pdfkit')).default
+  const doc=new PDFDocument({compress:false})
+  const chunks:Buffer[]=[]
+  doc.on('data',(chunk:Buffer)=>chunks.push(chunk))
+  const done=new Promise<Buffer>((resolve,reject)=>{
+    doc.on('end',()=>resolve(Buffer.concat(chunks)))
+    doc.on('error',reject)
+  })
+  pages.forEach((content,index)=>{
+    if(index)doc.addPage()
+    doc.fontSize(12).text(content)
+  })
+  doc.end()
+  return done
+}
+function pdfReviewFixture(data:Buffer,page:number){
+  const pdfSource={...source,sha256:sha(data),mimeType:'application/pdf',
+    sizeBytes:data.length}
+  const pdfReview=buildLocalOcrReviewRecord({source:pdfSource,pageNumber:page,
+    originalText:'SYNTHETIC OCR',correctedText:'SYNTHETIC OCR REVIEWED',
+    ocrTruncated:false,comparedToOriginal:true,checkedCorrections:true})
+  return {pdfSource,pdfReview}
+}
+test('PDF review accepts factual page 2, both created and idempotent replay',async()=>{
+  const pdf=await pdfFixture(['First synthetic page','Second synthetic page'])
+  const {pdfSource,pdfReview}=pdfReviewFixture(pdf,2)
+  for(const duplicate of [false,true]){
+    const m=mock({duplicate})
+    const deps={
+      manifest:async()=>[{id:documentId,sourceOrdinal:2,
+        sha256:pdfSource.sha256,mimeType:'application/pdf',sizeBytes:pdf.length}],
+      download:async()=>({bytes:Uint8Array.from(pdf),mimeType:'application/pdf',
+        hashVerified:true}),
+    }
+    const res=await storeAuthorizedOcrReview({...identity,admin:m.admin},
+      pdfReview,deps as never)
+    assert.equal(res.status,duplicate?'already_present':'created')
+    assert.equal(m.log.filter(x=>x.action==='insert').length,duplicate?0:1)
+  }
+})
+test('PDF review rejects nonexistent page even on replay, before any DB read',async()=>{
+  const pdf=await pdfFixture(['Only one synthetic page'])
+  const {pdfSource,pdfReview}=pdfReviewFixture(pdf,2)
+  for(const duplicate of [false,true]){
+    const m=mock({duplicate})
+    const deps={
+      manifest:async()=>[{id:documentId,sourceOrdinal:2,
+        sha256:pdfSource.sha256,mimeType:'application/pdf',sizeBytes:pdf.length}],
+      download:async()=>({bytes:Uint8Array.from(pdf),mimeType:'application/pdf',
+        hashVerified:true}),
+    }
+    await assert.rejects(storeAuthorizedOcrReview({...identity,admin:m.admin},
+      pdfReview,deps as never),(error:unknown)=>
+        error instanceof OcrReviewStoreError&&error.code==='REVIEW_NOT_AVAILABLE')
+    assert.equal(m.log.length,0)
+  }
+})
+test('corrupt PDF with matching original SHA fails closed without DB access',async()=>{
+  const corrupt=Buffer.from('%PDF-invalid synthetic document')
+  const {pdfSource,pdfReview}=pdfReviewFixture(corrupt,1)
+  const m=mock({duplicate:true})
+  const deps={
+    manifest:async()=>[{id:documentId,sourceOrdinal:2,
+      sha256:pdfSource.sha256,mimeType:'application/pdf',sizeBytes:corrupt.length}],
+    download:async()=>({bytes:Uint8Array.from(corrupt),mimeType:'application/pdf',
+      hashVerified:true}),
+  }
+  await assert.rejects(storeAuthorizedOcrReview({...identity,admin:m.admin},
+    pdfReview,deps as never),(error:unknown)=>
+      error instanceof OcrReviewStoreError&&error.code==='REVIEW_NOT_AVAILABLE')
+  assert.equal(m.log.length,0)
+})
