@@ -43,6 +43,35 @@ test('six read-only requests verify own source and deny other tenant',async()=>{
     {result:'PASS',checked:6,writes:0,downloads:0,fixtureType:'SYNTHETIC_ONLY'})
   assert.equal(m.requests.length,6)
 })
+test('valid Content-Length in own fixture manifest is accepted',async()=>{
+  const m=mock()
+  const wrapped=async(url,opts)=>{
+    const res=await m.fetchImpl(url,opts)
+    if(res.status!==200)return res
+    const value=await res.text()
+    return new Response(value,{status:200,headers:{
+      'content-type':'application/json',
+      'content-length':String(Buffer.byteLength(value)),
+    }})
+  }
+  assert.equal((await inspectDocumentIsolation({
+    config:cfg,fetchImpl:wrapped,
+  })).checked,6)
+})
+test('non-numeric Content-Length fails closed even when JSON is valid',async()=>{
+  const m=mock()
+  const wrapped=async(url,opts)=>{
+    const res=await m.fetchImpl(url,opts)
+    if(res.status!==200)return res
+    const value=await res.text()
+    return new Response(value,{status:200,headers:{
+      'content-type':'application/json','content-length':'bogus',
+    }})
+  }
+  await assert.rejects(inspectDocumentIsolation({
+    config:cfg,fetchImpl:wrapped,
+  }),/DOCUMENT_E2E_RESPONSE_TOO_LARGE/)
+})
 test('wrong-tenant manifest access fails closed',async()=>{
   const m=mock({crossStatus:200})
   await assert.rejects(inspectDocumentIsolation({config:cfg,fetchImpl:m.fetchImpl}),

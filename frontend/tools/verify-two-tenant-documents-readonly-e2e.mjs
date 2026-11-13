@@ -46,7 +46,7 @@ export async function inspectDocumentIsolation({ config, fetchImpl = globalThis.
         continue
       }
       const length = response.headers.get('content-length')
-      if (length && (!/^\\d+$/.test(length) || Number(length) > MAX_BYTES)) {
+      if (length && (!/^\d+$/.test(length) || Number(length) > MAX_BYTES)) {
         throw new Error('DOCUMENT_E2E_RESPONSE_TOO_LARGE')
       }
       if (!response.body) throw new Error('DOCUMENT_E2E_EMPTY_BODY')

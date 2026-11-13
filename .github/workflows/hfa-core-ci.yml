@@ -77,6 +77,10 @@ jobs:
         working-directory: frontend
         run: node --test tests/two-tenant-readonly-e2e.test.mjs
 
+      - name: Two-tenant original document read-only fixture contract
+        working-directory: frontend
+        run: node --test tests/two-tenant-documents-readonly-e2e.test.mjs
+
       - name: TypeScript
         working-directory: frontend
         run: npx tsc --noEmit
