@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { EventSourceTextPreview } from './EventSourceTextPreview'
 import { EventLocalOcrPreview } from './EventLocalOcrPreview'
+import { EventConsolidatedSourcesPreview } from './EventConsolidatedSourcesPreview'
 
 type EventDocument = {
   id: string
@@ -271,6 +272,11 @@ export function EventDocumentsPanel({
             </li>
           ))}
         </ul>
+      )}
+      {canAppend && documents && documents.length > 0 && accessToken && (
+        <EventConsolidatedSourcesPreview
+          eventId={eventId} accessToken={accessToken} documents={documents}
+        />
       )}
       {canAppend && documents && slots > 0 && (
         <div className="mt-4 space-y-3 border-t border-slate-700 pt-4">
