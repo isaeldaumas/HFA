@@ -445,7 +445,10 @@ export default function NewEventPage() {
           />
         )}
 
-        <section aria-label="Fontes documentais adicionais" className="rounded-xl border border-slate-700 bg-slate-900/60 p-4 space-y-3">
+        <section aria-label="Fontes documentais adicionais"
+          onDragOver={(ev)=>{if (!registeredEventId && !loading) ev.preventDefault()}}
+          onDrop={(ev)=>{ev.preventDefault();queueMore(ev.dataTransfer.files)}}
+          className="rounded-xl border border-slate-700 bg-slate-900/60 p-4 space-y-3">
           <h2 className="text-sm font-semibold text-slate-200">Fontes originais adicionais (opcional)</h2>
           <p className="text-xs text-slate-400">
             Até cinco originais por evento, incluindo o PDF/DOCX principal quando houver.
