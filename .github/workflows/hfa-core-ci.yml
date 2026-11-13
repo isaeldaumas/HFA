@@ -93,6 +93,10 @@ jobs:
         working-directory: frontend
         run: ./node_modules/.bin/tsx --test tests/event-local-ocr-original.test.ts
 
+      - name: Authenticated OCR review persistence, tenant and integrity regression
+        working-directory: frontend
+        run: ./node_modules/.bin/tsx --test tests/event-document-ocr-review.test.ts tests/event-document-ocr-review-contract.test.ts
+
       - name: Local OCR explicit human transcript review and provenance
         working-directory: frontend
         run: ./node_modules/.bin/tsx --test tests/event-local-ocr-human-review.test.ts

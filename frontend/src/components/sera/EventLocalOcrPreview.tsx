@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   buildLocalOcrReviewRecord,localOcrReviewFileName,
   type LocalOcrReviewRecord,
@@ -119,8 +119,38 @@ export function EventLocalOcrPreview({
   const [comparedToOriginal,setComparedToOriginal]=useState(false)
   const [checkedCorrections,setCheckedCorrections]=useState(false)
   const [localReview,setLocalReview]=useState<LocalOcrReviewRecord|null>(null)
+  const [storeBusy,setStoreBusy]=useState(false)
+  const [storeError,setStoreError]=useState('')
+  type Receipt={
+    id:string;createdAt:string;pageNumber:number|null
+    originalSha256:string;reviewerAuthenticated:true
+    persisted:true;scientificallyValidated:false;analysisChanged:false
+  }
+  const [savedReceipt,setSavedReceipt]=useState<Receipt|null>(null)
+  const [history,setHistory]=useState<Receipt[]>([])
+  const reviewUrl='/api/events/'+eventId+'/documents/'+documentId+'/ocr-reviews'
+  useEffect(()=>{
+    if(!accessToken) return
+    const controller=new AbortController()
+    async function loadHistory() {
+      try {
+        const res=await fetch(reviewUrl,{
+          headers:{Authorization:'Bearer '+accessToken},
+          cache:'no-store',signal:controller.signal,
+        })
+        if(!res.ok)return
+        const data=await res.json() as {reviews?:Receipt[]}
+        if(!controller.signal.aborted&&Array.isArray(data.reviews))setHistory(data.reviews)
+      }catch{/* Optional history must not grant upload/read authorization. */}
+    }
+    void loadHistory()
+    return ()=>controller.abort()
+  },[accessToken,reviewUrl])
+
   function invalidateReview() {
     setLocalReview(null)
+    setSavedReceipt(null)
+    setStoreError('')
     setComparedToOriginal(false)
     setCheckedCorrections(false)
   }
@@ -129,7 +159,7 @@ export function EventLocalOcrPreview({
   const eligible=mimeType!==null &&
     (isPdf||['image/png','image/jpeg','image/webp'].includes(mimeType))
   async function recognize() {
-    if(busy || !eligible || !sha256 || !mimeType || !accessToken) return
+    if(busy || storeBusy || !eligible || !sha256 || !mimeType || !accessToken) return
     setBusy(true);setError('');setResult(null);setCorrectedText('');invalidateReview();setProgress('Conferindo original...')
     let worker: Awaited<ReturnType<(typeof import('tesseract.js'))['createWorker']>>|null=null
     try {
@@ -177,7 +207,7 @@ export function EventLocalOcrPreview({
     }
   }
   function declareReview() {
-    if(!result || !sha256 || !mimeType) return
+    if(storeBusy || !result || !sha256 || !mimeType) return
     try {
       const source:OcrSourceIdentity={
         eventId,documentId,sourceOrdinal,sha256,mimeType,sizeBytes,
@@ -188,14 +218,49 @@ export function EventLocalOcrPreview({
         comparedToOriginal,checkedCorrections,
       })
       setLocalReview(record)
+      setSavedReceipt(null)
+      setStoreError('')
       setError('')
     } catch {
       setLocalReview(null)
       setError('Revisão não confirmada: verifique original, conteúdo integral e declarações.')
     }
   }
+  async function persistReview() {
+    if(!localReview||storeBusy||!accessToken)return
+    setStoreBusy(true);setStoreError('');setSavedReceipt(null)
+    try {
+      const res=await fetch(reviewUrl,{
+        method:'POST',
+        headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},
+        body:JSON.stringify(localReview),cache:'no-store',redirect:'error',
+      })
+      const data:unknown=await res.json()
+      if(!res.ok || typeof data!=='object' || data===null ||
+         !('receipt' in data) || typeof data.receipt!=='object' ||
+         data.receipt===null ||
+         !('id' in data.receipt)||typeof data.receipt.id!=='string'||
+         !('originalSha256' in data.receipt)||
+         data.receipt.originalSha256!==sha256||
+         !('persisted' in data.receipt)||data.receipt.persisted!==true||
+         !('reviewerAuthenticated' in data.receipt)||
+         data.receipt.reviewerAuthenticated!==true||
+         !('scientificallyValidated' in data.receipt)||
+         data.receipt.scientificallyValidated!==false||
+         !('analysisChanged' in data.receipt)||
+         data.receipt.analysisChanged!==false) {
+        throw new Error('Não foi possível confirmar a gravação da revisão.')
+      }
+      const receipt=data.receipt as Receipt
+      setSavedReceipt(receipt)
+      setHistory(current=>current.some(item=>item.id===receipt.id)?
+        current:[receipt,...current].slice(0,20))
+    }catch{
+      setStoreError('Registro não confirmado. A transcrição continua apenas nesta sessão; confira o histórico antes de reenviar.')
+    }finally{setStoreBusy(false)}
+  }
   function downloadLocalReview() {
-    if(!localReview) return
+    if(!localReview || storeBusy) return
     // Explicit user action only: no server write or silent export.
     const data=new Blob([JSON.stringify(localReview,null,2)],{
       type:'application/json;charset=utf-8',
@@ -224,11 +289,11 @@ export function EventLocalOcrPreview({
     {isPdf && <label className="flex items-center gap-2 text-xs text-slate-300">
       Página do PDF (1 a 80):
       <input type="number" min={1} max={80} step={1} value={page}
-        onChange={e=>setPage(e.target.value)} disabled={busy}
+        onChange={e=>{setPage(e.target.value);setResult(null);setCorrectedText('');invalidateReview()}} disabled={busy||storeBusy}
         className="w-20 rounded border border-slate-600 bg-slate-900 px-2 py-1"/>
       <span>Uma página por solicitação.</span>
     </label>}
-    <button type="button" onClick={()=>void recognize()} disabled={busy}
+    <button type="button" onClick={()=>void recognize()} disabled={busy||storeBusy}
       className="rounded border border-slate-600 px-3 py-1.5 text-xs text-slate-100 disabled:opacity-40">
       {busy?'Processando no navegador...':isPdf?'Reconhecer página por OCR local':'Reconhecer imagem por OCR local'}
     </button>
@@ -249,7 +314,7 @@ export function EventLocalOcrPreview({
         className="w-full resize-y rounded border border-slate-700 bg-slate-900 p-3 font-mono text-xs text-slate-100"/>
       <fieldset className="space-y-2 border-t border-slate-700 pt-3">
         <legend className="text-xs font-semibold text-slate-200">
-          Conferência humana da transcrição (somente nesta sessão)
+          Conferência humana da transcrição (local ou registrada por ação explícita)
         </legend>
         <p className="text-xs text-slate-400">
           Compare o OCR com o arquivo original por meio do download de anexos.
@@ -257,19 +322,19 @@ export function EventLocalOcrPreview({
           hipóteses, conclusões causais ou fatos ausentes da fonte.
         </p>
         <textarea value={correctedText}
-          onChange={e=>{invalidateReview();setCorrectedText(e.target.value)}}
+          onChange={e=>{invalidateReview();setCorrectedText(e.target.value)}} disabled={storeBusy}
           rows={12} maxLength={60000}
           aria-label={'Transcrição corrigida da fonte '+sourceOrdinal}
           className="w-full resize-y rounded border border-slate-600 bg-slate-900 p-3 font-mono text-xs text-slate-100"/>
         <label className="flex items-start gap-2 text-xs text-slate-200">
-          <input type="checkbox" checked={comparedToOriginal} onChange={e=>{
-            setLocalReview(null);setComparedToOriginal(e.target.checked)
+          <input type="checkbox" disabled={storeBusy} checked={comparedToOriginal} onChange={e=>{
+            setLocalReview(null);setSavedReceipt(null);setComparedToOriginal(e.target.checked)
           }}/>
           Comparei pessoalmente a transcrição com a imagem ou página original.
         </label>
         <label className="flex items-start gap-2 text-xs text-slate-200">
-          <input type="checkbox" checked={checkedCorrections} onChange={e=>{
-            setLocalReview(null);setCheckedCorrections(e.target.checked)
+          <input type="checkbox" disabled={storeBusy} checked={checkedCorrections} onChange={e=>{
+            setLocalReview(null);setSavedReceipt(null);setCheckedCorrections(e.target.checked)
           }}/>
           Revisei o texto, corrigi eventuais erros e não introduzi informações não presentes na fonte.
         </label>
@@ -277,17 +342,32 @@ export function EventLocalOcrPreview({
           Prévia truncada: revisão integral indisponível. Não é possível declarar conferência concluída.
         </p>}
         <button type="button" onClick={declareReview}
-          disabled={result.truncated || !comparedToOriginal || !checkedCorrections ||
+          disabled={storeBusy || result.truncated || !comparedToOriginal || !checkedCorrections ||
             !correctedText.trim() || correctedText.length>60000}
           className="rounded border border-slate-500 px-3 py-1.5 text-xs text-slate-100 disabled:opacity-40">
           Declarar conferência local
         </button>
         {localReview && <div className="space-y-2">
           <p role="status" className="text-xs text-amber-300">
-            Conferência declarada nesta sessão. Sem assinatura, identificação verificável
-            do revisor ou registro de auditoria no servidor.
+            Conferência inicialmente declarada nesta sessão, sem assinatura digital.
+            Somente a confirmação abaixo comprova a gravação autenticada no servidor.
           </p>
-          <button type="button" onClick={downloadLocalReview}
+          <p className="text-xs text-slate-400">
+            Salvar a revisão envia o texto OCR e a transcrição corrigida para
+            armazenamento confidencial no HFA. O registro guarda o identificador
+            do revisor autenticado e não pode ser editado. Não é aprovação científica.
+          </p>
+          <button type="button" onClick={()=>void persistReview()} disabled={storeBusy||!!savedReceipt}
+            className="rounded border border-slate-500 px-3 py-1.5 text-xs text-slate-100 disabled:opacity-40">
+            {storeBusy?'Registrando conferência...':savedReceipt?
+              'Revisão registrada':'Salvar conferência no HFA'}
+          </button>
+          {storeError&&<p role="alert" className="text-xs text-amber-300">{storeError}</p>}
+          {savedReceipt&&<p role="status" className="text-xs text-slate-200">
+            Registro persistido: {savedReceipt.id} · {savedReceipt.createdAt}.
+            Responsável autenticado; declaração pessoal, sem certificação da transcrição.
+          </p>}
+          <button type="button" onClick={downloadLocalReview} disabled={storeBusy}
             className="rounded border border-slate-500 px-3 py-1.5 text-xs text-slate-100">
             Baixar transcrição e proveniência (.json)
           </button>
@@ -298,11 +378,26 @@ export function EventLocalOcrPreview({
           </p>
         </div>}
       </fieldset>
+      {history.length>0&&<details className="rounded border border-slate-700 p-2">
+        <summary className="cursor-pointer text-xs text-slate-300">
+          Histórico de conferências registradas ({history.length} mais recentes)
+        </summary>
+        <ul className="mt-2 space-y-1 text-xs text-slate-400">
+          {history.map(item=><li key={item.id}>
+            {item.createdAt} · {item.pageNumber?'página '+item.pageNumber:'imagem'}
+            {' '}· ID {item.id}
+          </li>)}
+        </ul>
+        <p className="text-xs text-slate-500">
+          Histórico de declarações autenticadas, não certificação científica nem
+          reprodução automática do texto na análise.
+        </p>
+      </details>}
       <p className="break-all font-mono text-[10px] text-slate-500">SHA-256: {sha256}</p>
       <p className="text-xs text-slate-400">
         Resultado temporário. Nenhum evento, narrativa, categoria P/O/A ou análise SERA foi alterado.
       </p>
-      <button type="button" onClick={()=>{setResult(null);setCorrectedText('');invalidateReview()}}
+      <button type="button" disabled={storeBusy} onClick={()=>{setResult(null);setCorrectedText('');invalidateReview()}}
         className="text-xs underline text-slate-400">Descartar prévia</button>
     </div>}
   </div>

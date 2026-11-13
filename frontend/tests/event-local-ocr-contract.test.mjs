@@ -62,7 +62,7 @@ test('static assets carry component licenses for redistribution',()=>{
 })
 
 
-test('human correction, local self-declaration and export are never silent or persisted',()=>{
+test('human correction is declared locally; server persistence requires distinct explicit action',()=>{
   const ui=text('src/components/sera/EventLocalOcrPreview.tsx')
   const helper=text('src/lib/browser/local-ocr-human-review.ts')
   assert.match(ui,/buildLocalOcrReviewRecord/)
@@ -73,7 +73,7 @@ test('human correction, local self-declaration and export are never silent or pe
   assert.match(ui,/Baixar transcrição e proveniência/)
   assert.match(ui,/downloadLocalReview/)
   assert.match(ui,/JSON\.stringify\(localReview/)
-  assert.match(ui,/Sem assinatura, identificação verificável/)
+  assert.match(ui,/Conferência inicialmente declarada nesta sessão, sem assinatura digital/); assert.match(ui,/Salvar conferência no HFA/); assert.match(ui,/persistReview\(\)/)
   assert.match(helper,/reviewPersisted:false/)
   assert.match(helper,/reviewSignatureVerified:false/)
   assert.match(helper,/scientificallyValidated:false/)
