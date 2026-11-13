@@ -18,7 +18,10 @@ test('bearer and authoritatively resolved admin/analyst precede any private read
   assert.ok(route.indexOf('await requireBearerUser(req)') <
     route.indexOf('extractVerifiedEventSourcePreview({'))
   assert.match(route, /\['admin', 'analyst'\]/)
-  assert.match(route, /req\.body !== null/)
+  assert.match(route, /await hasUnexpectedPreviewRequestBody\(req\)/)
+  const bodyGuard = readFileSync(new URL('../src/lib/server/preview-request-body.ts',import.meta.url),'utf8')
+  assert.match(bodyGuard, /req\.body/)
+  assert.match(bodyGuard, /await reader\.read\(\)/)
   assert.doesNotMatch(route, /req\.json\(|req\.formData\(/)
   assert.match(route, /'Vary': 'Authorization'/)
   assert.match(route, /'Cache-Control': 'private, no-store'/)
