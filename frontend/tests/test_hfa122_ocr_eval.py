@@ -125,5 +125,26 @@ class OCRQualityTests(unittest.TestCase):
         self.assertEqual(edits('abcd','ab'),2)
         self.assertEqual(edits(['a','b'],['a','x','b']),1)
 
+    def test_aliased_reference_and_ocr_blocked(self):
+        self.case['ocr_path']='./reference.txt'
+        with self.assertRaisesRegex(InvalidEvidence, 'distinct files'):
+            self.run_case()
+
+    def test_critical_discrepancies_detected(self):
+        ref=b'Aeronave PR-ABC em 12/11/2026 nao acionou flaps na pista 15'
+        ocr=b'Aeronave PR-ABD em 13/11/2026 acionou trem na pista 18'
+        self.root.joinpath('reference.txt').write_bytes(ref)
+        self.root.joinpath('recognized.txt').write_bytes(ocr)
+        self.case['reference_sha256']=sha256(ref).hexdigest()
+        self.case['ocr_sha256']=sha256(ocr).hexdigest()
+        out=self.run_case()
+        crit=out['critical_errors_total']
+        self.assertGreater(crit['numbers'],0)
+        self.assertGreater(crit['dates'],0)
+        self.assertGreater(crit['registrations'],0)
+        self.assertGreater(crit['negations'],0)
+        self.assertGreater(crit['aeronautical_terms'],0)
+        self.assertEqual(crit['total'],sum(crit[k] for k in ('numbers','dates','registrations','negations','aeronautical_terms')))
+
 if __name__=='__main__':
     unittest.main()
