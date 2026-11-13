@@ -132,6 +132,9 @@ jobs:
         working-directory: frontend
         run: node --test tests/event-source-preview-contract.test.mjs
 
+      - name: Initial event multi-original queue, retries and audit fail-closed
+        run: ./frontend/node_modules/.bin/tsx --test frontend/tests/additional-originals.test.ts
+
       - name: Event append, concurrency, idempotency and byte-range tests
         run: ./frontend/node_modules/.bin/tsx --test frontend/tests/event-document-append.test.ts
 
