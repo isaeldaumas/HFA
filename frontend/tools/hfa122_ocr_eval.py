@@ -13,6 +13,8 @@ KINDS = {'scanned_pdf':('.pdf',),'png':('.png',),
          'jpeg':('.jpg','.jpeg'),'webp':('.webp',)}
 MAX_ORIGINAL = 30_000_000
 MAX_TRANSCRIPT = 2_000_000
+# CPU bound for pure-Python Levenshtein; the file-size bound alone is insufficient.
+MAX_EDIT_CELLS = 25_000_000
 
 class InvalidEvidence(ValueError):
     pass
@@ -22,6 +24,23 @@ def normalize(text: str, mode: str) -> str:
     return ' '.join(text.split()) if mode=='whitespace' else text
 
 def edits(a, b):
+    # Trim identical edges first; near-identical large transcripts remain measurable.
+    if a == b:
+        return 0
+    start = 0
+    end = min(len(a), len(b))
+    while start < end and a[start] == b[start]:
+        start += 1
+    if start:
+        a, b = a[start:], b[start:]
+    end = min(len(a), len(b))
+    suffix = 0
+    while suffix < end and a[-1-suffix] == b[-1-suffix]:
+        suffix += 1
+    if suffix:
+        a, b = a[:-suffix], b[:-suffix]
+    if len(a) * len(b) > MAX_EDIT_CELLS:
+        raise InvalidEvidence('Edit distance exceeds offline computation budget; split evidence into independently verified pages')
     if len(a)>len(b): a,b=b,a
     prev=list(range(len(a)+1))
     for i,v in enumerate(b,1):
